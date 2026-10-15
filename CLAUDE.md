@@ -21,6 +21,10 @@ Full commands in `AGENTS.md`. Short version, always:
 - **Claim your work** in `docs/working_on.md` (who, branch, mob/files). One person per mob page at a time. Remove your line when the PR is merged.
 - **Session start:** `git fetch --all --prune` -> switch to your branch -> `git pull --rebase` -> `git rebase origin/main` -> `gh pr list`.
 - **After EVERY change:** `git status` (own files only) -> commit `<area>: <what>` -> `git fetch` + `gh pr list` -> `git pull --rebase` + `git rebase origin/main` -> `git push`. Done + tested -> `gh pr create --fill --base main`; green + no conflicts -> `gh pr merge --squash --delete-branch`.
+- **Always clean up git (user rule, 2026-10-15):** after every merge and at the end of every turn, no leftovers in GitHub Desktop's branch/worktree lists. Full steps: `AGENTS.md` section 7.
+  - Merged PR -> `git worktree remove` its worktree, `git branch -d` its local branch, `git fetch --all --prune`, remove your `docs/working_on.md` line.
+  - Delete `backup/*` branches once the rebase/merge is verified and pushed. Never leave an unpushed worktree or branch behind.
+  - Only your own branches/worktrees; someone else's stale branch -> tell the user, never delete it.
 - **Merge conflicts:** never leave or push them.
   - First a safety copy: `git branch backup/<github-name>-<yyyyMMdd-HHmm>`.
   - Keep both sides' intent, never blindly "mine" or "theirs".
@@ -133,7 +137,9 @@ When the user says "model from A, animations from B":
     - `mobs/<mob>/` viewer pages (only there, no copy in the root) · `archive/<mob>/` old versions (old sounds in `archive/<mob>/sounds/`)
     - `references/<mob>/` only material the user gave (photos, videos); not yet tied to a mob -> `references/_unsorted/`
     - `sounds/<mob>/` every sound as `.ogg` (the mod) + `.mp3` (browser backup); pages pick with `canPlayType` · `tools/` test and helper scripts · `docs/` changelog + session log
+    - Root holds only `README.md`, `CLAUDE.md`, `AGENTS.md`, `run.txt`, `.gitignore`, `.gitattributes`, `.env.example`, `.vscode/`, `.claude/` and the folders. Never a copy of a viewer or reference in the root, even if asked for "in the root": sort it in. (2026-10-15)
     - New files from the user in the root -> sort them in; exact duplicates (same hash) -> delete.
+    - File names: lowercase, `_` instead of spaces, say what it is (`drop_kick_slow_motion.mp4`, not `VID_2026....mp4` or a hash). Fix every path that points to a renamed file. (2026-10-15)
     - Test output (renders, clip reports, `shot_*.txt/.png`) goes to the session scratchpad / `%TEMP%`, never into the project. (2026-10-14)
     - Deleting project files can be blocked by the permission check: then list them for the user to delete; never work around it.
 16. **Max 2500 lines per file.** Bigger -> split it into a folder with parts by section (e.g. `style.css`, `painters.js`, `rig.js`, `anims.js`, `ui.js`). A split viewer page loads its parts with classic `<script src>` (no ES modules: they break when the page is opened as a local file).

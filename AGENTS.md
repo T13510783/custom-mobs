@@ -74,3 +74,21 @@ Make or switch branches and open/merge PRs whenever needed.
 
 - Message: `<area>: <what>` in simple English. One logical change per commit.
 - PR description: what changed, which files, how it was tested (or "not tested").
+
+## 7. Clean up: after every merge and at the end of every session
+
+GitHub Desktop (and `git branch` / `git worktree list`) should only show `main`, your active branch and active worktrees.
+
+```
+gh pr list --author @me                                   # what is still open?
+git worktree remove "C:\cm-worktrees\<topic>"             # worktree of a merged PR (work must be pushed)
+git branch -d <github-name>/<topic>                       # local branch of a merged PR (-D only after a squash merge, checked on GitHub)
+git branch -D backup/<github-name>-<yyyyMMdd-HHmm>        # backup, once the rebase/merge is verified and pushed
+git fetch --all --prune                                   # drops origin/... branches GitHub already deleted
+git worktree prune                                        # forgets worktree folders that were deleted by hand
+```
+
+- Then remove your line from `docs/working_on.md`.
+- Only your own branches and worktrees. Someone else's stale branch: tell them (or your user), don't delete it.
+- Never remove a worktree or branch with unpushed or uncommitted work: commit + push it first.
+- Root and folders stay tidy too: see `CLAUDE.md` rule 15 (no copies in the root, no duplicates, clear lowercase names).
