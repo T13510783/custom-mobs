@@ -1,6 +1,7 @@
-cd "C:\custom mobs\mod"; .\gradlew.bat runClient
+cd .\mod; .\gradlew.bat runClient
 
-# Paste the line above in a PowerShell terminal (e.g. the VS Code terminal). It starts Minecraft 1.21.1 with The King mod.
+# Paste the line above in a PowerShell terminal opened in the project folder (the VS Code terminal opens there).
+# Works wherever the repo was cloned (e.g. C:\custom-mobs or C:\custom mobs). It starts Minecraft 1.21.1 with The King mod.
 # The first start downloads Minecraft + NeoForge (a few minutes). After that it starts in ~1 minute.
 # In game: Creative inventory -> "The King" tab -> spawn egg.
 #
@@ -8,4 +9,4 @@ cd "C:\custom mobs\mod"; .\gradlew.bat runClient
 #   .\gradlew.bat runTestWorld   = opens the test world: the King fights a zombie, then you
 #   .\gradlew.bat build          = makes the .jar (copied to builds\, newest 5 kept) + runs the 1:1 animation test
 #   .\gradlew.bat test           = only the 1:1 test (Java animation vs. the HTML viewer)
-# Old cmd.exe instead of PowerShell:  cd /d "C:\custom mobs\mod" && gradlew.bat runClient
+# Old cmd.exe instead of PowerShell:  cd mod && gradlew.bat runClient
