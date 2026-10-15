@@ -1,0 +1,2002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Patrick Bateman — 16x16 Vanilla+ 3D Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #0f1115;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow: hidden;
+      color: #e2e8f0;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .pill-bar {
+      background: rgba(20, 23, 30, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.4);
+    }
+    .pill-btn {
+      transition: all 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+      color: #94a3b8;
+    }
+    .pill-btn:hover {
+      color: #f1f5f9;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .pill-btn.active {
+      background: #e2e8f0;
+      color: #0f1115;
+      font-weight: 600;
+      box-shadow: 0 2px 10px rgba(226, 232, 240, 0.22);
+    }
+    .variant-btn.active {
+      background: rgba(255, 255, 255, 0.14);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.28);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <!-- Sleek Floating Bottom Pill Bar -->
+    <div class="fixed bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 max-w-[96vw]">
+      <div class="pill-bar rounded-full px-2 py-1.5 flex flex-wrap sm:flex-nowrap items-center justify-center gap-1 sm:gap-1.5">
+        <!-- 4 Outfit Variants from Reference Pics -->
+        <div class="flex items-center gap-1" role="group" aria-label="Outfit Variants">
+          <button data-variant="overcoat" class="pill-btn variant-btn active text-xs px-3 py-1.5 rounded-full border border-transparent whitespace-nowrap" title="Pic 1 & 2: Tan Overcoat, Black Gloves & Glock Pistol (Key 5)">
+            1. Tan Overcoat
+          </button>
+          <button data-variant="raincoat" class="pill-btn variant-btn text-xs px-3 py-1.5 rounded-full border border-transparent whitespace-nowrap" title="Pic 3 & 4: Clear Raincoat over Suit & Axe (Key 6)">
+            2. Raincoat
+          </button>
+          <button data-variant="walkman" class="pill-btn variant-btn text-xs px-3 py-1.5 rounded-full border border-transparent whitespace-nowrap" title="Pic 3: Walkman Headphones & Bone Card (Key 7)">
+            3. Walkman
+          </button>
+          <button data-variant="executive" class="pill-btn variant-btn text-xs px-3 py-1.5 rounded-full border border-transparent whitespace-nowrap" title="Pic 5: Suspenders, Shades & 1980s Brick Phone (Key 8)">
+            4. Suspenders
+          </button>
+        </div>
+
+        <!-- Subtle Divider -->
+        <div class="hidden sm:block w-[1px] h-5 bg-white/10 mx-1"></div>
+
+        <!-- 4 Selectable Animations -->
+        <div class="flex items-center gap-1" role="group" aria-label="Animations">
+          <button data-anim="idle" class="pill-btn anim-btn active text-xs px-3 py-1.5 rounded-full whitespace-nowrap" title="Idle (Key 1)">
+            Idle
+          </button>
+          <button data-anim="walk" class="pill-btn anim-btn text-xs px-3 py-1.5 rounded-full whitespace-nowrap" title="Walk (Key 2)">
+            Walk
+          </button>
+          <button data-anim="attack" class="pill-btn anim-btn text-xs px-3 py-1.5 rounded-full whitespace-nowrap" title="Attack (Key 3)">
+            Attack
+          </button>
+          <button data-anim="special" class="pill-btn anim-btn text-xs px-3 py-1.5 rounded-full whitespace-nowrap" title="Special (Key 4)">
+            Special
+          </button>
+        </div>
+      </div>
+
+      <!-- Small Camera-Reset Button -->
+      <button id="reset-camera-btn" aria-label="Reset Camera" title="Reset Camera" class="pill-bar pill-btn w-9 h-9 rounded-full flex items-center justify-center shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // In Blockbench / Vanilla Minecraft: 16 texels = 1 block unit.
+    const PX = 1 / 16; // 0.0625 Three.js world units per pixel
+
+    // Global state
+    let currentVariant = 'overcoat';
+    let currentAnim = 'idle';
+    let animTime = 0;
+
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f1115);
+
+    const camera = new THREE.PerspectiveCamera(
+      38,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      100
+    );
+    const DEFAULT_CAM_POS = new THREE.Vector3(1.85, 1.55, 2.85);
+    const DEFAULT_CAM_TARGET = new THREE.Vector3(0, 0.98, 0);
+    camera.position.copy(DEFAULT_CAM_POS);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.copy(DEFAULT_CAM_TARGET);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.065;
+    controls.minDistance = 1.2;
+    controls.maxDistance = 6.5;
+    controls.maxPolarAngle = Math.PI / 2 + 0.08;
+    controls.update();
+
+    // Soft studio lighting for crisp Vanilla+ pixel art shading
+    const ambientLight = new THREE.AmbientLight(0xdbe4f3, 0.68);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xfff7ed, 0.82);
+    keyLight.position.set(3.2, 5.2, 3.8);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 1024;
+    keyLight.shadow.mapSize.height = 1024;
+    keyLight.shadow.camera.near = 0.5;
+    keyLight.shadow.camera.far = 15;
+    const d = 1.8;
+    keyLight.shadow.camera.left = -d;
+    keyLight.shadow.camera.right = d;
+    keyLight.shadow.camera.top = d;
+    keyLight.shadow.camera.bottom = -d;
+    keyLight.shadow.bias = -0.0005;
+    scene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0x60a5fa, 0.32);
+    rimLight.position.set(-3.5, 2.5, -2.8);
+    scene.add(rimLight);
+
+    const fillLight = new THREE.DirectionalLight(0x94a3b8, 0.22);
+    fillLight.position.set(-2.2, 1.2, 2.5);
+    scene.add(fillLight);
+
+    const groundGeo = new THREE.PlaneGeometry(12, 12);
+    const groundMat = new THREE.ShadowMaterial({ opacity: 0.38 });
+    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+    groundMesh.rotation.x = -Math.PI / 2;
+    groundMesh.position.y = 0;
+    groundMesh.receiveShadow = true;
+    scene.add(groundMesh);
+
+    // Subtle 16x16 Vanilla+ block podium ring shadow accent
+    const ringCanvas = document.createElement('canvas');
+    ringCanvas.width = 64;
+    ringCanvas.height = 64;
+    const rCtx = ringCanvas.getContext('2d');
+    const grad = rCtx.createRadialGradient(32, 32, 2, 32, 32, 30);
+    grad.addColorStop(0, 'rgba(30, 41, 59, 0.32)');
+    grad.addColorStop(1, 'rgba(15, 17, 21, 0)');
+    rCtx.fillStyle = grad;
+    rCtx.fillRect(0, 0, 64, 64);
+    const glowTex = new THREE.CanvasTexture(ringCanvas);
+    const glowPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.9, 1.9),
+      new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false })
+    );
+    glowPlane.rotation.x = -Math.PI / 2;
+    glowPlane.position.y = 0.001;
+    scene.add(glowPlane);
+
+    /**
+     * Creates a crisp nearest-neighbor CanvasTexture with exact pixel dimensions.
+     * drawFn(ctx, w, h) paints the pixel grid.
+     */
+    function makePixelTexture(w, h, drawFn) {
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      drawFn(ctx, w, h);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.generateMipmaps = false;
+      tex.encoding = THREE.sRGBEncoding;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    // Helper for painting single pixels or rectangles on a pixel canvas
+    function px(ctx, x, y, w, h, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, w, h);
+    }
+
+    // Builds a 6-sided material array for a Three.js BoxGeometry
+    // Order: [Right (+x), Left (-x), Top (+y), Bottom (-y), Front (+z), Back (-z)]
+    function makeBoxMaterials(faces, options = {}) {
+      const { transparent = false, opacity = 1.0, alphaTest = 0, depthWrite = true } = options;
+      return faces.map((tex) =>
+        new THREE.MeshStandardMaterial({
+          map: tex,
+          roughness: options.roughness !== undefined ? options.roughness : 0.78,
+          metalness: options.metalness !== undefined ? options.metalness : 0.05,
+          transparent,
+          opacity,
+          alphaTest,
+          depthWrite,
+          side: transparent ? THREE.DoubleSide : THREE.FrontSide
+        })
+      );
+    }
+
+    function buildHeadMaterials(variant) {
+      // Base skin and hair palette (Vanilla+ shaded)
+      const skinBase = '#e3b496';
+      const skinLight = '#ecc2a6';
+      const skinMid = '#d6a182';
+      const skinShadow = '#c28b6b';
+      const skinDeep = '#a97457';
+      const hairDark = '#231710';
+      const hairMid = '#332218';
+      const hairLight = '#463022';
+
+      // Front face (8x8)
+      const front = makePixelTexture(8, 8, (ctx) => {
+        px(ctx, 0, 0, 8, 8, skinBase);
+        // Forehead highlight & hairline shadow
+        px(ctx, 0, 0, 8, 1, hairDark);
+        px(ctx, 1, 1, 6, 1, skinLight);
+        px(ctx, 0, 1, 1, 2, hairMid);
+        px(ctx, 7, 1, 1, 2, hairMid);
+
+        // Sharp cheekbones (Vanilla+ sculpted shading)
+        px(ctx, 0, 4, 1, 3, skinShadow);
+        px(ctx, 7, 4, 1, 3, skinShadow);
+        px(ctx, 1, 5, 1, 2, skinMid);
+        px(ctx, 6, 5, 1, 2, skinMid);
+        // Jawline shadow
+        px(ctx, 0, 7, 8, 1, skinShadow);
+        px(ctx, 2, 7, 4, 1, skinMid);
+
+        // Furrowed brow / intense eyebrows
+        px(ctx, 1, 2, 2, 1, hairDark);
+        px(ctx, 5, 2, 2, 1, hairDark);
+        px(ctx, 3, 2, 2, 1, skinShadow); // Brow furrow
+
+        // Eyes (intense dark gaze)
+        px(ctx, 1, 3, 1, 1, '#f8fafc');
+        px(ctx, 2, 3, 1, 1, '#1e1b18');
+        px(ctx, 5, 3, 1, 1, '#1e1b18');
+        px(ctx, 6, 3, 1, 1, '#f8fafc');
+
+        // Nose bridge
+        px(ctx, 3, 3, 1, 2, skinLight);
+        px(ctx, 4, 3, 1, 2, skinMid);
+        px(ctx, 3, 5, 2, 1, skinShadow);
+
+        // Expression per variant
+        if (variant === 'raincoat') {
+          // Singing / talking open mouth ("Hip to Be Square!")
+          px(ctx, 3, 6, 2, 1, '#6e2b2b');
+        } else if (variant === 'executive') {
+          // Subtle confident smirk
+          px(ctx, 2, 6, 3, 1, skinDeep);
+          px(ctx, 5, 6, 1, 1, skinMid);
+        } else {
+          // Deadpan serious mouth
+          px(ctx, 3, 6, 2, 1, skinDeep);
+        }
+      });
+
+      // Left / Right side of head (8x8)
+      const makeSide = (isRight) =>
+        makePixelTexture(8, 8, (ctx) => {
+          px(ctx, 0, 0, 8, 8, skinBase);
+          // Slicked-back hair across top and back of head
+          px(ctx, 0, 0, 8, 2, hairDark);
+          // Hair comb lines
+          px(ctx, 1, 1, 5, 1, hairMid);
+          if (isRight) {
+            // Front is left side of texture (x=0..2), back is right (x=5..7)
+            px(ctx, 5, 2, 3, 5, hairDark);
+            px(ctx, 6, 2, 1, 4, hairMid);
+            px(ctx, 4, 2, 1, 2, hairMid); // Sideburn
+            px(ctx, 3, 3, 1, 2, skinShadow); // Ear
+            px(ctx, 3, 4, 1, 1, skinLight);
+          } else {
+            // Front is right side of texture (x=5..7), back is left (x=0..2)
+            px(ctx, 0, 2, 3, 5, hairDark);
+            px(ctx, 1, 2, 1, 4, hairMid);
+            px(ctx, 3, 2, 1, 2, hairMid); // Sideburn
+            px(ctx, 4, 3, 1, 2, skinShadow); // Ear
+            px(ctx, 4, 4, 1, 1, skinLight);
+          }
+          px(ctx, 0, 7, 8, 1, skinShadow);
+        });
+
+      const back = makePixelTexture(8, 8, (ctx) => {
+        px(ctx, 0, 0, 8, 7, hairDark);
+        // Vertical slicked comb lines at the nape
+        for (let x = 1; x < 7; x += 2) {
+          px(ctx, x, 1, 1, 5, hairMid);
+        }
+        px(ctx, 2, 0, 4, 1, hairLight);
+        px(ctx, 0, 7, 8, 1, skinShadow);
+        px(ctx, 1, 6, 6, 1, hairDark);
+      });
+
+      const top = makePixelTexture(8, 8, (ctx) => {
+        px(ctx, 0, 0, 8, 8, hairDark);
+        // Slicked-back comb streaks from front to back
+        for (let x = 1; x < 7; x += 2) {
+          px(ctx, x, 1, 1, 6, hairMid);
+          px(ctx, x, 2, 1, 2, hairLight);
+        }
+      });
+
+      const bottom = makePixelTexture(8, 8, (ctx) => {
+        px(ctx, 0, 0, 8, 8, skinShadow);
+        px(ctx, 1, 1, 6, 6, skinDeep);
+      });
+
+      return makeBoxMaterials([makeSide(true), makeSide(false), top, bottom, front, back]);
+    }
+
+    function buildHairOverlayMaterials() {
+      const hairDark = '#231710';
+      const hairMid = '#352318';
+      const hairLight = '#4c3425';
+
+      const empty = makePixelTexture(8, 8, () => {});
+
+      const top = makePixelTexture(8, 8, (ctx) => {
+        px(ctx, 0, 0, 8, 8, hairDark);
+        px(ctx, 1, 1, 1, 6, hairMid);
+        px(ctx, 3, 0, 1, 7, hairLight);
+        px(ctx, 5, 1, 1, 6, hairMid);
+        px(ctx, 6, 2, 1, 4, hairLight);
+      });
+
+      const front = makePixelTexture(8, 8, (ctx) => {
+        //Swept hairline volume at top of forehead
+        px(ctx, 0, 0, 8, 1, hairDark);
+        px(ctx, 1, 0, 2, 1, hairLight);
+        px(ctx, 5, 0, 2, 1, hairMid);
+        px(ctx, 0, 1, 1, 2, hairDark);
+        px(ctx, 7, 1, 1, 2, hairDark);
+      });
+
+      const back = makePixelTexture(8, 8, (ctx) => {
+        px(ctx, 0, 0, 8, 7, hairDark);
+        px(ctx, 1, 1, 1, 5, hairMid);
+        px(ctx, 3, 1, 1, 5, hairLight);
+        px(ctx, 5, 1, 1, 5, hairMid);
+        px(ctx, 2, 6, 4, 1, hairDark);
+      });
+
+      const makeSide = (isRight) =>
+        makePixelTexture(8, 8, (ctx) => {
+          px(ctx, 0, 0, 8, 2, hairDark);
+          px(ctx, 1, 0, 5, 1, hairMid);
+          if (isRight) {
+            px(ctx, 5, 2, 3, 5, hairDark);
+            px(ctx, 6, 2, 1, 4, hairLight);
+          } else {
+            px(ctx, 0, 2, 3, 5, hairDark);
+            px(ctx, 1, 2, 1, 4, hairLight);
+          }
+        });
+
+      return makeBoxMaterials(
+        [makeSide(true), makeSide(false), top, empty, front, back],
+        { alphaTest: 0.5 }
+      );
+    }
+
+    function buildTorsoMaterials(variant) {
+      if (variant === 'overcoat') {
+        // Pic 1: Tan wool overcoat over light blue shirt & dark navy tie
+        const tanBase = '#bfa07a';
+        const tanLight = '#ccb08c';
+        const tanDark = '#a38460';
+        const tanDeep = '#876b4b';
+        const shirtBlue = '#d0e2f5';
+        const tieNavy = '#192847';
+        const tieStripe = '#3b5280';
+
+        const front = makePixelTexture(8, 12, (ctx) => {
+          px(ctx, 0, 0, 8, 12, tanBase);
+          // Side shading
+          px(ctx, 0, 0, 1, 12, tanDark);
+          px(ctx, 7, 0, 1, 12, tanDark);
+          // V-neck shirt & navy tie visible at top
+          px(ctx, 2, 0, 4, 2, shirtBlue);
+          px(ctx, 3, 1, 2, 3, tieNavy);
+          px(ctx, 3, 2, 1, 1, tieStripe);
+          px(ctx, 4, 3, 1, 1, tieStripe);
+          // Overcoat lapels & seam
+          px(ctx, 1, 0, 1, 4, tanLight);
+          px(ctx, 6, 0, 1, 4, tanLight);
+          px(ctx, 2, 2, 1, 3, tanLight);
+          px(ctx, 5, 2, 1, 3, tanLight);
+          // Center coat overlap line
+          px(ctx, 4, 4, 1, 8, tanDeep);
+          px(ctx, 3, 4, 1, 8, tanLight);
+          // Tan buttons
+          px(ctx, 3, 6, 1, 1, tanDeep);
+          px(ctx, 3, 9, 1, 1, tanDeep);
+        });
+
+        const back = makePixelTexture(8, 12, (ctx) => {
+          px(ctx, 0, 0, 8, 12, tanBase);
+          px(ctx, 0, 0, 1, 12, tanDark);
+          px(ctx, 7, 0, 1, 12, tanDark);
+          px(ctx, 3, 1, 1, 11, tanDark); // Center back seam
+          px(ctx, 4, 1, 1, 11, tanLight);
+        });
+
+        const side = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 12, tanDark);
+          px(ctx, 1, 0, 2, 12, tanBase);
+        });
+
+        const topBottom = makePixelTexture(8, 4, (ctx) => {
+          px(ctx, 0, 0, 8, 4, tanDark);
+          px(ctx, 2, 1, 4, 2, shirtBlue);
+        });
+
+        return makeBoxMaterials([side, side, topBottom, topBottom, front, back]);
+      }
+
+      if (variant === 'raincoat') {
+        // Pic 2: Underneath the clear raincoat is a sharp dark charcoal suit, white collar, dark tie
+        const suitBase = '#22252d';
+        const suitDark = '#17191f';
+        const suitLight = '#2f333d';
+        const shirtWhite = '#f1f5f9';
+        const tieDark = '#1a1d24';
+
+        const front = makePixelTexture(8, 12, (ctx) => {
+          px(ctx, 0, 0, 8, 12, suitBase);
+          px(ctx, 0, 0, 1, 12, suitDark);
+          px(ctx, 7, 0, 1, 12, suitDark);
+          // White shirt V-neck & collar
+          px(ctx, 2, 0, 4, 2, shirtWhite);
+          px(ctx, 3, 2, 2, 3, shirtWhite);
+          // Dark tie
+          px(ctx, 3, 1, 2, 4, tieDark);
+          // Suit lapels
+          px(ctx, 2, 1, 1, 4, suitLight);
+          px(ctx, 5, 1, 1, 4, suitLight);
+          px(ctx, 4, 5, 1, 7, suitDark);
+        });
+
+        const back = makePixelTexture(8, 12, (ctx) => {
+          px(ctx, 0, 0, 8, 12, suitBase);
+          px(ctx, 0, 0, 1, 12, suitDark);
+          px(ctx, 7, 0, 1, 12, suitDark);
+          px(ctx, 3, 0, 1, 12, suitDark);
+        });
+
+        const side = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 12, suitDark);
+          px(ctx, 1, 0, 2, 12, suitBase);
+        });
+
+        const topBottom = makePixelTexture(8, 4, (ctx) => {
+          px(ctx, 0, 0, 8, 4, suitDark);
+          px(ctx, 2, 1, 4, 2, shirtWhite);
+        });
+
+        return makeBoxMaterials([side, side, topBottom, topBottom, front, back]);
+      }
+
+      if (variant === 'walkman') {
+        // Pic 3: Black/charcoal wool overcoat, crisp white collar, blue-grey inner shirt, red polka-dot tie
+        const coatBlack = '#14161c';
+        const coatShadow = '#0c0d12';
+        const coatLapel = '#1f232b';
+        const collarWhite = '#f8fafc';
+        const shirtBlueGrey = '#7c8ca1';
+        const tieRed = '#9e1922';
+        const tieDot = '#f1d4d6';
+
+        const front = makePixelTexture(8, 12, (ctx) => {
+          px(ctx, 0, 0, 8, 12, coatBlack);
+          px(ctx, 0, 0, 1, 12, coatShadow);
+          px(ctx, 7, 0, 1, 12, coatShadow);
+          // Shirt & collar
+          px(ctx, 2, 0, 4, 2, collarWhite);
+          px(ctx, 2, 2, 4, 3, shirtBlueGrey);
+          // Red patterned tie
+          px(ctx, 3, 1, 2, 5, tieRed);
+          px(ctx, 3, 2, 1, 1, tieDot);
+          px(ctx, 4, 3, 1, 1, tieDot);
+          px(ctx, 3, 4, 1, 1, tieDot);
+          // Dark lapels
+          px(ctx, 1, 0, 1, 6, coatLapel);
+          px(ctx, 6, 0, 1, 6, coatLapel);
+          px(ctx, 2, 4, 1, 3, coatLapel);
+          px(ctx, 5, 4, 1, 3, coatLapel);
+          px(ctx, 4, 6, 1, 6, coatShadow);
+        });
+
+        const back = makePixelTexture(8, 12, (ctx) => {
+          px(ctx, 0, 0, 8, 12, coatBlack);
+          px(ctx, 0, 0, 1, 12, coatShadow);
+          px(ctx, 7, 0, 1, 12, coatShadow);
+          px(ctx, 3, 0, 2, 12, coatShadow);
+        });
+
+        const side = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 12, coatShadow);
+          px(ctx, 1, 0, 2, 12, coatBlack);
+        });
+
+        const topBottom = makePixelTexture(8, 4, (ctx) => {
+          px(ctx, 0, 0, 8, 4, coatShadow);
+          px(ctx, 2, 1, 4, 2, collarWhite);
+        });
+
+        return makeBoxMaterials([side, side, topBottom, topBottom, front, back]);
+      }
+
+      // Variant 4 ('executive'): Pic 4 - White & grey vertical striped shirt, white collar, red tie, navy suspenders with gold clips
+      const shirtLight = '#eef2f6';
+      const shirtStripe = '#9aa8b8';
+      const shirtShadow = '#cfd8e3';
+      const collarWhite = '#ffffff';
+      const tieRed = '#a81c24';
+      const tieLight = '#c9343d';
+      const tieDot = '#f3d1d4';
+
+      const front = makePixelTexture(8, 12, (ctx) => {
+        px(ctx, 0, 0, 8, 12, shirtLight);
+        // Vertical pinstripes
+        for (let x = 0; x < 8; x += 2) {
+          px(ctx, x, 0, 1, 12, shirtStripe);
+        }
+        // Subtle side shading
+        px(ctx, 0, 0, 1, 12, shirtShadow);
+        px(ctx, 7, 0, 1, 12, shirtShadow);
+        // Crisp white collar
+        px(ctx, 2, 0, 4, 2, collarWhite);
+        // Red patterned silk tie down center
+        px(ctx, 3, 1, 2, 9, tieRed);
+        px(ctx, 3, 1, 1, 8, tieLight);
+        px(ctx, 4, 2, 1, 1, tieDot);
+        px(ctx, 3, 4, 1, 1, tieDot);
+        px(ctx, 4, 6, 1, 1, tieDot);
+        px(ctx, 3, 8, 1, 1, tieDot);
+        px(ctx, 3, 10, 1, 1, tieRed); // Tie tip
+        // High-waisted charcoal pinstripe trouser waistband at bottom row
+        px(ctx, 0, 11, 8, 1, '#23262e');
+      });
+
+      const back = makePixelTexture(8, 12, (ctx) => {
+        px(ctx, 0, 0, 8, 12, shirtLight);
+        for (let x = 0; x < 8; x += 2) {
+          px(ctx, x, 0, 1, 12, shirtStripe);
+        }
+        px(ctx, 0, 0, 8, 1, collarWhite);
+        px(ctx, 0, 11, 8, 1, '#23262e');
+      });
+
+      const side = makePixelTexture(4, 12, (ctx) => {
+        px(ctx, 0, 0, 4, 12, shirtShadow);
+        px(ctx, 1, 0, 1, 12, shirtLight);
+        px(ctx, 2, 0, 1, 12, shirtStripe);
+        px(ctx, 0, 11, 4, 1, '#23262e');
+      });
+
+      const topBottom = makePixelTexture(8, 4, (ctx) => {
+        px(ctx, 0, 0, 8, 4, collarWhite);
+      });
+
+      return makeBoxMaterials([side, side, topBottom, topBottom, front, back]);
+    }
+
+    function buildTorsoOverlayMaterials(variant) {
+      const empty4x12 = makePixelTexture(4, 12, () => {});
+      const empty8x4 = makePixelTexture(8, 4, () => {});
+      const empty8x12 = makePixelTexture(8, 12, () => {});
+
+      if (variant === 'overcoat') {
+        // 3D sculpted tan lapels and pocket flaps
+        const tanLight = '#d4b996';
+        const tanBase = '#bfa07a';
+        const tanDark = '#8f7251';
+
+        const front = makePixelTexture(8, 12, (ctx) => {
+          // 3D Coat lapels
+          px(ctx, 1, 0, 1, 5, tanLight);
+          px(ctx, 6, 0, 1, 5, tanLight);
+          px(ctx, 2, 2, 1, 4, tanBase);
+          px(ctx, 5, 2, 1, 4, tanBase);
+          // 3D Pocket flaps on sides
+          px(ctx, 0, 8, 2, 1, tanLight);
+          px(ctx, 6, 8, 2, 1, tanLight);
+          px(ctx, 0, 9, 2, 1, tanDark);
+          px(ctx, 6, 9, 2, 1, tanDark);
+        });
+
+        return makeBoxMaterials(
+          [empty4x12, empty4x12, empty8x4, empty8x4, front, empty8x12],
+          { alphaTest: 0.5 }
+        );
+      }
+
+      if (variant === 'raincoat') {
+        // Pic 2: Translucent frosted vinyl raincoat with white seams, snap buttons, collar & flap pockets
+        const frostFill = 'rgba(226, 236, 248, 0.42)';
+        const frostHighlight = 'rgba(255, 255, 255, 0.72)';
+        const seamWhite = 'rgba(255, 255, 255, 0.92)';
+
+        const front = makePixelTexture(8, 12, (ctx) => {
+          px(ctx, 0, 0, 8, 12, frostFill);
+          // High translucent white collar & shoulder seams
+          px(ctx, 1, 0, 6, 1, seamWhite);
+          px(ctx, 0, 0, 1, 2, frostHighlight);
+          px(ctx, 7, 0, 1, 2, frostHighlight);
+          // Center snap placket strip
+          px(ctx, 3, 0, 2, 12, frostHighlight);
+          // White snap buttons down placket
+          px(ctx, 4, 2, 1, 1, '#ffffff');
+          px(ctx, 4, 5, 1, 1, '#ffffff');
+          px(ctx, 4, 8, 1, 1, '#ffffff');
+          px(ctx, 4, 11, 1, 1, '#ffffff');
+          // Two front flap pockets with snap dot (just like Pic 2!)
+          px(ctx, 0, 7, 3, 1, seamWhite);
+          px(ctx, 5, 7, 3, 1, seamWhite);
+          px(ctx, 0, 8, 3, 3, frostHighlight);
+          px(ctx, 5, 8, 3, 3, frostHighlight);
+          px(ctx, 1, 7, 1, 1, '#ffffff');
+          px(ctx, 6, 7, 1, 1, '#ffffff');
+        });
+
+        const back = makePixelTexture(8, 12, (ctx) => {
+          px(ctx, 0, 0, 8, 12, frostFill);
+          px(ctx, 0, 0, 8, 1, seamWhite);
+          px(ctx, 3, 1, 1, 11, frostHighlight);
+        });
+
+        const side = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 12, frostFill);
+          px(ctx, 0, 0, 1, 12, frostHighlight);
+        });
+
+        const top = makePixelTexture(8, 4, (ctx) => {
+          px(ctx, 0, 0, 8, 4, frostHighlight);
+        });
+
+        return makeBoxMaterials([side, side, top, empty8x4, front, back], {
+          transparent: true,
+          opacity: 0.85,
+          roughness: 0.25,
+          metalness: 0.1,
+          depthWrite: false
+        });
+      }
+
+      if (variant === 'walkman') {
+        // Pic 3: 3D dark coat lapels + Walkman headphone wire running down from ears into coat
+        const lapelColor = '#20242d';
+        const wireColor = '#111318';
+        const wireHighlight = '#2d3340';
+
+        const front = makePixelTexture(8, 12, (ctx) => {
+          // 3D Coat lapels
+          px(ctx, 1, 0, 1, 5, lapelColor);
+          px(ctx, 6, 0, 1, 5, lapelColor);
+          // Thin headphone cord Y-split coming down over collar & tie
+          px(ctx, 2, 0, 1, 2, wireColor);
+          px(ctx, 5, 0, 1, 2, wireColor);
+          px(ctx, 3, 2, 1, 3, wireColor);
+          px(ctx, 4, 2, 1, 2, wireHighlight);
+          px(ctx, 4, 5, 1, 4, wireColor);
+        });
+
+        return makeBoxMaterials(
+          [empty4x12, empty4x12, empty8x4, empty8x4, front, empty8x12],
+          { alphaTest: 0.5 }
+        );
+      }
+
+      // Variant 4 ('executive'): Pic 4 - 3D Navy blue suspenders with gold clips over striped shirt!
+      const suspNavy = '#1b2c4d';
+      const suspLight = '#283e6b';
+      const goldClip = '#d4af37';
+
+      const front = makePixelTexture(8, 12, (ctx) => {
+        // Left & Right navy suspender straps
+        px(ctx, 1, 0, 1, 11, suspNavy);
+        px(ctx, 6, 0, 1, 1, suspLight);
+        px(ctx, 6, 0, 1, 11, suspNavy);
+        px(ctx, 1, 1, 1, 3, suspLight);
+        px(ctx, 6, 1, 1, 3, suspLight);
+        // Brass/Gold adjuster buckles at chest height (just like Pic 4!)
+        px(ctx, 1, 4, 1, 1, goldClip);
+        px(ctx, 6, 4, 1, 1, goldClip);
+        // Bottom trouser clips
+        px(ctx, 1, 10, 1, 1, '#94a3b8');
+        px(ctx, 6, 10, 1, 1, '#94a3b8');
+      });
+
+      const back = makePixelTexture(8, 12, (ctx) => {
+        // Y-back suspenders
+        px(ctx, 1, 0, 1, 6, suspNavy);
+        px(ctx, 6, 0, 1, 6, suspNavy);
+        px(ctx, 2, 5, 4, 2, suspNavy);
+        px(ctx, 3, 7, 2, 4, suspNavy);
+        px(ctx, 3, 6, 2, 1, '#3b2416'); // Leather cross-patch
+      });
+
+      const top = makePixelTexture(8, 4, (ctx) => {
+        px(ctx, 1, 0, 1, 4, suspNavy);
+        px(ctx, 6, 0, 1, 4, suspNavy);
+      });
+
+      return makeBoxMaterials(
+        [empty4x12, empty4x12, top, empty8x4, front, back],
+        { alphaTest: 0.5 }
+      );
+    }
+
+    function buildArmMaterials(variant, isLeftArm) {
+      const skinBase = '#e3b496';
+      const skinShadow = '#c28b6b';
+
+      if (variant === 'overcoat') {
+        // Pic 1: Tan wool coat sleeves + white cuff + black leather gloves!
+        const tanBase = '#bfa07a';
+        const tanLight = '#ccb08c';
+        const tanDark = '#9e805c';
+        const gloveBlack = '#16181d';
+        const gloveHighlight = '#2a2e37';
+
+        const makeFace = (shade) =>
+          makePixelTexture(4, 12, (ctx) => {
+            px(ctx, 0, 0, 4, 9, shade);
+            px(ctx, 1, 0, 2, 8, tanBase);
+            // White shirt cuff peek
+            px(ctx, 0, 8, 4, 1, '#dce8f7');
+            // Black leather glove (bottom 3 texels)
+            px(ctx, 0, 9, 4, 3, gloveBlack);
+            px(ctx, 1, 9, 2, 2, gloveHighlight);
+          });
+
+        const top = makePixelTexture(4, 4, (ctx) => px(ctx, 0, 0, 4, 4, tanLight));
+        const bottom = makePixelTexture(4, 4, (ctx) => px(ctx, 0, 0, 4, 4, gloveBlack));
+
+        return makeBoxMaterials([
+          makeFace(tanDark),
+          makeFace(tanDark),
+          top,
+          bottom,
+          makeFace(tanLight),
+          makeFace(tanDark)
+        ]);
+      }
+
+      if (variant === 'raincoat') {
+        // Pic 2: Dark charcoal suit sleeve with white cuff & bare hands (raincoat sleeve is outer overlay!)
+        const suitBase = '#22252d';
+        const suitDark = '#17191f';
+
+        const makeFace = (shade) =>
+          makePixelTexture(4, 12, (ctx) => {
+            px(ctx, 0, 0, 4, 8, shade);
+            px(ctx, 0, 8, 4, 1, '#f1f5f9'); // White shirt cuff
+            px(ctx, 0, 9, 4, 3, skinBase);
+            px(ctx, 0, 11, 4, 1, skinShadow);
+          });
+
+        const top = makePixelTexture(4, 4, (ctx) => px(ctx, 0, 0, 4, 4, suitBase));
+        const bottom = makePixelTexture(4, 4, (ctx) => px(ctx, 0, 0, 4, 4, skinShadow));
+
+        return makeBoxMaterials([
+          makeFace(suitDark),
+          makeFace(suitDark),
+          top,
+          bottom,
+          makeFace(suitBase),
+          makeFace(suitDark)
+        ]);
+      }
+
+      if (variant === 'walkman') {
+        // Pic 3: Dark charcoal overcoat sleeves + bare hands
+        const coatBlack = '#14161c';
+        const coatDark = '#0c0d12';
+
+        const makeFace = (shade) =>
+          makePixelTexture(4, 12, (ctx) => {
+            px(ctx, 0, 0, 4, 9, shade);
+            px(ctx, 0, 9, 4, 3, skinBase);
+            px(ctx, 0, 11, 4, 1, skinShadow);
+          });
+
+        const top = makePixelTexture(4, 4, (ctx) => px(ctx, 0, 0, 4, 4, coatBlack));
+        const bottom = makePixelTexture(4, 4, (ctx) => px(ctx, 0, 0, 4, 4, skinShadow));
+
+        return makeBoxMaterials([
+          makeFace(coatDark),
+          makeFace(coatDark),
+          top,
+          bottom,
+          makeFace(coatBlack),
+          makeFace(coatDark)
+        ]);
+      }
+
+      // Variant 4 ('executive'): Pic 4 - Striped dress shirt sleeves + white cuffs + Gold Rolex Watch on Left Arm!
+      const shirtLight = '#eef2f6';
+      const shirtStripe = '#9aa8b8';
+      const shirtShadow = '#cfd8e3';
+
+      const makeFace = (isFront) =>
+        makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 9, shirtLight);
+          px(ctx, 0, 0, 1, 8, shirtStripe);
+          px(ctx, 2, 0, 1, 8, shirtStripe);
+          // Crisp white French cuff
+          px(ctx, 0, 7, 4, 2, '#ffffff');
+          if (!isFront) {
+            px(ctx, 1, 7, 1, 1, '#d4af37'); // Gold cufflink
+          }
+          // Hand
+          px(ctx, 0, 9, 4, 3, skinBase);
+          px(ctx, 0, 11, 4, 1, skinShadow);
+          // If Left Arm, add gold wristwatch at wrist (y=8..9)
+          if (isLeftArm) {
+            px(ctx, 0, 8, 4, 1, '#d4af37');
+            if (isFront) {
+              px(ctx, 1, 8, 2, 1, '#fef08a'); // Watch dial glint
+            }
+          }
+        });
+
+      const top = makePixelTexture(4, 4, (ctx) => {
+        px(ctx, 0, 0, 4, 4, shirtLight);
+        px(ctx, 0, 0, 1, 4, shirtStripe);
+        px(ctx, 2, 0, 1, 4, shirtStripe);
+      });
+      const bottom = makePixelTexture(4, 4, (ctx) => px(ctx, 0, 0, 4, 4, skinShadow));
+
+      return makeBoxMaterials([
+        makeFace(false),
+        makeFace(false),
+        top,
+        bottom,
+        makeFace(true),
+        makeFace(false)
+      ]);
+    }
+
+    function buildArmOverlayMaterials(variant, isLeftArm) {
+      const empty4x12 = makePixelTexture(4, 12, () => {});
+      const empty4x4 = makePixelTexture(4, 4, () => {});
+
+      if (variant === 'raincoat') {
+        const frostFill = 'rgba(226, 236, 248, 0.42)';
+        const seamWhite = 'rgba(255, 255, 255, 0.88)';
+        const sleeve = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 9, frostFill);
+          px(ctx, 0, 0, 1, 9, seamWhite);
+          px(ctx, 0, 8, 4, 1, seamWhite); // Translucent cuff hem
+        });
+        const top = makePixelTexture(4, 4, (ctx) => px(ctx, 0, 0, 4, 4, seamWhite));
+        return makeBoxMaterials([sleeve, sleeve, top, empty4x4, sleeve, sleeve], {
+          transparent: true,
+          opacity: 0.85,
+          roughness: 0.25,
+          depthWrite: false
+        });
+      }
+
+      if (variant === 'executive' && isLeftArm) {
+        // 3D Extruded Gold Wristwatch on Left Wrist (Pic 4)
+        const watchFace = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 8, 4, 1, '#b48a1e');
+          px(ctx, 1, 8, 2, 1, '#facc15');
+        });
+        const watchBand = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 8, 4, 1, '#d4af37');
+        });
+        return makeBoxMaterials(
+          [watchBand, watchBand, empty4x4, empty4x4, watchFace, watchBand],
+          { alphaTest: 0.5, metalness: 0.5, roughness: 0.3 }
+        );
+      }
+
+      if (variant === 'overcoat') {
+        // 3D Sleeve cuff strap & buttons on tan overcoat
+        const cuff = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 7, 4, 1, '#cbb08c');
+          px(ctx, 1, 7, 1, 1, '#876b4b');
+        });
+        return makeBoxMaterials(
+          [cuff, cuff, empty4x4, empty4x4, cuff, cuff],
+          { alphaTest: 0.5 }
+        );
+      }
+
+      return makeBoxMaterials(
+        [empty4x12, empty4x12, empty4x4, empty4x4, empty4x12, empty4x12],
+        { alphaTest: 0.5 }
+      );
+    }
+
+    function buildLegMaterials(variant) {
+      // Pic 1: Dark navy trousers; Pic 2 & 3: Black/charcoal trousers; Pic 4: Charcoal pinstripe trousers
+      let pantBase = '#171920';
+      let pantDark = '#101217';
+      let pantLight = '#222630';
+      let hasPinstripe = false;
+
+      if (variant === 'overcoat') {
+        pantBase = '#17202b';
+        pantDark = '#101720';
+        pantLight = '#222f3e';
+      } else if (variant === 'executive') {
+        pantBase = '#252830';
+        pantDark = '#1a1c22';
+        pantLight = '#323640';
+        hasPinstripe = true;
+      }
+
+      const shoeBlack = '#0d0e11';
+      const shoeShine = '#272a33';
+
+      const makeFace = (isFront) =>
+        makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 10, pantBase);
+          px(ctx, 0, 0, 1, 10, pantDark);
+          px(ctx, 3, 0, 1, 10, pantDark);
+          if (hasPinstripe) {
+            px(ctx, 1, 0, 1, 10, '#404552');
+            px(ctx, 3, 0, 1, 10, '#404552');
+          } else if (isFront) {
+            px(ctx, 1, 0, 1, 9, pantLight); // Tailored trouser crease
+          }
+          // Glossy black Oxford dress shoes (bottom 2 texels)
+          px(ctx, 0, 10, 4, 2, shoeBlack);
+          if (isFront) {
+            px(ctx, 1, 10, 2, 1, shoeShine);
+          }
+        });
+
+      const top = makePixelTexture(4, 4, (ctx) => px(ctx, 0, 0, 4, 4, pantDark));
+      const bottom = makePixelTexture(4, 4, (ctx) => px(ctx, 0, 0, 4, 4, '#08090b'));
+
+      return makeBoxMaterials([
+        makeFace(false),
+        makeFace(false),
+        top,
+        bottom,
+        makeFace(true),
+        makeFace(false)
+      ]);
+    }
+
+    // Long Coat Skirt Overlay on Upper/Mid Legs (for Variants 1, 2, 3)
+    function buildLegCoatOverlayMaterials(variant, isLeftLeg) {
+      const empty4x12 = makePixelTexture(4, 12, () => {});
+      const empty4x4 = makePixelTexture(4, 4, () => {});
+
+      if (variant === 'overcoat') {
+        // Long tan wool overcoat extending past knees (top 8 texels of leg)
+        const tanBase = '#bfa07a';
+        const tanLight = '#ccb08c';
+        const tanDark = '#9e805c';
+
+        const front = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 7, tanBase);
+          // Open center split of coat showing dark trousers in between
+          if (isLeftLeg) {
+            px(ctx, 0, 0, 1, 7, tanLight);
+            px(ctx, 3, 0, 1, 7, tanDark);
+          } else {
+            px(ctx, 3, 0, 1, 7, tanDark);
+            px(ctx, 0, 0, 1, 7, tanDark);
+          }
+          px(ctx, 0, 6, 4, 1, tanDark); // Coat bottom hem
+        });
+
+        const back = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 7, tanBase);
+          px(ctx, 0, 6, 4, 1, tanDark);
+        });
+
+        const side = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 7, tanDark);
+          px(ctx, 1, 0, 2, 6, tanBase);
+        });
+
+        return makeBoxMaterials(
+          [side, side, empty4x4, empty4x4, front, back],
+          { alphaTest: 0.5 }
+        );
+      }
+
+      if (variant === 'raincoat') {
+        // Long translucent frosted vinyl raincoat skirt reaching below knees (top 8 texels of leg)
+        const frostFill = 'rgba(226, 236, 248, 0.42)';
+        const seamWhite = 'rgba(255, 255, 255, 0.90)';
+
+        const front = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 8, frostFill);
+          // Center snap placket strip continuing down raincoat
+          if (isLeftLeg) {
+            px(ctx, 0, 0, 1, 8, seamWhite);
+            px(ctx, 0, 3, 1, 1, '#ffffff');
+          } else {
+            px(ctx, 3, 0, 1, 8, seamWhite);
+          }
+          px(ctx, 0, 7, 4, 1, seamWhite); // Bottom white welded hem
+        });
+
+        const back = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 8, frostFill);
+          px(ctx, 0, 7, 4, 1, seamWhite);
+        });
+
+        const side = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 8, frostFill);
+          px(ctx, 0, 7, 4, 1, seamWhite);
+        });
+
+        return makeBoxMaterials([side, side, empty4x4, empty4x4, front, back], {
+          transparent: true,
+          opacity: 0.85,
+          roughness: 0.25,
+          depthWrite: false
+        });
+      }
+
+      if (variant === 'walkman') {
+        // Dark charcoal wool overcoat skirt (top 6 texels of leg)
+        const coatBlack = '#14161c';
+        const coatDark = '#0c0d12';
+
+        const face = makePixelTexture(4, 12, (ctx) => {
+          px(ctx, 0, 0, 4, 6, coatBlack);
+          px(ctx, 0, 5, 4, 1, coatDark);
+        });
+
+        return makeBoxMaterials(
+          [face, face, empty4x4, empty4x4, face, face],
+          { alphaTest: 0.5 }
+        );
+      }
+
+      return makeBoxMaterials(
+        [empty4x12, empty4x12, empty4x4, empty4x4, empty4x12, empty4x12],
+        { alphaTest: 0.5 }
+      );
+    }
+
+    const characterRoot = new THREE.Group();
+    scene.add(characterRoot);
+
+    // Upper body / hip pivot at y = 12 * PX (0.75 world units)
+    const upperBodyGroup = new THREE.Group();
+    upperBodyGroup.position.set(0, 12 * PX, 0);
+    characterRoot.add(upperBodyGroup);
+
+    // Torso group
+    const torsoGroup = new THREE.Group();
+    upperBodyGroup.add(torsoGroup);
+
+    // Head pivot at neck: y = +12 * PX relative to hip (24 * PX total height)
+    const headGroup = new THREE.Group();
+    headGroup.position.set(0, 12 * PX, 0);
+    upperBodyGroup.add(headGroup);
+
+    // Right & Left Arm pivots at shoulders: x = -/+ 6.25*PX, y = +10*PX relative to hip (22 * PX total)
+    const rightArmGroup = new THREE.Group();
+    rightArmGroup.position.set(-6.25 * PX, 10 * PX, 0);
+    upperBodyGroup.add(rightArmGroup);
+
+    const leftArmGroup = new THREE.Group();
+    leftArmGroup.position.set(6.25 * PX, 10 * PX, 0);
+    upperBodyGroup.add(leftArmGroup);
+
+    // Right & Left Leg pivots at hips: x = -/+ 2*PX, y = 12*PX from ground
+    const rightLegGroup = new THREE.Group();
+    rightLegGroup.position.set(-2 * PX, 12 * PX, 0);
+    characterRoot.add(rightLegGroup);
+
+    const leftLegGroup = new THREE.Group();
+    leftLegGroup.position.set(2 * PX, 12 * PX, 0);
+    characterRoot.add(leftLegGroup);
+
+    function createSolidMat(hex, roughness = 0.6, metalness = 0.1) {
+      return new THREE.MeshStandardMaterial({ color: hex, roughness, metalness });
+    }
+
+    function buildWalkmanHeadphones() {
+      const group = new THREE.Group();
+      const bandMat = createSolidMat(0x16181d, 0.4, 0.3);
+      const foamMat = createSolidMat(0x0c0d10, 0.9, 0.0);
+      const wireMat = createSolidMat(0x14161b, 0.6, 0.1);
+
+      // Thin headband over top of hair
+      const topBand = new THREE.Mesh(new THREE.BoxGeometry(9.2 * PX, 0.45 * PX, 1.0 * PX), bandMat);
+      topBand.position.set(0, 8.55 * PX, 0);
+      group.add(topBand);
+
+      // Left & Right side arms going down to ears
+      const sideGeo = new THREE.BoxGeometry(0.45 * PX, 5.2 * PX, 0.8 * PX);
+      const rightArm = new THREE.Mesh(sideGeo, bandMat);
+      rightArm.position.set(-4.45 * PX, 6.1 * PX, 0);
+      group.add(rightArm);
+
+      const leftArm = new THREE.Mesh(sideGeo, bandMat);
+      leftArm.position.set(4.45 * PX, 6.1 * PX, 0);
+      group.add(leftArm);
+
+      // Foam earpads over ears (just like Pic 3!)
+      const padGeo = new THREE.BoxGeometry(0.95 * PX, 2.2 * PX, 2.2 * PX);
+      const rightPad = new THREE.Mesh(padGeo, foamMat);
+      rightPad.position.set(-4.35 * PX, 3.6 * PX, 0);
+      group.add(rightPad);
+
+      const leftPad = new THREE.Mesh(padGeo, foamMat);
+      leftPad.position.set(4.35 * PX, 3.6 * PX, 0);
+      group.add(leftPad);
+
+      // Subtle downward wire leads from earcups toward chin/collar
+      const wireGeo = new THREE.BoxGeometry(0.3 * PX, 3.0 * PX, 0.3 * PX);
+      const rWire = new THREE.Mesh(wireGeo, wireMat);
+      rWire.position.set(-3.8 * PX, 1.2 * PX, 1.5 * PX);
+      rWire.rotation.z = -0.35;
+      group.add(rWire);
+
+      const lWire = new THREE.Mesh(wireGeo, wireMat);
+      lWire.position.set(3.8 * PX, 1.2 * PX, 1.5 * PX);
+      lWire.rotation.z = 0.35;
+      group.add(lWire);
+
+      return group;
+    }
+
+    function buildWayfarerSunglasses() {
+      const group = new THREE.Group();
+      const frameMat = createSolidMat(0x161311, 0.35, 0.15);
+      const lensMat = createSolidMat(0x0c1012, 0.15, 0.4);
+
+      // Front top brow bar of Wayfarers
+      const topBar = new THREE.Mesh(new THREE.BoxGeometry(8.6 * PX, 0.65 * PX, 0.6 * PX), frameMat);
+      topBar.position.set(0, 5.15 * PX, 4.25 * PX);
+      group.add(topBar);
+
+      // Left & Right tinted lenses + frames
+      const rimGeo = new THREE.BoxGeometry(3.2 * PX, 1.7 * PX, 0.55 * PX);
+      const rightRim = new THREE.Mesh(rimGeo, frameMat);
+      rightRim.position.set(-2.2 * PX, 4.35 * PX, 4.22 * PX);
+      group.add(rightRim);
+
+      const leftRim = new THREE.Mesh(rimGeo, frameMat);
+      leftRim.position.set(2.2 * PX, 4.35 * PX, 4.22 * PX);
+      group.add(leftRim);
+
+      const lensGeo = new THREE.BoxGeometry(2.5 * PX, 1.2 * PX, 0.62 * PX);
+      const rightLens = new THREE.Mesh(lensGeo, lensMat);
+      rightLens.position.set(-2.2 * PX, 4.35 * PX, 4.24 * PX);
+      group.add(rightLens);
+
+      const leftLens = new THREE.Mesh(lensGeo, lensMat);
+      leftLens.position.set(2.2 * PX, 4.35 * PX, 4.24 * PX);
+      group.add(leftLens);
+
+      // Side temples extending back to ears
+      const templeGeo = new THREE.BoxGeometry(0.45 * PX, 0.6 * PX, 4.6 * PX);
+      const rTemple = new THREE.Mesh(templeGeo, frameMat);
+      rTemple.position.set(-4.15 * PX, 4.85 * PX, 2.0 * PX);
+      group.add(rTemple);
+
+      const lTemple = new THREE.Mesh(templeGeo, frameMat);
+      lTemple.position.set(4.15 * PX, 4.85 * PX, 2.0 * PX);
+      group.add(lTemple);
+
+      return group;
+    }
+
+    function buildGlockPistol() {
+      const gun = new THREE.Group();
+      const slideMat = createSolidMat(0x23272e, 0.42, 0.65); // gunmetal slide
+      const frameMat = createSolidMat(0x16181d, 0.68, 0.2);  // textured black polymer
+      const metalMat = createSolidMat(0x4b5563, 0.35, 0.85); // steel accents / trigger
+      const sightMat = createSolidMat(0xf8fafc, 0.2, 0.1);   // white 3-dot sights
+      const muzzleMat = createSolidMat(0x0a0c0e, 0.9, 0.0);  // hollow bore
+
+      // 1. Grip Frame (angled slightly backward in hand)
+      const grip = new THREE.Mesh(new THREE.BoxGeometry(1.05 * PX, 2.4 * PX, 1.45 * PX), frameMat);
+      grip.position.set(0, -0.2 * PX, -0.2 * PX);
+      grip.rotation.x = -0.14;
+      gun.add(grip);
+
+      // Magazine baseplate at bottom of grip
+      const magBase = new THREE.Mesh(new THREE.BoxGeometry(1.12 * PX, 0.35 * PX, 1.55 * PX), frameMat);
+      magBase.position.set(0, -1.38 * PX, -0.38 * PX);
+      magBase.rotation.x = -0.14;
+      gun.add(magBase);
+
+      // Beavertail at top-rear of grip
+      const beavertail = new THREE.Mesh(new THREE.BoxGeometry(1.02 * PX, 0.45 * PX, 0.65 * PX), frameMat);
+      beavertail.position.set(0, 0.75 * PX, -0.9 * PX);
+      gun.add(beavertail);
+
+      // Trigger guard loop
+      const guard = new THREE.Mesh(new THREE.BoxGeometry(0.35 * PX, 0.85 * PX, 1.15 * PX), frameMat);
+      guard.position.set(0, 0.2 * PX, 0.75 * PX);
+      gun.add(guard);
+
+      // Steel trigger inside guard
+      const trigger = new THREE.Mesh(new THREE.BoxGeometry(0.22 * PX, 0.5 * PX, 0.28 * PX), metalMat);
+      trigger.position.set(0, 0.25 * PX, 0.65 * PX);
+      trigger.rotation.x = -0.28;
+      gun.add(trigger);
+
+      // 2. Slide Assembly (extends forward along +Z)
+      const slide = new THREE.Mesh(new THREE.BoxGeometry(1.18 * PX, 1.18 * PX, 4.5 * PX), slideMat);
+      slide.position.set(0, 1.2 * PX, 1.15 * PX);
+      gun.add(slide);
+
+      // Ejection port cut-out on right side of slide
+      const ejectPort = new THREE.Mesh(new THREE.BoxGeometry(0.25 * PX, 0.45 * PX, 1.1 * PX), muzzleMat);
+      ejectPort.position.set(0.55 * PX, 1.35 * PX, 0.8 * PX);
+      gun.add(ejectPort);
+
+      // Front sight post with white dot
+      const frontSight = new THREE.Mesh(new THREE.BoxGeometry(0.25 * PX, 0.35 * PX, 0.35 * PX), sightMat);
+      frontSight.position.set(0, 1.95 * PX, 3.1 * PX);
+      gun.add(frontSight);
+
+      // Rear sight notch
+      const rearSight = new THREE.Mesh(new THREE.BoxGeometry(0.85 * PX, 0.35 * PX, 0.35 * PX), slideMat);
+      rearSight.position.set(0, 1.95 * PX, -0.85 * PX);
+      gun.add(rearSight);
+
+      // Rear sight white aiming dots (left & right)
+      const dotL = new THREE.Mesh(new THREE.BoxGeometry(0.2 * PX, 0.2 * PX, 0.05 * PX), sightMat);
+      dotL.position.set(-0.3 * PX, 1.95 * PX, -1.04 * PX);
+      gun.add(dotL);
+      const dotR = new THREE.Mesh(new THREE.BoxGeometry(0.2 * PX, 0.2 * PX, 0.05 * PX), sightMat);
+      dotR.position.set(0.3 * PX, 1.95 * PX, -1.04 * PX);
+      gun.add(dotR);
+
+      // Muzzle bore / hollow opening
+      const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.48 * PX, 0.48 * PX, 0.15 * PX), muzzleMat);
+      muzzle.position.set(0, 1.2 * PX, 3.42 * PX);
+      gun.add(muzzle);
+
+      return gun;
+    }
+
+    function buildPaulAllenAxe() {
+      const axe = new THREE.Group();
+
+      const woodMat = createSolidMat(0xc69255, 0.72, 0.06);     // American hickory honey tone
+      const woodGrainMat = createSolidMat(0xa87138, 0.70, 0.08); // darker wood grain
+      const woodKnobMat = createSolidMat(0x6f451e, 0.78, 0.05);  // butt end cap
+      const steelMat = new THREE.MeshStandardMaterial({
+        color: 0x94a3b8,
+        metalness: 0.88,
+        roughness: 0.26
+      });
+      const chromeMat = new THREE.MeshStandardMaterial({
+        color: 0xf1f5f9,
+        metalness: 0.94,
+        roughness: 0.14
+      });
+      const glintMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        metalness: 0.98,
+        roughness: 0.04
+      });
+
+      // Long felling axe handle (total length ~16 pixels)
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.75 * PX, 15.5 * PX, 1.05 * PX), woodMat);
+      axe.add(handle);
+
+      const grainStrip = new THREE.Mesh(new THREE.BoxGeometry(0.78 * PX, 15.2 * PX, 0.45 * PX), woodGrainMat);
+      grainStrip.position.set(0, 0, 0.12 * PX);
+      axe.add(grainStrip);
+
+      // Bottom ergonomic swell / knob
+      const knob = new THREE.Mesh(new THREE.BoxGeometry(0.85 * PX, 1.4 * PX, 1.35 * PX), woodKnobMat);
+      knob.position.set(0, -7.6 * PX, 0.05 * PX);
+      axe.add(knob);
+
+      // Top handle protrusion above head
+      const topHandle = new THREE.Mesh(new THREE.BoxGeometry(0.72 * PX, 1.5 * PX, 0.98 * PX), woodKnobMat);
+      topHandle.position.set(0, 8.1 * PX, 0);
+      axe.add(topHandle);
+
+      // Axe head assembly (mounted near top of handle, y = 6.4 * PX)
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 6.4 * PX, 0);
+
+      // Steel Eye collar wrapping around the handle
+      const collar = new THREE.Mesh(new THREE.BoxGeometry(1.22 * PX, 2.4 * PX, 1.65 * PX), steelMat);
+      headGroup.add(collar);
+
+      // Rear striking poll (square counterweight hammer face)
+      const poll = new THREE.Mesh(new THREE.BoxGeometry(1.05 * PX, 1.8 * PX, 1.35 * PX), steelMat);
+      poll.position.set(0, 0, -1.4 * PX);
+      headGroup.add(poll);
+
+      // Blade wedge extending forward
+      const bladeWedge = new THREE.Mesh(new THREE.BoxGeometry(0.88 * PX, 2.1 * PX, 2.3 * PX), steelMat);
+      bladeWedge.position.set(0, 0, 1.85 * PX);
+      headGroup.add(bladeWedge);
+
+      // Mirror-chrome flared bit (broad cutting flare)
+      const chromeBit = new THREE.Mesh(new THREE.BoxGeometry(0.55 * PX, 3.8 * PX, 1.9 * PX), chromeMat);
+      chromeBit.position.set(0, 0, 3.65 * PX);
+      headGroup.add(chromeBit);
+
+      // Ultra-sharp polished cutting edge
+      const cuttingEdge = new THREE.Mesh(new THREE.BoxGeometry(0.24 * PX, 4.4 * PX, 0.45 * PX), glintMat);
+      cuttingEdge.position.set(0, 0, 4.65 * PX);
+      headGroup.add(cuttingEdge);
+
+      axe.add(headGroup);
+      return axe;
+    }
+
+    function buildVintageBrickPhone() {
+      const phone = new THREE.Group();
+
+      const chassisMat = createSolidMat(0xd4d8df, 0.68, 0.1);     // classic beige-grey plastic
+      const chassisDark = createSolidMat(0x9ca3af, 0.72, 0.1);    // recessed / side tone
+      const earpieceCavity = createSolidMat(0x1f2937, 0.85, 0.05); // dark speaker slot
+      const antennaMat = createSolidMat(0x14171d, 0.82, 0.05);    // flexible black rubber
+
+      // Front keypad & display texture (8x16 pixel art)
+      const keypadTex = makePixelTexture(8, 16, (ctx) => {
+        px(ctx, 0, 0, 8, 16, '#d4d8df');
+        px(ctx, 0, 0, 1, 16, '#9ca3af');
+        px(ctx, 7, 0, 1, 16, '#e5e8ee');
+
+        // Red LED segment display screen
+        px(ctx, 1, 1, 6, 2, '#450a0a');
+        px(ctx, 2, 1, 4, 1, '#dc2626');
+        px(ctx, 2, 2, 3, 1, '#ef4444');
+
+        // Numeric keypad (3 columns x 4 rows)
+        const keyBase = '#1f2937';
+        const keyHi = '#374151';
+        for (let row = 0; row < 4; row++) {
+          const y = 4 + row * 2;
+          for (let col = 0; col < 3; col++) {
+            const x = 1 + col * 2;
+            px(ctx, x, y, 1, 1, keyHi);
+            px(ctx, x, y + 1, 1, 1, keyBase);
+          }
+        }
+
+        // 1980s function keys: SND (green), PWR (red), CLR (blue)
+        px(ctx, 1, 12, 1, 1, '#16a34a');
+        px(ctx, 3, 12, 1, 1, '#dc2626');
+        px(ctx, 5, 12, 1, 1, '#2563eb');
+
+        // Microphone slot
+        px(ctx, 3, 14, 2, 1, '#1f2937');
+      });
+
+      const keypadMat = new THREE.MeshStandardMaterial({
+        map: keypadTex,
+        roughness: 0.65,
+        metalness: 0.08
+      });
+
+      // Main boxy brick handset body
+      const bodyGeo = new THREE.BoxGeometry(1.85 * PX, 5.5 * PX, 2.3 * PX);
+      const bodyMats = [
+        chassisDark, // right
+        chassisDark, // left
+        chassisMat,  // top
+        chassisDark, // bottom
+        keypadMat,   // front (keypad facing forward)
+        chassisMat   // back
+      ];
+      const body = new THREE.Mesh(bodyGeo, bodyMats);
+      phone.add(body);
+
+      // Angled top earpiece wedge
+      const earpieceGeo = new THREE.BoxGeometry(1.68 * PX, 1.25 * PX, 2.1 * PX);
+      const earpiece = new THREE.Mesh(earpieceGeo, chassisMat);
+      earpiece.position.set(0, 3.25 * PX, 0.08 * PX);
+      phone.add(earpiece);
+
+      // Dark speaker recess on the earpiece
+      const speaker = new THREE.Mesh(new THREE.BoxGeometry(0.88 * PX, 0.65 * PX, 0.15 * PX), earpieceCavity);
+      speaker.position.set(0, 3.35 * PX, 1.18 * PX);
+      phone.add(speaker);
+
+      // Black rubber antenna on top-left (Pic 5)
+      const antenna = new THREE.Mesh(new THREE.BoxGeometry(0.4 * PX, 3.8 * PX, 0.4 * PX), antennaMat);
+      antenna.position.set(-0.55 * PX, 5.4 * PX, -0.45 * PX);
+      phone.add(antenna);
+
+      const antennaCap = new THREE.Mesh(new THREE.BoxGeometry(0.52 * PX, 0.52 * PX, 0.52 * PX), antennaMat);
+      antennaCap.position.set(-0.55 * PX, 7.35 * PX, -0.45 * PX);
+      phone.add(antennaCap);
+
+      return phone;
+    }
+
+    function buildHandProp(variant) {
+      const propGroup = new THREE.Group();
+      // Positioned at palm of right hand (y = -10.5 * PX from shoulder pivot, z = 0.4 * PX)
+      propGroup.position.set(0, -10.5 * PX, 0.4 * PX);
+
+      if (variant === 'overcoat') {
+        // Pic 1 & 2: Black Glock pistol held in black-gloved hand
+        propGroup.add(buildGlockPistol());
+      } else if (variant === 'raincoat') {
+        // Pic 3 & 4: Chrome felling axe with long hickory handle
+        const axe = buildPaulAllenAxe();
+        axe.position.set(0, 2.2 * PX, 0.25 * PX);
+        axe.rotation.x = -0.22;
+        propGroup.add(axe);
+      } else if (variant === 'executive') {
+        // Pic 5: Authentic 1980s Motorola DynaTAC brick mobile phone held in hand
+        const phone = buildVintageBrickPhone();
+        phone.position.set(0, 0.8 * PX, 0.25 * PX);
+        propGroup.add(phone);
+      } else if (variant === 'walkman') {
+        // Pic 3: Pristine "Bone" business card with Silian Rail lettering
+        const cardTex = makePixelTexture(8, 5, (ctx) => {
+          px(ctx, 0, 0, 8, 5, '#f8f6f0'); // "Bone" coloring
+          px(ctx, 1, 1, 6, 1, '#94a3b8'); // Silian Rail lettering
+          px(ctx, 2, 2, 4, 1, '#cbd5e1');
+          px(ctx, 1, 3, 2, 1, '#cbd5e1');
+        });
+        const card = new THREE.Mesh(
+          new THREE.BoxGeometry(2.6 * PX, 0.2 * PX, 1.6 * PX),
+          new THREE.MeshStandardMaterial({ map: cardTex, roughness: 0.5 })
+        );
+        card.position.set(0, 0, 1.2 * PX);
+        propGroup.add(card);
+      }
+
+      return propGroup;
+    }
+
+    function clearGroup(group) {
+      while (group.children.length > 0) {
+        const child = group.children[0];
+        group.remove(child);
+      }
+    }
+
+    function rebuildCharacter(variant) {
+      clearGroup(headGroup);
+      clearGroup(torsoGroup);
+      clearGroup(rightArmGroup);
+      clearGroup(leftArmGroup);
+      clearGroup(rightLegGroup);
+      clearGroup(leftLegGroup);
+
+      // 1. HEAD (8x8x8 pixels, centered horizontally, bottom at neck y=0)
+      const headGeo = new THREE.BoxGeometry(8 * PX, 8 * PX, 8 * PX);
+      const headMesh = new THREE.Mesh(headGeo, buildHeadMaterials(variant));
+      headMesh.position.set(0, 4 * PX, 0);
+      headMesh.castShadow = true;
+      headMesh.receiveShadow = true;
+      headGroup.add(headMesh);
+
+      // Hair 3D Outer Layer (8.5 x 8.5 x 8.5 pixels)
+      const hairGeo = new THREE.BoxGeometry(8.5 * PX, 8.5 * PX, 8.5 * PX);
+      const hairMesh = new THREE.Mesh(hairGeo, buildHairOverlayMaterials());
+      hairMesh.position.set(0, 4.05 * PX, 0);
+      headMesh.castShadow = true;
+      headGroup.add(hairMesh);
+
+      // Head Accessories per Variant
+      if (variant === 'walkman') {
+        headGroup.add(buildWalkmanHeadphones());
+      } else if (variant === 'executive') {
+        headGroup.add(buildWayfarerSunglasses());
+      }
+
+      // 2. TORSO (8x12x4 pixels, bottom at hip y=0, top at neck y=12*PX)
+      const torsoGeo = new THREE.BoxGeometry(8 * PX, 12 * PX, 4 * PX);
+      const torsoMesh = new THREE.Mesh(torsoGeo, buildTorsoMaterials(variant));
+      torsoMesh.position.set(0, 6 * PX, 0);
+      torsoMesh.castShadow = true;
+      torsoMesh.receiveShadow = true;
+      torsoGroup.add(torsoMesh);
+
+      // Torso Outer Layer (8.1 x 12.2 x 4.45 pixels)
+      const torsoOverGeo = new THREE.BoxGeometry(8.1 * PX, 12.2 * PX, 4.45 * PX);
+      const torsoOverMesh = new THREE.Mesh(torsoOverGeo, buildTorsoOverlayMaterials(variant));
+      torsoOverMesh.position.set(0, 6 * PX, 0);
+      torsoOverMesh.castShadow = variant !== 'raincoat';
+      torsoGroup.add(torsoOverMesh);
+
+      // Walkman Cassette Player clipped to belt in Variant 3
+      if (variant === 'walkman') {
+        const walkmanBox = new THREE.Mesh(
+          new THREE.BoxGeometry(1.4 * PX, 2.6 * PX, 2.0 * PX),
+          createSolidMat(0x1e2430, 0.4, 0.5)
+        );
+        walkmanBox.position.set(4.3 * PX, 1.5 * PX, 0.5 * PX);
+        torsoGroup.add(walkmanBox);
+      }
+
+      // 3. RIGHT ARM (4x12x4 pixels, shoulder pivot at top y=0, center is at y=-6*PX)
+      const armGeo = new THREE.BoxGeometry(4 * PX, 12 * PX, 4 * PX);
+      const rightArmMesh = new THREE.Mesh(armGeo, buildArmMaterials(variant, false));
+      rightArmMesh.position.set(0, -6 * PX, 0);
+      rightArmMesh.castShadow = true;
+      rightArmMesh.receiveShadow = true;
+      rightArmGroup.add(rightArmMesh);
+
+      const armOverGeo = new THREE.BoxGeometry(4.18 * PX, 12.1 * PX, 4.28 * PX);
+      const rightArmOver = new THREE.Mesh(armOverGeo, buildArmOverlayMaterials(variant, false));
+      rightArmOver.position.set(0, -6 * PX, 0);
+      rightArmGroup.add(rightArmOver);
+
+      // Held prop on Right Arm
+      rightArmGroup.add(buildHandProp(variant));
+
+      // 4. LEFT ARM (4x12x4 pixels, shoulder pivot at top y=0, center is at y=-6*PX)
+      const leftArmMesh = new THREE.Mesh(armGeo, buildArmMaterials(variant, true));
+      leftArmMesh.position.set(0, -6 * PX, 0);
+      leftArmMesh.castShadow = true;
+      leftArmMesh.receiveShadow = true;
+      leftArmGroup.add(leftArmMesh);
+
+      const leftArmOver = new THREE.Mesh(armOverGeo, buildArmOverlayMaterials(variant, true));
+      leftArmOver.position.set(0, -6 * PX, 0);
+      leftArmGroup.add(leftArmOver);
+
+      // 5. RIGHT & LEFT LEGS (4x12x4 pixels, hip pivot at y=12*PX, center at -6*PX)
+      const legGeo = new THREE.BoxGeometry(4 * PX, 12 * PX, 4 * PX);
+      const rightLegMesh = new THREE.Mesh(legGeo, buildLegMaterials(variant));
+      rightLegMesh.position.set(0, -6 * PX, 0);
+      rightLegMesh.castShadow = true;
+      rightLegMesh.receiveShadow = true;
+      rightLegGroup.add(rightLegMesh);
+
+      const leftLegMesh = new THREE.Mesh(legGeo, buildLegMaterials(variant));
+      leftLegMesh.position.set(0, -6 * PX, 0);
+      leftLegMesh.castShadow = true;
+      leftLegMesh.receiveShadow = true;
+      leftLegGroup.add(leftLegMesh);
+
+      // Long Overcoat / Clear Raincoat Skirt Overlay on Legs (Variants 1, 2, 3)
+      if (variant !== 'executive') {
+        const legCoatGeo = new THREE.BoxGeometry(4.15 * PX, 12.1 * PX, 4.35 * PX);
+        const rightLegCoat = new THREE.Mesh(legCoatGeo, buildLegCoatOverlayMaterials(variant, false));
+        rightLegCoat.position.set(-0.12 * PX, -5.9 * PX, 0);
+        rightLegGroup.add(rightLegCoat);
+
+        const leftLegCoat = new THREE.Mesh(legCoatGeo, buildLegCoatOverlayMaterials(variant, true));
+        leftLegCoat.position.set(0.12 * PX, -5.9 * PX, 0);
+        leftLegGroup.add(leftLegCoat);
+      }
+    }
+
+    // Build initial character
+    rebuildCharacter(currentVariant);
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function updateAnimation(dt) {
+      animTime += dt;
+      const t = animTime;
+
+      // Target transforms
+      let rootY = 0;
+      let upperRotX = 0, upperRotY = 0, upperRotZ = 0;
+      let headRotX = 0, headRotY = 0, headRotZ = 0;
+      let rArmX = 0, rArmY = 0, rArmZ = 0;
+      let lArmX = 0, lArmY = 0, lArmZ = 0;
+      let rLegX = 0, rLegY = 0, rLegZ = 0;
+      let lLegX = 0, lLegY = 0, lLegZ = 0;
+
+      if (currentAnim === 'idle') {
+        // Breathing & secondary head tracking with straight limbs
+        const breath = Math.sin(t * 2.1);
+        rootY = breath * 0.004;
+
+        // Subtle head scan
+        headRotY = Math.sin(t * 0.85) * 0.12;
+        headRotX = Math.cos(t * 1.4) * 0.03;
+
+        // Default arm rest angles with slight outward clearance (zero clipping)
+        rArmZ = 0.08;
+        lArmZ = -0.08;
+
+        if (currentVariant === 'overcoat') {
+          // Tan overcoat: gun held resting pointing safely downward/forward
+          rArmX = -0.08 + breath * 0.02;
+          rArmZ = 0.08;
+          lArmX = 0.02;
+        } else if (currentVariant === 'raincoat') {
+          // Raincoat: chrome axe held comfortably by right side, blade pointing forward/down
+          rArmX = -0.18 + breath * 0.02;
+          rArmZ = 0.12;
+          rArmY = 0.05;
+          lArmX = 0.04;
+        } else if (currentVariant === 'executive') {
+          // Suspenders: 1980s brick phone held in right hand at side, cool executive lean
+          rArmX = -0.12 + breath * 0.02;
+          rArmZ = 0.10;
+          upperRotX = -0.03;
+        } else if (currentVariant === 'walkman') {
+          // Walkman: subtle musical nod to headphones
+          headRotX = Math.sin(t * 5.2) * 0.05;
+          rArmX = -0.12;
+          rArmZ = 0.08;
+        }
+      } else if (currentAnim === 'walk') {
+        // Confident Wall Street hallway stride
+        const speed = 4.6;
+        const phase = t * speed;
+        const swing = Math.sin(phase);
+        const bounce = Math.abs(Math.cos(phase));
+
+        rootY = bounce * 0.032;
+        upperRotX = 0.05 + bounce * 0.02;
+        upperRotY = -swing * 0.12; // Counter-rotation of shoulders vs hips
+        upperRotZ = swing * 0.025;
+
+        headRotY = swing * 0.06;
+        headRotX = -bounce * 0.03;
+
+        rLegX = swing * 0.62;
+        lLegX = -swing * 0.62;
+
+        rArmX = -swing * 0.45;
+        lArmX = swing * 0.45;
+        rArmZ = 0.06;
+        lArmZ = -0.06;
+
+        if (currentVariant === 'overcoat') {
+          rArmX = -0.12 - swing * 0.35;
+          rArmZ = 0.07;
+        } else if (currentVariant === 'raincoat') {
+          // Axe swings naturally with right arm, clear of coat and legs
+          rArmX = -0.20 - swing * 0.30;
+          rArmZ = 0.12;
+        } else if (currentVariant === 'executive') {
+          rArmX = -0.12 - swing * 0.36;
+          rArmZ = 0.08;
+        }
+      } else if (currentAnim === 'attack') {
+        const cycle = (t * 1.35) % 1.0;
+
+        if (currentVariant === 'overcoat') {
+          // Gun Shoot Attack: Quick tactical aim, sharp recoil kickback, recovery!
+          if (cycle < 0.2) {
+            const p = cycle / 0.2;
+            const ease = p * p * (3 - 2 * p);
+            rArmX = lerp(-0.1, -1.58, ease);
+            rArmZ = lerp(0.06, -0.04, ease);
+            headRotY = lerp(0, -0.22, ease);
+            upperRotY = lerp(0, 0.22, ease);
+          } else if (cycle < 0.35) {
+            const p = (cycle - 0.2) / 0.15;
+            const kick = Math.sin(p * Math.PI);
+            rArmX = -1.58 - kick * 0.35; // slide kicks upward
+            rArmY = kick * 0.06;
+            upperRotX = -kick * 0.06;
+            headRotX = kick * 0.04;
+            headRotY = -0.22;
+            upperRotY = 0.22;
+          } else if (cycle < 0.65) {
+            const p = (cycle - 0.35) / 0.30;
+            const ease = p * p * (3 - 2 * p);
+            rArmX = lerp(-1.58, -1.52, ease);
+            headRotY = -0.22;
+            upperRotY = 0.22;
+          } else {
+            const p = (cycle - 0.65) / 0.35;
+            const ease = p * p * (3 - 2 * p);
+            rArmX = lerp(-1.52, -0.08, ease);
+            rArmZ = lerp(-0.04, 0.06, ease);
+            headRotY = lerp(-0.22, 0, ease);
+            upperRotY = lerp(0.22, 0, ease);
+          }
+        } else if (currentVariant === 'raincoat') {
+          // Axe Chop Attack: "Hey Paul!" Two-handed windup overhead, brutal downward cleave!
+          if (cycle < 0.32) {
+            const p = cycle / 0.32;
+            const ease = p * p * (3 - 2 * p);
+            rArmX = lerp(-0.2, -2.65, ease);
+            rArmZ = lerp(0.1, 0.22, ease);
+            lArmX = lerp(0, -2.45, ease);
+            lArmZ = lerp(-0.05, -0.18, ease);
+            upperRotX = lerp(0, -0.28, ease);
+            upperRotY = lerp(0, 0.35, ease);
+            headRotX = lerp(0, -0.20, ease);
+            rootY = lerp(0, 0.04, ease);
+          } else if (cycle < 0.52) {
+            const p = (cycle - 0.32) / 0.20;
+            const ease = 1 - Math.pow(1 - p, 3);
+            rArmX = lerp(-2.65, -0.75, ease);
+            rArmZ = lerp(0.22, 0.05, ease);
+            lArmX = lerp(-2.45, -0.65, ease);
+            lArmZ = lerp(-0.18, -0.05, ease);
+            upperRotX = lerp(-0.28, 0.42, ease);
+            upperRotY = lerp(0.35, -0.25, ease);
+            headRotX = lerp(-0.20, 0.35, ease);
+            rootY = lerp(0.04, -0.03, ease);
+          } else {
+            const p = (cycle - 0.52) / 0.48;
+            const ease = p * p * (3 - 2 * p);
+            rArmX = lerp(-0.75, -0.18, ease);
+            rArmZ = lerp(0.05, 0.10, ease);
+            lArmX = lerp(-0.65, 0, ease);
+            lArmZ = lerp(-0.05, -0.05, ease);
+            upperRotX = lerp(0.42, 0, ease);
+            upperRotY = lerp(-0.25, 0, ease);
+            headRotX = lerp(0.35, 0, ease);
+            rootY = lerp(-0.03, 0, ease);
+          }
+        } else {
+          // Dynamic executive snap punch / strike
+          if (cycle < 0.3) {
+            const p = cycle / 0.3;
+            const ease = p * p * (3 - 2 * p);
+            upperRotY = lerp(0, 0.45, ease);
+            upperRotX = lerp(0, -0.12, ease);
+            rArmX = lerp(0, -2.15, ease);
+            rArmZ = lerp(0.05, 0.28, ease);
+            lArmX = lerp(0, 0.35, ease);
+          } else if (cycle < 0.52) {
+            const p = (cycle - 0.3) / 0.22;
+            const ease = 1 - Math.pow(1 - p, 3);
+            upperRotY = lerp(0.45, -0.42, ease);
+            upperRotX = lerp(-0.12, 0.25, ease);
+            rArmX = lerp(-2.15, -0.45, ease);
+            rArmZ = lerp(0.28, -0.10, ease);
+            lArmX = lerp(0.35, 0.50, ease);
+            rootY = Math.sin(p * Math.PI) * 0.035;
+          } else {
+            const p = (cycle - 0.52) / 0.48;
+            const ease = p * p * (3 - 2 * p);
+            upperRotY = lerp(-0.42, 0, ease);
+            upperRotX = lerp(0.25, 0, ease);
+            rArmX = lerp(-0.45, 0, ease);
+            rArmZ = lerp(-0.10, 0.05, ease);
+            lArmX = lerp(0.50, 0, ease);
+          }
+        }
+      } else if (currentAnim === 'special') {
+        if (currentVariant === 'overcoat') {
+          // Reference Pic 2: Dramatic aiming stance with Glock pistol extended forward (NO CLIPPING!)
+          const sway = Math.sin(t * 2.5);
+          upperRotY = 0.22 + sway * 0.02;
+          upperRotX = 0.04;
+          headRotY = -0.22;
+          headRotZ = 0.09 + sway * 0.015;
+          headRotX = 0.05;
+
+          // Right arm extended straight forward aiming (clean clearance from overcoat)
+          rArmX = -1.55 + Math.sin(t * 3.8) * 0.012;
+          rArmY = 0.02;
+          rArmZ = -0.05; // slight outward angle to ensure the sleeve never clips into coat lapels
+
+          // Left arm relaxed at side, clear of torso
+          lArmX = 0.10;
+          lArmZ = -0.08;
+
+          // Stable combat stance
+          rLegX = -0.12;
+          lLegX = 0.12;
+          rLegZ = 0.04;
+          lLegZ = -0.04;
+        } else if (currentVariant === 'raincoat') {
+          // Reference Pic 3: "Hey Paul!" Admiring the gleaming chrome axe blade in front of face
+          const sway = Math.sin(t * 2.2);
+          upperRotY = -0.12;
+          upperRotX = 0.05;
+          headRotX = 0.24 + sway * 0.02; // looking down at gleaming axe bit
+          headRotY = -0.18;
+          headRotZ = 0.12;
+
+          // Right arm raised, presenting polished axe head right before face
+          rArmX = -1.68 + sway * 0.02;
+          rArmY = -0.15;
+          rArmZ = 0.46; // elbow held outward, zero clipping through raincoat
+
+          // Left arm open in manic delight
+          lArmX = -0.42 + Math.cos(t * 2.2) * 0.05;
+          lArmZ = -0.32;
+
+          rLegX = -0.08;
+          lLegX = 0.08;
+        } else if (currentVariant === 'executive') {
+          // Reference Pic 5: Suspenders, Sunglasses & holding the 1980s Brick Phone to ear!
+          const pulse = Math.sin(t * 2.4);
+          upperRotX = -0.08;
+          upperRotY = 0.06;
+          headRotZ = 0.16 + pulse * 0.015; // head tilted right resting against earpiece
+          headRotY = 0.14;
+          headRotX = 0.06;
+
+          // Right arm raised holding 80s brick mobile phone to right ear
+          rArmX = -2.10 + pulse * 0.015;
+          rArmY = -0.06;
+          rArmZ = 0.50;
+
+          // Left arm relaxed showing off gold Rolex watch
+          lArmX = -0.32;
+          lArmZ = -0.28;
+
+          rLegX = -0.10;
+          lLegX = 0.08;
+        } else {
+          // Variant 3 ('walkman'): Adjusting headphones while presenting Bone business card
+          const rhythm = Math.sin(t * 3.8);
+          headRotX = rhythm * 0.06;
+          headRotY = Math.sin(t * 1.2) * 0.12;
+          lArmX = -2.05 + rhythm * 0.04;
+          lArmZ = 0.35;
+          rArmX = -1.15 + Math.sin(t * 2.1) * 0.05;
+          rArmY = -0.06;
+          rArmZ = 0.16;
+          upperRotY = 0.12;
+        }
+      }
+
+      // Smoothly damp all joints for fluid 60 FPS transitions
+      const damp = Math.min(1, dt * 12);
+      characterRoot.position.y = lerp(characterRoot.position.y, rootY, damp);
+
+      upperBodyGroup.rotation.x = lerp(upperBodyGroup.rotation.x, upperRotX, damp);
+      upperBodyGroup.rotation.y = lerp(upperBodyGroup.rotation.y, upperRotY, damp);
+      upperBodyGroup.rotation.z = lerp(upperBodyGroup.rotation.z, upperRotZ, damp);
+
+      headGroup.rotation.x = lerp(headGroup.rotation.x, headRotX, damp);
+      headGroup.rotation.y = lerp(headGroup.rotation.y, headRotY, damp);
+      headGroup.rotation.z = lerp(headGroup.rotation.z, headRotZ, damp);
+
+      rightArmGroup.rotation.x = lerp(rightArmGroup.rotation.x, rArmX, damp);
+      rightArmGroup.rotation.y = lerp(rightArmGroup.rotation.y, rArmY, damp);
+      rightArmGroup.rotation.z = lerp(rightArmGroup.rotation.z, rArmZ, damp);
+
+      leftArmGroup.rotation.x = lerp(leftArmGroup.rotation.x, lArmX, damp);
+      leftArmGroup.rotation.y = lerp(leftArmGroup.rotation.y, lArmY, damp);
+      leftArmGroup.rotation.z = lerp(leftArmGroup.rotation.z, lArmZ, damp);
+
+      rightLegGroup.rotation.x = lerp(rightLegGroup.rotation.x, rLegX, damp);
+      rightLegGroup.rotation.y = lerp(rightLegGroup.rotation.y, rLegY, damp);
+      rightLegGroup.rotation.z = lerp(rightLegGroup.rotation.z, rLegZ, damp);
+
+      leftLegGroup.rotation.x = lerp(leftLegGroup.rotation.x, lLegX, damp);
+      leftLegGroup.rotation.y = lerp(leftLegGroup.rotation.y, lLegY, damp);
+      leftLegGroup.rotation.z = lerp(leftLegGroup.rotation.z, lLegZ, damp);
+    }
+
+    function setVariant(variant) {
+      currentVariant = variant;
+      variantButtons.forEach((b) => {
+        if (b.getAttribute('data-variant') === variant) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
+      rebuildCharacter(currentVariant);
+    }
+
+    function setAnim(anim) {
+      currentAnim = anim;
+      animButtons.forEach((b) => {
+        if (b.getAttribute('data-anim') === anim) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
+      animTime = 0;
+    }
+
+    const variantButtons = document.querySelectorAll('.variant-btn');
+    variantButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setVariant(btn.getAttribute('data-variant'));
+      });
+    });
+
+    const animButtons = document.querySelectorAll('.anim-btn');
+    animButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setAnim(btn.getAttribute('data-anim'));
+      });
+    });
+
+    let isResettingCamera = false;
+    document.getElementById('reset-camera-btn').addEventListener('click', () => {
+      isResettingCamera = true;
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === '1') setAnim('idle');
+      else if (e.key === '2') setAnim('walk');
+      else if (e.key === '3') setAnim('attack');
+      else if (e.key === '4') setAnim('special');
+      else if (e.key === '5') setVariant('overcoat');
+      else if (e.key === '6') setVariant('raincoat');
+      else if (e.key === '7') setVariant('walkman');
+      else if (e.key === '8') setVariant('executive');
+      else if (e.key.toLowerCase() === 'r') isResettingCamera = true;
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    let lastTime = performance.now();
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+
+      const rawDt = (now - lastTime) / 1000;
+      lastTime = now;
+      const dt = Math.min(rawDt, 0.1);
+
+      if (isResettingCamera) {
+        camera.position.lerp(DEFAULT_CAM_POS, 0.14);
+        controls.target.lerp(DEFAULT_CAM_TARGET, 0.14);
+        if (camera.position.distanceTo(DEFAULT_CAM_POS) < 0.01) {
+          camera.position.copy(DEFAULT_CAM_POS);
+          controls.target.copy(DEFAULT_CAM_TARGET);
+          isResettingCamera = false;
+        }
+      }
+
+      controls.update();
+      updateAnimation(dt);
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function () {
+      lastTime = performance.now();
+      requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-15 19:51
+- Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
+  - Fixed clipping bug on special animation with tan overcoat: corrected arm pivot centering (y = -6*PX instead of -4*PX so shoulder rotates around top of arm without swinging backwards into the torso), refined outer torso/arm/leg coat overlay dimensions, and tuned arm angles. Clip audit: 0 penetrations across all 16 variant/animation combinations.
+  - Tan overcoat skin: added 3D voxel Glock 19 semi-automatic pistol with black polymer frame, trigger guard, metallic trigger, gunmetal slide with serrations and ejection port, and white 3-dot sights; in Special animation, points the gun straight forward in dramatic shootout stance matching Reference Pic 2.
+  - Raincoat skin: added Paul Allen murder axe with long American hickory curved wood handle and polished mirror-chrome wedge blade with razor-sharp cutting edge matching Reference Pics 3 & 4; in Special animation, brings the axe up to inspect the gleaming chrome blade.
+  - Suspenders skin: added authentic 1980s Motorola DynaTAC brick mobile phone with beige chassis, red LED segment display, 3x4 keypad, and long flexible rubber antenna matching Reference Pic 5; in Special animation, holds the phone up to his right ear while smirking behind sunglasses.
+  - Keyboard shortcuts added: 1-4 for animations (Idle, Walk, Attack, Special), 5-8 for outfit variants, R for camera reset.
+  - Reference photos placed directly in project root as requested: `reference_bateman_special_clip_issue.png`, `reference_bateman_gun.png`, `reference_bateman_axe_inspect.png`, `reference_bateman_axe_standing.png`, `reference_bateman_phone.png`, and backed up to `references/patrick_bateman/`.
+
 ## 2026-10-15 17:51
 - The King (`mobs/the_king/thekingv3.html`) on the 2-bone rig rule:
   - Removed the empty `hand_*` bones and the `ankle_*` bones; the shoe now sits on the shin bone (same spot).
