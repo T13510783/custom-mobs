@@ -304,8 +304,9 @@
 
         // Expression per variant
         if (variant === 'raincoat') {
-          // Singing / talking open mouth ("Hip to Be Square!")
-          px(ctx, 3, 6, 2, 1, '#6e2b2b');
+          // Unhinged ecstatic open-mouthed grin showing teeth ("Do you like Huey Lewis and the News?!")
+          px(ctx, 2, 6, 4, 1, '#541c1c');
+          px(ctx, 3, 6, 2, 1, '#f1f5f9');
         } else if (variant === 'executive') {
           // Subtle confident smirk
           px(ctx, 2, 6, 3, 1, skinDeep);
@@ -1324,31 +1325,29 @@
         roughness: 0.02
       });
 
-      // Hand grip is at origin y = 0.
-      // Total handle length is ~15 pixels:
-      // - Extends upward above hand by 4.2 pixels to the axe head.
-      // - Extends downward below hand by 10.8 pixels.
-      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.75 * PX, 15.0 * PX, 1.05 * PX), woodMat);
-      handle.position.set(0, -3.3 * PX, 0);
+      // Hand grip is at origin y = 0 (held normally at the bottom of the handle, near the fawn-foot knob).
+      // Total handle length is ~15.5 pixels extending UPWARDS to the mirror-chrome axe head.
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.75 * PX, 15.5 * PX, 1.05 * PX), woodMat);
+      handle.position.set(0, 6.75 * PX, 0);
       axe.add(handle);
 
-      const grainStrip = new THREE.Mesh(new THREE.BoxGeometry(0.78 * PX, 14.6 * PX, 0.45 * PX), woodGrainMat);
-      grainStrip.position.set(0, -3.3 * PX, 0.12 * PX);
+      const grainStrip = new THREE.Mesh(new THREE.BoxGeometry(0.78 * PX, 15.1 * PX, 0.45 * PX), woodGrainMat);
+      grainStrip.position.set(0, 6.75 * PX, 0.12 * PX);
       axe.add(grainStrip);
 
-      // Bottom ergonomic fawn-foot swell / knob at lower end of handle
+      // Bottom ergonomic fawn-foot swell / knob at lower end of handle (just below hand at y = 0)
       const knob = new THREE.Mesh(new THREE.BoxGeometry(0.85 * PX, 1.4 * PX, 1.35 * PX), woodKnobMat);
-      knob.position.set(0, -10.6 * PX, 0.05 * PX);
+      knob.position.set(0, -1.0 * PX, 0.05 * PX);
       axe.add(knob);
 
       // Top handle protrusion above the axe head
       const topHandle = new THREE.Mesh(new THREE.BoxGeometry(0.72 * PX, 1.2 * PX, 0.98 * PX), woodKnobMat);
-      topHandle.position.set(0, 4.6 * PX, 0);
+      topHandle.position.set(0, 14.6 * PX, 0);
       axe.add(topHandle);
 
-      // Axe head assembly (mounted above hand at y = 3.6 * PX)
+      // Axe head assembly (mounted near top of handle at y = 13.6 * PX)
       const headGroup = new THREE.Group();
-      headGroup.position.set(0, 3.6 * PX, 0);
+      headGroup.position.set(0, 13.6 * PX, 0);
 
       // Steel Eye collar wrapping around the handle
       const collar = new THREE.Mesh(new THREE.BoxGeometry(1.22 * PX, 2.4 * PX, 1.65 * PX), steelMat);
@@ -1467,19 +1466,21 @@
 
       if (variant === 'overcoat') {
         // Black Glock pistol held firmly in black-gloved hand
-        // Oriented with gun.rotation.x = Math.PI / 2 so that:
-        // - In Special (rArmX = -PI/2): barrel points dead level horizontally forward at the target!
+        // Shifted forward along barrel axis (y = -2.2*PX) so the entire slide, ejection port, and sights
+        // sit cleanly outside the glove (zero clipping into arm), and slightly outward (x = -0.35*PX).
+        // Oriented with gun.rotation.x = Math.PI / 2:
+        // - In Special (rArmX = -PI/2): barrel points dead level horizontally forward at target (never upwards!)
         // - In Idle (rArmX = -0.08): barrel points safely down towards the ground!
-        // It never points upwards!
         const gun = buildGlockPistol();
-        gun.position.set(0, 0, 0);
+        gun.position.set(-0.35 * PX, -2.2 * PX, 0);
         gun.rotation.x = Math.PI / 2;
         propGroup.add(gun);
       } else if (variant === 'raincoat') {
-        // Paul Allen felling axe held firmly by handle below the axe head
-        // Broad mirror-chrome cutting bit faces forward (+Z), poll faces back (-Z), shaft goes down
+        // Paul Allen felling axe held normally at the bottom of the handle (Pic 3 & 4)
+        // Hand grips at bottom knob, shaft rises upright with broad mirror-chrome cutting bit held high
         const axe = buildPaulAllenAxe();
-        axe.position.set(0, 0, 0);
+        axe.position.set(-0.3 * PX, 0, 1.4 * PX);
+        axe.rotation.x = -0.18;
         propGroup.add(axe);
       } else if (variant === 'executive') {
         // Pic 5: Authentic 1980s Motorola DynaTAC brick mobile phone held in hand
@@ -1662,8 +1663,8 @@
           rArmY = -0.04;
           lArmX = 0.02;
         } else if (currentVariant === 'raincoat') {
-          // Raincoat: chrome axe held comfortably by right side, blade facing forward, shaft along leg
-          rArmX = -0.12 + breath * 0.02;
+          // Raincoat: chrome axe held comfortably upright by bottom of handle, head gleaming at chest height
+          rArmX = -0.18 + breath * 0.02;
           rArmZ = 0.14;
           rArmY = 0.04;
           lArmX = 0.04;
@@ -1837,40 +1838,73 @@
           rLegZ = 0.04;
           lLegZ = -0.04;
         } else if (currentVariant === 'raincoat') {
-          // The iconic "It's Hip to Be Square" dance from American Psycho!
-          // Rhythmic 140 BPM bouncy groove, high-stepping knee bounce, dynamic hip sway, and swaggering 80s pop arm pumping!
-          const tempo = 4.8;
+          // The iconic "It's Hip to Be Square" dance from American Psycho (Huey Lewis and the News scene)!
+          // Alternates between two 100% movie lore-accurate phases matching the reference stills:
+          // Phase 1 (Pic 4): Sassy lean-back moonwalk with tight 80s fist-pump, left hand behind back, head tilted back singing along!
+          // Phase 2 (Pic 3): Two-handed axe presentation across chest with beaming manic grin!
+          const tempo = 4.6;
           const phase = t * tempo;
           const bounce = Math.abs(Math.sin(phase));
+          rootY = bounce * 0.048;
 
-          // Springy knee bounce & vertical hop
-          rootY = bounce * 0.052;
+          // Cycle smoothly blending between Phase 1 (moonwalk fist-pump) and Phase 2 (two-handed axe presentation)
+          const blendRaw = Math.sin(t * 1.5);
+          const s = Math.max(0, Math.min(1, (blendRaw + 0.35) / 0.7));
+          const p2Weight = s * s * (3 - 2 * s);
 
-          // Torso sways and rocks to the 4/4 pop groove
-          upperRotY = Math.sin(phase * 0.5) * 0.30;
-          upperRotZ = Math.cos(phase * 0.5) * 0.10;
-          upperRotX = 0.06 + bounce * 0.035;
+          // Phase 1 Poses (Pic 4 - Moonwalk & 80s Fist-Pump)
+          const p1UpperX = -0.16 + bounce * 0.03;
+          const p1UpperY = Math.sin(t * 3.6) * 0.22;
+          const p1UpperZ = Math.cos(t * 3.6) * 0.12;
+          const p1HeadX = -0.18 + Math.sin(phase) * 0.08;
+          const p1HeadY = Math.sin(t * 3.6) * 0.14;
+          const p1HeadZ = Math.cos(t * 3.6) * 0.09;
+          const p1RArmX = -1.45 - Math.sin(phase) * 0.22;
+          const p1RArmZ = 0.28;
+          const p1RArmY = -0.32;
+          const p1LArmX = 0.42;
+          const p1LArmZ = -0.42;
+          const p1LArmY = 0.35;
+          const p1RLegX = Math.sin(t * 3.6) * 0.52;
+          const p1LLegX = -Math.sin(t * 3.6) * 0.52;
+          const p1RLegZ = 0.04;
+          const p1LLegZ = -0.04;
 
-          // Head bobs up and down on each beat with manic musical ecstasy
-          headRotX = -0.06 + Math.sin(phase) * 0.09;
-          headRotY = Math.sin(phase * 0.5) * 0.18;
-          headRotZ = Math.cos(phase * 0.5) * 0.08;
+          // Phase 2 Poses (Pic 3 - Two-Handed Axe Presentation)
+          const p2UpperX = 0.05 + bounce * 0.03;
+          const p2UpperY = Math.sin(t * 3.6) * 0.18;
+          const p2UpperZ = Math.cos(t * 3.6) * 0.08;
+          const p2HeadX = 0.04 + Math.sin(phase) * 0.06;
+          const p2HeadY = Math.sin(t * 3.6) * 0.16;
+          const p2HeadZ = Math.cos(t * 3.6) * 0.06;
+          const p2RArmX = -0.92 + Math.sin(phase) * 0.06;
+          const p2RArmZ = 0.30;
+          const p2RArmY = -0.42;
+          const p2LArmX = -1.32 - Math.sin(phase) * 0.06;
+          const p2LArmZ = -0.28;
+          const p2LArmY = 0.50;
+          const p2RLegX = Math.sin(phase) * 0.28;
+          const p2LLegX = -Math.sin(phase) * 0.28;
+          const p2RLegZ = Math.max(0, Math.sin(phase)) * 0.10;
+          const p2LLegZ = Math.max(0, -Math.sin(phase)) * 0.10;
 
-          // Right arm holds the axe securely down at side, swinging rhythmically with the dance (zero clipping)
-          rArmX = -0.22 + Math.sin(phase * 0.5) * 0.22;
-          rArmZ = 0.18 + Math.abs(Math.sin(phase * 0.5)) * 0.06;
-          rArmY = 0.05;
-
-          // Left arm pumps and points in signature Patrick Bateman 80s dance moves
-          lArmX = -0.72 - Math.sin(phase) * 0.42;
-          lArmZ = -0.34 - Math.cos(phase * 0.5) * 0.18;
-          lArmY = -0.16 + Math.sin(phase * 0.5) * 0.22;
-
-          // High-stepping rhythmic dance strides with knees lifting to the beat
-          rLegX = Math.sin(phase * 0.5) * 0.56;
-          lLegX = -Math.sin(phase * 0.5) * 0.56;
-          rLegZ = Math.max(0, Math.sin(phase * 0.5)) * 0.12;
-          lLegZ = Math.max(0, -Math.sin(phase * 0.5)) * 0.12;
+          // Smoothly blend between Phase 1 and Phase 2
+          upperRotX = lerp(p1UpperX, p2UpperX, p2Weight);
+          upperRotY = lerp(p1UpperY, p2UpperY, p2Weight);
+          upperRotZ = lerp(p1UpperZ, p2UpperZ, p2Weight);
+          headRotX = lerp(p1HeadX, p2HeadX, p2Weight);
+          headRotY = lerp(p1HeadY, p2HeadY, p2Weight);
+          headRotZ = lerp(p1HeadZ, p2HeadZ, p2Weight);
+          rArmX = lerp(p1RArmX, p2RArmX, p2Weight);
+          rArmZ = lerp(p1RArmZ, p2RArmZ, p2Weight);
+          rArmY = lerp(p1RArmY, p2RArmY, p2Weight);
+          lArmX = lerp(p1LArmX, p2LArmX, p2Weight);
+          lArmZ = lerp(p1LArmZ, p2LArmZ, p2Weight);
+          lArmY = lerp(p1LArmY, p2LArmY, p2Weight);
+          rLegX = lerp(p1RLegX, p2RLegX, p2Weight);
+          lLegX = lerp(p1LLegX, p2LLegX, p2Weight);
+          rLegZ = lerp(p1RLegZ, p2RLegZ, p2Weight);
+          lLegZ = lerp(p1LLegZ, p2LLegZ, p2Weight);
         } else if (currentVariant === 'executive') {
           // Reference Pic 5: Suspenders, Sunglasses & holding the 1980s Brick Phone to ear!
           const pulse = Math.sin(t * 2.4);
