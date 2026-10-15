@@ -78,8 +78,8 @@
     .anim-btn.active { color: var(--accent-text); background: var(--accent-bg); border-color: rgba(245, 158, 11, .45); box-shadow: 0 0 18px rgba(217, 119, 6, .24); }
     .anim-btn kbd { font: inherit; opacity: .45; margin-right: 6px; }
     .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
-    #followBtn, #voiceBtn { width: 32px; height: 32px; min-width: 32px; padding: 0; border-radius: 999px; }
-    #followBtn.on, #voiceBtn.on { color: var(--accent-text); background: var(--accent-bg); }
+    #followBtn, #voiceBtn, #bonesBtn { width: 32px; height: 32px; min-width: 32px; padding: 0; border-radius: 999px; }
+    #followBtn.on, #voiceBtn.on, #bonesBtn.on { color: var(--accent-text); background: var(--accent-bg); }
     #voiceVol { width: 60px; margin: 0 4px 0 2px; accent-color: var(--accent); cursor: pointer; }
     #voiceVol:disabled { opacity: .35; cursor: default; }
     .dot {
@@ -146,6 +146,10 @@
     </button>
     <!-- Voice lines volume (0-100 %, default 35). Saved in this browser. -->
     <input id="voiceVol" type="range" min="0" max="100" value="35" title="Voice lines volume: 35%" aria-label="Voice lines volume">
+    <!-- Show the rig: a dot on every bone pivot + a line to its parent. Key B. -->
+    <button id="bonesBtn" class="icon-btn" title="Show bones (B)" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><circle cx="7" cy="12" r="1.6"/><circle cx="17" cy="12" r="1.6"/><circle cx="9" cy="20" r="1.6"/><circle cx="15" cy="20" r="1.6"/><path d="M12 6v8M12 8l-5 4M12 8l5 4M12 14l-3 6M12 14l3 6"/></svg>
+    </button>
     <span class="sep"></span>
     <span id="dots"></span>
   </nav>
@@ -611,26 +615,27 @@
     // Mouth pivot on the top lip: it opens downward (the bandana hides the lowest part, like a jaw).
     box(bone('mouth', head, 0, 2, 4.03), 'mouth', 2, 1, 0, 0, -0.5, 0, flat('lipLine'), NO_SHADOW);
 
-    // Arms: shoulder -> forearm -> hand (empty, for held items later). Rest: slightly out, elbow a bit bent.
+    // Arms: 2 bones (rig rule): arm_<side> = upper arm (shoulder), forearm_<side> = forearm (elbow).
+    // Rest: slightly out, elbow a bit bent. (No hand bone: a held item would hang on the forearm.)
     function arm(side, sx) {
       const s = bone(`arm_${side}`, chest, sx * 5.6, 11, 0, 0, 0, sx * 0.06);
       box(s, `upper_arm_${side}`, 3.2, 6, 3.4, 0, -2.5, 0, paintArm);
       box(s, `sleeve_cuff_${side}`, 3.6, 5.2, 3.8, 0, -2, 0, paintSleeve);
       const e = bone(`forearm_${side}`, s, 0, -5.2, 0, -0.12, 0, 0);
       box(e, `lower_arm_${side}`, 2.8, 5.5, 2.8, 0, -2.6, 0, paintForearm);
-      bone(`hand_${side}`, e, 0, -5.2, 0);
     }
     arm('right', -1); // his right arm is on -x
     arm('left', 1);
 
-    // Legs: hip -> knee -> ankle with a dress shoe.
+    // Legs: 2 bones (rig rule): leg_<side> = thigh (hip), knee_<side> = shin + dress shoe (knee).
+    // No ankle: the shoe tilts with the shin (foot angle = hip + knee). Same spot as the old ankle shoe:
+    // sole 6.4 below the knee, heel 1.9 behind and toe 3.3 in front of the shin line (see footLow()).
     function leg(side, sx) {
       const hp = bone(`leg_${side}`, body, sx * 2, 0, 0);
       box(hp, `thigh_${side}`, 3.8, 6, 3.8, 0, -2.8, 0, paintKhaki);
       const k = bone(`knee_${side}`, hp, 0, -5.6, 0);
       box(k, `calf_${side}`, 3.5, 5, 3.6, 0, -2.3, 0, paintKhaki);
-      const a = bone(`ankle_${side}`, k, 0, -4.8, 0);
-      box(a, `shoe_${side}`, 3.6, 2, 5.2, 0, -0.6, 0.7, paintShoe, { rough: 0.38 });
+      box(k, `shoe_${side}`, 3.6, 2, 5.2, 0, -5.4, 0.7, paintShoe, { rough: 0.38 });
     }
     leg('right', -1);
     leg('left', 1);
@@ -757,10 +762,27 @@
       return out;
     }
 
+    /* ───────── Legs + ground (2-bone legs, no ankle) ─────────
+       The shoe sits on the shin bone, so the foot angle = thigh + knee (world, + = toe down).
+       Texels below the hip joint: knee 5.6, sole 6.4 below the knee, heel 1.9 behind and toe
+       3.3 in front of the shin line. legHeight() = the body (hip) height offset that puts the
+       lowest sole point of both feet on the floor: smooth min, so no corner when the feet swap. */
+    const THIGH = 5.6, SOLE = 6.4, HEEL = -1.9, TOE = 3.3, HIP_H = 12;
+    // (k 0.02: under-estimates by at most 0.014 per use, so the feet float at most ~0.03 texel and never sink)
+    function smin(a, b, k = 0.02) { return Math.min(a, b) - k * Math.log1p(Math.exp(-Math.abs(a - b) / k)); }
+    // Lowest sole point below the hip for world thigh angle h and knee angle k (Rx: y' = y cos - z sin)
+    function footLow(h, k) {
+      const a = h + k, c = Math.cos(a), s = Math.sin(a);
+      return -THIGH * Math.cos(h) + smin(-SOLE * c - HEEL * s, -SOLE * c - TOE * s);
+    }
+    // Body (hip) y offset for both legs (world thigh angles hR / hL, knees kR / kL)
+    function legHeight(hR, kR, hL, kL) { return -HIP_H - smin(footLow(hR, kR), footLow(hL, kL)); }
+
     /* ───────── Animations (from TheKing v1) ─────────
        Each one writes offsets from the rest pose (radians, texels) plus face targets.
        Every periodic term fits a whole number of times into the loop length T.
-       v1 bone "body" (torso) = "chest" here. New in v3: elbows, knees and ankles of the v2 rig join in. */
+       v1 bone "body" (torso) = "chest" here. Rig rule (2026-10-15): 2 bones per arm and per leg, so elbows
+       and knees bend in every animation; there is no ankle (the shoe follows the shin). */
 
     // 1 · Idle: calm, proud breathing. Slow chest rise, chin lifts on the in-breath, arms drift out.
     const IDLE_GLANCE = [[0, 0], [1.1, 0], [1.4, -0.7], [2.1, -0.7], [2.4, 0.2], [3.3, 0.2], [3.6, 0], [4, 0]];
@@ -823,12 +845,11 @@
       bodyZ: [0, -0.14, -0.35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -0.71, -0.45, 0, 0],
       roll: [0, 0, 0, 0, 0, 0, 0, 0, 0.25, 1.0, 1.35, 1.38, 1.4, 0.6, 0.05, 0, 0, 0, 0],
       chestY: [0, 0, -0.1, 0.2, 0.1, -0.1, 0, 0, -0.1, -0.2, -0.15, -0.15, -0.1, 0, 0, 0, 0, 0.1, 0],
+      // (no ankle: the shoes tilt with the shins; the ground check in step() keeps the toes out of the floor)
       thR: [0, -0.33, -0.77, -1.3, -1.6, -1.6, -0.6, -0.15, -0.35, -0.3, -0.25, -0.25, -0.3, -0.8, -0.95, -1.65, -0.9, -0.05, 0],
       knR: [0, 0.36, 0.9, 1.5, 1.9, 2.1, 0.6, 0.05, 0.4, 0.3, 0.3, 0.35, 0.4, 0.4, 1.8, 2.2, 1.2, 0.1, 0],
-      anR: [0, -0.18, -0.45, 0.2, 0.3, 0.25, 0, -0.1, 0, 0.1, 0.1, 0.1, 0.1, 0, -0.7, -1.1, -0.6, -0.05, 0],
       thL: [0, -0.33, -0.77, 0.3, -0.8, -1.6, -0.6, -0.15, -0.35, -0.45, -0.45, -0.5, -0.5, -0.8, -0.95, -1.65, -0.9, -0.05, 0],
       knL: [0, 0.36, 0.9, 0.15, 1.6, 2.1, 0.6, 0.05, 0.4, 0.6, 0.7, 0.75, 0.8, 0.6, 1.8, 2.2, 1.2, 0.1, 0],
-      anL: [0, -0.18, -0.45, 0.45, 0.3, 0.25, 0, -0.1, 0, 0.2, 0.2, 0.2, 0.2, 0, -0.7, -1.1, -0.6, -0.05, 0],
       // Right arm raised to the sky like the video: he lies back in the air, so body-forward (x -1.7) points up.
       // Turned outward on y (a forward arm's z is its own axis, so z would not move it away from the bandana).
       // Overhead (x < -2.2) or sideways-up (big z) would cross the head or the side hair. On the ground it props him up.
@@ -855,15 +876,15 @@
     // turn into the hit, arm snaps straight, then back to guard. Small body step only (no root motion).
     const A2_T = [0, 0.22, 0.34, 0.42, 0.55, 0.8, 1.1];
     const A2 = poseTable(A2_T, {
-      // Legs worked out so the back (right) foot stays planted and both soles stay flat:
-      // step = how far the hips move = 5.6 sin(thigh) + 4.8 sin(shin) of the back leg (world angles), bodyY = lost leg height.
+      // Legs worked out so the back (right) foot stays planted:
+      // step = how far the hips move = 5.6 sin(thigh) + 4.8 sin(shin) of the back leg (world angles).
+      // Hip height = legHeight() (no ankle: the back foot pushes off its toes, heel up, like a real punch).
       step: [0, 0.89, 3.37, 3.77, 3.37, 1.51, 0],
-      bodyY: [0, -0.05, -0.62, -0.76, -0.62, -0.13, 0],
       bodyX: [0, -0.06, 0.12, 0.18, 0.14, 0.05, 0],
       chestY: [0, -0.3, 0.08, 0.12, 0.1, 0.03, 0],
-      thR: [0, 0.1, 0.12, 0.1, 0.1, 0.05, 0], knR: [0, 0.1, 0.2, 0.2, 0.2, 0.1, 0], anR: [0, -0.14, -0.44, -0.48, -0.44, -0.2, 0],
+      thR: [0, 0.1, 0.12, 0.1, 0.1, 0.05, 0], knR: [0, 0.1, 0.2, 0.2, 0.2, 0.1, 0],
       // Left foot steps in, then lifts (knee up) while it steps back.
-      thL: [0, -0.05, -0.55, -0.6, -0.55, -0.4, 0], knL: [0, 0.1, 0.6, 0.65, 0.6, 0.6, 0], anL: [0, 0.01, -0.17, -0.23, -0.19, -0.25, 0],
+      thL: [0, -0.05, -0.55, -0.6, -0.55, -0.4, 0], knL: [0, 0.1, 0.6, 0.65, 0.6, 0.6, 0],
       armRX: [0, 0.55, -1.2, -1.45, -1.3, -0.4, 0],
       armRY: [0, 0, -0.25, -0.35, -0.4, -0.1, 0], // aimed a little outward: passes beside the bandana
       armRZ: [0, -0.3, -0.3, -0.3, -0.28, -0.1, 0], // outward: the shoulder top stays clear of the bandana
@@ -880,11 +901,34 @@
     });
     const A2_FOLLOW = [[0, 1], [0.12, 0.1], [0.85, 0.1], [1.1, 1]]; // head stays on the target, not on the mouse
 
+    // No ankle: the back (right) foot can't stay flat while the hips move forward, so it pivots on its toe.
+    // For every key, solve the back thigh + knee (Newton, 2 equations) so the toe tip stays where it stood
+    // (z = 3.3 - step in front of the hip) and on the floor (same height as the front foot's lowest point).
+    (function solveA2BackToe() {
+      const toeAt = (h, k) => [-THIGH * Math.sin(h) - SOLE * Math.sin(h + k) + TOE * Math.cos(h + k),
+                               -THIGH * Math.cos(h) - SOLE * Math.cos(h + k) - TOE * Math.sin(h + k)];
+      A2_T.forEach((t, i) => {
+        const bx = A2.bodyX[i][1], st = A2.step[i][1];
+        if (st < 0.01) return;                                    // standing still: keep the rest pose
+        const zT = TOE - st, yT = footLow(bx + A2.thL[i][1], A2.knL[i][1]);
+        let h = bx + A2.thR[i][1], k = A2.knR[i][1];
+        for (let it = 0; it < 40; it++) {
+          const [z, y] = toeAt(h, k), e = 1e-5;
+          const [zh, yh] = toeAt(h + e, k), [zk, yk] = toeAt(h, k + e);
+          const a = (zh - z) / e, b = (zk - z) / e, c = (yh - y) / e, d = (yk - y) / e, det = a * d - b * c;
+          const dz = zT - z, dy = yT - y;
+          h += (d * dz - b * dy) / det; k += (a * dy - c * dz) / det;
+        }
+        A2.thR[i][1] = h - bx; A2.knR[i][1] = k;
+      });
+    })();
+
     // 7 · Run: every foot follows a running path, and the hip + knee angles are solved from it (2-bone IK).
     // Per leg, phase u (0..1): stance 0..D (foot on the ground, sliding back under him), then swing D..1
     // (heel kicks up high behind, knee drives forward, foot reaches out and paws back to land).
     // D 0.36 -> both feet are off the ground 28% of the time (the flight that makes it a run, not a fast walk).
-    // Texels: thigh 5.6, shin 4.8, ankle 1.6 above a flat sole; heel 1.9 behind and toe 3.3 in front of the ankle.
+    // Texels: thigh 5.6, shin 4.8 to the shoe joint point, which sits 1.6 above a flat sole; heel 1.9 behind and
+    // toe 3.3 in front of it. (No ankle bone: that point is just a spot on the shin bone.)
     const RUN = {
       P: 0.5625, D: 0.36,
       Zf: 2.4, Zb: 5.0,      // foot lands 2.4 in front of the hip, pushes off 5 behind it (leg nearly straight)
@@ -896,32 +940,39 @@
     const RUN_PITCH = [[0, -0.1], [0.07, 0], [0.2, 0], [0.36, 0.55], [0.46, 0.9], [0.72, 0.35], [0.9, -0.15], [1, -0.1]];
     // Ankle height when the lowest sole corner touches the ground (toe corner if pitched down, heel corner if up).
     const runContact = (f) => Math.max(1.6 * Math.cos(f) + 3.3 * Math.sin(f), 1.6 * Math.cos(f) - 1.9 * Math.sin(f));
+    // No ankle: the shoe pitch is the shin's world angle (thigh + knee), not a free choice. So the
+    // contact height depends on the solved pose: start from the planned pitch (RUN_PITCH), solve,
+    // read the real pitch, solve again (6 passes settle it, also at the fast landing). The real pitch gives heel strike, a heel
+    // that rises at push-off and a toe that trails the kicked-up shin, much like RUN_PITCH wanted.
     function runLeg(Q, side, u, hip, lean) {
-      const f = mc(u, RUN_PITCH), L = RUN.Zf + RUN.Zb;
-      let z, y;
-      if (u < RUN.D) {                                   // stance: steady slide back, sole on the ground
-        z = RUN.Zf - L * u / RUN.D;
-        y = runContact(f);
-      } else {                                           // swing: Hermite curve, both ends moving backward
-        // End speeds = the stance slide speed (no jerk at lift-off or landing): the foot keeps going back a little
-        // after lift-off and paws back before it lands.
-        const s = (u - RUN.D) / (1 - RUN.D), s2 = s * s, s3 = s2 * s, m = -L * (1 - RUN.D) / RUN.D;
-        z = (2 * s3 - 3 * s2 + 1) * -RUN.Zb + (s3 - 2 * s2 + s) * m + (-2 * s3 + 3 * s2) * RUN.Zf + (s3 - s2) * m;
-        y = runContact(f) + RUN.Hk * 10.91 * s ** 1.5 * (1 - s) ** 2; // lift peaks early (s 0.43): heel up behind
+      const L = RUN.Zf + RUN.Zb;
+      let f = mc(u, RUN_PITCH), thigh = 0, knee = 0;
+      for (let pass = 0; pass < 6; pass++) {
+        let z, y;
+        if (u < RUN.D) {                                 // stance: steady slide back, sole on the ground
+          z = RUN.Zf - L * u / RUN.D;
+          y = runContact(f);
+        } else {                                         // swing: Hermite curve, both ends moving backward
+          // End speeds = the stance slide speed (no jerk at lift-off or landing): the foot keeps going back a little
+          // after lift-off and paws back before it lands.
+          const s = (u - RUN.D) / (1 - RUN.D), s2 = s * s, s3 = s2 * s, m = -L * (1 - RUN.D) / RUN.D;
+          z = (2 * s3 - 3 * s2 + 1) * -RUN.Zb + (s3 - 2 * s2 + s) * m + (-2 * s3 + 3 * s2) * RUN.Zf + (s3 - s2) * m;
+          y = runContact(f) + RUN.Hk * 10.91 * s ** 1.5 * (1 - s) ** 2; // lift peaks early (s 0.43): heel up behind
+        }
+        // 2-bone IK in the hip's side plane (hip -> shoe joint point 4.8 below the knee). ty < 0 = below the hip.
+        // Angles: + = backward (rig convention). d >= 6.6 keeps the knee bend under ~1.8 rad (deeper, the shoe
+        // folds into the back of the thigh); d <= 10.38 = leg nearly straight. Soft limits (softplus): no jerk.
+        const ty = y - hip, d0 = Math.hypot(z, ty);
+        const d1 = 6.6 + 0.3 * Math.log1p(Math.exp((d0 - 6.6) / 0.3));
+        const d = 10.38 - 0.15 * Math.log1p(Math.exp((10.38 - d1) / 0.15));
+        const line = Math.atan2(z, -ty);                 // forward angle of the hip -> shoe-joint line
+        const aHip = Math.acos(clamp((5.6 * 5.6 + d * d - 4.8 * 4.8) / (2 * 5.6 * d), -1, 1));
+        const aKnee = Math.acos(clamp((5.6 * 5.6 + 4.8 * 4.8 - d * d) / (2 * 5.6 * 4.8), -1, 1));
+        thigh = -(line + aHip); knee = Math.PI - aKnee;  // knee points forward, bends backward
+        f = thigh + knee;                                // the real shoe pitch for the next pass
       }
-      // 2-bone IK in the hip's side plane. ty < 0 = below the hip. Angles: + = backward (rig convention).
-      // d >= 6.6 keeps the knee bend under ~1.8 rad (deeper, the shoe folds into the back of the thigh);
-      // d <= 10.38 = leg nearly straight. Soft limits (softplus), so the knee never stops with a jerk.
-      const ty = y - hip, d0 = Math.hypot(z, ty);
-      const d1 = 6.6 + 0.3 * Math.log1p(Math.exp((d0 - 6.6) / 0.3));
-      const d = 10.38 - 0.15 * Math.log1p(Math.exp((10.38 - d1) / 0.15));
-      const line = Math.atan2(z, -ty);                   // forward angle of the hip -> ankle line
-      const aHip = Math.acos(clamp((5.6 * 5.6 + d * d - 4.8 * 4.8) / (2 * 5.6 * d), -1, 1));
-      const aKnee = Math.acos(clamp((5.6 * 5.6 + 4.8 * 4.8 - d * d) / (2 * 5.6 * 4.8), -1, 1));
-      const thigh = -(line + aHip), knee = Math.PI - aKnee; // knee points forward, bends backward
       rot(Q, `leg_${side}`, thigh - lean, 0, 0);
       rot(Q, `knee_${side}`, knee, 0, 0);
-      rot(Q, `ankle_${side}`, f - (thigh + knee), 0, 0);   // foot pitch in world space
     }
 
     const ANIMS = {
@@ -957,14 +1008,14 @@
           rot(Q, 'chest', 0, kf(t, I2_HEAD) * 0.3, 0);
           rot(Q, 'head', 0, kf(t, I2_HEAD) * 0.7, 0);
           rot(Q, 'head', -0.04 * hip, 0, 0);       // proud chin
-          // Relaxed free leg: knee bends softly, the ankle keeps the shoe flat.
-          const freeR = Math.max(0, shift), freeL = Math.max(0, -shift);
-          rot(Q, 'leg_right', -0.05 * freeR, 0, 0);
-          rot(Q, 'knee_right', 0.12 * freeR, 0, 0);
-          rot(Q, 'ankle_right', -0.07 * freeR, 0, 0);
-          rot(Q, 'leg_left', -0.05 * freeL, 0, 0);
-          rot(Q, 'knee_left', 0.12 * freeL, 0, 0);
-          rot(Q, 'ankle_left', -0.07 * freeL, 0, 0);
+          // Relaxed free leg: knee comes forward and bends (thigh -0.25, knee +0.3 = shoe almost flat,
+          // its toe just on the floor). Squared: no corner when the weight crosses the middle.
+          const freeR = (Math.max(0, shift) / 0.45) ** 2, freeL = (Math.max(0, -shift) / 0.4) ** 2; // 0..1 (I2_SHIFT peaks)
+          rot(Q, 'leg_right', -0.25 * freeR, 0, 0);
+          rot(Q, 'knee_right', 0.3 * freeR, 0, 0);
+          rot(Q, 'leg_left', -0.25 * freeL, 0, 0);
+          rot(Q, 'knee_left', 0.3 * freeL, 0, 0);
+          pos(Q, 'body', 0, legHeight(-0.25 * freeR, 0.3 * freeR, -0.25 * freeL, 0.3 * freeL), 0);
           // Hand to the hip: shoulder out (outward only), elbow bends back in toward the belt.
           rot(Q, 'arm_left', -0.1 * hip, 0, 0.38 * hip);
           rot(Q, 'forearm_left', -0.12 * hip, 0, -0.62 * hip);
@@ -983,21 +1034,21 @@
         fn(t, Q) {
           const c = TAU * t;                       // one stride cycle per second, two per loop
           const s = Math.sin(c), co = Math.cos(c);
-          // Bounce lives in the torso (down on contact), so the feet stay on the ground.
-          pos(Q, 'chest', 0, -0.2 * (0.5 - 0.5 * Math.cos(2 * c)), 0);
+          // A little extra bounce in the torso (down on contact); the hips ride on the legs (legHeight).
+          pos(Q, 'chest', 0, -0.12 * (0.5 - 0.5 * Math.cos(2 * c)), 0);
           rot(Q, 'root', 0, 0.05 * s, 0.02 * s);   // hips turn with the leading leg, weight rolls side to side
           pos(Q, 'root', 0, 0.08 * s * s, 0);       // the roll would dip a shoe edge into the ground
           const hipR = 0.34 * s, hipL = -0.34 * s;
-          // Knee bends while that leg swings forward (right swings when cos < 0). Squared: smooth start and end.
+          // No ankle: heel strike (toe up) when the leg is in front, toe-off (heel up) behind. Stance knee
+          // stays soft (0.06); the swing knee folds to 1.15: the long dress shoe tilts toe-down with the
+          // shin and only clears the floor at that bend. Squared halves: smooth at every point of the cycle.
           const swR = Math.max(0, -co), swL = Math.max(0, co);
-          const kneeR = 0.42 * swR * swR, kneeL = 0.42 * swL * swL;
-          rot(Q, 'leg_right', hipR, 0, 0);
-          rot(Q, 'leg_left', hipL, 0, 0);
+          const kneeR = 0.06 + 1.09 * swR * swR, kneeL = 0.06 + 1.09 * swL * swL;
+          rot(Q, 'leg_right', hipR - 0.12 * swR * swR, 0, 0);  // swing thigh lifts a bit more forward
+          rot(Q, 'leg_left', hipL - 0.12 * swL * swL, 0, 0);
           rot(Q, 'knee_right', kneeR, 0, 0);
           rot(Q, 'knee_left', kneeL, 0, 0);
-          // Ankle keeps the sole flat on the ground (no toe or heel digging in); toe drops a little in the swing.
-          rot(Q, 'ankle_right', -hipR - 0.8 * kneeR, 0, 0);
-          rot(Q, 'ankle_left', -hipL - 0.8 * kneeL, 0, 0);
+          pos(Q, 'body', 0, legHeight(hipR - 0.12 * swR * swR, kneeR, hipL - 0.12 * swL * swL, kneeL), 0);
           rot(Q, 'chest', 0.02, -0.09 * s, 0);     // shoulders counter-twist
           rot(Q, 'arm_right', -0.3 * s, 0, -0.06); // swagger: arms a bit out
           rot(Q, 'arm_left', 0.3 * s, 0, 0.06);
@@ -1023,22 +1074,25 @@
           const a = kf(t, D_CROUCH) + 0.08 * pump;      // crouch: deepest on each bounce
           const lean = kf(t, D_LEAN) + 0.03 * pump;
           const spread = kf(t, D_SPREAD);
-          // Pelvis: drops by the leg's lost height (5.6 + 4.8 texels of leg), rises on a hop, moves back by the
-          // 0.8 sin(a) the ankles move forward (feet stay put), and the whole body steps 1.6 texels forward.
-          pos(Q, 'root', 0, 0, kf(t, D_TRAVEL));
-          pos(Q, 'body', 0, -10.4 * (1 - Math.cos(a)) + lift, -0.8 * Math.sin(a));
-          rot(Q, 'body', lean, 0, 0);
-          rot(Q, 'chest', 0, -0.08 * Math.sin(Math.PI * clamp((t - 1.6) / 0.6, 0, 1) * 2) + 0.05 * kf(t, D_DANGLE) * Math.sin(TAU * 2.4 * t), 0);
-          // Legs: same crouch on both; a stepping foot lifts (smooth sin^2 bump); toes point down in the air.
-          const toe = 0.15 * lift;
+          // Legs (no ankle): thighs forward by a, shins tilt back by 0.6 a -> he crouches on the balls of
+          // his feet (heels up 0.6 a), like a bouncy dance. A stepping foot lifts (smooth sin^2 bump), a hop
+          // tucks the knees a little more. Hip height from legHeight() (+ hop lift); the pelvis moves back
+          // by how far the feet would slide forward (5.6 sin a - 4.8 sin 0.6a), so they stay put.
+          const tuck = 0.15 * lift;
+          const legA = { right: 0, left: 0 }, legK = { right: 0, left: 0 };
           for (const side of ['right', 'left']) {
             let e = 0;
             for (const [s, t0, t1] of D_STEPS) if (s === side && t > t0 && t < t1) e += 0.35 * Math.sin(Math.PI * (t - t0) / (t1 - t0)) ** 2;
             const sx = side === 'right' ? -1 : 1;  // outward on Z: right leg negative
-            rot(Q, `leg_${side}`, -(a + e / 2) - lean, 0, sx * spread);
-            rot(Q, `knee_${side}`, 2 * a + e, 0, 0);
-            rot(Q, `ankle_${side}`, -(a + e / 2) + toe, 0, -sx * spread); // sole flat on the ground
+            legA[side] = -(a + e / 2) - tuck;      // world thigh angle (the body lean is taken off below)
+            legK[side] = 1.6 * a + e + 2 * tuck;
+            rot(Q, `leg_${side}`, legA[side] - lean, 0, sx * spread);
+            rot(Q, `knee_${side}`, legK[side], 0, 0);
           }
+          pos(Q, 'root', 0, 0, kf(t, D_TRAVEL));
+          pos(Q, 'body', 0, legHeight(legA.right, legK.right, legA.left, legK.left) + lift, -(5.6 * Math.sin(a) - 4.8 * Math.sin(0.6 * a)));
+          rot(Q, 'body', lean, 0, 0);
+          rot(Q, 'chest', 0, -0.08 * Math.sin(Math.PI * clamp((t - 1.6) / 0.6, 0, 1) * 2) + 0.05 * kf(t, D_DANGLE) * Math.sin(TAU * 2.4 * t), 0);
           // Arms from the curves. A hanging arm (curve near 0) also gets "-0.6 lean" so it dangles down
           // instead of tipping forward with the body; dangling arms sway in the deep crouch.
           const sway = 0.15 * kf(t, D_DANGLE) * Math.sin(TAU * 2.4 * t);
@@ -1075,8 +1129,8 @@
           pos(Q, 'body', 0, v('bodyY'), v('bodyZ'));
           rot(Q, 'body', v('bodyX'), 0, v('roll'));
           rot(Q, 'chest', 0, v('chestY'), 0);
-          rot(Q, 'leg_right', v('thR'), 0, 0); rot(Q, 'knee_right', v('knR'), 0, 0); rot(Q, 'ankle_right', v('anR'), 0, 0);
-          rot(Q, 'leg_left', v('thL'), 0, 0); rot(Q, 'knee_left', v('knL'), 0, 0); rot(Q, 'ankle_left', v('anL'), 0, 0);
+          rot(Q, 'leg_right', v('thR'), 0, 0); rot(Q, 'knee_right', v('knR'), 0, 0);
+          rot(Q, 'leg_left', v('thL'), 0, 0); rot(Q, 'knee_left', v('knL'), 0, 0);
           const dust = kf(t, A1_DUST) * Math.sin(TAU * 6 * t);
           rot(Q, 'arm_right', v('armRX'), v('armRY'), v('armRZ'));
           rot(Q, 'forearm_right', v('foreRX') + 0.25 * dust, 0, 0);
@@ -1096,12 +1150,13 @@
         events: { hit: 0.42 },
         fn(t, Q) {
           const v = (ch) => mc(t, A2[ch]);
+          const bx = v('bodyX'), thR = v('thR'), knR = v('knR'), thL = v('thL'), knL = v('knL');
           pos(Q, 'root', 0, 0, v('step'));
-          pos(Q, 'body', 0, v('bodyY'), 0);
-          rot(Q, 'body', v('bodyX'), 0, 0);
+          pos(Q, 'body', 0, legHeight(bx + thR, knR, bx + thL, knL), 0); // hips ride on the legs (world thigh = lean + thigh)
+          rot(Q, 'body', bx, 0, 0);
           rot(Q, 'chest', 0, v('chestY'), 0);
-          rot(Q, 'leg_right', v('thR'), 0, 0); rot(Q, 'knee_right', v('knR'), 0, 0); rot(Q, 'ankle_right', v('anR'), 0, 0);
-          rot(Q, 'leg_left', v('thL'), 0, 0); rot(Q, 'knee_left', v('knL'), 0, 0); rot(Q, 'ankle_left', v('anL'), 0, 0);
+          rot(Q, 'leg_right', thR, 0, 0); rot(Q, 'knee_right', knR, 0, 0);
+          rot(Q, 'leg_left', thL, 0, 0); rot(Q, 'knee_left', knL, 0, 0);
           rot(Q, 'arm_right', v('armRX'), v('armRY'), v('armRZ'));
           rot(Q, 'forearm_right', v('foreRX'), 0, 0);
           // A forward-raised arm pokes its sleeve top above the shoulder pivot, next to the bandana (no turn moves it away):
@@ -1679,7 +1734,47 @@
       if (i >= 0) selectAnim(ANIM_ORDER[i]);
       if (e.key === 'v' || e.key === 'V') { voice.unlocked = true; sayLine(); }
       if (e.key === 'r' || e.key === 'R') resetting = true;
+      if (e.key === 'b' || e.key === 'B') toggleBones();
     });
+
+    /* ───────── Rig overlay ("Show bones" button, key B) ─────────
+       Same block in every mob. A dot on every bone pivot (yellow) and a line to its parent
+       (cyan), drawn on top of the model. Buffers are made once; update() only rewrites them. */
+    const rigView = (() => {
+      const list = boneList.filter((b) => b.name !== 'root');
+      const linePos = new Float32Array(list.length * 6), dotPos = new Float32Array(list.length * 3);
+      const lineGeo = new THREE.BufferGeometry(), dotGeo = new THREE.BufferGeometry();
+      lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+      dotGeo.setAttribute('position', new THREE.BufferAttribute(dotPos, 3));
+      const lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: 0x67e8f9, depthTest: false, transparent: true, opacity: 0.9 }));
+      const dots = new THREE.Points(dotGeo, new THREE.PointsMaterial({ color: 0xfacc15, size: 6, sizeAttenuation: false, depthTest: false, transparent: true }));
+      for (const o of [lines, dots]) { o.renderOrder = 999; o.frustumCulled = false; o.visible = false; scene.add(o); }
+      const a = new THREE.Vector3(), b = new THREE.Vector3();
+      return {
+        on: false,
+        set(on) { this.on = on; lines.visible = dots.visible = on; if (on) this.update(); },
+        update() {
+          mobRoot.updateMatrixWorld(true);
+          list.forEach((g, i) => {
+            g.getWorldPosition(a);
+            (g.parent.isGroup && g.parent !== mobRoot ? g.parent : g).getWorldPosition(b);
+            const j = i * 6, k = i * 3; // plain writes: no new arrays per frame
+            linePos[j] = b.x; linePos[j + 1] = b.y; linePos[j + 2] = b.z;
+            linePos[j + 3] = a.x; linePos[j + 4] = a.y; linePos[j + 5] = a.z;
+            dotPos[k] = a.x; dotPos[k + 1] = a.y; dotPos[k + 2] = a.z;
+          });
+          lineGeo.attributes.position.needsUpdate = true;
+          dotGeo.attributes.position.needsUpdate = true;
+        }
+      };
+    })();
+    const bonesBtn = document.getElementById('bonesBtn');
+    function toggleBones() {
+      rigView.set(!rigView.on);
+      bonesBtn.classList.toggle('on', rigView.on);
+      bonesBtn.setAttribute('aria-pressed', String(rigView.on));
+    }
+    bonesBtn.addEventListener('click', toggleBones);
 
     window.addEventListener('pointermove', (e) => {
       sim.follow.mx = (e.clientX / window.innerWidth) * 2 - 1;
@@ -1741,6 +1836,7 @@
       }
       controls.dampingFactor = filt(dt, 4.5); // same feel at 60 and 120 FPS
       controls.update();
+      if (rigView.on) rigView.update();
       renderer.render(scene, camera);
     }
 
@@ -1758,7 +1854,7 @@
        part B's space; points deeper than 0.06 texel inside B count. Every animation is tested with the
        mouse at the center, the edges and the corners. v2 parts that already overlap at rest (hair on the
        shoulders, bandana around the chin, ...) only count when they go 0.15 texel deeper than at rest.
-       Joints (hip, knee, ankle, elbow, shoulder, neck) are reported apart: the thinner part bends inside the thicker one. */
+       Joints (hip, knee, shoe-on-shin, elbow, shoulder, neck) are reported apart: the thinner part bends inside the thicker one. */
     function clipTest() {
       const meshes = cubeList.map((c) => c.mesh);
       const inv = meshes.map(() => new THREE.Matrix4());
@@ -2049,7 +2145,7 @@
       return { dt, every: 1 / 30, end, plan, frames: out };
     }
 
-    window.kingDebug = { cubeList, bones, boneList, atlas, voice, VOICE_LINES, music, ANIMS, makeSim, step, get sim() { return sim; } }; // for the self-tests (DevTools)
+    window.kingDebug = { cubeList, bones, boneList, atlas, voice, VOICE_LINES, music, ANIMS, makeSim, step, rigView, toggleBones, get sim() { return sim; } }; // for the self-tests (DevTools)
     const dumpJson = (id, obj) => { const pre = document.createElement('pre'); pre.id = id; pre.textContent = JSON.stringify(obj); document.body.appendChild(pre); };
     if (location.hash === '#cliptest') clipTest();
     else if (location.hash === '#modexport') dumpJson('modexport', modExport());
