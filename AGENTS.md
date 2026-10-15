@@ -7,8 +7,10 @@ Project rules for making mobs and the mod are in `CLAUDE.md` (also read it).
 
 ## 1. Branches
 
+- Repo: `https://github.com/T13510783/custom-mobs` (private; owner `T13510783`). Merging = squash only; merged branches are deleted by GitHub.
 - `main` = always working. Nobody commits straight to `main`; it only changes through pull requests (PRs).
-- Every person/agent works on **their own branch**: `<github-name>/<topic>`, e.g. `siebe/homelander`.
+  GitHub can't lock `main` on a free private repo, so this rule is the only guard: follow it.
+- Every person/agent works on **their own branch**: `<github-name>/<topic>` in lowercase, e.g. `t13510783/homelander`.
 - One topic per branch. Small, frequent PRs beat big ones.
 
 ## 2. Start of every session
