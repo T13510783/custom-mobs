@@ -14,6 +14,13 @@
   - `references/patrick_bateman/`: removed `reference_bateman_gun_aim.png` (same bytes as `reference_bateman_gun.png`); moved the 6 hash-named film stills from the root in as `bateman_film_*.jpg`.
   - `run.txt` + `CLAUDE.md` (rules 21, 24): no hardcoded `C:\custom mobs` path, the command now works from any clone folder.
 
+## 2026-10-15 22:17
+- Git housekeeping (branch `tivek87/homelander-attacks`):
+  - Committed the open dock work in `mobs/homelander/homelander.html` (sound toggle + volume slider, test dummy button; WIP).
+  - Rebased the branch onto `origin/main` (was 11 commits behind); `docs/working_on.md` conflict solved by keeping both lines.
+  - Removed the leftover worktree `C:\cm-worktrees\homelander-assets` (same 3 files, already in PR #19).
+- PR #19 (`tivek87/homelander-sounds-ref`): only `sounds/homelander/i_am_god.ogg` + `.mp3` and `references/homelander/homelander_clap_head.mp4`, waiting for merge.
+
 ## 2026-10-15 22:06
 - Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
   - Removed teeth from raincoat skin face: restored the standard deadpan serious face (`px(ctx, 3, 6, 2, 1, skinDeep)`) matching all other skins.
