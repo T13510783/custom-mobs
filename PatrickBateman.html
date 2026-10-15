@@ -1121,13 +1121,13 @@
     headGroup.position.set(0, 12 * PX, 0);
     upperBodyGroup.add(headGroup);
 
-    // Right & Left Arm pivots at shoulders: x = -/+ 6.25*PX, y = +10*PX relative to hip (22 * PX total)
+    // Right & Left Arm pivots at shoulders: x = -/+ 6.0*PX, y = +12*PX relative to hip (24 * PX total, flush with torso)
     const rightArmGroup = new THREE.Group();
-    rightArmGroup.position.set(-6.25 * PX, 10 * PX, 0);
+    rightArmGroup.position.set(-6.0 * PX, 12 * PX, 0);
     upperBodyGroup.add(rightArmGroup);
 
     const leftArmGroup = new THREE.Group();
-    leftArmGroup.position.set(6.25 * PX, 10 * PX, 0);
+    leftArmGroup.position.set(6.0 * PX, 12 * PX, 0);
     upperBodyGroup.add(leftArmGroup);
 
     // Right & Left Leg pivots at hips: x = -/+ 2*PX, y = 12*PX from ground
@@ -1233,72 +1233,73 @@
 
     function buildGlockPistol() {
       const gun = new THREE.Group();
-      const slideMat = createSolidMat(0x23272e, 0.42, 0.65); // gunmetal slide
-      const frameMat = createSolidMat(0x16181d, 0.68, 0.2);  // textured black polymer
-      const metalMat = createSolidMat(0x4b5563, 0.35, 0.85); // steel accents / trigger
-      const sightMat = createSolidMat(0xf8fafc, 0.2, 0.1);   // white 3-dot sights
+      const slideMat = createSolidMat(0x2d323b, 0.35, 0.72); // tactical gunmetal slide with realistic metallic sheen
+      const frameMat = createSolidMat(0x16181d, 0.65, 0.2);  // textured black polymer
+      const metalMat = createSolidMat(0x94a3b8, 0.24, 0.88); // polished steel accents / chamber
+      const triggerMat = createSolidMat(0x64748b, 0.3, 0.85); // steel trigger
+      const sightMat = createSolidMat(0xffffff, 0.1, 0.0);   // bright white 3-dot sights
       const muzzleMat = createSolidMat(0x0a0c0e, 0.9, 0.0);  // hollow bore
 
-      // 1. Grip Frame (angled slightly backward in hand)
-      const grip = new THREE.Mesh(new THREE.BoxGeometry(1.05 * PX, 2.4 * PX, 1.45 * PX), frameMat);
-      grip.position.set(0, -0.2 * PX, -0.2 * PX);
+      // 1. Grip Frame (held inside glove fingers)
+      const grip = new THREE.Mesh(new THREE.BoxGeometry(1.05 * PX, 2.5 * PX, 1.45 * PX), frameMat);
+      grip.position.set(0, -0.3 * PX, 0.2 * PX);
       grip.rotation.x = -0.14;
       gun.add(grip);
 
-      // Magazine baseplate at bottom of grip
-      const magBase = new THREE.Mesh(new THREE.BoxGeometry(1.12 * PX, 0.35 * PX, 1.55 * PX), frameMat);
-      magBase.position.set(0, -1.38 * PX, -0.38 * PX);
+      // Magazine baseplate at bottom of grip (extends below glove)
+      const magBase = new THREE.Mesh(new THREE.BoxGeometry(1.15 * PX, 0.4 * PX, 1.6 * PX), frameMat);
+      magBase.position.set(0, -1.5 * PX, 0.05 * PX);
       magBase.rotation.x = -0.14;
       gun.add(magBase);
 
-      // Beavertail at top-rear of grip
-      const beavertail = new THREE.Mesh(new THREE.BoxGeometry(1.02 * PX, 0.45 * PX, 0.65 * PX), frameMat);
-      beavertail.position.set(0, 0.75 * PX, -0.9 * PX);
-      gun.add(beavertail);
-
-      // Trigger guard loop
-      const guard = new THREE.Mesh(new THREE.BoxGeometry(0.35 * PX, 0.85 * PX, 1.15 * PX), frameMat);
-      guard.position.set(0, 0.2 * PX, 0.75 * PX);
+      // Trigger guard loop (projects forward from grip)
+      const guard = new THREE.Mesh(new THREE.BoxGeometry(0.35 * PX, 0.9 * PX, 1.25 * PX), frameMat);
+      guard.position.set(0, 0.15 * PX, 1.25 * PX);
       gun.add(guard);
 
       // Steel trigger inside guard
-      const trigger = new THREE.Mesh(new THREE.BoxGeometry(0.22 * PX, 0.5 * PX, 0.28 * PX), metalMat);
-      trigger.position.set(0, 0.25 * PX, 0.65 * PX);
+      const trigger = new THREE.Mesh(new THREE.BoxGeometry(0.22 * PX, 0.5 * PX, 0.28 * PX), triggerMat);
+      trigger.position.set(0, 0.2 * PX, 1.15 * PX);
       trigger.rotation.x = -0.28;
       gun.add(trigger);
 
-      // 2. Slide Assembly (extends forward along +Z)
-      const slide = new THREE.Mesh(new THREE.BoxGeometry(1.18 * PX, 1.18 * PX, 4.5 * PX), slideMat);
-      slide.position.set(0, 1.2 * PX, 1.15 * PX);
+      // 2. Slide Assembly (sits on top of hand, extending forward in +Z)
+      const slide = new THREE.Mesh(new THREE.BoxGeometry(1.2 * PX, 1.25 * PX, 4.8 * PX), slideMat);
+      slide.position.set(0, 1.25 * PX, 1.6 * PX);
       gun.add(slide);
 
-      // Ejection port cut-out on right side of slide
-      const ejectPort = new THREE.Mesh(new THREE.BoxGeometry(0.25 * PX, 0.45 * PX, 1.1 * PX), muzzleMat);
-      ejectPort.position.set(0.55 * PX, 1.35 * PX, 0.8 * PX);
+      // Polished steel ejection port / chamber on right side
+      const ejectPort = new THREE.Mesh(new THREE.BoxGeometry(0.25 * PX, 0.45 * PX, 1.2 * PX), metalMat);
+      ejectPort.position.set(0.55 * PX, 1.4 * PX, 1.2 * PX);
       gun.add(ejectPort);
 
       // Front sight post with white dot
-      const frontSight = new THREE.Mesh(new THREE.BoxGeometry(0.25 * PX, 0.35 * PX, 0.35 * PX), sightMat);
-      frontSight.position.set(0, 1.95 * PX, 3.1 * PX);
+      const frontSight = new THREE.Mesh(new THREE.BoxGeometry(0.25 * PX, 0.4 * PX, 0.4 * PX), sightMat);
+      frontSight.position.set(0, 2.05 * PX, 3.7 * PX);
       gun.add(frontSight);
 
       // Rear sight notch
-      const rearSight = new THREE.Mesh(new THREE.BoxGeometry(0.85 * PX, 0.35 * PX, 0.35 * PX), slideMat);
-      rearSight.position.set(0, 1.95 * PX, -0.85 * PX);
+      const rearSight = new THREE.Mesh(new THREE.BoxGeometry(0.9 * PX, 0.4 * PX, 0.4 * PX), slideMat);
+      rearSight.position.set(0, 2.05 * PX, -0.55 * PX);
       gun.add(rearSight);
 
       // Rear sight white aiming dots (left & right)
-      const dotL = new THREE.Mesh(new THREE.BoxGeometry(0.2 * PX, 0.2 * PX, 0.05 * PX), sightMat);
-      dotL.position.set(-0.3 * PX, 1.95 * PX, -1.04 * PX);
+      const dotL = new THREE.Mesh(new THREE.BoxGeometry(0.2 * PX, 0.22 * PX, 0.05 * PX), sightMat);
+      dotL.position.set(-0.32 * PX, 2.05 * PX, -0.76 * PX);
       gun.add(dotL);
-      const dotR = new THREE.Mesh(new THREE.BoxGeometry(0.2 * PX, 0.2 * PX, 0.05 * PX), sightMat);
-      dotR.position.set(0.3 * PX, 1.95 * PX, -1.04 * PX);
+      const dotR = new THREE.Mesh(new THREE.BoxGeometry(0.2 * PX, 0.22 * PX, 0.05 * PX), sightMat);
+      dotR.position.set(0.32 * PX, 2.05 * PX, -0.76 * PX);
       gun.add(dotR);
 
-      // Muzzle bore / hollow opening
-      const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.48 * PX, 0.48 * PX, 0.15 * PX), muzzleMat);
-      muzzle.position.set(0, 1.2 * PX, 3.42 * PX);
+      // Muzzle bore / hollow opening at front
+      const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.5 * PX, 0.5 * PX, 0.15 * PX), muzzleMat);
+      muzzle.position.set(0, 1.25 * PX, 4.02 * PX);
       gun.add(muzzle);
+
+      // Recoil guide rod beneath barrel
+      const guideRod = new THREE.Mesh(new THREE.BoxGeometry(0.3 * PX, 0.3 * PX, 0.18 * PX), metalMat);
+      guideRod.position.set(0, 0.72 * PX, 3.98 * PX);
+      gun.add(guideRod);
 
       return gun;
     }
@@ -1459,22 +1460,26 @@
 
     function buildHandProp(variant) {
       const propGroup = new THREE.Group();
-      // Positioned at palm of right hand (y = -10.5 * PX from shoulder pivot, z = 0.4 * PX)
-      propGroup.position.set(0, -10.5 * PX, 0.4 * PX);
+      // Positioned at palm of right hand (y = -10.0 * PX, projecting forward in +Z so items are prominently held)
+      propGroup.position.set(0, -10.0 * PX, 1.6 * PX);
 
       if (variant === 'overcoat') {
-        // Pic 1 & 2: Black Glock pistol held in black-gloved hand
-        propGroup.add(buildGlockPistol());
+        // Pic 1 & 2: Black Glock pistol held in black-gloved hand, slide & sights clearly visible
+        const gun = buildGlockPistol();
+        gun.position.set(0, 0, 0.2 * PX);
+        gun.rotation.x = -0.12;
+        propGroup.add(gun);
       } else if (variant === 'raincoat') {
-        // Pic 3 & 4: Chrome felling axe with long hickory handle
+        // Pic 3 & 4: Chrome felling axe with long hickory handle clearly held in hand
         const axe = buildPaulAllenAxe();
-        axe.position.set(0, 2.2 * PX, 0.25 * PX);
-        axe.rotation.x = -0.22;
+        axe.position.set(0, 2.5 * PX, 0.3 * PX);
+        axe.rotation.x = -0.18;
         propGroup.add(axe);
       } else if (variant === 'executive') {
         // Pic 5: Authentic 1980s Motorola DynaTAC brick mobile phone held in hand
         const phone = buildVintageBrickPhone();
-        phone.position.set(0, 0.8 * PX, 0.25 * PX);
+        phone.position.set(0, 0.8 * PX, 0.3 * PX);
+        phone.rotation.x = 0.08;
         propGroup.add(phone);
       } else if (variant === 'walkman') {
         // Pic 3: Pristine "Bone" business card with Silian Rail lettering
@@ -1488,7 +1493,7 @@
           new THREE.BoxGeometry(2.6 * PX, 0.2 * PX, 1.6 * PX),
           new THREE.MeshStandardMaterial({ map: cardTex, roughness: 0.5 })
         );
-        card.position.set(0, 0, 1.2 * PX);
+        card.position.set(0, 0, 1.0 * PX);
         propGroup.add(card);
       }
 
@@ -1645,9 +1650,10 @@
         lArmZ = -0.08;
 
         if (currentVariant === 'overcoat') {
-          // Tan overcoat: gun held resting pointing safely downward/forward
-          rArmX = -0.08 + breath * 0.02;
-          rArmZ = 0.08;
+          // Tan overcoat: Glock pistol held ready in right hand, angled forward so the silhouette is prominently visible
+          rArmX = -0.22 + breath * 0.02;
+          rArmZ = 0.09;
+          rArmY = -0.06;
           lArmX = 0.02;
         } else if (currentVariant === 'raincoat') {
           // Raincoat: chrome axe held comfortably by right side, blade pointing forward/down
@@ -1657,8 +1663,9 @@
           lArmX = 0.04;
         } else if (currentVariant === 'executive') {
           // Suspenders: 1980s brick phone held in right hand at side, cool executive lean
-          rArmX = -0.12 + breath * 0.02;
+          rArmX = -0.16 + breath * 0.02;
           rArmZ = 0.10;
+          rArmY = -0.04;
           upperRotX = -0.03;
         } else if (currentVariant === 'walkman') {
           // Walkman: subtle musical nod to headphones
