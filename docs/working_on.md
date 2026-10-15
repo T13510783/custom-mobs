@@ -5,4 +5,3 @@ Only one person per mob viewer page at a time (prevents merge conflicts in big H
 
 | Who (GitHub name) | Branch | Working on (mob / files) | Since |
 |---|---|---|---|
-| T13510783 | t13510783/patrick-bateman-props | PatrickBateman.html (no-clip special, gun, axe, vintage brick phone) | 2026-10-15 19:16 |
