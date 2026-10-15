@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15 22:30
+- Rule (`CLAUDE.md` GitHub section): Claude always commits and pushes itself, with a short clear `<area>: <what>` title and a 1-4 bullet description.
+- PR #19 (I AM GOD voice line + clap reference) and PR #20 (repo cleanup) merged; branch `tivek87/homelander-attacks` rebased onto `main`.
+
 ## 2026-10-15 22:25
 - References sorted and renamed (lowercase, no spaces): `references/_unsorted/Drop kick - Extreme Slow Motion.mp4` -> `references/the_king/drop_kick_slow_motion.mp4` (used by The King's Attack; comment in `mobs/the_king/thekingv3.html` updated), `The Burger King Plane Guy Original MEME.mp4` -> `plane_guy_meme.mp4`, `VID_20261014_065424_395.mp4` -> `the_king_clip_20261014.mp4`, `references/homelander/homelander 1.png` -> `homelander_1.png`.
 - New rules: always clean up git after a merge / at session end (`CLAUDE.md` teamwork section, `AGENTS.md` section 7); root holds only docs/config + folders, clear file names (`CLAUDE.md` rule 15).
