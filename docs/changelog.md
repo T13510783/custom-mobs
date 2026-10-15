@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-15 17:37
+- Homelander (`mobs/homelander/homelander.html`):
+  - Red glow fixed: no more red light in the middle of the face; now only the eyes glow (red eye whites, hot orange core on the pupil, faint halo; a blink hides it). Attack: eyes flare in the wind-up. Special: eyes heat up fully before the beams.
+  - Laser beams now start at the eyes (were starting inside the head); length per animation.
+  - Cape: 10 bones of 2 texels (was 5 x 4), same look; waves run smoothly down the cape, springs chain (each bone follows the one above).
+  - New attacks: 6 Throw (neck grab, lift, fling up, watch them fall), 7 Clap (from `references/homelander/homelander_i_am_god.mp4`: arms wide + scream, palms slam onto the sides of the head), 8 Throat Laser (grab, 1 s heat-up, point-blank lasers to the face).
+  - Cliptest: 0 clips, ground OK in all 9 animations, 0 bad UVs.
+- Hard git rule in `CLAUDE.md` + `AGENTS.md`: pull, commit, push after every prompt and change; check the current branch before every commit (shared folder).
+
 ## 2026-10-15 17:12
 - GitHub repo `T13510783/custom-mobs` (private) created and pushed; squash merge only, merged branches auto-deleted.
 - New "GitHub repo and teamwork" section in `CLAUDE.md`; repo info, join steps and rules table in `README.md`; extra safety rules in `AGENTS.md` (binary conflicts, rejected push, 50 MB limit, no settings changes without OK).

@@ -1,8 +1,8 @@
 # Latest session
 
-- **Date:** 2026-10-15 17:12
-- **Request:** Make the GitHub repo, push everything, and write all repo / branch / conflict / safety rules into the rules, `CLAUDE.md` and `README.md`.
-- **Done:** Private repo `https://github.com/T13510783/custom-mobs` made, all files pushed (audio, references, archive, mod source). `CLAUDE.md` got a "GitHub repo and teamwork" section; `README.md` got repo info, join steps and a rules table; `AGENTS.md` got extra safety rules. Global rules updated too.
-- **Tested:** branch -> PR -> squash merge -> pull flow works (PR #1).
-- **Files:** `CLAUDE.md`, `AGENTS.md`, `README.md`, `docs/changelog.md`, `docs/latest.md`.
-- **Next step:** Nothing started. Later: The King 2-bone rig (branch `t13510783/the-king-rig`, only claims it so far).
+- **Date:** 2026-10-15 17:37
+- **Request:** Hard git rule (pull/commit/push always); Homelander: eyes-only red glow, smoother cape (more bones), new attacks Throw, Clap (reference video), Throat Laser; then continue the earlier work.
+- **Done:** Glow = eye pixels only (point light removed); lasers start at the eyes; cape 10 bones + ripple chain; attacks on keys 6-8. Hard rule + branch check in `CLAUDE.md` / `AGENTS.md`.
+- **Tested:** Headless `#cliptest`: 0 clips, ground OK, 0 bad UVs. Probes: Throw / Throat Laser hand on his center line; Clap palms at x +-5.7 (sides of a head); laser ends at the victim's face. Renders checked (eyes, cape side views).
+- **Files:** `mobs/homelander/homelander.html`, `references/homelander/homelander_i_am_god.mp4`, `CLAUDE.md`, `AGENTS.md`, `docs/*`.
+- **Next step:** The King: 2-bone limbs + Show bones button + mod re-export (branch `t13510783/the-king-rig`).

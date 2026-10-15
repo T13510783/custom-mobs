@@ -31,7 +31,9 @@ Then check `docs/working_on.md` (who works on which mob/file) and add your own l
 A session/turn never ends with unpushed work, an open merge conflict or a half-done rebase.
 Make or switch branches and open/merge PRs whenever needed.
 
-1. `git status` - only commit your own files. Never `git add -A` blindly: check for stray/temp files first.
+1. `git status` + `git branch --show-current` - only commit your own files, and only on your own branch.
+   The folder is shared (your user's editor or another agent can switch branches or pull in between):
+   on the wrong branch -> switch first. Never `git add -A` blindly: check for stray/temp files first.
 2. `git commit -m "<mob or area>: <what changed>"` (e.g. `homelander: hover idle with hands behind back`).
 3. `git fetch` + `gh pr list` - new PRs or new commits on `main`?
 4. `git pull --rebase` (your branch), then `git rebase origin/main` if `main` moved.
