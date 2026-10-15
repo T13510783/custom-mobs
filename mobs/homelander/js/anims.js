@@ -96,6 +96,9 @@ const ID2_GRIN  = [[0, 0], [0.9, 0], [1.3, 1], [4.5, 1], [4.75, 0], [8.0, 0]];
 const ID2_STARE = [[0, 0], [4.5, 0], [4.75, 1], [6.6, 1], [7.3, 0], [8.0, 0]];
 const ID2_RED   = [[0, 0], [5.2, 0], [5.6, 1], [6.0, 1], [6.5, 0], [8.0, 0]];
 const ID2_SMIRK = [[0, 0], [6.8, 0], [7.2, 0.8], [7.7, 0.8], [8.0, 0]];
+// Raised peace-sign arm (added to the hands-on-hip pose at raise = 1): upper arm x/y/z rotation,
+// shoulder pivot slide in/down/forward (texels), elbow fold (rad) and its hinge offset toward the inner side (texels).
+const ID2_ARM = { ax: 0.15, ay: -1.5, az: 1.56, px: 1.1, py: 1.9, pz: 0.6, f: 0.5, hinge: 0.9 };
 
 // Attack Sequence Curves: Anticipation -> Devastating Super-Punch -> Snap Recoil -> Recovery
 const ATK_COIL   = [[0, 0], [0.35, 1], [0.55, 1], [0.65, 0], [1.8, 0]];
@@ -256,15 +259,25 @@ const ANIMS = {
       rot(Q, 'chest', -0.02 * inB - 0.04 * raise, 0.05 * raise, -0.02);
       pos(Q, 'chest', 0, 0.06 * inB, 0);
 
-      // Right arm: hand-on-hip -> raised out to the side, twisted -1.5 so the elbow bend
-      // points up (peace sign); the wave rocks the raised arm side to side
-      rot(Q, 'arm_right', -0.1 - 0.1 * raise, -1.5 * raise, -0.34 - 0.91 * raise + 0.07 * wave);
-      rot(Q, 'forearm_right', -0.45 - 0.87 * raise, 0, 0.08 * (1 - raise));
+      // Right arm: hand-on-hip -> raised out to the side, twisted so the elbow bend points up
+      // (peace sign, photo 2); the wave rocks the raised arm side to side. See ID2_ARM.
+      const A2 = ID2_ARM;
+      rot(Q, 'arm_right', -0.1 - A2.ax * raise, A2.ay * raise, -0.34 - A2.az * raise + 0.07 * wave);
+      // The arm pivot sits on the arm's top edge: raised sideways, its end would float 2 texels off
+      // the torso. The pivot slides in (and a bit down) with the raise, so the arm stays on the shoulder.
+      pos(Q, 'arm_right', A2.px * raise, -A2.py * raise, A2.pz * raise);
+      // Elbow: folds less than 90 deg (the bracer is wider than the upper arm and would poke through it)
+      // and turns around a point on the inner (front) side, so the forearm stays out of the upper arm.
+      const fold = 0.45 + A2.f * raise, hz = A2.hinge * raise;
+      rot(Q, 'forearm_right', -fold, 0, 0.08 * (1 - raise));
+      pos(Q, 'forearm_right', 0, -hz * Math.sin(fold), hz * (1 - Math.cos(fold)));
       handsOnHips(Q, 'left', 1, inB);
 
-      // Head: tilts toward the raised hand; in the stare it drops a little and goes still
-      rot(Q, 'head', -0.03 - 0.01 * inB + 0.06 * stare, 0.05 * Math.sin(TAU * t / T) * (1 - stare), 0.06 * raise + 0.03 * stare);
-      pos(Q, 'head', 0, 0.3 * raise, 0);
+      // Head: tilts toward the raised hand; in the stare it drops a little and goes still.
+      // Lifts on its neck by the tilt (head half width x tilt), so its corners stay out of the torso.
+      const hx = -0.03 - 0.01 * inB + 0.06 * stare, hzr = 0.06 * raise + 0.03 * stare;
+      rot(Q, 'head', hx, 0.05 * Math.sin(TAU * t / T) * (1 - stare), hzr);
+      pos(Q, 'head', 0, 0.3 * raise + 4.2 * (Math.sqrt(hx * hx + hzr * hzr + 4e-4) - 0.02), 0); // soft norm: no corner at 0
 
       // Face: grin (teeth) + raised brows -> flat brows, open eyes locked on you, red flicker
       Q.f.grin = grin;
