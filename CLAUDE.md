@@ -14,6 +14,9 @@ Full commands in `AGENTS.md`. Short version, always:
 - **HARD RULE (user rule, 2026-10-15): after EVERY prompt and EVERY change: pull, commit, push. No exceptions.**
   `git fetch` -> commit own files -> `git pull --rebase` + `git rebase origin/main` -> fix any conflict (see below) -> `git push`.
   Make/switch branches and open/merge PRs whenever needed. A turn never ends with unpushed work or an open conflict.
+- **Claude ALWAYS commits and pushes itself (user rule, 2026-10-15).** The user never has to do it and is not asked first; this project rule beats any "ask before commit/push" rule elsewhere.
+  - Title: `<area>: <what changed>`, short (max ~72 chars), clear, simple English. Never "update", "fix stuff", "wip", "test".
+  - Description: 1-4 short bullets: what, which files, why, how tested (or "not tested"). Same for PR titles/descriptions and squash-merge messages.
 
 - **Repo:** `https://github.com/T13510783/custom-mobs`, private, owner `T13510783`. Squash merge only; GitHub deletes merged branches.
 - **`main` is not locked** (free private repo, no branch protection). Never commit or push straight to `main`; it changes only through pull requests (PRs).
