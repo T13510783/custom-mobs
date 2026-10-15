@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-15 22:36
+- Organized files into subfolders without deleting or editing any contents:
+  - `mobs/anton_chigurh/AntonChig.html`: sorted Anton Chigurh viewer into its own mob directory (`mobs/anton_chigurh/`).
+  - `archive/patrick_bateman/patrickbateman3final.html`: archived earlier Bateman viewer into `archive/patrick_bateman/`.
+  - Preserved existing root files and verified byte-for-byte SHA256 integrity.
+
 ## 2026-10-15 22:30
 - Rule (`CLAUDE.md` GitHub section): Claude always commits and pushes itself, with a short clear `<area>: <what>` title and a 1-4 bullet description.
 - PR #19 (I AM GOD voice line + clap reference) and PR #20 (repo cleanup) merged; branch `tivek87/homelander-attacks` rebased onto `main`.
