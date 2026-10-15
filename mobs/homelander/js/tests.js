@@ -152,8 +152,13 @@ function shot(anim, variant, secs) {
 
 window.setVariant = setVariant;
 window.selectAnim = selectAnim;
-window.homelanderDebug = { cubeList, bones, atlas, sim, ANIMS, camera, controls, dumpFrame, setVariant, selectAnim, buildBBModel, rigView, toggleBones, makeSim, step, HB };
+window.homelanderDebug = { cubeList, bones, boneList, atlas, get sim() { return sim; }, ANIMS, camera, controls, dumpFrame, setVariant, selectAnim, buildBBModel, rigView, toggleBones, makeSim, step, HB, VICTIM, dummy, voice };
+// Headless JSON modes (tools/export_mod_assets.ps1, .bbmodel save): the result goes into <pre id="...">.
+const dumpJson = (id, obj) => { const pre = document.createElement('pre'); pre.id = id; pre.textContent = JSON.stringify(obj); document.body.appendChild(pre); };
 if (location.hash === '#cliptest') clipTest();
+else if (location.hash === '#modexport') dumpJson('modexport', modExport());
+else if (location.hash === '#modtrace') dumpJson('modtrace', modTrace());
+else if (location.hash === '#bbmodel') dumpJson('bbmodel', buildBBModel());
 else if (location.hash === '#rest') { restPose(); dumpFrame(); }
 else if (location.hash === '#back') { restPose(); camera.position.set(0, 1.7, -3.6); controls.target.set(0, 1.05, 0); dumpFrame(); }
 else if (location.hash.startsWith('#shot')) { const [, a, v, s] = location.hash.split('-'); shot(a, +v, +s); }

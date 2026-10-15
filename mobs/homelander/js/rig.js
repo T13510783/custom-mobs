@@ -267,7 +267,9 @@ function paintAtlas() {
   atlasTex.needsUpdate = true;
 }
 
+let variantIndex = 0;   // current color variant (the mod export paints every variant, then restores this one)
 function setVariant(i) {
+  variantIndex = i;
   P = { ...BASE, ...VARIANTS[i].pal };
   paintAtlas();
   document.querySelectorAll('.dot').forEach((d, k) => d.classList.toggle('active', k === i));
