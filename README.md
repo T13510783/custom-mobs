@@ -48,6 +48,28 @@ Copy `.env.example` to `.env` for your own local paths.
 
 ## Working together
 
-Several people (and their AI assistants) work in this repo. **Read [`AGENTS.md`](AGENTS.md) first**:
-own branch per person, pull/rebase + push after every change, PRs into `main`, no merge conflicts left behind.
-The rules for making mobs are in [`CLAUDE.md`](CLAUDE.md).
+Repo: https://github.com/T13510783/custom-mobs (private, owner `T13510783`).
+Several people (and their AI assistants) work in this repo. **Read [`AGENTS.md`](AGENTS.md) first.**
+The rules for making mobs are in [`CLAUDE.md`](CLAUDE.md) (its "GitHub repo and teamwork" section has the short version).
+
+**Join:** the owner invites you (repo Settings -> Collaborators). Then:
+
+```
+winget install --id Git.Git -e
+winget install --id GitHub.cli -e
+gh auth login --web
+gh repo clone T13510783/custom-mobs
+```
+
+**Rules in short:**
+
+| Rule | Why |
+|---|---|
+| Never commit to `main`; use your own branch `<github-name>/<topic>` (lowercase) | `main` is not locked by GitHub (free private repo) |
+| Write who works on what in `docs/working_on.md`; one person per mob page | big HTML pages conflict badly |
+| After every change: commit -> fetch -> `pull --rebase` + `rebase origin/main` -> push | everyone stays in sync, small conflicts only |
+| Done + tested -> pull request (PR) -> squash merge | `main` gets one clean commit per topic |
+| Conflict -> backup branch first, keep both sides, re-test | no lost work |
+| Binary file conflict (png, ogg, mp4, jar) -> keep both, ask | git can't merge those |
+| No force push, no `reset --hard` / `clean -fd` on others' work | can delete someone's work |
+| No `.env`, tokens, build output, files over 50 MB | secrets stay private, GitHub limit is 100 MB |
