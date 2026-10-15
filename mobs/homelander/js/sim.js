@@ -37,7 +37,11 @@ function makeSim(seed = 12345) {
     // Random Idle extras: faint red eye glow + a short Hover (first one after ~8 s)
     events: true,
     ev: { glowWait: 3 + rand() * 4, glowT: -1, glowDur: 1.5, glowAmp: 0.5, hoverWait: 8 + rand() * 3 },
-    follow: { on: true, w: 1, yaw: 0, pitch: 0, eye: 0, mx: 0, my: 0, has: false },
+    follow: { on: true, w: 1, yaw: 0, pitch: 0, eye: 0, mx: 0, my: 0, has: false, inject: null }, // inject {yaw, pitch}: look angles instead of the mouse (tests, mod)
+    // Voice line playing: level = loudness 0..1, shape = brightness 0..1 (from the line's curve, see voice.js)
+    talk: { active: false, level: 0, shape: 0.5 }, talkW: 0,
+    onEvent: null,   // (name, anim) when an animation passes one of its `events` times (voice line, hit, grab ...)
+    beamLen: null,   // () => beam length in texels to whatever the beam hits (test dummy); else LASER_LEN
     springs: SPRINGS.map((s) => ({ ...s, ax: 0, az: 0, vx: 0, vz: 0, prev: new THREE.Vector3(), vel: new THREE.Vector3(), velPrev: new THREE.Vector3(), acc: new THREE.Vector3(), init: false }))
   };
 }
@@ -94,6 +98,16 @@ function step(S, dt) {
   const A = ANIMS[S.anim] || ANIMS.idle;
   const loopT = S.t % A.T;
 
+  // Animation events (voice line, grab, hit ...): tell the page when this step passed one.
+  // t0 < 0 right after a loop wrap: then the end of the last loop counts too.
+  if (S.onEvent && A.events) {
+    const t0 = loopT - dt;
+    for (const k in A.events) {
+      const v = A.events[k];
+      if ((v > t0 && v <= loopT) || (t0 < 0 && v > t0 + A.T)) S.onEvent(k, S.anim);
+    }
+  }
+
   clearPose(S.cur);
   A.fn(loopT, S.cur);
 
@@ -110,6 +124,18 @@ function step(S, dt) {
   } else {
     copyPose(S.cur, S.out);
     S.yawLimit = A.yawLimit || 0.45;
+  }
+
+  // Talking (voice line) overrides the animation's mouth: open = loudness, wide = brightness
+  // ("ee" wide, "o" narrow); a scream also frowns and squints a little. Fades in/out (talkW).
+  const TK = S.talk;
+  S.talkW += ((TK.active ? 1 : 0) - S.talkW) * filt(dt, 10);
+  const tw = S.talkW, of = S.out.f;
+  if (tw > 0.001) {
+    of.open += (TK.level - of.open) * tw;
+    of.wide += ((TK.shape - 0.5) * 1.4 - of.wide) * tw;
+    of.frown = Math.max(of.frown, 0.45 * tw);
+    of.squint = Math.max(of.squint, 0.2 * tw);
   }
 
   // Smooth facial expression easing
@@ -137,8 +163,10 @@ function step(S, dt) {
   const fTgt = (S.follow.on && S.follow.has) ? (A.follow !== undefined ? A.follow : 1) : 0;
   S.follow.w += (fTgt - S.follow.w) * filt(dt, 8);
 
-  const targetYaw = clamp(S.follow.mx * 0.55, -S.yawLimit, S.yawLimit);
-  const targetPitch = clamp(-S.follow.my * 0.15, -0.08, 0.08);
+  // Look target: the mouse in the viewer; `inject` = look angles given directly (mod, 1:1 test). + yaw = his left, + pitch = down.
+  const inj = S.follow.inject;
+  const targetYaw = clamp(inj ? inj.yaw : S.follow.mx * 0.55, -S.yawLimit, S.yawLimit);
+  const targetPitch = clamp(inj ? inj.pitch : -S.follow.my * 0.15, -0.08, 0.08);
   S.follow.yaw += (targetYaw - S.follow.yaw) * filt(dt, 9);
   S.follow.pitch += (targetPitch - S.follow.pitch) * filt(dt, 9);
 
@@ -155,6 +183,7 @@ function step(S, dt) {
   if (bones.head) {
     bones.head.rotation.y += S.follow.yaw * S.follow.w;
     bones.head.rotation.x += S.follow.pitch * S.follow.w;
+    bones.head.rotation.x -= 0.05 * S.talk.level * S.talkW; // chin lifts on loud syllables
   }
 
   // Pupils eye glance tracking
@@ -206,7 +235,8 @@ function step(S, dt) {
   laserMat.opacity = laserActive;
   laserCoreMat.opacity = laserActive * 0.95;
   const beamW = laserActive > 0.01 ? (0.75 + 0.25 * Math.sin(S.time * 45)) * Math.min(1, laserActive * 2) : 0.0001;
-  const beamLen = Math.max(0.0001, A.beam || LASER_LEN);
+  // (the mod does the same: A.beam, else the distance to the first thing the beam hits)
+  const beamLen = Math.max(0.0001, A.beam || (S.beamLen && S.beamLen()) || LASER_LEN);
   for (const l of lasers) { l.beam.scale.set(beamW, beamW, beamLen); l.core.scale.set(beamW, beamW, beamLen); } // geometry runs along +z
 
   // Cape Physics Springs

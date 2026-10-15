@@ -108,6 +108,7 @@ const ATK_TWIST  = [[0, 0], [0.45, -0.35], [0.65, 0.65], [1.0, 0.5], [1.5, 0.1],
 // Special: Levitation Hover + Heat-Vision Laser Eyes Curves
 const SPEC_LIFT  = [[0, 0], [0.6, 6], [1.2, 9.5], [2.8, 9.5], [3.4, 4], [4.0, 0]];
 const SPEC_LASER = [[0, 0], [0.7, 0], [1.0, 1], [2.6, 1], [2.9, 0], [4.0, 0]];
+const SPEC_AIM   = 0.36; // head pitch while the beams fire (see special)
 const SPEC_SWEEP = [[0, 0], [1.0, 0], [1.5, -0.25], [2.1, 0.25], [2.6, 0], [4.0, 0]];
 
 // Throw (3.25 s): right hand grabs the neck, lifts, dips, flings the victim straight up,
@@ -125,17 +126,24 @@ const TH_UP   = [[0, 0], [1.4, 0], [1.6, 1], [2.3, 1], [2.6, 0], [3.25, 0]]; // 
 const TH_DOWN = [[0, 0], [2.4, 0], [2.7, 1], [3.0, 1], [3.25, 0]];          // ...and down where they land
 const TH_HOLD = [[0, 0], [0.32, 0], [0.45, 1], [1.2, 1], [1.4, 0], [3.25, 0]]; // choking hold
 
-// Clap (2.4 s), from the "I AM GOD" clip: arms fly out wide, chin up, screaming with red eyes,
-// then both hands slam in from the sides onto the victim's head (palms at its sides), clenched-teeth sneer.
-const CL_AX   = [[0, 0], [0.55, -1.75], [0.85, -1.8], [0.98, -1.9], [1.3, -1.9], [1.85, -0.35], [2.4, 0]];
-// impact: hand ends at x = +-5.8 (palms just outside an 8-wide head), y ~26.5 (head height), z ~12
-const CL_AY   = [[0, 0], [0.55, -1.35], [0.85, -1.45], [0.98, 0.02], [1.3, 0.02], [1.85, 0], [2.4, 0]];  // right arm; left = -
-const CL_FX   = [[0, 0], [0.55, -0.45], [0.85, -0.5], [0.98, -0.1], [1.3, -0.1], [1.85, -0.3], [2.4, 0]];
-const CL_FZ   = [[0, 0], [0.55, 0], [0.85, -0.1], [0.98, 0.1], [1.3, 0.1], [1.85, 0], [2.4, 0]];        // inward palm curl
-const CL_WIDE = [[0, 0], [0.35, 0], [0.55, 1], [0.85, 1], [0.98, 0], [2.4, 0]];
-const CL_SLAM = [[0, 0], [0.85, 0], [0.98, 1], [1.3, 1], [1.85, 0], [2.4, 0]];
-const CL_HIT  = [[0, 0], [0.96, 0], [1.0, 1], [1.14, 0], [2.4, 0]];         // impact jolt
-const CL_STANCE = [[0, 0], [0.5, 1], [1.9, 1], [2.4, 0]];
+// Clap (3.6 s) = "I AM GOD" + head clap, from the two reference clips:
+//  0.0-0.3  breath in, arms pull back a little
+//  0.3-1.95 (homelander_i_am_god.mp4) arms thrown out wide and low, chest out, chin up, red eyes,
+//           screams "I AM GOD" (voice line starts at 0.3 s, mouth from its loudness curve), leans in on "GOD"
+//  1.95-2.35 (homelander_clap_head.mp4) calm again: both hands come up and cup the victim's head at the temples
+//  2.35-2.85 short tender hold, smug smile ... 2.85-2.95 CRUSH: palms slam inward; 2.95 = hit
+// Victim (dummy / mod): stands 12 texels in front of him, head center ~26 texels high (VICTIM.clap).
+const CL_AX   = [[0, 0], [0.3, 0.15], [0.62, -0.35], [1.95, -0.35], [2.35, -1.6], [2.85, -1.63], [2.95, -1.63], [3.15, -1.55], [3.6, 0]];
+const CL_AY   = [[0, 0], [1.95, 0], [2.35, 0.05], [2.85, 0.08], [2.95, 0.1], [3.15, 0.1], [3.6, 0]];        // right arm (+ = inward); left = -
+const CL_AZ   = [[0, 0], [0.3, -0.12], [0.62, -1.0], [1.95, -1.0], [2.35, -0.05], [3.6, 0]];                // right arm (- = out); left = -
+const CL_FX   = [[0, 0], [0.3, -0.2], [0.62, -0.25], [1.95, -0.25], [2.35, -0.62], [2.85, -0.64], [2.95, -0.58], [3.15, -0.5], [3.6, 0]];
+const CL_WIDE = [[0, 0], [0.3, 0], [0.62, 1], [1.95, 1], [2.3, 0], [3.6, 0]];                              // arms out, screaming
+const CL_GOD  = [[0, 0], [1.35, 0], [1.5, 1], [1.85, 1], [2.0, 0], [3.6, 0]];                              // "GOD": leans in
+const CL_CUP  = [[0, 0], [1.95, 0], [2.35, 1], [2.95, 1], [3.2, 0], [3.6, 0]];                             // hands on the head
+const CL_CRUSH = [[0, 0], [2.85, 0], [2.95, 1], [3.1, 1], [3.35, 0], [3.6, 0]];
+const CL_HIT  = [[0, 0], [2.93, 0], [2.97, 1], [3.1, 0], [3.6, 0]];                                        // impact jolt
+const CL_STANCE = [[0, 0], [0.5, 1], [3.1, 1], [3.6, 0]];
+const CL_SQUEEZE = 0.5;    // forearm z on the crush (right arm; left = -)
 
 // Throat laser (3.4 s): grabs the throat and lifts, holds 1 s while his eyes heat up,
 // then burns the victim's face point-blank, drops them and smirks.
@@ -344,6 +352,7 @@ const ANIMS = {
   // 4 · Attack: wind-up and explosive right super-punch, lunging onto the left leg
   attack: {
     T: 1.8, yawLimit: 0.05, follow: 0,
+    events: { hit: 0.65 },                                  // punch lands (mod: damage + knockback)
     fn(t, Q) {
       const coil = kf(t, ATK_COIL);
       const punch = kf(t, ATK_PUNCH);
@@ -385,6 +394,7 @@ const ANIMS = {
   // 5 · Special: Levitation Hover & Heat-Vision Laser Eyes!
   special: {
     T: 4.0, yawLimit: 0.2, follow: 0.15,
+    events: { laserOn: 0.85, laserOff: 2.75 },              // beams at full strength (mod: burn what they hit)
     fn(t, Q) {
       const lift = kf(t, SPEC_LIFT);
       const laser = kf(t, SPEC_LASER);
@@ -401,7 +411,10 @@ const ANIMS = {
       rot(Q, 'forearm_left', -0.25 * Math.min(1, lift / 4), 0, -0.1);
 
       // Head tilted downward with terrifying laser gaze sweeping across the target
-      rot(Q, 'head', 0.12 * laser, sweep, 0);
+      // (pitch SPEC_AIM: from 9.5 texels up the beams come down onto a target 3.5 blocks away, chest high;
+      //  the neck lifts with the pitch so the chin stays out of the chest)
+      rot(Q, 'head', SPEC_AIM * laser, sweep, 0);
+      pos(Q, 'head', 0, 4.2 * (SPEC_AIM * laser) ** 2 / (SPEC_AIM * laser + 0.05), 0);
 
       // Cape flutters in the updraft: a wave that runs from the shoulders to the hem
       const air = Math.min(1, lift / 4);
@@ -423,6 +436,7 @@ const ANIMS = {
   // and flings them straight up, watches them fly and looks down where they will land.
   throw: {
     T: 3.25, yawLimit: 0.05, follow: 0,
+    events: { grab: 0.42, release: 1.52 },                  // hand closes on the neck / lets go at the top of the fling
     fn(t, Q) {
       const step = kf(t, TH_STEP), cr = kf(t, TH_CROUCH), ext = kf(t, TH_EXT);
       const up = kf(t, TH_UP), down = kf(t, TH_DOWN), hold = kf(t, TH_HOLD);
@@ -467,49 +481,58 @@ const ANIMS = {
     }
   },
 
-  // 7 · Clap: "I AM GOD" (reference clip): arms fly out wide, chin up, screaming with red eyes,
-  // then both palms slam in from the sides onto the victim's head. Clenched-teeth sneer after.
+  // 7 · Clap: "I AM GOD" + head clap (both reference clips, see CL_*). Arms thrown out wide,
+  // screaming the voice line with red eyes, then calm: both hands cup the victim's head at the
+  // temples, a short smug hold, and the palms crush inward. The voice line starts at events.voice.
   clap: {
-    T: 2.4, yawLimit: 0.05, follow: 0,
+    T: 3.6, yawLimit: 0.05, follow: 0,
+    events: { voice: 0.3, grab: 2.35, hit: 2.95, release: 3.1 },
     fn(t, Q) {
-      const wide = kf(t, CL_WIDE), slam = kf(t, CL_SLAM), hit = kf(t, CL_HIT), st = kf(t, CL_STANCE);
-      const ax = kf(t, CL_AX), ay = kf(t, CL_AY), fx = kf(t, CL_FX), fz = kf(t, CL_FZ);
+      const wide = kf(t, CL_WIDE), god = kf(t, CL_GOD), cup = kf(t, CL_CUP), crush = kf(t, CL_CRUSH);
+      const hit = kf(t, CL_HIT), st = kf(t, CL_STANCE);
+      const shake = 0.035 * Math.sin(TAU * 7 * t) * wide; // arms tremble with rage while he screams
 
-      // Legs: wide planted stance, knees sink into the slam
+      // Legs: wide planted stance (splay), knees give a little on "GOD" and on the crush
       // (lift 0.13*st: the wide splay tips the boots' outer edges below the floor solve)
-      legs(Q, -0.05 * st - 0.15 * slam, 0.06 * st + 0.3 * slam, -0.05 * st - 0.15 * slam, 0.06 * st + 0.3 * slam, 0.13 * st, 0.03 + 0.09 * st);
+      legs(Q, -0.05 * st - 0.08 * god - 0.1 * cup, 0.06 * st + 0.12 * god + 0.16 * cup + 0.14 * crush,
+        -0.05 * st - 0.08 * god - 0.1 * cup, 0.06 * st + 0.12 * god + 0.16 * cup + 0.14 * crush, 0.13 * st, 0.03 + 0.09 * st * (1 - 0.6 * cup));
 
-      // Chest: puffs up and arches back while screaming, snaps forward into the slam (+ jolt)
-      rot(Q, 'chest', -0.12 * wide + 0.12 * slam + 0.04 * hit, 0, 0);
-      pos(Q, 'chest', 0, 0.25 * wide, 0.3 * slam - 0.15 * hit);
+      // Chest: puffs up and arches back while screaming, pushes in on "GOD", leans toward the victim
+      // to reach his head (+ jolt on the crush)
+      rot(Q, 'chest', -0.12 * wide + 0.08 * god + 0.1 * cup + 0.04 * hit, 0, 0);
+      pos(Q, 'chest', 0, 0.25 * wide, 0.35 * god + 0.3 * cup - 0.15 * hit);
 
-      // Arms (mirrored): out wide and a bit up -> swing in level -> palms on the head's sides
-      // (early in the rise the arms also roll out a little: keeps the shoulder ends off the chest)
-      const out = 0.2 * kf(t, [[0, 0], [0.25, 1], [0.55, 0], [2.4, 0]]);
-      rot(Q, 'arm_right', ax, ay, -out);
-      rot(Q, 'arm_left', ax, -ay, out);
-      rot(Q, 'forearm_right', fx, 0, fz);
-      rot(Q, 'forearm_left', fx, 0, -fz);
+      // Arms (mirrored): out wide and low -> come up in front -> palms on the temples -> crush inward
+      const ax = kf(t, CL_AX), ay = kf(t, CL_AY), az = kf(t, CL_AZ), fx = kf(t, CL_FX);
+      rot(Q, 'arm_right', ax - 0.1 * god, ay, az - 0.12 * god + shake);
+      rot(Q, 'arm_left', ax - 0.1 * god, -ay, -az + 0.12 * god - shake);
+      // the crush squeezes with the forearms (elbows swing in): the upper arms stay clear of his chin
+      rot(Q, 'forearm_right', fx, 0, CL_SQUEEZE * crush);
+      rot(Q, 'forearm_left', fx, 0, -CL_SQUEEZE * crush);
 
-      // Head: chin up for the scream, down onto the victim for the slam, shakes on the impact
-      rot(Q, 'head', -0.2 * wide + 0.06 * slam + 0.05 * hit, 0, 0.03 * Math.sin(TAU * 9 * t) * hit);
-      pos(Q, 'head', 0, 1.0 * wide + 0.3 * slam, 0);
+      // Head: chin up for the scream, a curious tilt down at the victim while holding, shakes on the impact.
+      // Neck lifts with the pitch (head half depth x pitch) so the chin never sinks into the chest.
+      const hx = -0.2 * wide + 0.12 * cup * (1 - crush) + 0.02 * hit; // chin comes up on the crush: the elbows swing in under it
+      rot(Q, 'head', hx, 0, 0.06 * cup * (1 - crush) + 0.03 * Math.sin(TAU * 9 * t) * hit);
+      pos(Q, 'head', 0, 1.0 * wide + 4.2 * Math.max(0, hx) ** 2 / (Math.max(0, hx) + 0.05) + 0.25 * cup, 0);
 
-      // Cape: billows back with the spreading arms, snaps forward on the slam
+      // Cape: billows back with the spreading arms, snaps forward on the crush
       capePose(Q, (u) => {
-        const w = kf(clamp(t - 0.05 * u, 0, 2.4), CL_WIDE), s = kf(clamp(t - 0.05 * u, 0, 2.4), CL_SLAM);
-        return [0.03 + u * 0.012 + (0.04 + u * 0.02) * w - (0.01 + 0.006 * u) * s, 0.004 * Math.sin(TAU * t / 2.4 - u * 0.4)];
+        const lt = clamp(t - 0.05 * u, 0, 3.6), w = kf(lt, CL_WIDE), s = kf(lt, CL_CRUSH);
+        return [0.03 + u * 0.012 + (0.04 + u * 0.02) * w + (0.012 + u * 0.006) * kf(lt, CL_GOD) - (0.01 + 0.006 * u) * s, 0.004 * Math.sin(TAU * t / 3.6 - u * 0.4)];
       });
 
-      // Face: scream (wide open mouth, red eyes) -> clenched teeth, deep frown, then a smirk
-      Q.f.open = 1.0 * wide;
+      // Face: scream (open mouth = the voice line's loudness, red eyes, brows up then frown) ->
+      // calm smug smile while cupping (clip 2) -> clenched teeth on the crush -> smirk
+      Q.f.open = 0.75 * wide;
       Q.f.wide = 0.2 + 0.5 * wide;
-      Q.f.browUp = 0.5 * wide;
-      Q.f.frown = 0.5 * wide + 1.0 * slam;
-      Q.f.grin = 0.9 * slam;
-      Q.f.squint = 0.1 + 0.4 * slam;
-      Q.f.glow = 0.75 * wide + 0.4 * slam;
-      Q.f.smirk = 0.6 * kf(t, [[0, 0], [1.6, 0], [2.0, 1], [2.4, 0]]);
+      Q.f.browUp = 0.45 * wide - 0.1 * god + 0.2 * cup * (1 - crush);
+      Q.f.frown = 0.5 * wide + 0.4 * god + 1.0 * crush;
+      Q.f.grin = 0.9 * crush;
+      Q.f.squint = 0.1 + 0.25 * god + 0.4 * crush;
+      Q.f.glow = 0.75 * wide + 0.25 * god + 0.35 * crush;
+      Q.f.smirk = 0.7 * cup * (1 - crush) + 0.6 * kf(t, [[0, 0], [3.15, 0], [3.4, 1], [3.6, 0]]);
+      Q.f.glance = 0;
     }
   },
 
@@ -517,6 +540,7 @@ const ANIMS = {
   // up, then burns their face point-blank (short beams), drops them and smirks.
   throatLaser: {
     T: 3.4, yawLimit: 0.05, follow: 0, beam: 6, // beams end at the victim's face (probe: head center height, ~6 texels)
+    events: { grab: 0.45, burnOn: 1.6, burnOff: 2.6, release: 2.85 },
     fn(t, Q) {
       const step = kf(t, TL_STEP), hold = kf(t, TL_HOLD), laser = kf(t, TL_LASER);
 

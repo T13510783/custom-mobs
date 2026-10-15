@@ -34,6 +34,13 @@ const rigView = (() => {
 
 /* ───────── UI Controls ───────── */
 let sim = makeSim(999);
+// The page's sim: Clap shouts its voice line at events.voice; the beams stop at the test dummy.
+function hookSim(S) {
+  S.onEvent = (name, anim) => { if (name === 'voice') sayLine(S, 'i_am_god', anim); };
+  S.beamLen = dummyBeamLen;
+  return S;
+}
+hookSim(sim);
 
 const dotsEl = document.getElementById('dots');
 VARIANTS.forEach((v, i) => {
@@ -69,16 +76,44 @@ function toggleBones() {
 }
 bonesBtn.addEventListener('click', toggleBones);
 
+// Voice line on/off + volume (key V = shout it now)
+const voiceBtn = document.getElementById('voiceBtn'), voiceVol = document.getElementById('voiceVol');
+voiceBtn.addEventListener('click', () => {
+  voice.on = !voice.on;
+  if (!voice.on) stopLine();
+  voiceBtn.classList.toggle('on', voice.on);
+  voiceBtn.setAttribute('aria-pressed', String(voice.on));
+  voiceVol.disabled = !voice.on;
+});
+voiceVol.value = String(Math.round(voice.vol * 100));
+voiceVol.title = `Voice line volume: ${voiceVol.value}%`;
+voiceVol.addEventListener('input', () => {
+  setVoiceVol(+voiceVol.value / 100);
+  voiceVol.title = `Voice line volume: ${voiceVol.value}%`;
+  try { localStorage.setItem('homelander.voiceVol', String(voice.vol)); } catch (e) { /* storage blocked: fine */ }
+});
+
+// Test dummy on/off (key D): the victim of the attacks
+const dummyBtn = document.getElementById('dummyBtn');
+function toggleDummy() {
+  dummy.on = !dummy.on;
+  dummyBtn.classList.toggle('on', dummy.on);
+  dummyBtn.setAttribute('aria-pressed', String(dummy.on));
+}
+dummyBtn.addEventListener('click', toggleDummy);
+
 let resetting = false;
 document.getElementById('resetBtn').addEventListener('click', () => { resetting = true; });
 
 
 window.addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'INPUT') return;
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return; // the volume slider keeps the keys
   const i = ['1', '2', '3', '4', '5', '6', '7', '8'].indexOf(e.key);
   if (i >= 0) selectAnim(ANIM_ORDER[i]);
   if (e.key === 'r' || e.key === 'R') resetting = true;
   if (e.key === 'b' || e.key === 'B') toggleBones();
+  if (e.key === 'd' || e.key === 'D') toggleDummy();
+  if (e.key === 'v' || e.key === 'V') { voice.unlocked = true; sayLine(sim, 'i_am_god'); }
 });
 
 window.addEventListener('pointermove', (e) => {
@@ -114,7 +149,9 @@ function frame(now) {
   const dt = lastRender ? Math.min((now - lastRender) / 1000, 0.1) : 1 / 60;
   lastRender = measuring ? now : Math.max(lastRender + 1000 / targetHz, now - 1000 / targetHz);
 
+  updateVoice(sim);
   step(sim, dt);
+  updateDummy(sim, dt);
   if (rigView.on) rigView.update();
 
   if (resetting) {

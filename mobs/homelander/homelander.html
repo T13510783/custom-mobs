@@ -10,14 +10,15 @@
 
   <!--
     Homelander - 3D Vanilla+ Minecraft Model Viewer
-    - Strict 16x16 model resolution (Blockbench standard humanoid entity).
-    - Articulated hierarchical box geometry: head (8x8x8), torso (8x12x4), arms (4x12x4), legs (4x12x4).
-    - Layered 3D details: extruded blonde combed hair, golden eagle shoulder pauldrons,
-      golden eagle belt buckle, red gauntlet bracers, tall red boots with eagle shin crests,
-      and 3-segment articulated American flag cape (stars yoke + red/white vertical stripes).
-    - 4 selectable animations: Idle (arrogant hands-on-hips stance & breathing), Walk (authoritative stride),
-      Attack (superhuman snap punch), Special (levitation hover & heat-vision laser eyes).
-    - Ultra-minimal dark UI (#0f1115), OrbitControls, soft shadows, .bbmodel export.
+    - Box model, 1 unit = 1 texel: head 8x8x8, torso 9x12x5, 2-bone arms and legs (see js/rig.js).
+    - Blonde hair shell, gold eagle pauldrons and belt, copper bracers, red gloves and boots,
+      American flag cape with 20 bones (1 texel each) on springs.
+    - Animations (keys 1-8): Idle, Idle 2, Walk, Attack (super punch), Special (levitation + heat vision),
+      Throw (neck grab, fling up), Clap ("I AM GOD" + head clap, with the voice line), Throat Laser;
+      Hover plays by itself from Idle now and then.
+    - Test dummy (key D) = the victim of every attack; voice line on/off + volume (key V = say it).
+    - Same UI as every mob (#0f1115), Show bones (B); the mod gets everything 1:1 through #modexport.
+    - Code in js/ (classic scripts, loaded in order below).
   -->
 
   <style>
@@ -81,8 +82,10 @@
     .anim-btn.active { color: var(--accent-text); background: var(--accent-bg); border-color: rgba(59, 130, 246, .45); box-shadow: 0 0 18px rgba(59, 130, 246, .24); }
     .anim-btn kbd { font: inherit; opacity: .45; margin-right: 6px; }
     .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
-    #followBtn, #bonesBtn { width: 32px; height: 32px; min-width: 32px; padding: 0; border-radius: 999px; }
-    #followBtn.on, #bonesBtn.on { color: var(--accent-text); background: var(--accent-bg); }
+    #followBtn, #voiceBtn, #dummyBtn, #bonesBtn { width: 32px; height: 32px; min-width: 32px; padding: 0; border-radius: 999px; }
+    #followBtn.on, #voiceBtn.on, #dummyBtn.on, #bonesBtn.on { color: var(--accent-text); background: var(--accent-bg); }
+    #voiceVol { width: 60px; margin: 0 4px 0 2px; accent-color: var(--accent); cursor: pointer; }
+    #voiceVol:disabled { opacity: .35; cursor: default; }
     .dot {
       width: 18px; height: 18px; border-radius: 999px; margin: 0 3px;
       border: 2px solid rgba(255, 255, 255, .18); transition: transform .2s, border-color .2s;
@@ -94,6 +97,7 @@
     @media (max-width: 540px) {
       .anim-btn { padding: 7px 10px; }
       .anim-btn kbd { display: none; }
+      #voiceVol { width: 44px; }
     }
   </style>
 
@@ -129,6 +133,16 @@
     <button id="followBtn" class="icon-btn on" title="Head and eyes follow the mouse" aria-pressed="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
+    <!-- Voice line (I AM GOD, in the Clap) on/off + volume. Key V = shout it now. -->
+    <button id="voiceBtn" class="icon-btn on" title="Voice line on/off (V = say it now)" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>
+    </button>
+    <input id="voiceVol" type="range" min="0" max="100" value="60" title="Voice line volume: 60%" aria-label="Voice line volume">
+    <!-- Test dummy: the victim of the attacks (grabbed, thrown, lasered, clapped). Key D. -->
+    <button id="dummyBtn" class="icon-btn on" title="Show test dummy (D)" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M7 10h10v6H7zM9 16v6M15 16v6M7 10l-3 5M17 10l3 5"/></svg>
+    </button>
+    <!-- Show the rig: a dot on every bone pivot + a line to its parent. Key B. -->
     <button id="bonesBtn" class="icon-btn" title="Show bones (B)" aria-pressed="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><circle cx="7" cy="12" r="1.6"/><circle cx="17" cy="12" r="1.6"/><circle cx="9" cy="20" r="1.6"/><circle cx="15" cy="20" r="1.6"/><path d="M12 6v8M12 8l-5 4M12 8l5 4M12 14l-3 6M12 14l3 6"/></svg>
     </button>
@@ -149,7 +163,7 @@
     // break on file:// pages). They share THREE through window and load one after another, in order.
     window.THREE = THREE;
     window.OrbitControls = OrbitControls;
-    const PARTS = ['scene', 'painters', 'rig', 'anims', 'sim', 'export', 'ui', 'tests'];
+    const PARTS = ['scene', 'painters', 'rig', 'anims', 'sim', 'export', 'voice', 'dummy', 'ui', 'tests'];
     (function next(i) {
       if (i >= PARTS.length) return;
       const s = document.createElement('script');
