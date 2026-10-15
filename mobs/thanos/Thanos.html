@@ -1,0 +1,2089 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Thanos — Vanilla+ 3D Minecraft Model</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #07070b;
+            font-family: 'Inter', sans-serif;
+            color: #f3f4f6;
+        }
+        #canvas-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 42%, #171326 0%, #0b0a12 52%, #050508 100%);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+        .glass-panel {
+            background: rgba(11, 11, 16, 0.78);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+        }
+        .anim-btn {
+            transition: all 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .anim-btn.active {
+            background: rgba(168, 85, 247, 0.22);
+            border-color: rgba(192, 132, 252, 0.65);
+            color: #ffffff;
+            box-shadow: 0 0 16px rgba(168, 85, 247, 0.28);
+        }
+        .toggle-btn {
+            transition: all 0.15s ease;
+        }
+        .toggle-btn.active {
+            background: rgba(234, 179, 8, 0.18);
+            border-color: rgba(250, 204, 21, 0.55);
+            color: #fef08a;
+        }
+        .stone-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 1px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <!-- Top Minimal Status Bar -->
+    <div class="fixed top-4 left-4 right-4 flex items-center justify-between pointer-events-none z-10">
+        <div class="glass-panel px-3.5 py-2 rounded-xl flex items-center gap-3 pointer-events-auto">
+            <div class="flex items-center gap-1">
+                <span class="stone-dot" style="background:#b829ff; box-shadow:0 0 6px #b829ff;"></span>
+                <span class="stone-dot" style="background:#00d2ff; box-shadow:0 0 6px #00d2ff;"></span>
+                <span class="stone-dot" style="background:#ff1744; box-shadow:0 0 6px #ff1744;"></span>
+                <span class="stone-dot" style="background:#ff8800; box-shadow:0 0 6px #ff8800;"></span>
+                <span class="stone-dot" style="background:#00ff66; box-shadow:0 0 6px #00ff66;"></span>
+                <span class="stone-dot" style="background:#ffe600; box-shadow:0 0 6px #ffe600;"></span>
+            </div>
+            <div class="h-3.5 w-[1px] bg-white/10"></div>
+            <span class="text-xs font-semibold tracking-wider uppercase text-zinc-200">Thanos <span class="text-zinc-500 font-normal">Vanilla+ Boss</span></span>
+        </div>
+
+        <div class="glass-panel px-3 py-2 rounded-xl flex items-center gap-2.5 pointer-events-auto">
+            <span class="text-[11px] text-zinc-400 hidden sm:inline">Drag to Orbit • Scroll to Zoom</span>
+            <div class="h-3 w-[1px] bg-white/10 hidden sm:block"></div>
+            <div class="flex items-center gap-1.5 font-mono text-xs">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span id="fps-counter" class="text-zinc-200 font-semibold">60 FPS</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Minimal Controls Dock -->
+    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-10 w-[95%] max-w-3xl pointer-events-none flex flex-col items-center gap-2">
+        <!-- Quick Equipment & View Toggles -->
+        <div class="glass-panel px-2.5 py-1.5 rounded-xl flex flex-wrap items-center justify-center gap-1.5 pointer-events-auto">
+            <button id="toggle-helmet" class="toggle-btn active px-2.5 py-1 rounded-lg border border-white/10 text-xs font-medium text-zinc-300 hover:text-white">
+                Helmet
+            </button>
+            <button id="toggle-armor" class="toggle-btn active px-2.5 py-1 rounded-lg border border-white/10 text-xs font-medium text-zinc-300 hover:text-white">
+                Warlord Armor
+            </button>
+            <button id="toggle-sword" class="toggle-btn px-2.5 py-1 rounded-lg border border-white/10 text-xs font-medium text-zinc-300 hover:text-white">
+                Twin-Blade
+            </button>
+            <button id="toggle-lightning" class="toggle-btn active px-2.5 py-1 rounded-lg border border-white/10 text-xs font-medium text-zinc-300 hover:text-white">
+                6-Stone Lightning
+            </button>
+            <div class="h-3.5 w-[1px] bg-white/10 mx-0.5"></div>
+            <button id="toggle-rotate" class="toggle-btn px-2.5 py-1 rounded-lg border border-white/10 text-xs font-medium text-zinc-300 hover:text-white">
+                Turntable
+            </button>
+            <button id="btn-reset-cam" class="px-2.5 py-1 rounded-lg border border-white/10 text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition">
+                Reset View
+            </button>
+        </div>
+
+        <!-- Selectable Animations Bar -->
+        <div class="glass-panel p-1.5 rounded-2xl flex flex-wrap items-center justify-center gap-1.5 pointer-events-auto w-full sm:w-auto">
+            <button data-anim="idle" class="anim-btn active px-3.5 py-2 rounded-xl border border-transparent text-xs font-semibold text-zinc-300 hover:text-white">
+                Titan Idle
+            </button>
+            <button data-anim="clench" class="anim-btn px-3.5 py-2 rounded-xl border border-transparent text-xs font-semibold text-zinc-300 hover:text-white">
+                Gauntlet Surge
+            </button>
+            <button data-anim="walk" class="anim-btn px-3.5 py-2 rounded-xl border border-transparent text-xs font-semibold text-zinc-300 hover:text-white">
+                Heavy March
+            </button>
+            <button data-anim="snap" class="anim-btn px-3.5 py-2 rounded-xl border border-transparent text-xs font-semibold text-zinc-300 hover:text-white">
+                The Snap
+            </button>
+            <button data-anim="cleave" class="anim-btn px-3.5 py-2 rounded-xl border border-transparent text-xs font-semibold text-zinc-300 hover:text-white">
+                Warlord Strike
+            </button>
+            <button data-anim="cosmic" class="anim-btn px-3.5 py-2 rounded-xl border border-transparent text-xs font-semibold text-zinc-300 hover:text-white">
+                Cosmic Overload
+            </button>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            // ============================================================================
+            // 1. SCENE, CAMERA & RENDERER SETUP (60 FPS OPTIMIZED)
+            // ============================================================================
+            const container = document.getElementById('canvas-container');
+            const scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x07070b, 0.015);
+
+            const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 250);
+            const renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                powerPreference: 'high-performance',
+                alpha: true
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.15;
+            container.appendChild(renderer.domElement);
+
+            // ============================================================================
+            // 2. ORBIT CAMERA CONTROLLER (SMOOTH MOUSE & TOUCH)
+            // ============================================================================
+            const camState = {
+                theta: 0.42,
+                phi: 1.38,
+                radius: 44,
+                targetTheta: 0.42,
+                targetPhi: 1.38,
+                targetRadius: 44,
+                lookAtY: 14.6,
+                targetLookAtY: 14.6,
+                isDragging: false,
+                isPanning: false,
+                prevX: 0,
+                prevY: 0,
+                autoRotate: false
+            };
+
+            function resetCamera() {
+                camState.targetTheta = 0.42;
+                camState.targetPhi = 1.38;
+                camState.targetRadius = 44;
+                camState.targetLookAtY = 14.6;
+            }
+
+            const domElem = renderer.domElement;
+            domElem.addEventListener('pointerdown', (e) => {
+                camState.isDragging = true;
+                camState.isPanning = (e.button === 2 || e.shiftKey);
+                camState.prevX = e.clientX;
+                camState.prevY = e.clientY;
+            });
+
+            window.addEventListener('pointermove', (e) => {
+                if (!camState.isDragging) return;
+                const dx = e.clientX - camState.prevX;
+                const dy = e.clientY - camState.prevY;
+                camState.prevX = e.clientX;
+                camState.prevY = e.clientY;
+
+                if (camState.isPanning) {
+                    camState.targetLookAtY = Math.max(4, Math.min(24, camState.targetLookAtY + dy * 0.035));
+                } else {
+                    camState.targetTheta -= dx * 0.0075;
+                    camState.targetPhi = Math.max(0.35, Math.min(2.45, camState.targetPhi - dy * 0.0065));
+                }
+            });
+
+            window.addEventListener('pointerup', () => {
+                camState.isDragging = false;
+            });
+
+            domElem.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            domElem.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                camState.targetRadius = Math.max(18, Math.min(75, camState.targetRadius + e.deltaY * 0.025));
+            }, { passive: false });
+
+            // ============================================================================
+            // 3. STUDIO & DRAMATIC VANILLA+ LIGHTING
+            // ============================================================================
+            const ambientLight = new THREE.AmbientLight(0x9b8ec7, 0.72);
+            scene.add(ambientLight);
+
+            const keyLight = new THREE.DirectionalLight(0xfff4dc, 1.45);
+            keyLight.position.set(24, 42, 28);
+            keyLight.castShadow = true;
+            keyLight.shadow.mapSize.width = 1024;
+            keyLight.shadow.mapSize.height = 1024;
+            keyLight.shadow.camera.near = 10;
+            keyLight.shadow.camera.far = 90;
+            const d = 22;
+            keyLight.shadow.camera.left = -d;
+            keyLight.shadow.camera.right = d;
+            keyLight.shadow.camera.top = d;
+            keyLight.shadow.camera.bottom = -d;
+            keyLight.shadow.bias = -0.0008;
+            scene.add(keyLight);
+
+            // Cool violet rim light from back-left (MCU Sanctuary atmosphere)
+            const rimLight = new THREE.DirectionalLight(0xa855f7, 1.05);
+            rimLight.position.set(-28, 25, -22);
+            scene.add(rimLight);
+
+            // Warm bronze bounce light from front-below
+            const fillLight = new THREE.DirectionalLight(0xf59e0b, 0.45);
+            fillLight.position.set(-14, 6, 22);
+            scene.add(fillLight);
+
+            // Dynamic point light attached to the Infinity Gauntlet
+            const gauntletLight = new THREE.PointLight(0xd946ef, 2.2, 26);
+            scene.add(gauntletLight);
+
+            // ============================================================================
+            // 4. PROCEDURAL MINECRAFT PIXEL-ART TEXTURE ENGINE (NEAREST FILTER)
+            // ============================================================================
+            function hashNoise(x, y, seed = 1) {
+                const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453;
+                return n - Math.floor(n);
+            }
+
+            function hexToRgb(hex) {
+                const v = parseInt(hex.replace('#', ''), 16);
+                return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+            }
+
+            function clampByte(v) {
+                return Math.max(0, Math.min(255, Math.round(v)));
+            }
+
+            function makePixelTexture(w, h, drawFn) {
+                const cvs = document.createElement('canvas');
+                cvs.width = w;
+                cvs.height = h;
+                const ctx = cvs.getContext('2d');
+                drawFn(ctx, w, h);
+                const tex = new THREE.CanvasTexture(cvs);
+                tex.magFilter = THREE.NearestFilter;
+                tex.minFilter = THREE.NearestFilter;
+                tex.generateMipmaps = false;
+                tex.needsUpdate = true;
+                return tex;
+            }
+
+            // Palette definitions matching MCU Live-Action Thanos & Warlord Armor
+            const PALETTE = {
+                skinBase: '#735184',
+                skinDark: '#4f355e',
+                skinDeep: '#372244',
+                skinLight: '#8e69a1',
+                skinHighlight: '#a582b8',
+
+                goldBase: '#cfa346',
+                goldBright: '#f5d276',
+                goldHighlight: '#fff1b5',
+                goldMid: '#a97d28',
+                goldDark: '#6e4e14',
+
+                bronzeBase: '#5d4b3c',
+                bronzeDark: '#382d24',
+                bronzeLight: '#7c6652',
+
+                obsidian: '#1f1d29',
+                obsidianDark: '#121118',
+                obsidianLight: '#333042',
+
+                bladeSteel: '#88929e',
+                bladeEdge: '#cfd8e3',
+                bladeDark: '#2c3138'
+            };
+
+            // Create shaded pixel-art material with bevels, pixel grain, and optional patterns
+            const materialCache = new Map();
+
+            function getVoxelMaterial(key, opts) {
+                if (materialCache.has(key)) return materialCache.get(key);
+
+                const w = opts.w || 16;
+                const h = opts.h || 16;
+                const baseRgb = hexToRgb(opts.base);
+                const darkRgb = hexToRgb(opts.dark || opts.base);
+                const lightRgb = hexToRgb(opts.light || opts.base);
+                const seed = opts.seed || 1;
+                const style = opts.style || 'metal'; // 'skin', 'chin', 'gold', 'armor', 'obsidian', 'face'
+
+                const tex = makePixelTexture(w, h, (ctx) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const n = (hashNoise(x, y, seed) - 0.5) * 18;
+                            // Top-to-bottom subtle Vanilla+ gradient
+                            const vGrad = (1 - (y / Math.max(1, h - 1))) * 16 - 8;
+                            // Edge bevel highlight/shadow
+                            let bevel = 0;
+                            if (x === 0 || y === 0) bevel += 14;
+                            if (x === w - 1 || y === h - 1) bevel -= 16;
+                            if (x === 1 && y === 1) bevel += 8;
+
+                            let r = baseRgb[0] + n + vGrad + bevel;
+                            let g = baseRgb[1] + n + vGrad + bevel;
+                            let b = baseRgb[2] + n + vGrad + bevel;
+
+                            // Specific Vanilla+ surface detailing
+                            if (style === 'chin') {
+                                // Iconic vertical Titan chin furrows
+                                if (x % 2 === 1 && y >= 1 && y < h - 1) {
+                                    r = darkRgb[0] - 12 + n * 0.4;
+                                    g = darkRgb[1] - 12 + n * 0.4;
+                                    b = darkRgb[2] - 12 + n * 0.4;
+                                } else if (x % 2 === 0 && y >= 1) {
+                                    r = lightRgb[0] + n * 0.4;
+                                    g = lightRgb[1] + n * 0.4;
+                                    b = lightRgb[2] + n * 0.4;
+                                }
+                            } else if (style === 'muscle') {
+                                // Striated Titan deltoid/bicep fibers & veins
+                                const striation = Math.sin((y * 1.3) + (x * 0.4)) * 9;
+                                r += striation;
+                                g += striation;
+                                b += striation;
+                                // Subtle muscle contour shadow at bottom/sides
+                                const edgeDist = Math.min(x, w - 1 - x, y, h - 1 - y);
+                                if (edgeDist === 0) {
+                                    r -= 18; g -= 18; b -= 18;
+                                } else if (edgeDist >= 3 && y < h * 0.65) {
+                                    r += 10; g += 10; b += 10;
+                                }
+                            } else if (style === 'gold_ornate') {
+                                // Etched MCU warlord gold paneling
+                                const isBorder = (x === 0 || y === 0 || x === w - 1 || y === h - 1);
+                                const isInnerTrim = (x === 2 || y === 2 || x === w - 3 || y === h - 3);
+                                if (isBorder) {
+                                    r = darkRgb[0] + 10;
+                                    g = darkRgb[1] + 10;
+                                    b = darkRgb[2] + 10;
+                                } else if (isInnerTrim) {
+                                    r = lightRgb[0] + 15;
+                                    g = lightRgb[1] + 15;
+                                    b = lightRgb[2] + 15;
+                                }
+                                // Diagonal metallic sheen
+                                const sheen = Math.max(0, 1 - Math.abs((x / w) - (y / h)) * 3.2) * 28;
+                                r += sheen; g += sheen; b += sheen;
+                            } else if (style === 'dark_armor') {
+                                // Ribbed dark bronze/obsidian chest undersuit
+                                if (y % 3 === 0) {
+                                    r -= 16; g -= 16; b -= 16;
+                                }
+                                if (x === 1 || x === w - 2) {
+                                    r += 14; g += 12; b += 8;
+                                }
+                            }
+
+                            ctx.fillStyle = `rgb(${clampByte(r)},${clampByte(g)},${clampByte(b)})`;
+                            ctx.fillRect(x, y, 1, 1);
+                        }
+                    }
+
+                    if (opts.customDraw) {
+                        opts.customDraw(ctx, w, h);
+                    }
+                });
+
+                const mat = new THREE.MeshStandardMaterial({
+                    map: tex,
+                    roughness: opts.roughness !== undefined ? opts.roughness : 0.48,
+                    metalness: opts.metalness !== undefined ? opts.metalness : 0.25,
+                    emissive: opts.emissive ? new THREE.Color(opts.emissive) : new THREE.Color(0x000000),
+                    emissiveIntensity: opts.emissiveIntensity || 0
+                });
+
+                materialCache.set(key, mat);
+                return mat;
+            }
+
+            // Special detailed Front Face Texture for Thanos
+            function createThanosFaceMaterials() {
+                const sideMat = getVoxelMaterial('head_side', {
+                    w: 16, h: 16,
+                    base: PALETTE.skinBase,
+                    dark: PALETTE.skinDark,
+                    light: PALETTE.skinLight,
+                    style: 'muscle',
+                    roughness: 0.65,
+                    metalness: 0.08,
+                    seed: 11
+                });
+
+                const topMat = getVoxelMaterial('head_top', {
+                    w: 16, h: 16,
+                    base: PALETTE.skinLight,
+                    dark: PALETTE.skinBase,
+                    light: PALETTE.skinHighlight,
+                    style: 'skin',
+                    roughness: 0.6,
+                    metalness: 0.08,
+                    seed: 12
+                });
+
+                const frontTex = makePixelTexture(16, 16, (ctx, w, h) => {
+                    const base = hexToRgb(PALETTE.skinBase);
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const n = (hashNoise(x, y, 99) - 0.5) * 14;
+                            let r = base[0] + n;
+                            let g = base[1] + n;
+                            let b = base[2] + n;
+
+                            // Forehead horizontal warrior creases
+                            if ((y === 2 || y === 4) && x >= 3 && x <= 12) {
+                                r -= 24; g -= 24; b -= 24;
+                            }
+                            // Deep brow ridge shadow
+                            if (y === 5 && x >= 2 && x <= 13) {
+                                r -= 32; g -= 32; b -= 32;
+                            }
+                            // Cheekbone highlights & nasolabial folds
+                            if (y >= 7 && y <= 10 && (x === 2 || x === 13)) {
+                                r -= 22; g -= 22; b -= 22;
+                            }
+                            // Nose bridge
+                            if (y >= 6 && y <= 9 && (x === 7 || x === 8)) {
+                                r += 16; g += 14; b += 18;
+                            }
+                            if (y === 9 && (x === 6 || x === 9)) {
+                                r -= 25; g -= 25; b -= 25;
+                            }
+                            // Stern grimacing mouth line
+                            if (y === 11 && x >= 4 && x <= 11) {
+                                r = 42; g = 24; b = 52;
+                            }
+                            if (y === 10 && x >= 5 && x <= 10) {
+                                r += 12; g += 10; b += 12;
+                            }
+                            // Lower jaw vertical chin striations (rows 12..15)
+                            if (y >= 12) {
+                                if (x >= 3 && x <= 12) {
+                                    if (x % 2 === 1) {
+                                        r = 58; g = 37; b = 70;
+                                    } else {
+                                        r = 128; g = 94; b = 145;
+                                    }
+                                }
+                            }
+
+                            ctx.fillStyle = `rgb(${clampByte(r)},${clampByte(g)},${clampByte(b)})`;
+                            ctx.fillRect(x, y, 1, 1);
+                        }
+                    }
+
+                    // Deep-set intense Titan eyes (row 6)
+                    // Dark eye sockets
+                    ctx.fillStyle = '#24142e';
+                    ctx.fillRect(3, 6, 3, 2);
+                    ctx.fillRect(10, 6, 3, 2);
+
+                    // Glowing violet-blue iris/sclera pinpoint
+                    ctx.fillStyle = '#e0c3fc';
+                    ctx.fillRect(4, 6, 2, 1);
+                    ctx.fillRect(10, 6, 2, 1);
+
+                    ctx.fillStyle = '#7e22ce';
+                    ctx.fillRect(4, 6, 1, 1);
+                    ctx.fillRect(11, 6, 1, 1);
+                });
+
+                const frontMat = new THREE.MeshStandardMaterial({
+                    map: frontTex,
+                    roughness: 0.62,
+                    metalness: 0.08
+                });
+
+                // Box faces order: +x (right), -x (left), +y (top), -y (bottom), +z (front), -z (back)
+                return [sideMat, sideMat, topMat, sideMat, frontMat, sideMat];
+            }
+
+            // Helper to build a cuboid with pivot offset (Blockbench bone style)
+            function createBox(w, h, d, material, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) {
+                const geom = new THREE.BoxGeometry(w, h, d);
+                const mesh = new THREE.Mesh(geom, material);
+                mesh.position.set(x, y, z);
+                mesh.rotation.set(rx, ry, rz);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                return mesh;
+            }
+
+            // ============================================================================
+            // 5. CONSTRUCTING THE VANILLA+ THANOS HIERARCHICAL RIG
+            // ============================================================================
+            const rootGroup = new THREE.Group();
+            scene.add(rootGroup);
+
+            // Materials Library
+            const matSkin = getVoxelMaterial('skin_main', {
+                w: 16, h: 16, base: PALETTE.skinBase, dark: PALETTE.skinDark, light: PALETTE.skinLight,
+                style: 'muscle', roughness: 0.62, metalness: 0.08, seed: 1
+            });
+            const matSkinBicep = getVoxelMaterial('skin_bicep', {
+                w: 16, h: 16, base: PALETTE.skinLight, dark: PALETTE.skinBase, light: PALETTE.skinHighlight,
+                style: 'muscle', roughness: 0.58, metalness: 0.1, seed: 2
+            });
+            const matChin = getVoxelMaterial('skin_chin', {
+                w: 16, h: 12, base: PALETTE.skinBase, dark: PALETTE.skinDeep, light: PALETTE.skinLight,
+                style: 'chin', roughness: 0.65, metalness: 0.06, seed: 3
+            });
+            const matGold = getVoxelMaterial('gold_armor', {
+                w: 16, h: 16, base: PALETTE.goldBase, dark: PALETTE.goldDark, light: PALETTE.goldBright,
+                style: 'gold_ornate', roughness: 0.26, metalness: 0.82, seed: 4
+            });
+            const matGoldBright = getVoxelMaterial('gold_bright', {
+                w: 16, h: 16, base: PALETTE.goldBright, dark: PALETTE.goldBase, light: PALETTE.goldHighlight,
+                style: 'gold_ornate', roughness: 0.2, metalness: 0.88, seed: 5
+            });
+            const matGauntletGold = getVoxelMaterial('gauntlet_gold', {
+                w: 16, h: 16, base: '#c79234', dark: '#5e3f0e', light: '#f7d479',
+                style: 'gold_ornate', roughness: 0.22, metalness: 0.88, seed: 6
+            });
+            // Dedicated Nidavellir Rune Tablet texture for the Infinity Gauntlet forearm cuff
+            const matGauntletRunes = getVoxelMaterial('gauntlet_runes', {
+                w: 16, h: 32, base: '#c79234', dark: '#3d2708', light: '#ffdf85',
+                style: 'gold_ornate', roughness: 0.2, metalness: 0.9, seed: 61,
+                customDraw: (ctx, w, h) => {
+                    // Recessed dark bronze rune channels (matching the double vertical rune strips on the gauntlet)
+                    ctx.fillStyle = '#261805';
+                    ctx.fillRect(2, 2, 5, h - 4);
+                    ctx.fillRect(9, 2, 5, h - 4);
+                    // Bright gold inner frame around rune channels
+                    ctx.fillStyle = '#f7d479';
+                    ctx.fillRect(1, 1, w - 2, 1);
+                    ctx.fillRect(1, h - 2, w - 2, 1);
+                    ctx.fillRect(7, 2, 2, h - 4);
+
+                    // Angular Dwarven / Nidavellir Runes etched down both columns
+                    const runeRows = [4, 9, 14, 19, 24];
+                    runeRows.forEach((ry, idx) => {
+                        ctx.fillStyle = '#ffea9f';
+                        // Left column angular rune glyph
+                        ctx.fillRect(3, ry, 3, 1);
+                        ctx.fillRect(3 + (idx % 2) * 2, ry + 1, 1, 2);
+                        ctx.fillRect(3, ry + 2, 2, 1);
+                        ctx.fillRect(5, ry + 3, 1, 1);
+
+                        // Right column angular rune glyph
+                        ctx.fillRect(10, ry, 1, 3);
+                        ctx.fillRect(11, ry + 1, 2, 1);
+                        ctx.fillRect(12, ry, 1, 2);
+                        ctx.fillRect(10, ry + 3, 3, 1);
+                    });
+                }
+            });
+            // Back-of-hand etched concentric filigree & radial grooves around the Mind Stone
+            const matGauntletBack = getVoxelMaterial('gauntlet_back', {
+                w: 32, h: 32, base: '#c99538', dark: '#4a310b', light: '#fae08c',
+                style: 'gold_ornate', roughness: 0.21, metalness: 0.89, seed: 62,
+                customDraw: (ctx, w, h) => {
+                    // Radial dark-etched grooves fanning from central Mind Stone housing toward knuckles
+                    ctx.fillStyle = '#3b2609';
+                    ctx.fillRect(4, 15, 24, 2);
+                    ctx.fillRect(15, 4, 2, 24);
+                    // Concentric octagonal filigree rings
+                    ctx.strokeStyle = '#3b2609';
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeRect(6, 6, 20, 20);
+                    ctx.strokeStyle = '#ffea9f';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(8, 8, 16, 16);
+                    // Corner rune accents
+                    ctx.fillStyle = '#3b2609';
+                    ctx.fillRect(3, 4, 4, 2);
+                    ctx.fillRect(25, 4, 4, 2);
+                    ctx.fillRect(3, 26, 4, 2);
+                    ctx.fillRect(25, 26, 4, 2);
+                }
+            });
+            // Articulated finger segment armor plate texture with dark joint creases & central ridge
+            const matGauntletFinger = getVoxelMaterial('gauntlet_finger', {
+                w: 16, h: 16, base: '#cc9739', dark: '#472f09', light: '#ffdf85',
+                style: 'gold_ornate', roughness: 0.2, metalness: 0.9, seed: 63,
+                customDraw: (ctx, w, h) => {
+                    // Dark articulated joint crease at top & bottom of each phalanx plate
+                    ctx.fillStyle = '#2d1d06';
+                    ctx.fillRect(0, 0, w, 2);
+                    ctx.fillRect(0, h - 2, w, 2);
+                    // Raised bright gold central spine along the finger segment
+                    ctx.fillStyle = '#fae08c';
+                    ctx.fillRect(6, 2, 4, h - 4);
+                    // Etched side bevel lines
+                    ctx.fillStyle = '#593b0d';
+                    ctx.fillRect(4, 3, 1, h - 6);
+                    ctx.fillRect(11, 3, 1, h - 6);
+                }
+            });
+            const matBronze = getVoxelMaterial('bronze_armor', {
+                w: 16, h: 16, base: PALETTE.bronzeBase, dark: PALETTE.bronzeDark, light: PALETTE.bronzeLight,
+                style: 'dark_armor', roughness: 0.42, metalness: 0.62, seed: 7
+            });
+            const matObsidianArmor = getVoxelMaterial('obsidian_armor', {
+                w: 16, h: 16, base: PALETTE.obsidian, dark: PALETTE.obsidianDark, light: PALETTE.obsidianLight,
+                style: 'dark_armor', roughness: 0.52, metalness: 0.45, seed: 8
+            });
+            const matSteel = getVoxelMaterial('blade_steel', {
+                w: 16, h: 32, base: PALETTE.bladeSteel, dark: PALETTE.bladeDark, light: PALETTE.bladeEdge,
+                style: 'gold_ornate', roughness: 0.22, metalness: 0.88, seed: 9
+            });
+
+            // Rig Joints Dictionary for Smooth Keyframe Animation
+            const rig = {
+                character: new THREE.Group(),
+                pelvis: new THREE.Group(),
+                torso: new THREE.Group(),
+                headGroup: new THREE.Group(),
+                helmetGroup: new THREE.Group(),
+                armorGroup: new THREE.Group(),
+                pelvisArmorGroup: new THREE.Group(),
+                leftShoulder: new THREE.Group(),
+                leftPauldron: new THREE.Group(),
+                leftForearm: new THREE.Group(),
+                gauntletHand: new THREE.Group(),
+                fingers: [],
+                thumb: new THREE.Group(),
+                rightShoulder: new THREE.Group(),
+                rightPauldron: new THREE.Group(),
+                rightForearm: new THREE.Group(),
+                rightHand: new THREE.Group(),
+                swordGroup: new THREE.Group(),
+                leftLeg: new THREE.Group(),
+                leftCalf: new THREE.Group(),
+                rightLeg: new THREE.Group(),
+                rightCalf: new THREE.Group(),
+                tassetFront: new THREE.Group(),
+                tassetLeft: new THREE.Group(),
+                tassetRight: new THREE.Group()
+            };
+
+            rootGroup.add(rig.character);
+
+            // ----------------------------------------------------------------------------
+            // A. SUBTLE VANILLA+ TITAN SANCTUARY PEDESTAL
+            // ----------------------------------------------------------------------------
+            const pedestalGroup = new THREE.Group();
+            const matPedestalTop = getVoxelMaterial('ped_top', {
+                w: 32, h: 32, base: '#191624', dark: '#0e0c15', light: '#2a243b',
+                style: 'dark_armor', roughness: 0.75, metalness: 0.2, seed: 40
+            });
+            const baseSlab1 = createBox(22, 1.2, 22, matPedestalTop, 0, -0.6, 0);
+            const baseSlab2 = createBox(26, 1.0, 26, matObsidianArmor, 0, -1.7, 0);
+            const goldTrim = createBox(22.4, 0.35, 22.4, matGold, 0, -0.25, 0);
+            pedestalGroup.add(baseSlab1, baseSlab2, goldTrim);
+            rootGroup.add(pedestalGroup);
+
+            // ----------------------------------------------------------------------------
+            // B. PELVIS, WAIST & TASSETS
+            // ----------------------------------------------------------------------------
+            rig.pelvis.position.set(0, 12.4, 0);
+            rig.character.add(rig.pelvis);
+
+            // Core Pelvis block (broader & thicker)
+            rig.pelvis.add(createBox(9.2, 3.2, 5.6, matObsidianArmor, 0, 0, 0));
+
+            // Armored Warlord Belt & Tassets (inside pelvisArmorGroup so it toggles cleanly)
+            rig.pelvis.add(rig.pelvisArmorGroup);
+            // Gold belt buckle & waist trim
+            rig.pelvisArmorGroup.add(createBox(9.8, 1.35, 6.2, matGold, 0, 0.85, 0));
+            rig.pelvisArmorGroup.add(createBox(3.6, 2.3, 6.5, matGoldBright, 0, 0.55, 0, 0, 0, 0));
+            rig.pelvisArmorGroup.add(createBox(2.1, 1.9, 6.65, matBronze, 0, 0.55, 0));
+
+            // Front Hanging Warlord Tasset Flap
+            rig.tassetFront.position.set(0, -0.4, 2.95);
+            rig.tassetFront.add(createBox(4.0, 5.6, 0.65, matObsidianArmor, 0, -2.7, 0));
+            rig.tassetFront.add(createBox(4.3, 1.0, 0.75, matGold, 0, -0.8, 0));
+            rig.tassetFront.add(createBox(3.4, 1.2, 0.78, matGold, 0, -4.8, 0));
+            rig.tassetFront.add(createBox(1.3, 5.0, 0.8, matGoldBright, 0, -2.7, 0));
+            rig.pelvisArmorGroup.add(rig.tassetFront);
+
+            // Left & Right Hip Tasset Plates
+            rig.tassetLeft.position.set(4.85, 0.2, 0);
+            rig.tassetLeft.rotation.z = -0.12;
+            rig.tassetLeft.add(createBox(0.9, 5.2, 6.0, matGold, 0.2, -2.4, 0));
+            rig.tassetLeft.add(createBox(1.0, 3.9, 4.8, matBronze, 0.25, -2.2, 0));
+            rig.pelvisArmorGroup.add(rig.tassetLeft);
+
+            rig.tassetRight.position.set(-4.85, 0.2, 0);
+            rig.tassetRight.rotation.z = 0.12;
+            rig.tassetRight.add(createBox(0.9, 5.2, 6.0, matGold, -0.2, -2.4, 0));
+            rig.tassetRight.add(createBox(1.0, 3.9, 4.8, matBronze, -0.25, -2.2, 0));
+            rig.pelvisArmorGroup.add(rig.tassetRight);
+
+            // ----------------------------------------------------------------------------
+            // C. MASSIVE MUSCULAR TORSO & WARLORD CHEST ARMOR
+            // ----------------------------------------------------------------------------
+            rig.torso.position.set(0, 1.3, 0);
+            rig.pelvis.add(rig.torso);
+
+            // Underlying Buff Muscular Titan Torso (taller & much thicker V-taper)
+            // Lower abs/waist core
+            rig.torso.add(createBox(9.8, 5.0, 5.8, matSkin, 0, 2.5, 0));
+            // Broad V-Taper Upper Chest & Lats
+            rig.torso.add(createBox(12.6, 6.4, 7.0, matSkinBicep, 0, 7.2, 0));
+            // Bulging 3D Lateral Flare (Lats on left & right sides)
+            rig.torso.add(createBox(13.4, 3.6, 5.8, matSkin, 0, 6.8, -0.2));
+            // Thick Muscular Pectorals (deep 3D Vanilla+ chest relief)
+            rig.torso.add(createBox(5.6, 3.8, 1.35, matSkinBicep, -2.95, 7.7, 3.35));
+            rig.torso.add(createBox(5.6, 3.8, 1.35, matSkinBicep, 2.95, 7.7, 3.35));
+            // 6-Pack Abdominal Blocks + Serratus ribs
+            for (let row = 0; row < 3; row++) {
+                rig.torso.add(createBox(2.3, 1.2, 0.75, matSkin, -1.35, 1.8 + row * 1.45, 2.85));
+                rig.torso.add(createBox(2.3, 1.2, 0.75, matSkin, 1.35, 1.8 + row * 1.45, 2.85));
+            }
+            // Massive Muscular Traps & Thick Titan Neck
+            rig.torso.add(createBox(8.8, 2.1, 5.4, matSkinBicep, 0, 10.6, -0.1));
+            rig.torso.add(createBox(5.2, 2.3, 4.8, matChin, 0, 11.2, 0.1));
+
+            // WARLORD CHESTPLATE GROUP (Layered 3D Blockbench style matching reference photos)
+            rig.torso.add(rig.armorGroup);
+
+            // Dark bronze/obsidian armored undersuit over abdomen & ribs
+            rig.armorGroup.add(createBox(10.4, 5.2, 6.3, matObsidianArmor, 0, 2.6, 0));
+            rig.armorGroup.add(createBox(13.2, 6.3, 7.5, matBronze, 0, 7.2, 0));
+
+            // Iconic V-Shaped Gold Chest Cuirass (Front & Back)
+            // Upper sweeping gold collar/yoke
+            rig.armorGroup.add(createBox(13.6, 2.0, 7.9, matGoldBright, 0, 9.6, 0));
+            // Angled gold chest wings (left & right)
+            rig.armorGroup.add(createBox(5.9, 3.5, 8.05, matGold, -3.5, 7.7, 0.1, 0, 0, -0.22));
+            rig.armorGroup.add(createBox(5.9, 3.5, 8.05, matGold, 3.5, 7.7, 0.1, 0, 0, 0.22));
+            // Center sternum gold emblem
+            rig.armorGroup.add(createBox(3.0, 4.6, 8.15, matGoldBright, 0, 6.7, 0.15));
+            rig.armorGroup.add(createBox(1.5, 3.9, 8.3, matBronze, 0, 6.9, 0.18));
+
+            // Ribbed Gold Abdominal Chevrons (3 tiers as seen in reference image 2 & 3)
+            for (let i = 0; i < 3; i++) {
+                const yPos = 5.0 - i * 1.45;
+                const wPlate = 8.0 - i * 1.15;
+                rig.armorGroup.add(createBox(wPlate, 1.0, 6.8, matGold, 0, yPos, 0.1));
+                rig.armorGroup.add(createBox(2.4, 0.9, 7.0, matGoldBright, 0, yPos, 0.15));
+            }
+
+            // High Armored Gorget / Neck Collar
+            rig.armorGroup.add(createBox(8.4, 2.1, 1.2, matGold, 0, 11.0, -2.7, 0.15, 0, 0));
+            rig.armorGroup.add(createBox(1.3, 2.0, 6.2, matGold, -3.9, 10.9, 0, 0, 0, -0.18));
+            rig.armorGroup.add(createBox(1.3, 2.0, 6.2, matGold, 3.9, 10.9, 0, 0, 0, 0.18));
+
+            // ----------------------------------------------------------------------------
+            // D. HEAD, FURROWED TITAN CHIN & WARLORD HELMET
+            // ----------------------------------------------------------------------------
+            rig.headGroup.position.set(0, 11.3, 0.2);
+            rig.torso.add(rig.headGroup);
+
+            const faceMaterials = createThanosFaceMaterials();
+            // Main Cranium Cube (6.0 x 6.2 x 6.0)
+            const headMesh = createBox(6.0, 6.2, 6.0, faceMaterials, 0, 3.1, 0);
+            rig.headGroup.add(headMesh);
+
+            // 3D Brow Ridge Overhang (gives him that unmistakable menacing scowl in 3D)
+            rig.headGroup.add(createBox(6.2, 0.95, 0.85, matSkin, 0, 4.35, 2.85));
+            // 3D Furrowed Titan Chin Block (protruding slightly forward & downward like MCU Thanos)
+            rig.headGroup.add(createBox(4.5, 1.8, 1.35, matChin, 0, 0.65, 2.65));
+            // 3D Ears
+            rig.headGroup.add(createBox(0.55, 1.7, 1.2, matSkin, -3.15, 3.0, -0.2));
+            rig.headGroup.add(createBox(0.55, 1.7, 1.2, matSkin, 3.15, 3.0, -0.2));
+
+            // MCU WARLORD HELMET (Toggleable)
+            rig.headGroup.add(rig.helmetGroup);
+            // Crown cap with vertical gold & dark bronze ridges
+            rig.helmetGroup.add(createBox(6.6, 1.5, 6.6, matGold, 0, 5.85, -0.05));
+            rig.helmetGroup.add(createBox(5.2, 0.9, 6.2, matBronze, 0, 6.5, -0.05));
+            // Vertical forehead ridges (iconic MCU helmet stripes)
+            for (let rx = -1.8; rx <= 1.8; rx += 1.2) {
+                rig.helmetGroup.add(createBox(0.55, 2.6, 6.85, matGoldBright, rx, 5.4, 0.05));
+            }
+            // Center V-shaped nose/brow crest
+            rig.helmetGroup.add(createBox(1.3, 2.1, 0.8, matGoldBright, 0, 4.8, 3.1));
+            rig.helmetGroup.add(createBox(3.8, 0.75, 0.75, matGold, 0, 5.15, 3.05));
+            // Back helmet plate
+            rig.helmetGroup.add(createBox(6.65, 5.4, 1.2, matGold, 0, 3.4, -2.95));
+            rig.helmetGroup.add(createBox(4.8, 4.6, 1.35, matBronze, 0, 3.4, -3.0));
+            // Cheek & Mandible Guards framing the face & chin
+            rig.helmetGroup.add(createBox(1.1, 5.6, 4.2, matGold, -3.15, 3.1, 0.6));
+            rig.helmetGroup.add(createBox(1.1, 5.6, 4.2, matGold, 3.15, 3.1, 0.6));
+            // Forward angled cheek mandibles
+            rig.helmetGroup.add(createBox(1.15, 2.6, 1.6, matGoldBright, -2.75, 1.4, 2.45));
+            rig.helmetGroup.add(createBox(1.15, 2.6, 1.6, matGoldBright, 2.75, 1.4, 2.45));
+
+            // ----------------------------------------------------------------------------
+            // E. LEFT ARM + MASSIVE PAULDRON + THE INFINITY GAUNTLET + 6 STONES
+            // ----------------------------------------------------------------------------
+            // Note: In character space, +X is the character's Left side, -X is the character's Right side
+            rig.leftShoulder.position.set(7.8, 9.4, 0);
+            rig.torso.add(rig.leftShoulder);
+
+            // Sweeping Layered Gold Pauldron (attached to shoulder)
+            rig.leftShoulder.add(rig.leftPauldron);
+            rig.leftPauldron.add(createBox(5.8, 2.1, 8.2, matGoldBright, 1.2, 1.7, 0, 0, 0, -0.25));
+            rig.leftPauldron.add(createBox(5.2, 1.6, 7.4, matGold, 1.7, 0.5, 0, 0, 0, -0.38));
+            rig.leftPauldron.add(createBox(6.0, 0.65, 8.4, matBronze, 1.2, 1.25, 0, 0, 0, -0.25));
+
+            // Massive Muscular Purple Deltoid, Bicep & Horseshoe Tricep
+            rig.leftShoulder.add(createBox(5.0, 6.0, 5.2, matSkinBicep, 1.2, -2.1, 0));
+            // 3D Outer Deltoid Cap (gives huge rounded shoulder muscle silhouette)
+            rig.leftShoulder.add(createBox(1.35, 3.8, 4.4, matSkinBicep, 3.45, -1.1, 0));
+            // Bulging Front Bicep Peak
+            rig.leftShoulder.add(createBox(4.1, 3.6, 1.3, matSkinBicep, 1.2, -2.2, 2.55));
+            // Thick Rear Tricep Head
+            rig.leftShoulder.add(createBox(4.0, 3.8, 1.15, matSkin, 1.2, -1.9, -2.5));
+            // Gold Bicep Armband
+            const leftArmBand = createBox(5.45, 1.0, 5.65, matGold, 1.2, -3.7, 0);
+            rig.leftShoulder.add(leftArmBand);
+
+            // Left Elbow / Forearm Pivot
+            rig.leftForearm.position.set(1.2, -5.2, 0);
+            rig.leftShoulder.add(rig.leftForearm);
+
+            // Thick Muscular Forearm & Brachioradialis core
+            rig.leftForearm.add(createBox(4.5, 4.6, 4.5, matSkinBicep, 0, -2.1, 0));
+            rig.leftForearm.add(createBox(4.85, 2.1, 4.75, matSkinBicep, 0, -1.1, 0));
+
+            // THE INFINITY GAUNTLET (Enveloping the Left Forearm & Hand with MCU Nidavellir Runes)
+            const gauntletGroup = new THREE.Group();
+            rig.leftForearm.add(gauntletGroup);
+
+            // Heavy Contoured Gold Gauntlet Forearm Cuff
+            gauntletGroup.add(createBox(5.45, 5.0, 5.45, matGauntletGold, 0, -2.25, 0));
+            // Layered Flared Upper Cuff Rim with dark bronze inner lining
+            gauntletGroup.add(createBox(5.95, 0.95, 5.95, matGoldBright, 0, -0.05, 0));
+            gauntletGroup.add(createBox(5.75, 0.65, 5.75, matBronze, 0, -0.7, 0));
+            gauntletGroup.add(createBox(5.85, 0.45, 5.85, matGoldBright, 0, -1.1, 0));
+
+            // Prominent Raised Nidavellir Rune Panels around the Gauntlet Forearm (matching Reference Image #2)
+            // Outer dorsal rune tablet (+X)
+            gauntletGroup.add(createBox(0.45, 3.85, 3.6, matGauntletRunes, 2.68, -2.35, 0));
+            gauntletGroup.add(createBox(0.52, 4.05, 0.42, matGoldBright, 2.68, -2.35, 1.9));
+            gauntletGroup.add(createBox(0.52, 4.05, 0.42, matGoldBright, 2.68, -2.35, -1.9));
+            // Front/Thumb-side angled rune tablet (+Z)
+            gauntletGroup.add(createBox(3.5, 3.85, 0.45, matGauntletRunes, 0.4, -2.35, 2.68));
+            gauntletGroup.add(createBox(0.45, 4.05, 0.52, matGoldBright, 2.2, -2.35, 2.68));
+            gauntletGroup.add(createBox(0.45, 4.05, 0.52, matGoldBright, -1.4, -2.35, 2.68));
+            // Rear/Ulnar rune tablet (-Z)
+            gauntletGroup.add(createBox(3.4, 3.7, 0.42, matGauntletRunes, 0.3, -2.35, -2.66));
+            // Sculpted V-Chevron Wrist Guard bridging forearm cuff to back of hand
+            gauntletGroup.add(createBox(5.65, 0.9, 5.65, matGoldBright, 0, -4.35, 0));
+            gauntletGroup.add(createBox(0.55, 1.35, 2.6, matGoldBright, 2.65, -4.2, 0.85, 0.22, 0, 0));
+            gauntletGroup.add(createBox(0.55, 1.35, 2.6, matGoldBright, 2.65, -4.2, -0.85, -0.22, 0, 0));
+
+            // Gauntlet Wrist & Hand Pivot
+            rig.gauntletHand.position.set(0, -4.65, 0);
+            gauntletGroup.add(rig.gauntletHand);
+
+            // Broad, Muscular Armored Metacarpal & Back-of-Hand Housing with Filigree Engraving
+            rig.gauntletHand.add(createBox(5.1, 3.15, 6.2, matGauntletBack, 0.15, -1.45, 0));
+            // Inner dark bronze palm grip plates
+            rig.gauntletHand.add(createBox(1.2, 2.65, 5.5, matBronze, -2.05, -1.45, 0));
+            // Sculpted Filigree Ribs radiating from the Mind Stone across the back of the hand
+            rig.gauntletHand.add(createBox(0.55, 2.5, 5.9, matGauntletBack, 2.52, -1.45, 0));
+            rig.gauntletHand.add(createBox(0.68, 0.38, 5.6, matGoldBright, 2.6, -0.35, 0));
+            // Individual Contoured Knuckle Arch Housings for all 4 fingers
+            rig.gauntletHand.add(createBox(1.05, 1.25, 6.45, matGoldBright, 2.35, -2.65, 0));
+            rig.gauntletHand.add(createBox(1.15, 0.55, 6.55, matBronze, 2.3, -3.05, 0));
+
+            // Larger, Longer, Accurately Proportioned 3-Segment Articulated Gauntlet Fingers
+            // (Index, Middle, Ring, Pinky — wider so they sit flush together with realistic finger lengths)
+            const FINGER_SPECS = [
+                { zOff: 2.28, width: 1.44, len1: 1.75, len2: 1.45, len3: 1.15 }, // Index
+                { zOff: 0.76, width: 1.48, len1: 1.98, len2: 1.62, len3: 1.22 }, // Middle (longest)
+                { zOff: -0.76, width: 1.44, len1: 1.78, len2: 1.48, len3: 1.15 }, // Ring
+                { zOff: -2.24, width: 1.36, len1: 1.48, len2: 1.22, len3: 0.98 }  // Pinky
+            ];
+
+            FINGER_SPECS.forEach((spec, idx) => {
+                const fingerPivot = new THREE.Group();
+                fingerPivot.position.set(1.72, -2.85, spec.zOff);
+
+                // 1. Proximal Phalanx (Heavy armored upper finger segment + raised knuckle ridge)
+                const phalanx1 = createBox(1.75, spec.len1, spec.width, matGauntletFinger, 0, -spec.len1 * 0.5, 0);
+                const ridge1 = createBox(0.32, spec.len1 * 0.72, spec.width * 0.78, matGoldBright, 0.82, -spec.len1 * 0.5, 0);
+                const jointRing1 = createBox(1.55, 0.28, spec.width * 0.92, matBronze, -0.05, -spec.len1 + 0.05, 0);
+                fingerPivot.add(phalanx1, ridge1, jointRing1);
+
+                // 2. Middle Phalanx + Distal Fingertip Cap (curls naturally inward toward -X palm)
+                const tipPivot = new THREE.Group();
+                tipPivot.position.set(0, -spec.len1 + 0.08, 0);
+
+                const phalanx2 = createBox(1.58, spec.len2, spec.width * 0.94, matGauntletFinger, -0.1, -spec.len2 * 0.5, 0);
+                const ridge2 = createBox(0.28, spec.len2 * 0.7, spec.width * 0.72, matGoldBright, 0.65, -spec.len2 * 0.5, 0);
+                const jointRing2 = createBox(1.42, 0.24, spec.width * 0.88, matBronze, -0.15, -spec.len2 + 0.04, 0);
+
+                // 3. Tapered Armored Distal Fingertip (angled slightly inward like the movie prop)
+                const phalanx3 = createBox(
+                    1.38, spec.len3, spec.width * 0.86,
+                    matGoldBright,
+                    -0.32, -(spec.len2 + spec.len3 * 0.42), 0,
+                    0, 0, -0.28
+                );
+                const clawCap = createBox(
+                    0.95, 0.45, spec.width * 0.74,
+                    matGauntletGold,
+                    -0.48, -(spec.len2 + spec.len3 * 0.85), 0,
+                    0, 0, -0.35
+                );
+
+                tipPivot.add(phalanx2, ridge2, jointRing2, phalanx3, clawCap);
+                fingerPivot.add(tipPivot);
+
+                rig.gauntletHand.add(fingerPivot);
+                rig.fingers.push({ root: fingerPivot, tip: tipPivot, index: idx });
+            });
+
+            // Larger, Beefier Articulated Gauntlet Thumb (with ornate curved Time Stone housing on the outer side)
+            rig.thumb.position.set(1.48, -1.65, 3.12);
+            // Thumb metacarpal base & proximal segment
+            const thumbBase = createBox(1.95, 1.95, 1.58, matGauntletFinger, 0, -0.65, 0.18);
+            const thumbJoint = createBox(1.75, 0.32, 1.45, matBronze, -0.08, -1.58, 0.18);
+            // Sculpted octagonal gold housing on the outer face (+Z) of the thumb for the Time Stone
+            const thumbOuterPlate = createBox(1.65, 1.65, 0.42, matGoldBright, 0.12, -0.65, 0.88);
+            const thumbRuneTrim = createBox(1.85, 0.35, 0.48, matBronze, 0.12, -1.35, 0.86);
+            // Heavy armored distal thumb tip
+            const thumbTip = createBox(1.68, 1.65, 1.42, matGoldBright, -0.32, -2.25, 0.15, 0, 0, -0.32);
+            const thumbTipCap = createBox(1.25, 0.55, 1.2, matGauntletGold, -0.52, -2.95, 0.15, 0, 0, -0.4);
+            rig.thumb.add(thumbBase, thumbJoint, thumbOuterPlate, thumbRuneTrim, thumbTip, thumbTipCap);
+            rig.gauntletHand.add(rig.thumb);
+
+            // ----------------------------------------------------------------------------
+            // F. ALL 6 GLOWING FACETED INFINITY STONES (MULTI-CUT 3D GEMS + STAR GLINT)
+            // ----------------------------------------------------------------------------
+            function createGlowSpriteTexture(hexColor) {
+                const cvs = document.createElement('canvas');
+                cvs.width = 128;
+                cvs.height = 128;
+                const ctx = cvs.getContext('2d');
+                // Soft radial bloom
+                const grad = ctx.createRadialGradient(64, 64, 3, 64, 64, 60);
+                grad.addColorStop(0, '#ffffff');
+                grad.addColorStop(0.22, hexColor);
+                grad.addColorStop(0.58, hexColor + '66');
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 128, 128);
+
+                // Crisp 4-point crystalline gem star-glint rays (like Reference Image #2)
+                ctx.save();
+                ctx.translate(64, 64);
+                for (let r = 0; r < 2; r++) {
+                    ctx.rotate(Math.PI / 4);
+                    const rayGrad = ctx.createLinearGradient(-56, 0, 56, 0);
+                    rayGrad.addColorStop(0, 'rgba(255,255,255,0)');
+                    rayGrad.addColorStop(0.42, hexColor + '88');
+                    rayGrad.addColorStop(0.5, '#ffffff');
+                    rayGrad.addColorStop(0.58, hexColor + '88');
+                    rayGrad.addColorStop(1, 'rgba(255,255,255,0)');
+                    ctx.fillStyle = rayGrad;
+                    ctx.fillRect(-56, -1.6, 112, 3.2);
+                }
+                ctx.restore();
+                return new THREE.CanvasTexture(cvs);
+            }
+
+            // Procedural faceted gemstone pixel texture (cut crystal planes + specular glint)
+            function createGemFacetMaterial(hexColor, coreHex) {
+                const rgb = hexToRgb(hexColor);
+                const coreRgb = hexToRgb(coreHex);
+                const tex = makePixelTexture(16, 16, (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const dx = Math.abs(x - 7.5) / 7.5;
+                            const dy = Math.abs(y - 7.5) / 7.5;
+                            const dist = Math.max(dx, dy);
+                            const diag = Math.abs((x - 7.5) + (y - 7.5)) / 15;
+
+                            let r = rgb[0], g = rgb[1], b = rgb[2];
+                            if (dist > 0.78) {
+                                // Deep rich jewel rim bevel
+                                r *= 0.48; g *= 0.48; b *= 0.48;
+                            } else if (dist > 0.52) {
+                                // Angled crystal crown facets (upper-left lit, lower-right shaded)
+                                const facetShade = (x + y < 15) ? 1.22 : 0.78;
+                                r *= facetShade; g *= facetShade; b *= facetShade;
+                            } else {
+                                // Luminous table center facet
+                                const tableMix = 0.55 + (1 - diag) * 0.35;
+                                r = lerp(rgb[0], coreRgb[0], tableMix);
+                                g = lerp(rgb[1], coreRgb[1], tableMix);
+                                b = lerp(rgb[2], coreRgb[2], tableMix);
+                            }
+
+                            // Sharp diagonal facet ridge lines
+                            if (x === y || x === (w - 1 - y)) {
+                                r = Math.min(255, r + 42);
+                                g = Math.min(255, g + 42);
+                                b = Math.min(255, b + 42);
+                            }
+
+                            ctx.fillStyle = `rgb(${clampByte(r)},${clampByte(g)},${clampByte(b)})`;
+                            ctx.fillRect(x, y, 1, 1);
+                        }
+                    }
+                    // Specular white-hot crystal pinpoint highlights
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(4, 4, 3, 2);
+                    ctx.fillRect(4, 6, 2, 1);
+                    ctx.fillStyle = coreHex;
+                    ctx.fillRect(9, 10, 2, 2);
+                });
+
+                return new THREE.MeshStandardMaterial({
+                    map: tex,
+                    emissive: new THREE.Color(hexColor),
+                    emissiveMap: tex,
+                    emissiveIntensity: 0.95,
+                    roughness: 0.08,
+                    metalness: 0.15
+                });
+            }
+
+            const STONES_DATA = [
+                {
+                    name: 'Power',
+                    color: '#c026ff',
+                    coreColor: '#f5d9ff',
+                    // Index knuckle socket
+                    parent: rig.gauntletHand,
+                    pos: new THREE.Vector3(2.85, -2.55, 2.28),
+                    size: [0.58, 0.96, 0.84],
+                    haloScale: 2.9
+                },
+                {
+                    name: 'Space',
+                    color: '#00d8ff',
+                    coreColor: '#dbfaff',
+                    // Middle knuckle socket
+                    parent: rig.gauntletHand,
+                    pos: new THREE.Vector3(2.85, -2.55, 0.76),
+                    size: [0.58, 0.96, 0.84],
+                    haloScale: 2.9
+                },
+                {
+                    name: 'Reality',
+                    color: '#ff1744',
+                    coreColor: '#ffd6de',
+                    // Ring knuckle socket
+                    parent: rig.gauntletHand,
+                    pos: new THREE.Vector3(2.85, -2.55, -0.76),
+                    size: [0.58, 0.96, 0.84],
+                    haloScale: 2.9
+                },
+                {
+                    name: 'Soul',
+                    color: '#ff8800',
+                    coreColor: '#ffebd1',
+                    // Pinky knuckle socket
+                    parent: rig.gauntletHand,
+                    pos: new THREE.Vector3(2.85, -2.55, -2.24),
+                    size: [0.58, 0.96, 0.84],
+                    haloScale: 2.9
+                },
+                {
+                    name: 'Time',
+                    color: '#00ff66',
+                    coreColor: '#d9ffe7',
+                    // Mounted flush in the ornate eye-shaped bezel on the outer side (+Z face) of the thumb
+                    parent: rig.thumb,
+                    pos: new THREE.Vector3(0.12, -0.65, 1.12),
+                    size: [0.88, 0.88, 0.52],
+                    bezelSize: [1.32, 1.32, 0.36],
+                    bezelOffset: [0, 0, -0.14],
+                    haloOffset: [0.05, 0, 0.28],
+                    haloScale: 3.1
+                },
+                {
+                    name: 'Mind',
+                    color: '#ffe600',
+                    coreColor: '#fffce0',
+                    // Large central oval gem set deep in the circular/octagonal back-of-hand bezel
+                    parent: rig.gauntletHand,
+                    pos: new THREE.Vector3(2.82, -1.25, 0.0),
+                    size: [0.68, 1.52, 1.38],
+                    haloScale: 4.3
+                }
+            ];
+
+            const stoneObjects = [];
+
+            STONES_DATA.forEach((s) => {
+                const stoneGroup = new THREE.Group();
+                stoneGroup.position.copy(s.pos);
+
+                const isSideMounted = !!s.bezelOffset;
+                const bSize = s.bezelSize || [s.size[0] * 0.72, s.size[1] * 1.34, s.size[2] * 1.34];
+                const bOff = s.bezelOffset || [-0.14, 0, 0];
+
+                // 1. Multi-layered Octagonal Gold Bezel & Dark Recessed Gem Collet/Cup
+                const outerBezel = createBox(bSize[0], bSize[1], bSize[2], matGoldBright, bOff[0], bOff[1], bOff[2]);
+                const rotatedBezel = createBox(
+                    bSize[0] * 0.96,
+                    bSize[1] * 0.88,
+                    bSize[2] * 0.88,
+                    matGauntletGold,
+                    bOff[0], bOff[1], bOff[2],
+                    isSideMounted ? 0 : 0.785,
+                    0,
+                    isSideMounted ? 0.785 : 0
+                );
+                // Dark bronze inner socket collet framing the gem
+                const innerCollet = createBox(
+                    isSideMounted ? bSize[0] * 1.05 : bSize[0] * 1.12,
+                    bSize[1] * 0.86,
+                    bSize[2] * 0.86,
+                    matObsidianArmor,
+                    bOff[0] * 0.5, bOff[1], bOff[2] * 0.5
+                );
+                stoneGroup.add(outerBezel, rotatedBezel, innerCollet);
+
+                // 2. Multi-Faceted 3D Gemstone Assembly (Base Cut + Rotated Diamond Facets + Crown Table)
+                const gemMat = createGemFacetMaterial(s.color, s.coreColor);
+
+                // Main cabochon/oval cut body
+                const gemMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(s.size[0] * 0.88, s.size[1] * 0.92, s.size[2] * 0.92),
+                    gemMat
+                );
+
+                // 45-degree rotated facet layer to give an octagonal/oval gemstone silhouette
+                const facetLayer = new THREE.Mesh(
+                    new THREE.BoxGeometry(
+                        isSideMounted ? s.size[0] * 0.78 : s.size[0] * 0.92,
+                        s.size[1] * 0.78,
+                        isSideMounted ? s.size[2] * 0.92 : s.size[2] * 0.78
+                    ),
+                    gemMat
+                );
+                if (isSideMounted) {
+                    facetLayer.rotation.z = Math.PI / 4;
+                } else {
+                    facetLayer.rotation.x = Math.PI / 4;
+                }
+
+                // Raised upper crown table (protruding outward like a real cut jewel)
+                const crownOffset = isSideMounted ? [0, 0, s.size[2] * 0.22] : [s.size[0] * 0.22, 0, 0];
+                const crownMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(
+                        isSideMounted ? s.size[0] * 0.62 : s.size[0] * 0.75,
+                        s.size[1] * 0.64,
+                        isSideMounted ? s.size[2] * 0.75 : s.size[2] * 0.64
+                    ),
+                    gemMat
+                );
+                crownMesh.position.set(crownOffset[0], crownOffset[1], crownOffset[2]);
+
+                // Brilliant white-hot internal crystalline core
+                const coreMat = new THREE.MeshBasicMaterial({
+                    color: new THREE.Color(s.coreColor)
+                });
+                const coreMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(
+                        isSideMounted ? s.size[0] * 0.38 : s.size[0] * 0.98,
+                        s.size[1] * 0.38,
+                        isSideMounted ? s.size[2] * 0.98 : s.size[2] * 0.38
+                    ),
+                    coreMat
+                );
+                coreMesh.position.set(crownOffset[0] * 0.6, crownOffset[1] * 0.6, crownOffset[2] * 0.6);
+
+                stoneGroup.add(gemMesh, facetLayer, crownMesh, coreMesh);
+
+                // 3. Additive Halo & 4-Point Star-Glint Sprite
+                const spriteMat = new THREE.SpriteMaterial({
+                    map: createGlowSpriteTexture(s.color),
+                    color: 0xffffff,
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+                const halo = new THREE.Sprite(spriteMat);
+                const hOff = s.haloOffset || [0.32, 0, 0];
+                halo.position.set(hOff[0], hOff[1], hOff[2]);
+                halo.scale.set(s.haloScale, s.haloScale, 1);
+                stoneGroup.add(halo);
+
+                s.parent.add(stoneGroup);
+                stoneObjects.push({
+                    data: s,
+                    group: stoneGroup,
+                    gemMesh,
+                    coreMesh,
+                    halo,
+                    baseScale: s.haloScale
+                });
+            });
+
+            // ----------------------------------------------------------------------------
+            // G. RANDOM BRIGHT 6-COLOR LIGHTNING CRAWLING AROUND THE WHOLE GLOVE
+            // ----------------------------------------------------------------------------
+            const lightningRoot = new THREE.Group();
+            rig.gauntletHand.add(lightningRoot);
+
+            // Pool of 12 3D dual-layered lightning arcs (white-hot inner core + bright colored outer glow + flash halo)
+            // Only a few random bolts flash at any moment around the cuff, back of hand, palm, thumb, and fingers!
+            const boltArcs = [];
+            const BOLTS_PER_STONE = 2;
+            const SEGMENTS_PER_BOLT = 6;
+            const unitSegGeom = new THREE.BoxGeometry(1, 1, 1);
+
+            STONES_DATA.forEach((stone, sIdx) => {
+                const stoneGlowTex = createGlowSpriteTexture(stone.color);
+
+                for (let b = 0; b < BOLTS_PER_STONE; b++) {
+                    const boltGroup = new THREE.Group();
+                    boltGroup.visible = false;
+                    lightningRoot.add(boltGroup);
+
+                    // Blazing white-hot inner core material
+                    const coreMat = new THREE.MeshBasicMaterial({
+                        color: 0xffffff,
+                        transparent: true,
+                        opacity: 1.0,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false
+                    });
+
+                    // Bright vivid stone-colored outer plasma shell
+                    const glowMat = new THREE.MeshBasicMaterial({
+                        color: new THREE.Color(stone.color),
+                        transparent: true,
+                        opacity: 0.92,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false
+                    });
+
+                    const segments = [];
+                    for (let i = 0; i < SEGMENTS_PER_BOLT; i++) {
+                        const coreSeg = new THREE.Mesh(unitSegGeom, coreMat);
+                        const glowSeg = new THREE.Mesh(unitSegGeom, glowMat);
+                        boltGroup.add(coreSeg, glowSeg);
+                        segments.push({ coreSeg, glowSeg });
+                    }
+
+                    // Bright additive flash sprite at the midpoint of the lightning arc
+                    const flashSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+                        map: stoneGlowTex,
+                        color: 0xffffff,
+                        transparent: true,
+                        opacity: 0.95,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false
+                    }));
+                    flashSprite.scale.set(3.2, 3.2, 1);
+                    boltGroup.add(flashSprite);
+
+                    boltArcs.push({
+                        stoneIdx: sIdx,
+                        boltGroup,
+                        segments,
+                        coreMat,
+                        glowMat,
+                        flashSprite,
+                        active: false,
+                        life: 0,
+                        maxLife: 0.1,
+                        flickerTimer: 0,
+                        cooldown: Math.random() * 0.85
+                    });
+                }
+            });
+
+            // Helper to pick random surface coordinates wrapping around the entire Infinity Gauntlet
+            // (forearm cuff, wrist, back of hand, knuckles, thumb, fingers, and palm)
+            function randomGloveSurfacePoint(angle, yHeight) {
+                // Radius of the gauntlet varies slightly from forearm cuff down to fingers
+                const rX = yHeight > 0 ? 2.85 : (yHeight > -2.5 ? 2.65 : 2.15);
+                const rZ = yHeight > 0 ? 2.85 : (yHeight > -2.5 ? 2.75 : 2.35);
+                return new THREE.Vector3(
+                    Math.cos(angle) * rX,
+                    yHeight,
+                    Math.sin(angle) * rZ
+                );
+            }
+
+            function shapeBoltGeometry(bolt, intensity = 1.0) {
+                // Pick a random starting zone anywhere on the whole glove (from fingers y=-3.8 up to forearm cuff y=+4.2)
+                let startAngle = (Math.random() - 0.5) * Math.PI * 1.75; // Bias slightly toward visible outer/side faces but wraps all around
+                let startY = -3.6 + Math.random() * 7.6;
+
+                // 35% chance to originate near its own Stone, 65% chance anywhere around the whole glove cuff/hand/fingers
+                if (Math.random() < 0.35) {
+                    const sIdx = bolt.stoneIdx;
+                    const stPos = STONES_DATA[sIdx].pos;
+                    startAngle = Math.atan2(sIdx === 4 ? 2.9 : stPos.z, sIdx === 4 ? 1.45 : stPos.x);
+                    startY = sIdx === 4 ? -2.3 : stPos.y;
+                }
+
+                // Arc wraps/crawls along and around the glove surface
+                const deltaAngle = (Math.random() - 0.5) * 1.65;
+                const deltaY = (Math.random() - 0.45) * 3.8;
+
+                const pts = [];
+                for (let i = 0; i <= SEGMENTS_PER_BOLT; i++) {
+                    const t = i / SEGMENTS_PER_BOLT;
+                    const ang = startAngle + deltaAngle * t;
+                    const y = Math.max(-4.3, Math.min(4.4, startY + deltaY * t));
+                    const p = randomGloveSurfacePoint(ang, y);
+
+                    // Sharp electric zig-zag jitter along the glove surface
+                    const archOut = Math.sin(t * Math.PI) * (0.25 + Math.random() * 0.45);
+                    p.x += Math.cos(ang) * archOut + (i === 0 || i === SEGMENTS_PER_BOLT ? 0 : (Math.random() - 0.5) * 0.65);
+                    p.y += (i === 0 || i === SEGMENTS_PER_BOLT ? 0 : (Math.random() - 0.5) * 0.65);
+                    p.z += Math.sin(ang) * archOut + (i === 0 || i === SEGMENTS_PER_BOLT ? 0 : (Math.random() - 0.5) * 0.65);
+                    pts.push(p);
+                }
+
+                const coreThick = 0.095 * Math.min(1.4, intensity);
+                const glowThick = 0.23 * Math.min(1.45, intensity);
+
+                for (let i = 0; i < SEGMENTS_PER_BOLT; i++) {
+                    const pA = pts[i];
+                    const pB = pts[i + 1];
+                    const dist = pA.distanceTo(pB);
+                    const mid = pA.clone().add(pB).multiplyScalar(0.5);
+
+                    const { coreSeg, glowSeg } = bolt.segments[i];
+                    coreSeg.position.copy(mid);
+                    coreSeg.lookAt(pB);
+                    coreSeg.scale.set(coreThick, coreThick, dist + 0.05);
+
+                    glowSeg.position.copy(mid);
+                    glowSeg.lookAt(pB);
+                    glowSeg.scale.set(glowThick, glowThick, dist + 0.09);
+
+                    if (i === Math.floor(SEGMENTS_PER_BOLT / 2)) {
+                        bolt.flashSprite.position.copy(mid);
+                        const fScale = (2.6 + Math.random() * 1.4) * Math.min(1.5, intensity);
+                        bolt.flashSprite.scale.set(fScale, fScale, 1);
+                    }
+                }
+            }
+
+            // ----------------------------------------------------------------------------
+            // H. RIGHT ARM + WARLORD BRACER + DOUBLE-EDGED TITAN SWORD
+            // ----------------------------------------------------------------------------
+            rig.rightShoulder.position.set(-7.8, 9.4, 0);
+            rig.torso.add(rig.rightShoulder);
+
+            // Right Layered Gold Pauldron
+            rig.rightShoulder.add(rig.rightPauldron);
+            rig.rightPauldron.add(createBox(5.8, 2.1, 8.2, matGoldBright, -1.2, 1.7, 0, 0, 0, 0.25));
+            rig.rightPauldron.add(createBox(5.2, 1.6, 7.4, matGold, -1.7, 0.5, 0, 0, 0, 0.38));
+            rig.rightPauldron.add(createBox(6.0, 0.65, 8.4, matBronze, -1.2, 1.25, 0, 0, 0, 0.25));
+
+            // Right Muscular Purple Deltoid, Bicep & Tricep
+            rig.rightShoulder.add(createBox(5.0, 6.0, 5.2, matSkinBicep, -1.2, -2.1, 0));
+            // 3D Outer Deltoid Cap
+            rig.rightShoulder.add(createBox(1.35, 3.8, 4.4, matSkinBicep, -3.45, -1.1, 0));
+            // Bulging Front Bicep Peak
+            rig.rightShoulder.add(createBox(4.1, 3.6, 1.3, matSkinBicep, -1.2, -2.2, 2.55));
+            // Thick Rear Tricep Head
+            rig.rightShoulder.add(createBox(4.0, 3.8, 1.15, matSkin, -1.2, -1.9, -2.5));
+            const rightArmBand = createBox(5.45, 1.0, 5.65, matGold, -1.2, -3.7, 0);
+            rig.rightShoulder.add(rightArmBand);
+
+            // Right Forearm & Armored Bracer
+            rig.rightForearm.position.set(-1.2, -5.2, 0);
+            rig.rightShoulder.add(rig.rightForearm);
+            rig.rightForearm.add(createBox(4.5, 4.6, 4.5, matSkinBicep, 0, -2.1, 0));
+            rig.rightForearm.add(createBox(4.85, 2.1, 4.75, matSkinBicep, 0, -1.1, 0));
+            // Ornate Right Vambrace / Bracer
+            const rightBracer = new THREE.Group();
+            rightBracer.add(createBox(4.85, 3.9, 4.85, matBronze, 0, -2.35, 0));
+            rightBracer.add(createBox(5.05, 1.0, 5.05, matGold, 0, -0.8, 0));
+            rightBracer.add(createBox(5.05, 0.9, 5.05, matGold, 0, -3.85, 0));
+            rightBracer.add(createBox(1.3, 3.9, 5.1, matGoldBright, -1.95, -2.35, 0));
+            rig.rightForearm.add(rightBracer);
+
+            // Right Hand Fist
+            rig.rightHand.position.set(0, -4.65, 0);
+            rig.rightForearm.add(rig.rightHand);
+            rig.rightHand.add(createBox(3.8, 2.9, 4.0, matSkin, 0, -1.2, 0));
+            rig.rightHand.add(createBox(4.0, 1.4, 4.2, matGold, 0, -0.6, 0));
+
+            // DOUBLE-EDGED TITAN SWORD (Toggleable, shown in Reference Image #3)
+            rig.swordGroup.position.set(0, -1.5, 0);
+            rig.rightHand.add(rig.swordGroup);
+            rig.swordGroup.visible = false; // Toggled via UI or Warlord Strike animation
+
+            // Central Grip & Gold Guard
+            rig.swordGroup.add(createBox(1.1, 1.1, 7.2, matObsidianArmor, 0, 0, 0));
+            rig.swordGroup.add(createBox(1.6, 3.4, 2.4, matGoldBright, 0, 0, 3.6));
+            rig.swordGroup.add(createBox(1.6, 3.4, 2.4, matGoldBright, 0, 0, -3.6));
+            // Forward Twin-Blade (+Z)
+            rig.swordGroup.add(createBox(0.55, 3.2, 16.5, matSteel, 0, -0.2, 12.2));
+            rig.swordGroup.add(createBox(0.7, 1.3, 15.0, matObsidianArmor, 0, 0.5, 11.2));
+            // Backward Twin-Blade (-Z)
+            rig.swordGroup.add(createBox(0.55, 3.2, 16.5, matSteel, 0, -0.2, -12.2));
+            rig.swordGroup.add(createBox(0.7, 1.3, 15.0, matObsidianArmor, 0, 0.5, -11.2));
+
+            // ----------------------------------------------------------------------------
+            // I. ARMORED TITAN LEGS & BOOTS
+            // ----------------------------------------------------------------------------
+            // Left Leg (+X)
+            rig.leftLeg.position.set(2.7, -1.0, 0);
+            rig.pelvis.add(rig.leftLeg);
+            rig.leftLeg.add(createBox(4.7, 6.0, 5.0, matObsidianArmor, 0, -2.8, 0));
+            const leftThighPlate = createBox(5.05, 5.2, 5.35, matGold, 0, -2.7, 0.1);
+            const leftKneeGuard = createBox(3.6, 2.2, 1.3, matGoldBright, 0, -5.4, 2.55);
+            rig.leftLeg.add(leftThighPlate, leftKneeGuard);
+
+            rig.leftCalf.position.set(0, -5.8, 0);
+            rig.leftLeg.add(rig.leftCalf);
+            rig.leftCalf.add(createBox(4.4, 5.6, 4.8, matBronze, 0, -2.8, 0));
+            rig.leftCalf.add(createBox(4.75, 4.1, 5.05, matGold, 0, -2.5, 0.1));
+            // Heavy Boot
+            rig.leftCalf.add(createBox(4.85, 1.9, 6.0, matObsidianArmor, 0, -4.65, 0.5));
+            rig.leftCalf.add(createBox(5.0, 1.1, 2.8, matGoldBright, 0, -4.95, 2.0));
+
+            // Right Leg (-X)
+            rig.rightLeg.position.set(-2.7, -1.0, 0);
+            rig.pelvis.add(rig.rightLeg);
+            rig.rightLeg.add(createBox(4.7, 6.0, 5.0, matObsidianArmor, 0, -2.8, 0));
+            const rightThighPlate = createBox(5.05, 5.2, 5.35, matGold, 0, -2.7, 0.1);
+            const rightKneeGuard = createBox(3.6, 2.2, 1.3, matGoldBright, 0, -5.4, 2.55);
+            rig.rightLeg.add(rightThighPlate, rightKneeGuard);
+
+            rig.rightCalf.position.set(0, -5.8, 0);
+            rig.rightLeg.add(rig.rightCalf);
+            rig.rightCalf.add(createBox(4.4, 5.6, 4.8, matBronze, 0, -2.8, 0));
+            rig.rightCalf.add(createBox(4.75, 4.1, 5.05, matGold, 0, -2.5, 0.1));
+            // Heavy Boot
+            rig.rightCalf.add(createBox(4.85, 1.9, 6.0, matObsidianArmor, 0, -4.65, 0.5));
+            rig.rightCalf.add(createBox(5.0, 1.1, 2.8, matGoldBright, 0, -4.95, 2.0));
+
+            // Track armor sub-pieces for clean Warlord Armor toggle
+            const extraArmorMeshes = [
+                rig.armorGroup,
+                rig.pelvisArmorGroup,
+                rig.leftPauldron,
+                rig.rightPauldron,
+                leftArmBand,
+                rightArmBand,
+                rightBracer,
+                leftThighPlate,
+                leftKneeGuard,
+                rightThighPlate,
+                rightKneeGuard
+            ];
+
+            // ============================================================================
+            // 6. COSMIC SHOCKWAVE & FLOATING AMBIENT EMBER PARTICLES
+            // ============================================================================
+            // Snap / Surge expanding shockwave ring
+            const ringGeom = new THREE.RingGeometry(0.6, 1.6, 32);
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0,
+                blending: THREE.AdditiveBlending
+            });
+            const shockwaveRing = new THREE.Mesh(ringGeom, ringMat);
+            scene.add(shockwaveRing);
+
+            let shockwaveState = { active: false, scale: 1, opacity: 0 };
+            function triggerShockwave(worldPos, hexColor = 0xfef08a) {
+                shockwaveRing.position.copy(worldPos);
+                shockwaveRing.lookAt(camera.position);
+                shockwaveRing.material.color.setHex(hexColor);
+                shockwaveState.active = true;
+                shockwaveState.scale = 0.5;
+                shockwaveState.opacity = 0.95;
+            }
+
+            // Ambient 6-stone floating voxel motes around Thanos
+            const moteCount = 36;
+            const motes = [];
+            const moteGroup = new THREE.Group();
+            scene.add(moteGroup);
+
+            for (let i = 0; i < moteCount; i++) {
+                const stoneColor = STONES_DATA[i % 6].color;
+                const mMat = new THREE.MeshBasicMaterial({
+                    color: new THREE.Color(stoneColor),
+                    transparent: true,
+                    opacity: 0.7,
+                    blending: THREE.AdditiveBlending
+                });
+                const mSize = 0.18 + Math.random() * 0.22;
+                const mMesh = new THREE.Mesh(new THREE.BoxGeometry(mSize, mSize, mSize), mMat);
+                const radius = 8 + Math.random() * 14;
+                const angle = Math.random() * Math.PI * 2;
+                const y = 2 + Math.random() * 24;
+                mMesh.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+                moteGroup.add(mMesh);
+                motes.push({
+                    mesh: mMesh,
+                    angle,
+                    radius,
+                    y,
+                    speed: 0.25 + Math.random() * 0.45,
+                    vy: 0.6 + Math.random() * 1.1
+                });
+            }
+
+            // ============================================================================
+            // 7. SMOOTH MULTI-ANIMATION STATE MACHINE (6 SELECTABLE ANIMATIONS)
+            // ============================================================================
+            let currentAnim = 'idle';
+            let animTime = 0;
+            let snapTriggeredInCycle = false;
+            let userSwordEquipped = false;
+            let lightningEnabled = true;
+
+            function lerp(a, b, t) {
+                return a + (b - a) * t;
+            }
+
+            function damp(current, target, smoothing, dt) {
+                return lerp(current, target, 1 - Math.exp(-smoothing * dt));
+            }
+
+            function setFingerCurl(curlAmount, spread = 0) {
+                rig.fingers.forEach((f, idx) => {
+                    const phase = idx * 0.18;
+                    const c = Math.max(0, Math.min(1.45, curlAmount + Math.sin(animTime * 3 + phase) * spread));
+                    f.root.rotation.z = -c;
+                    f.tip.rotation.z = -c * 0.85;
+                });
+                rig.thumb.rotation.x = -curlAmount * 0.28;
+                rig.thumb.rotation.y = -0.18;
+                rig.thumb.rotation.z = -curlAmount * 0.68;
+            }
+
+            function updateAnimations(dt) {
+                animTime += dt;
+                const s = 10; // Smooth interpolation damping speed
+
+                // Target pose values (adjusted for taller 12.4 pelvis height)
+                let pelvisY = 12.4, pelvisRotX = 0, pelvisRotY = 0, pelvisRotZ = 0;
+                let torsoRotX = 0, torsoRotY = 0, torsoRotZ = 0;
+                let headRotX = 0, headRotY = 0, headRotZ = 0;
+                let lShX = 0, lShY = 0, lShZ = 0;
+                let lFaX = 0, lFaY = 0, lFaZ = 0;
+                let gHandX = 0, gHandY = 0, gHandZ = 0;
+                let rShX = 0, rShY = 0, rShZ = 0;
+                let rFaX = 0, rFaY = 0, rFaZ = 0;
+                let rHandX = 0, rHandY = 0, rHandZ = 0;
+                let lLegX = 0, lLegZ = 0, lCalfX = 0;
+                let rLegX = 0, rLegZ = 0, rCalfX = 0;
+                let fingerCurl = 0.25, fingerSpread = 0.08;
+                let stonePulseBoost = 1.0;
+
+                if (currentAnim === 'idle') {
+                    // 1. TITAN IDLE: Heavy rhythmic breathing, surveying the battlefield, flexing Gauntlet
+                    const breath = Math.sin(animTime * 1.8);
+                    pelvisY = 12.4 + breath * 0.14;
+                    torsoRotX = 0.04 + breath * 0.025;
+                    torsoRotY = Math.sin(animTime * 0.7) * 0.08;
+                    headRotY = Math.sin(animTime * 0.9) * 0.16;
+                    headRotX = 0.06 - breath * 0.02;
+
+                    // Left arm slightly raised showing off the Infinity Gauntlet
+                    lShX = -0.38 + breath * 0.04;
+                    lShZ = 0.18 + breath * 0.03;
+                    lFaX = -0.68 - Math.sin(animTime * 1.8) * 0.08;
+                    lFaY = -0.35;
+                    gHandY = Math.sin(animTime * 1.4) * 0.22;
+
+                    // Right arm menacingly poised
+                    rShX = 0.12 - breath * 0.03;
+                    rShZ = -0.16 - breath * 0.02;
+                    rFaX = -0.32;
+
+                    lLegZ = 0.04;
+                    rLegZ = -0.04;
+                    fingerCurl = 0.35 + Math.sin(animTime * 1.8) * 0.18;
+                    fingerSpread = 0.12;
+                    stonePulseBoost = 1.15 + Math.sin(animTime * 3.2) * 0.2;
+
+                } else if (currentAnim === 'clench') {
+                    // 2. GAUNTLET POWER SURGE (Matches Reference Image #1 & #4!)
+                    // Raises the Infinity Gauntlet front-and-center and clenches into a tight power fist!
+                    const cycle = (Math.sin(animTime * 2.2) + 1) * 0.5; // 0..1
+                    const clenchPower = Math.pow(cycle, 0.7);
+                    const tremor = Math.sin(animTime * 38) * 0.022 * clenchPower;
+
+                    pelvisY = 12.25 - clenchPower * 0.25;
+                    torsoRotY = -0.28;
+                    torsoRotX = 0.08;
+                    headRotY = 0.25;
+                    headRotX = 0.12;
+
+                    // Bring left arm across chest / forward like the iconic poster
+                    lShX = -1.18 + tremor;
+                    lShY = -0.42;
+                    lShZ = 0.22;
+                    lFaX = -1.05 + tremor;
+                    lFaY = -0.85;
+                    gHandX = 0.15;
+                    gHandY = -0.3 + Math.sin(animTime * 2.2) * 0.25;
+
+                    rShX = 0.28;
+                    rShZ = -0.25;
+                    rFaX = -0.55;
+
+                    lLegX = -0.12;
+                    rLegX = 0.14;
+                    rCalfX = 0.18;
+
+                    fingerCurl = 0.25 + clenchPower * 1.05;
+                    fingerSpread = 0.02;
+                    stonePulseBoost = 1.4 + clenchPower * 1.45;
+
+                } else if (currentAnim === 'walk') {
+                    // 3. HEAVY TITAN MARCH: Slow, unstoppable boss walk cycle
+                    const wSpeed = 3.2;
+                    const phase = animTime * wSpeed;
+                    const stride = Math.sin(phase);
+                    const stepBounce = Math.abs(Math.cos(phase));
+
+                    pelvisY = 12.15 + stepBounce * 0.38;
+                    pelvisRotY = -stride * 0.12;
+                    pelvisRotZ = stride * 0.04;
+
+                    torsoRotX = 0.11;
+                    torsoRotY = stride * 0.18;
+                    headRotY = -stride * 0.12;
+                    headRotX = 0.08;
+
+                    // Heavy opposite arm swing
+                    lShX = -0.35 + stride * 0.45;
+                    lShZ = 0.18;
+                    lFaX = -0.58 - Math.max(0, -stride) * 0.25;
+
+                    rShX = -stride * 0.48;
+                    rShZ = -0.18;
+                    rFaX = -0.42 - Math.max(0, stride) * 0.25;
+
+                    // Legs stride with knee bend
+                    lLegX = -stride * 0.55;
+                    lCalfX = Math.max(0, stride) * 0.65 + 0.08;
+                    rLegX = stride * 0.55;
+                    rCalfX = Math.max(0, -stride) * 0.65 + 0.08;
+
+                    fingerCurl = 0.65;
+                    stonePulseBoost = 1.25;
+
+                } else if (currentAnim === 'snap') {
+                    // 4. THE INEVITABLE SNAP: Raises gauntlet, pinches thumb & middle finger, SNAPS with shockwave!
+                    const duration = 3.2;
+                    const t = animTime % duration;
+
+                    if (t < 0.2) snapTriggeredInCycle = false;
+
+                    if (t < 1.35) {
+                        // Phase 1: Raise Gauntlet deliberately & poise fingers
+                        const p = t / 1.35;
+                        const tension = Math.sin(t * 35) * 0.015 * p;
+                        torsoRotY = -0.22 * p;
+                        headRotY = 0.22 * p;
+                        headRotX = -0.08 * p;
+                        lShX = -1.42 * p + tension;
+                        lShZ = 0.28 * p;
+                        lFaX = -0.55 * p + tension;
+                        lFaY = -0.45 * p;
+                        gHandY = -0.4 * p;
+                        stonePulseBoost = 1.2 + p * 1.4;
+                    } else if (t < 1.65) {
+                        // Phase 2: THE SNAP!
+                        if (!snapTriggeredInCycle) {
+                            snapTriggeredInCycle = true;
+                            const worldPos = new THREE.Vector3();
+                            rig.gauntletHand.getWorldPosition(worldPos);
+                            triggerShockwave(worldPos, 0xffffff);
+                        }
+                        torsoRotY = -0.15;
+                        torsoRotX = -0.06;
+                        headRotY = 0.15;
+                        lShX = -1.52;
+                        lShZ = 0.38;
+                        lFaX = -0.35;
+                        lFaY = -0.25;
+                        stonePulseBoost = 3.4;
+                    } else {
+                        // Phase 3: Aftermath energy recoil & recovery
+                        const p = (t - 1.65) / (duration - 1.65);
+                        torsoRotY = -0.15 * (1 - p);
+                        headRotY = 0.15 * (1 - p);
+                        lShX = lerp(-1.52, -0.38, p);
+                        lShZ = lerp(0.38, 0.18, p);
+                        lFaX = lerp(-0.35, -0.68, p);
+                        stonePulseBoost = lerp(2.6, 1.15, p);
+                    }
+
+                } else if (currentAnim === 'cleave') {
+                    // 5. WARLORD STRIKE: Dual-blade cleave + Gauntlet ground-shatter punch
+                    const duration = 2.6;
+                    const t = animTime % duration;
+
+                    if (t < 0.85) {
+                        // Wind-up right sword & left gauntlet
+                        const p = t / 0.85;
+                        torsoRotY = 0.55 * p;
+                        torsoRotX = -0.1 * p;
+                        rShX = -2.1 * p;
+                        rShZ = -0.35 * p;
+                        rFaX = -0.45 * p;
+                        lShX = -0.6 * p;
+                        lFaX = -0.9 * p;
+                        lLegX = -0.25 * p;
+                        rLegX = 0.25 * p;
+                        stonePulseBoost = 1.5;
+                    } else if (t < 1.35) {
+                        // Heavy downward Warlord Sword Cleave!
+                        const p = (t - 0.85) / 0.5;
+                        pelvisY = 11.8;
+                        torsoRotY = lerp(0.55, -0.65, p);
+                        torsoRotX = 0.28;
+                        rShX = lerp(-2.1, 0.45, p);
+                        rFaX = -0.2;
+                        rHandX = 0.45;
+                        lShX = -1.25;
+                        lFaX = -0.45;
+                        lLegX = -0.35;
+                        lCalfX = 0.4;
+                        rLegX = 0.35;
+                        rCalfX = 0.3;
+                        stonePulseBoost = 2.3;
+                    } else {
+                        // Return to combat guard
+                        const p = (t - 1.35) / (duration - 1.35);
+                        torsoRotY = lerp(-0.65, 0, p);
+                        torsoRotX = lerp(0.28, 0.05, p);
+                        rShX = lerp(0.45, 0.12, p);
+                        lShX = lerp(-1.25, -0.38, p);
+                        lFaX = lerp(-0.45, -0.68, p);
+                        stonePulseBoost = 1.3;
+                    }
+                    fingerCurl = 0.95;
+
+                } else if (currentAnim === 'cosmic') {
+                    // 6. COSMIC OVERLOAD: Levitates above pedestal channeling all 6 Stones
+                    const floatWave = Math.sin(animTime * 2.4);
+                    pelvisY = 14.6 + floatWave * 0.65;
+                    torsoRotX = -0.22 + Math.sin(animTime * 1.5) * 0.05;
+                    headRotX = -0.32;
+                    headRotY = Math.sin(animTime * 1.2) * 0.15;
+
+                    lShX = -0.85 + floatWave * 0.12;
+                    lShZ = 0.75;
+                    lFaX = -0.45;
+
+                    rShX = -0.75 - floatWave * 0.12;
+                    rShZ = -0.75;
+                    rFaX = -0.45;
+
+                    lLegX = 0.18;
+                    lCalfX = 0.38;
+                    rLegX = 0.28;
+                    rCalfX = 0.52;
+
+                    fingerCurl = 0.15 + Math.sin(animTime * 5) * 0.12;
+                    stonePulseBoost = 2.5 + Math.sin(animTime * 8) * 0.5;
+                }
+
+                // Apply damped joint transforms
+                rig.pelvis.position.y = damp(rig.pelvis.position.y, pelvisY, s, dt);
+                rig.pelvis.rotation.x = damp(rig.pelvis.rotation.x, pelvisRotX, s, dt);
+                rig.pelvis.rotation.y = damp(rig.pelvis.rotation.y, pelvisRotY, s, dt);
+                rig.pelvis.rotation.z = damp(rig.pelvis.rotation.z, pelvisRotZ, s, dt);
+
+                rig.torso.rotation.x = damp(rig.torso.rotation.x, torsoRotX, s, dt);
+                rig.torso.rotation.y = damp(rig.torso.rotation.y, torsoRotY, s, dt);
+                rig.torso.rotation.z = damp(rig.torso.rotation.z, torsoRotZ, s, dt);
+
+                rig.headGroup.rotation.x = damp(rig.headGroup.rotation.x, headRotX, s, dt);
+                rig.headGroup.rotation.y = damp(rig.headGroup.rotation.y, headRotY, s, dt);
+                rig.headGroup.rotation.z = damp(rig.headGroup.rotation.z, headRotZ, s, dt);
+
+                rig.leftShoulder.rotation.x = damp(rig.leftShoulder.rotation.x, lShX, s, dt);
+                rig.leftShoulder.rotation.y = damp(rig.leftShoulder.rotation.y, lShY, s, dt);
+                rig.leftShoulder.rotation.z = damp(rig.leftShoulder.rotation.z, lShZ, s, dt);
+
+                rig.leftForearm.rotation.x = damp(rig.leftForearm.rotation.x, lFaX, s, dt);
+                rig.leftForearm.rotation.y = damp(rig.leftForearm.rotation.y, lFaY, s, dt);
+                rig.leftForearm.rotation.z = damp(rig.leftForearm.rotation.z, lFaZ, s, dt);
+
+                rig.gauntletHand.rotation.x = damp(rig.gauntletHand.rotation.x, gHandX, s, dt);
+                rig.gauntletHand.rotation.y = damp(rig.gauntletHand.rotation.y, gHandY, s, dt);
+                rig.gauntletHand.rotation.z = damp(rig.gauntletHand.rotation.z, gHandZ, s, dt);
+
+                rig.rightShoulder.rotation.x = damp(rig.rightShoulder.rotation.x, rShX, s, dt);
+                rig.rightShoulder.rotation.y = damp(rig.rightShoulder.rotation.y, rShY, s, dt);
+                rig.rightShoulder.rotation.z = damp(rig.rightShoulder.rotation.z, rShZ, s, dt);
+
+                rig.rightForearm.rotation.x = damp(rig.rightForearm.rotation.x, rFaX, s, dt);
+                rig.rightForearm.rotation.y = damp(rig.rightForearm.rotation.y, rFaY, s, dt);
+                rig.rightForearm.rotation.z = damp(rig.rightForearm.rotation.z, rFaZ, s, dt);
+
+                rig.rightHand.rotation.x = damp(rig.rightHand.rotation.x, rHandX, s, dt);
+
+                rig.leftLeg.rotation.x = damp(rig.leftLeg.rotation.x, lLegX, s, dt);
+                rig.leftLeg.rotation.z = damp(rig.leftLeg.rotation.z, lLegZ, s, dt);
+                rig.leftCalf.rotation.x = damp(rig.leftCalf.rotation.x, lCalfX, s, dt);
+
+                rig.rightLeg.rotation.x = damp(rig.rightLeg.rotation.x, rLegX, s, dt);
+                rig.rightLeg.rotation.z = damp(rig.rightLeg.rotation.z, rLegZ, s, dt);
+                rig.rightCalf.rotation.x = damp(rig.rightCalf.rotation.x, rCalfX, s, dt);
+
+                // Secondary motion on Tassets & Pauldrons
+                rig.tassetFront.rotation.x = Math.min(-0.04, Math.min(lLegX, rLegX) * 0.65 - 0.06);
+                rig.leftPauldron.rotation.z = Math.max(0, lShX * -0.18);
+                rig.rightPauldron.rotation.z = Math.min(0, rShX * 0.18);
+
+                // Special finger articulation for "The Snap" vs normal curl
+                if (currentAnim === 'snap') {
+                    const t = animTime % 3.2;
+                    if (t < 1.35) {
+                        // Pinch thumb & middle finger (index 1) together
+                        rig.fingers[0].root.rotation.z = -0.2; // Index extended
+                        rig.fingers[1].root.rotation.z = -0.75; // Middle poised against thumb
+                        rig.fingers[2].root.rotation.z = -1.15;
+                        rig.fingers[3].root.rotation.z = -1.25;
+                        rig.thumb.rotation.x = -0.65;
+                        rig.thumb.rotation.z = -0.55;
+                    } else if (t < 1.85) {
+                        // Snapped! Middle finger slides past thumb to palm
+                        rig.fingers[0].root.rotation.z = -0.15;
+                        rig.fingers[1].root.rotation.z = -1.35;
+                        rig.fingers[2].root.rotation.z = -1.25;
+                        rig.fingers[3].root.rotation.z = -1.3;
+                        rig.thumb.rotation.x = -0.2;
+                        rig.thumb.rotation.z = -0.85;
+                    } else {
+                        setFingerCurl(0.45, 0.05);
+                    }
+                } else {
+                    setFingerCurl(fingerCurl, fingerSpread);
+                }
+
+                // Update 6 Infinity Stones Glow & Dynamic Gauntlet Light
+                stoneObjects.forEach((st, idx) => {
+                    const flicker = 0.88 + Math.sin(animTime * 9 + idx * 1.4) * 0.16;
+                    const scale = st.baseScale * stonePulseBoost * flicker;
+                    st.halo.scale.set(scale, scale, 1);
+                });
+
+                const gauntletWorldPos = new THREE.Vector3();
+                rig.gauntletHand.getWorldPosition(gauntletWorldPos);
+                gauntletLight.position.copy(gauntletWorldPos).add(new THREE.Vector3(2.2, 0.5, 1.5));
+                gauntletLight.intensity = 1.8 * stonePulseBoost;
+
+                // Update Random, Intermittent, High-Brightness 6-Color Lightning around the whole Gauntlet
+                lightningRoot.visible = lightningEnabled;
+                if (lightningEnabled) {
+                    const activityRate = Math.max(0.8, stonePulseBoost * 0.75);
+                    boltArcs.forEach((bolt) => {
+                        if (bolt.active) {
+                            bolt.life += dt;
+                            bolt.flickerTimer += dt;
+                            // Rapid electric flicker mid-strike
+                            if (bolt.flickerTimer > 0.035) {
+                                bolt.flickerTimer = 0;
+                                shapeBoltGeometry(bolt, stonePulseBoost);
+                            }
+                            const progress = bolt.life / bolt.maxLife;
+                            const flashFade = Math.sin(progress * Math.PI);
+                            bolt.coreMat.opacity = Math.min(1.0, flashFade * 1.65);
+                            bolt.glowMat.opacity = Math.min(1.0, flashFade * 1.35);
+                            bolt.flashSprite.material.opacity = Math.min(1.0, flashFade * 1.25);
+
+                            if (bolt.life >= bolt.maxLife) {
+                                bolt.active = false;
+                                bolt.boltGroup.visible = false;
+                                // Random pause so fewer bolts are visible at once
+                                bolt.cooldown = (0.18 + Math.random() * 0.65) / activityRate;
+                            }
+                        } else {
+                            bolt.cooldown -= dt;
+                            if (bolt.cooldown <= 0) {
+                                bolt.active = true;
+                                bolt.life = 0;
+                                bolt.flickerTimer = 0;
+                                bolt.maxLife = 0.06 + Math.random() * 0.11;
+                                shapeBoltGeometry(bolt, stonePulseBoost);
+                                bolt.boltGroup.visible = true;
+                            }
+                        }
+                    });
+                }
+
+                // Update Shockwave Ring if active
+                if (shockwaveState.active) {
+                    shockwaveState.scale += dt * 38;
+                    shockwaveState.opacity -= dt * 1.8;
+                    if (shockwaveState.opacity <= 0) {
+                        shockwaveState.active = false;
+                        shockwaveRing.material.opacity = 0;
+                    } else {
+                        shockwaveRing.scale.set(shockwaveState.scale, shockwaveState.scale, 1);
+                        shockwaveRing.material.opacity = shockwaveState.opacity;
+                        shockwaveRing.lookAt(camera.position);
+                    }
+                }
+
+                // Update Floating 6-Stone Embers
+                motes.forEach((m) => {
+                    m.angle += dt * m.speed * (stonePulseBoost * 0.65);
+                    m.y += dt * m.vy * (stonePulseBoost * 0.7);
+                    if (m.y > 28) m.y = 1;
+                    m.mesh.position.set(
+                        Math.cos(m.angle) * m.radius,
+                        m.y,
+                        Math.sin(m.angle) * m.radius
+                    );
+                    m.mesh.rotation.x += dt * 1.5;
+                    m.mesh.rotation.y += dt * 1.8;
+                });
+            }
+
+            // ============================================================================
+            // 8. UI EVENT HANDLERS & 60 FPS RENDER LOOP
+            // ============================================================================
+            const animButtons = document.querySelectorAll('.anim-btn');
+            animButtons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    animButtons.forEach((b) => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentAnim = btn.getAttribute('data-anim');
+                    animTime = 0;
+
+                    // Automatically show the Double-Edged Sword during Warlord Strike if not manually toggled
+                    if (currentAnim === 'cleave') {
+                        rig.swordGroup.visible = true;
+                    } else {
+                        rig.swordGroup.visible = userSwordEquipped;
+                    }
+                });
+            });
+
+            // Toggle Helmet
+            const btnHelmet = document.getElementById('toggle-helmet');
+            btnHelmet.addEventListener('click', () => {
+                rig.helmetGroup.visible = !rig.helmetGroup.visible;
+                btnHelmet.classList.toggle('active', rig.helmetGroup.visible);
+            });
+
+            // Toggle Warlord Armor (shows his full muscular purple Titan physique underneath!)
+            const btnArmor = document.getElementById('toggle-armor');
+            let armorVisible = true;
+            btnArmor.addEventListener('click', () => {
+                armorVisible = !armorVisible;
+                extraArmorMeshes.forEach((m) => { m.visible = armorVisible; });
+                btnArmor.classList.toggle('active', armorVisible);
+            });
+
+            // Toggle Twin-Blade Sword
+            const btnSword = document.getElementById('toggle-sword');
+            btnSword.addEventListener('click', () => {
+                userSwordEquipped = !userSwordEquipped;
+                rig.swordGroup.visible = userSwordEquipped || (currentAnim === 'cleave');
+                btnSword.classList.toggle('active', userSwordEquipped);
+            });
+
+            // Toggle 6-Color Lightning
+            const btnLightning = document.getElementById('toggle-lightning');
+            btnLightning.addEventListener('click', () => {
+                lightningEnabled = !lightningEnabled;
+                btnLightning.classList.toggle('active', lightningEnabled);
+            });
+
+            // Toggle Turntable Auto-Rotate
+            const btnRotate = document.getElementById('toggle-rotate');
+            btnRotate.addEventListener('click', () => {
+                camState.autoRotate = !camState.autoRotate;
+                btnRotate.classList.toggle('active', camState.autoRotate);
+            });
+
+            // Reset Camera View
+            document.getElementById('btn-reset-cam').addEventListener('click', resetCamera);
+
+            // Responsive Resize
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // 60 FPS Telemetry & Main Loop
+            const fpsElem = document.getElementById('fps-counter');
+            let frameCount = 0;
+            let fpsAccum = 0;
+            let prevTime = performance.now();
+
+            function animate(now) {
+                requestAnimationFrame(animate);
+
+                const dt = Math.min(0.05, (now - prevTime) / 1000);
+                prevTime = now;
+
+                // FPS Counter update every 0.5s
+                frameCount++;
+                fpsAccum += dt;
+                if (fpsAccum >= 0.5) {
+                    const fps = Math.min(60, Math.round(frameCount / fpsAccum));
+                    fpsElem.textContent = `${fps} FPS`;
+                    frameCount = 0;
+                    fpsAccum = 0;
+                }
+
+                // Smooth Camera Orbit Interpolation
+                if (camState.autoRotate && !camState.isDragging) {
+                    camState.targetTheta += dt * 0.45;
+                }
+                camState.theta = damp(camState.theta, camState.targetTheta, 12, dt);
+                camState.phi = damp(camState.phi, camState.targetPhi, 12, dt);
+                camState.radius = damp(camState.radius, camState.targetRadius, 12, dt);
+                camState.lookAtY = damp(camState.lookAtY, camState.targetLookAtY, 12, dt);
+
+                camera.position.x = camState.radius * Math.sin(camState.phi) * Math.sin(camState.theta);
+                camera.position.y = camState.lookAtY + camState.radius * Math.cos(camState.phi) * 0.65;
+                camera.position.z = camState.radius * Math.sin(camState.phi) * Math.cos(camState.theta);
+                camera.lookAt(0, camState.lookAtY, 0);
+
+                // Update skeletal animation & 6-stone lightning
+                updateAnimations(dt);
+
+                renderer.render(scene, camera);
+            }
+
+            window.onload = function () {
+                // Initialize lightning geometry on load
+                boltArcs.forEach((b) => shapeBoltGeometry(b, 1.0));
+                requestAnimationFrame(animate);
+            };
+        })();
+    </script>
+</body>
+</html>

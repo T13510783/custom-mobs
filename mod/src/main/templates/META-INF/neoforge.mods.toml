@@ -1,0 +1,31 @@
+# Mod info read by NeoForge. The dollar-brace values are filled from gradle.properties.
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+logoFile="theking_logo.png"
+authors="custom mobs"
+description='''
+A crowned troublemaker roams the plains, savannas, forests and meadows.
+He runs at you, leaps into a dropkick, throws punches, shouts voice lines
+and does his victory dance (with music) one second after every kill.
+Spawn egg in its own creative tab. Settings: Mods -> The King -> Config.
+'''
+
+[[dependencies.${mod_id}]]
+    modId="neoforge"
+    type="required"
+    versionRange="${neo_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    type="required"
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"

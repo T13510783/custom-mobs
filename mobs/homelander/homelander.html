@@ -1,0 +1,1915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Homelander - 3D Vanilla+ Minecraft Model Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!--
+    Homelander - 3D Vanilla+ Minecraft Model Viewer
+    - Strict 16x16 model resolution (Blockbench standard humanoid entity).
+    - Articulated hierarchical box geometry: head (8x8x8), torso (8x12x4), arms (4x12x4), legs (4x12x4).
+    - Layered 3D details: extruded blonde combed hair, golden eagle shoulder pauldrons,
+      golden eagle belt buckle, red gauntlet bracers, tall red boots with eagle shin crests,
+      and 3-segment articulated American flag cape (stars yoke + red/white vertical stripes).
+    - 4 selectable animations: Idle (arrogant hands-on-hips stance & breathing), Walk (authoritative stride),
+      Attack (superhuman snap punch), Special (levitation hover & heat-vision laser eyes).
+    - Ultra-minimal dark UI (#0f1115), OrbitControls, soft shadows, .bbmodel export.
+  -->
+
+  <style>
+    /* ───────── Tokens ───────── */
+    :root {
+      color-scheme: dark;
+      --bg: #0f1115;
+      --pill: rgba(20, 23, 30, 0.82);
+      --line: rgba(255, 255, 255, 0.09);
+      --text: rgba(255, 255, 255, 0.62);
+      --text-hi: #ffffff;
+      --accent: #3b82f6;
+      --accent-bg: rgba(59, 130, 246, 0.22);
+      --accent-text: #bfdbfe;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    /* ───────── Page ───────── */
+    * { box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+    html, body {
+      margin: 0; width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg); color: var(--text-hi); font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+    #viewport { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; cursor: grab; }
+    #viewport:active { cursor: grabbing; }
+
+    /* ───────── Glass pills ───────── */
+    .pill {
+      background: var(--pill);
+      -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+    }
+    button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+    .icon-btn {
+      height: 36px; min-width: 36px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      color: var(--text); font-size: 12px; font-weight: 500;
+      transition: color .2s, background .2s, transform .2s cubic-bezier(.22, 1, .36, 1);
+    }
+    .icon-btn:hover { color: var(--text-hi); transform: translateY(-1px); }
+    .icon-btn:active { transform: scale(.97); }
+    .icon-btn svg { width: 16px; height: 16px; flex: none; }
+    #resetBtn { padding: 0; width: 36px; }
+
+    /* ───────── Top right: download + reset ───────── */
+    #topRight { position: fixed; top: 16px; right: 16px; z-index: 20; display: flex; gap: 8px; }
+
+    /* ───────── Bottom dock ───────── */
+    #dock {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 20;
+      display: flex; align-items: center; gap: 4px; padding: 6px; max-width: calc(100vw - 32px);
+    }
+    .anim-btn {
+      padding: 7px 14px; border-radius: 999px; font-size: 12px; font-weight: 500; letter-spacing: .02em;
+      color: var(--text); border: 1px solid transparent; white-space: nowrap;
+      transition: color .2s, background .2s, border-color .2s, box-shadow .2s;
+    }
+    .anim-btn:hover { color: var(--text-hi); }
+    .anim-btn.active { color: var(--accent-text); background: var(--accent-bg); border-color: rgba(59, 130, 246, .45); box-shadow: 0 0 18px rgba(59, 130, 246, .24); }
+    .anim-btn kbd { font: inherit; opacity: .45; margin-right: 6px; }
+    .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+    #followBtn, #bonesBtn { width: 32px; height: 32px; min-width: 32px; padding: 0; border-radius: 999px; }
+    #followBtn.on, #bonesBtn.on { color: var(--accent-text); background: var(--accent-bg); }
+    .dot {
+      width: 18px; height: 18px; border-radius: 999px; margin: 0 3px;
+      border: 2px solid rgba(255, 255, 255, .18); transition: transform .2s, border-color .2s;
+    }
+    .dot:hover { transform: scale(1.12); }
+    .dot.active { border-color: var(--accent); }
+
+    /* ───────── Toast ───────── */
+    #toast {
+      position: fixed; top: 64px; right: 16px; z-index: 30; padding: 8px 14px; font-size: 12px; color: #dbeafe;
+      opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity .3s, transform .3s;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 540px) {
+      .anim-btn { padding: 7px 10px; }
+      .anim-btn kbd { display: none; }
+      #dlBtn span { display: none; }
+    }
+  </style>
+
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <canvas id="viewport"></canvas>
+
+  <!-- Top right: download .bbmodel + camera reset -->
+  <div id="topRight">
+    <button id="dlBtn" class="pill icon-btn" title="Download .bbmodel (model, texture, animations)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span>Download .bbmodel</span>
+    </button>
+    <button id="resetBtn" class="pill icon-btn" title="Reset camera (R)" aria-label="Reset camera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+    </button>
+  </div>
+
+  <div id="toast" class="pill">Downloaded homelander.bbmodel</div>
+
+  <!-- Bottom dock: animations, follow toggle, color variants -->
+  <nav id="dock" class="pill" aria-label="Viewer controls">
+    <button class="anim-btn active" data-anim="idle"><kbd>1</kbd>Idle</button>
+    <button class="anim-btn" data-anim="idle2"><kbd>2</kbd>Idle 2</button>
+    <button class="anim-btn" data-anim="walk"><kbd>3</kbd>Walk</button>
+    <button class="anim-btn" data-anim="attack"><kbd>4</kbd>Attack</button>
+    <button class="anim-btn" data-anim="special"><kbd>5</kbd>Special</button>
+    <span class="sep"></span>
+    <button id="followBtn" class="icon-btn on" title="Head and eyes follow the mouse" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+    <button id="bonesBtn" class="icon-btn" title="Show bones (B)" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><circle cx="7" cy="12" r="1.6"/><circle cx="17" cy="12" r="1.6"/><circle cx="9" cy="20" r="1.6"/><circle cx="15" cy="20" r="1.6"/><path d="M12 6v8M12 8l-5 4M12 8l5 4M12 14l-3 6M12 14l3 6"/></svg>
+    </button>
+    <span class="sep"></span>
+    <span id="dots"></span>
+  </nav>
+
+  <script>
+    window.__errors = [];
+    window.onerror = (m, u, l, c, e) => window.__errors.push({ m, u, l, c, s: e ? e.stack : '' });
+    window.addEventListener('unhandledrejection', (e) => window.__errors.push({ m: String(e.reason) }));
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    /* ───────── Renderer, scene, camera ───────── */
+    const canvas = document.getElementById('viewport');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f1115);
+    scene.fog = new THREE.FogExp2(0x0f1115, 0.016);
+
+    const TEXEL = 1 / 16; // 1 unit = 1 texel, 16 texels per Minecraft block (1m)
+
+    const CAM_POS = new THREE.Vector3(2.4, 1.75, 2.9);
+    const CAM_TARGET = new THREE.Vector3(0, 1.05, 0);
+    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.1, 60);
+    camera.position.copy(CAM_POS);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.copy(CAM_TARGET);
+    controls.enableDamping = true;
+    controls.minDistance = 1.2;
+    controls.maxDistance = 7.5;
+    controls.maxPolarAngle = Math.PI * 0.495;
+    controls.update();
+
+    /* ───────── Lighting ───────── */
+    scene.add(new THREE.HemisphereLight(0xfff5ea, 0x141824, 0.95));
+
+    const keyLight = new THREE.DirectionalLight(0xfff8ee, 2.45);
+    keyLight.position.set(3.6, 6.2, 4.2);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.camera.near = 0.5;
+    keyLight.shadow.camera.far = 18;
+    keyLight.shadow.camera.left = keyLight.shadow.camera.bottom = -2.5;
+    keyLight.shadow.camera.right = keyLight.shadow.camera.top = 2.5;
+    keyLight.shadow.bias = -0.0005;
+    keyLight.shadow.radius = 3.2;
+    scene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0x60a5fa, 0.95);
+    rimLight.position.set(-3.6, 3.2, -3.6);
+    scene.add(rimLight);
+
+    const fillLight = new THREE.DirectionalLight(0xfef08a, 0.38);
+    fillLight.position.set(-2.6, 1.5, 3.0);
+    scene.add(fillLight);
+
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(24, 24), new THREE.ShadowMaterial({ opacity: 0.45 }));
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    /* ───────── Color Palettes ───────── */
+    const BASE = {
+      // Skin: Rich dimensional tones matching The King (micro-shading, rosy cheeks & nose tip)
+      skin: '#e5af95', skinLight: '#f4c7b0', skinBase: '#e5af95', skinWarm: '#d6977b',
+      skinRosy: '#d98473', skinShadow: '#b8765c', lidSkin: '#cd8a6e',
+      eyeWhite: '#f8fafc', eyePupil: '#1f5f9e', eyeIris: '#0284c7',
+      browHair: '#8a6431', lipLine: '#a36456', lipSmirk: '#a8655a', teeth: '#f3efe4',
+      // Blonde hair: natural golden blonde from the photos (less lemon-yellow)
+      hairLight: '#f0d68a', hairGolden: '#dcb862', hairBase: '#c89f4a', hairWarm: '#a98236', hairDark: '#7d5c26', hairNape: '#5c4219',
+      // Suit: royal blue with a fine scale texture (photos), not navy
+      suitLight: '#3b62a6', suitBase: '#2c4f8f', suitDark: '#1d3767', suitDeep: '#142951',
+      suitTexture: '#264682', suitPipingRed: '#c8343a', suitPipingDark: '#8f1f26',
+      // Antique gold eagle armor (pauldrons & belt)
+      goldLight: '#f3d47e', goldBright: '#dcae4a', goldBase: '#c08f32', goldWarm: '#9a6c22', goldDark: '#5e4013',
+      // Copper scale bracers on the forearms
+      bronzeLight: '#da8b52', bronzeBase: '#b9662f', bronzeWarm: '#95491f', bronzeDark: '#5f2b13',
+      // Deep red leather gloves & boots
+      crimsonLight: '#d2413a', crimsonBase: '#b3262a', crimsonWarm: '#931c22', crimsonDark: '#5f1216', crimsonSole: '#3d1612',
+      // Cape: US flag (star yoke + equal red/white stripes, striped inside too)
+      capeBlueDark: '#1b2f63', capeBlueBase: '#253f82', capeStarWhite: '#ffffff',
+      capeRedBase: '#b8262c', capeRedDark: '#8e1b21',
+      capeWhiteBase: '#f1f1ec', capeWhiteShade: '#d9d9d2',
+      capeLining: '#f1f5f9'
+    };
+
+    const VARIANTS = [
+      { id: 'classic', name: 'Classic (Show)', pal: {} },
+      { id: 'damaged', name: 'Battle Damaged', pal: {
+        suitLight: '#2d4677', suitBase: '#213a68', suitTexture: '#1b315a', suitDark: '#142647', suitDeep: '#0e1b34',
+        skinLight: '#e4bcab', skinBase: '#d4a28f', skinWarm: '#c48974',
+        skinRosy: '#bf7969', skinShadow: '#9c6654', skin: '#d4a28f', lidSkin: '#c48974',
+        goldBase: '#a07428', goldWarm: '#7c5419', goldDark: '#4a3210',
+        bronzeBase: '#96522a', bronzeWarm: '#743a1a',
+        crimsonBase: '#962024', crimsonWarm: '#7a181d', crimsonDark: '#4c0e11',
+        capeRedBase: '#962024', capeRedDark: '#6e161a', capeWhiteBase: '#c9c7bd', capeWhiteShade: '#b3b1a7'
+      } },
+      { id: 'comic', name: 'Comic Book', pal: {
+        suitLight: '#4a86e0', suitBase: '#2f6bc9', suitDark: '#1f4f9e', suitTexture: '#3a78d6', suitDeep: '#173d7c',
+        skinLight: '#ffe0cf', skinBase: '#ffceb4', skinWarm: '#f6b89c',
+        skinRosy: '#f89e90', skinShadow: '#d88e76', skin: '#ffceb4', lidSkin: '#f6b89c',
+        hairBase: '#fde047', hairGolden: '#facc15', hairLight: '#fef9c3',
+        goldBright: '#fef08a', goldBase: '#facc15', goldWarm: '#eab308',
+        crimsonLight: '#f87171', crimsonBase: '#ef4444', crimsonWarm: '#dc2626',
+        capeBlueBase: '#2563eb', capeRedBase: '#ef4444'
+      } }
+    ];
+
+    let P = { ...BASE };
+
+    /* ───────── Texture Painters ───────── */
+    function hash2D(x, y, seed = 1) {
+      const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123;
+      return n - Math.floor(n);
+    }
+    function px(ctx, x, y, col) { ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1); }
+    const flat = (key) => (ctx, f, w, h) => { ctx.fillStyle = P[key]; ctx.fillRect(0, 0, w, h); };
+
+    // Head base (8x8x8): Rich dimensional skin tones with micro-shading, rosy cheeks & jawline depth (matching The King)
+    function paintHead(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const n = hash2D(x, y, 13);
+          let col = n > 0.55 ? P.skinBase : P.skinWarm;
+
+          if (face === 'front') {
+            if (y <= 1) col = P.skinLight; // forehead light
+            if (y === 4 && (x === 1 || x === 6)) col = P.skinRosy; // rosy cheekbones
+            if (y === 5 && (x === 1 || x === 6)) col = P.skinShadow; // cheek shadows
+            // Painted player-style nose (no block): lit right side (key light is on +x), shaded left
+            if (y === 4 && x === 3) col = P.skinWarm;
+            if (y === 4 && x === 4) col = P.skinLight;
+            if (y === 5 && x >= 2 && x <= 5) col = (x === 3 || x === 4) ? P.skinWarm : P.skinLight; // soft shade under the nose, lit cheeks beside it
+            if (y === 6 && (x === 2 || x === 5)) col = P.skinShadow; // mouth corners (the lip line itself is the mouth plane, like The King)
+            if (y === 7) col = (x >= 2 && x <= 5) ? P.skinWarm : P.skinShadow; // strong square chin, dark jaw corners
+          } else if (face === 'left' || face === 'right') {
+            const fromFront = (face === 'right') ? x : (w - 1 - x);
+            if (fromFront >= 4) {
+              // Short tapered sides: combed strands, darker toward the nape
+              const streak = hash2D(fromFront, 0, 7) > 0.5;
+              col = y <= 5 ? (streak ? P.hairBase : P.hairWarm) : (y === 6 ? (streak ? P.hairWarm : P.hairDark) : P.hairDark);
+            } else if (fromFront === 3 && y >= 2 && y <= 5) {
+              col = P.hairGolden;
+            } else if (fromFront === 2 && (y === 3 || y === 4)) {
+              col = P.skinRosy;
+            }
+          } else if (face === 'top') {
+            col = (x % 2 === 0) ? P.hairLight : P.hairGolden;
+          } else if (face === 'back') {
+            // Back of the head below the hair shell: same combed strands as the shell, tapering
+            // into a short dark nape (photos: neat short back)
+            const streak = hash2D(x, 0, 7) > 0.5;
+            if (y <= 5) col = streak ? P.hairBase : P.hairWarm;
+            else if (y === 6) col = streak ? P.hairWarm : P.hairDark;
+            else col = streak ? P.hairDark : P.hairNape;
+          } else if (face === 'bottom') {
+            col = P.skinShadow;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Blonde Hair Outer Shell (8x5x8 with 0.25 inflate, cut: true):
+    // Authentic pomaded slicked-back hairstyle with crisp left part, combed front-to-back crown,
+    // and neat tapered sides/nape ending cleanly above the neckline.
+    function paintHair(ctx, face, w, h) {
+      ctx.clearRect(0, 0, w, h);
+      if (face === 'bottom') return; // open underneath so neck/head fits
+
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let filled = false;
+          let col = P.hairGolden;
+
+          if (face === 'top') {
+            // Crown: Hair combed straight back from forehead (y=0) to back of head (y=7)
+            filled = true;
+            if (x === 2) {
+              // Side parting line: honey-warm comb division
+              col = P.hairWarm;
+            } else if (x === 0 || x === 1) {
+              // Right side of part: combed straight back
+              col = (x === 1) ? P.hairLight : ((y <= 2) ? P.hairLight : P.hairGolden);
+            } else {
+              // Main combed-over volume to the left: parallel combed strands
+              if (x === 3 || x === 5) {
+                col = (y <= 4) ? P.hairLight : P.hairGolden; // bright platinum highlights
+              } else if (x === 4 || x === 6) {
+                col = (y >= 5) ? P.hairWarm : P.hairGolden; // warm golden lock
+              } else {
+                col = (y >= 4) ? P.hairWarm : P.hairGolden; // outer crest
+              }
+            }
+          } else if (face === 'front') {
+            // Front hairline: slicked back across top edge ONLY.
+            // No hanging sideburn strips: face is completely clear and open.
+            if (y === 0) {
+              filled = true;
+              if (x === 2) col = P.hairWarm; // soft honey parting groove
+              else if (x === 3 || x === 5) col = P.hairLight;
+              else if (x === 0 || x === 7) col = P.hairWarm;
+              else col = P.hairGolden;
+            }
+          } else if (face === 'left' || face === 'right') {
+            // Sides: Hair combed horizontally back tight against the head, clean temple/ears
+            const fromFront = (face === 'right') ? x : (w - 1 - x);
+            if (y === 0) {
+              filled = true;
+              col = (fromFront <= 2) ? P.hairLight : P.hairGolden;
+            } else if (y === 1) {
+              filled = true;
+              col = (fromFront >= w - 3) ? P.hairWarm : P.hairGolden;
+            } else if (y === 2) {
+              if (fromFront >= 2) {
+                filled = true;
+                col = (fromFront >= w - 2) ? P.hairDark : P.hairWarm;
+              }
+            } else if (y === 3) {
+              if (fromFront >= 3) {
+                filled = true;
+                col = (fromFront >= w - 2) ? P.hairDark : P.hairWarm;
+              }
+            } else if (y === 4) {
+              if (fromFront >= 4) {
+                filled = true;
+                col = P.hairDark;
+              }
+            }
+          } else if (face === 'back') {
+            // Back: vertical combed strands (one tone per column), lighter on top,
+            // flowing into the head's back face below (same column hash)
+            filled = true;
+            const streak = hash2D(x, 0, 7) > 0.5;
+            if (y <= 1) col = streak ? P.hairLight : P.hairGolden;
+            else if (y <= 3) col = streak ? P.hairGolden : P.hairBase;
+            else col = streak ? P.hairBase : P.hairWarm;
+          }
+
+          if (filled) px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Suit fabric: fine scale texture from the photos. Mostly base blue, sparse darker scale
+    // edges and rare light glints (hash noise, so no harsh checkerboard).
+    function suitCol(x, y, seed = 3) {
+      const n = hash2D(x, y, seed);
+      return n < 0.28 ? P.suitTexture : n > 0.9 ? P.suitLight : P.suitBase;
+    }
+
+    // Torso Suit (9x12x5): royal blue scale suit with sculpted chest + abs (photos).
+    // Front: plain blue neckline (no collar, user request), one red piping line across the upper chest
+    // (y 1, out to his left shoulder) that turns straight down on his right chest
+    // (viewer's left, x 2) to the belt, like the show suit (photos).
+    function paintTorso(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const weave = hash2D(x, y, 9) < 0.5;
+          let col = suitCol(x, y);
+
+          if (face === 'front') {
+            const isLeftPec = (x >= 2 && x <= 3);
+            const isRightPec = (x >= 5 && x <= 7);
+            const pipe = (y === 1 && x >= 2 && x <= 7) || (x === 2 && y >= 1 && y <= 9);
+
+            if (pipe) {
+              col = y >= 7 ? P.suitPipingDark : P.suitPipingRed; // red piping, darker low on the flank
+            } else if (y === 0) {
+              // Clavicle line under the head
+              col = (x === 0 || x === 8) ? P.suitDark : P.suitLight;
+            } else if (y === 1 || y === 2) {
+              // Upper Pectorals: prominent muscular chest crests with highlight sheen
+              if (x === 4) col = P.suitDark; // center sternum groove
+              else if (x === 0 || x === 8) col = P.suitDark; // flank contour
+              else if (isLeftPec || isRightPec) col = weave ? P.suitLight : P.suitBase;
+            } else if (y === 3) {
+              // Mid Pectorals: full chest volume
+              if (x === 4) col = P.suitDark;
+              else if (x === 0 || x === 8) col = P.suitDark;
+              else if (isLeftPec || isRightPec) col = weave ? P.suitBase : P.suitTexture;
+            } else if (y === 4) {
+              // Lower Pectoral Shelf: curved anatomical crease defining lower pectoral border
+              if (x === 4) col = P.suitDeep; // epigastric fossa
+              else if (isLeftPec || isRightPec) col = P.suitDark; // under-pec shadow crease
+              else col = P.suitDark;
+            } else if (y >= 5 && y <= 9) {
+              // Six-pack Abdominals & Obliques:
+              // Linea alba center groove at x=4, lateral ab borders at x=2 and x=6
+              if (x === 4) {
+                col = P.suitDark; // vertical center line
+              } else if (x === 0 || x === 8) {
+                col = P.suitDark; // athletic flank taper
+              } else if (y === 6 || y === 8) {
+                // Horizontal inscriptions dividing upper, mid, and lower ab pads
+                if (x >= 2 && x <= 6) col = P.suitDark;
+                else col = weave ? P.suitBase : P.suitTexture;
+              } else if (x === 2 || x === 6) {
+                col = P.suitDark; // lateral ab boundary grooves
+              } else if (x === 3 || x === 5) {
+                // Abdominal muscle pads (upper: y=5, middle: y=7, lower: y=9)
+                col = (y === 5 || y === 7) ? (weave ? P.suitBase : P.suitTexture) : (weave ? P.suitBase : P.suitDark);
+              } else {
+                // Obliques (x=1, x=7)
+                col = weave ? P.suitBase : P.suitTexture;
+              }
+            } else if (y >= 10) {
+              // Built-in Golden Belt with Red Center Square Buckle (Ref 1)
+              if (x >= 3 && x <= 5) {
+                // Red square in the middle of the belt
+                col = (y === 10) ? (x === 4 ? P.crimsonLight : P.crimsonBase) : (x === 4 ? P.crimsonBase : P.crimsonWarm);
+              } else {
+                // Gold belt strap & buckle rim
+                col = (y === 10) ? P.goldBright : P.goldWarm;
+              }
+            }
+          } else if (face === 'back') {
+            if (y === 0) col = P.suitDark; // shoulder line
+            else if (y >= 10) col = (y === 10) ? P.goldBright : P.goldWarm; // built-in gold belt strap
+            else if (x === 4) col = P.suitDeep; // spine groove
+          } else if (face === 'left' || face === 'right') {
+            if (y === 0) col = P.suitDark;
+            else if (y >= 10) col = (y === 10) ? P.goldBright : P.goldWarm; // built-in gold belt strap
+          } else if (face === 'bottom') {
+            col = P.suitDark;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Golden Eagle Pauldrons (Shoulder pads): sculpted gold eagles perched on shoulders
+    function paintPauldrons(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.goldBase;
+          if (face === 'top') {
+            // Eagle feathers: staggered light/dark rows, lit front edge
+            col = y === 0 ? P.goldLight : ((x + y) % 2 === 0 ? P.goldBright : P.goldBase);
+            if (y === h - 1) col = P.goldWarm;
+          } else if (face === 'bottom') {
+            col = P.goldDark;
+          } else {
+            if (y === 0) col = P.goldBright;
+            else if (y === h - 1) col = P.goldDark;
+            else col = (x % 2 === 0) ? P.goldBase : P.goldWarm;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Red leather (gloves, boots): soft hash shading instead of a checkerboard
+    const leather = (x, y, seed) => hash2D(x, y, seed) < 0.35 ? P.crimsonWarm : P.crimsonBase;
+
+    // Upper Arm: plain blue scale sleeve (photos: no band at the elbow)
+    function paintUpperArm(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          px(ctx, x, y, face === 'bottom' ? P.suitDark : suitCol(x, y, 21));
+        }
+      }
+    }
+
+    // Lower arm (6 rows of ~0.93 texel): blue sleeve at the elbow, hidden middle under the
+    // bracer, red glove for the bottom 2 rows (the hand, below the bracer).
+    function paintLowerArm(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = suitCol(x, y, 23);
+          if (face === 'bottom') col = P.crimsonDark;          // palm / fist underside
+          else if (face !== 'top' && y >= h - 2) col = leather(x, y, 25);
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Bracer (gauntlet box, 3 rows): copper scales with a dark top rim and a red glove cuff
+    // flaring over the bottom edge (photos)
+    function paintBracer(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = (x + y) % 2 === 0 ? P.bronzeBase : P.bronzeWarm; // tiny scales
+          if (face === 'top' || face === 'bottom') col = P.bronzeDark;
+          else if (y === 0) col = x % 2 === 0 ? P.bronzeDark : P.bronzeWarm; // ridged top rim
+          else if (y === 1) col = x % 2 === 0 ? P.bronzeLight : P.bronzeBase; // lit scale row
+          else if (y === h - 1) col = P.crimsonBase;                           // glove cuff
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Thighs (blue scale suit, darker knee fold)
+    function paintThigh(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = suitCol(x, y, 31);
+          if (y === h - 1 && face !== 'top') col = P.suitDark; // knee fold shadow
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Calf = knee-high red boot shaft: antique gold top rim, round gold eagle medallion on the shin
+    function paintCalf(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = leather(x, y, 33);
+          if (y === 0) {
+            col = P.goldBase; // plain antique gold boot top rim
+          } else if (face === 'front' && y >= 1 && y <= 2 && (x === 1 || x === 2)) {
+            // 2x2 medallion: lit top-left, shaded bottom-right
+            col = y === 1 ? (x === 1 ? P.goldLight : P.goldBright) : (x === 1 ? P.goldBase : P.goldWarm);
+          } else if (y === 1 && (face === 'left' || face === 'right')) {
+            col = P.crimsonDark; // shadow under the rim on the sides
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Boot Foot: red leather boot with a dark sole and lit toe
+    function paintBootFoot(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = leather(x, y, 37);
+          if (y === h - 1 || face === 'bottom') {
+            col = P.crimsonSole;
+          } else if (face === 'top' || (face === 'front' && y === 0)) {
+            col = P.crimsonLight;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Cape stripes (photos): equal 1-texel red/white stripes, mirrored around the center so
+    // both edges are white. Same pattern outside and inside (the lining is striped too).
+    function capeStripe(x, y, w, seed) {
+      const k = Math.min(x, w - 1 - x), shade = hash2D(x, y, seed) < 0.2;
+      return k % 2 === 0 ? (shade ? P.capeWhiteShade : P.capeWhiteBase) : (shade ? P.capeRedDark : P.capeRedBase);
+    }
+    // Star field: staggered white stars on blue
+    const capeStar = (x, y) => (x + 2 * y) % 4 === 1;
+    const capeBlue = (x, y) => hash2D(x, y, 41) < 0.3 ? P.capeBlueDark : P.capeBlueBase;
+
+    // Cape segment 1: blue star yoke over the shoulders (outside), plain blue inside
+    function paintCapeMantle(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.capeBlueDark;
+          if (face === 'back') col = capeStar(x, y) ? P.capeStarWhite : capeBlue(x, y);
+          else if (face === 'front') col = capeBlue(x, y);
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Cape segment 2: the yoke ends in a V (2 rows), then stripes start
+    function paintCapeTrans(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.capeWhiteShade; // side edges = white edge stripe
+          if (face === 'back') {
+            const k = Math.min(x, w - 1 - x);            // distance from the nearest edge
+            const yoke = (y === 0 && k >= 2) || (y === 1 && k >= 4);
+            col = yoke ? (capeStar(x, y + 4) ? P.capeStarWhite : capeBlue(x, y + 4)) : capeStripe(x, y, w, 43);
+          } else if (face === 'front') {
+            col = capeStripe(x, y, w, 44);
+          } else if (face === 'top') {
+            col = P.capeBlueDark;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Cape segments 3-5: red/white stripes outside and inside
+    function paintCapeStripes(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.capeWhiteShade;
+          if (face === 'back' || face === 'front') col = capeStripe(x, y, w, face === 'back' ? 45 : 46);
+          else if (face === 'bottom' || face === 'top') col = capeStripe(x, 0, w, 47);
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    /* ───────── Materials & Texture Atlas ───────── */
+    const atlas = document.createElement('canvas');
+    const atlasCtx = atlas.getContext('2d');
+    const atlasTex = new THREE.CanvasTexture(atlas);
+    atlasTex.magFilter = atlasTex.minFilter = THREE.NearestFilter;
+    atlasTex.generateMipmaps = false;
+    atlasTex.colorSpace = THREE.SRGBColorSpace;
+    let ATLAS_W = 128, ATLAS_H = 128;
+
+    const matCache = {};
+    function mat(rough = 0.85, metal = 0.04, cut = false) {
+      const key = rough + '|' + metal + '|' + cut;
+      return matCache[key] || (matCache[key] = new THREE.MeshStandardMaterial({
+        map: atlasTex, roughness: rough, metalness: metal,
+        alphaTest: cut ? 0.5 : 0, side: cut ? THREE.DoubleSide : THREE.FrontSide
+      }));
+    }
+
+    /* ───────── Model Rigging ───────── */
+    const mobRoot = new THREE.Group();
+    mobRoot.name = 'homelander';
+    scene.add(mobRoot);
+
+    const bones = {};
+    const boneList = [];
+    const cubeList = [];
+
+    function bone(name, parent, x, y, z, rx = 0, ry = 0, rz = 0) {
+      const g = new THREE.Group();
+      g.name = name;
+      g.rotation.order = 'ZYX';
+      g.position.set(x * TEXEL, y * TEXEL, z * TEXEL);
+      g.rotation.set(rx, ry, rz);
+      g.userData = { rest: g.position.clone(), restRot: new THREE.Vector3(rx, ry, rz) };
+      (parent || mobRoot).add(g);
+      bones[name] = g;
+      boneList.push(g);
+      return g;
+    }
+
+    function box(b, name, w, h, d, x, y, z, painter, opt = {}) {
+      const inflate = opt.inflate || 0;
+      const geo = new THREE.BoxGeometry((w + inflate * 2) * TEXEL, (h + inflate * 2) * TEXEL, (d + inflate * 2) * TEXEL);
+      const nrm = geo.attributes.normal;
+      for (let i = 0; i < 24; i++) {
+        const f = i >> 2;
+        nrm.setXYZ(i, f === 0 ? 1 : f === 1 ? -1 : 0, f === 2 ? 1 : f === 3 ? -1 : 0, f === 4 ? 1 : f === 5 ? -1 : 0);
+      }
+      const mesh = new THREE.Mesh(geo, mat(opt.rough, opt.metal, opt.cut));
+      const rot = opt.rot || [0, 0, 0];
+      mesh.position.set(x * TEXEL, y * TEXEL, z * TEXEL);
+      mesh.rotation.order = 'ZYX';
+      mesh.rotation.set(rot[0], rot[1], rot[2]);
+      mesh.castShadow = opt.shadow !== false;
+      mesh.receiveShadow = true;
+      mesh.name = name;
+      b.add(mesh);
+      const c = { name, bone: b.name, size: [w, h, d], inflate, center: [x, y, z], rot, painter, mesh, shell: opt.shell || null, rects: [] };
+      cubeList.push(c);
+      return c;
+    }
+
+    /* ───────── Build Homelander Hierarchy ───────── */
+    // Ground root pivot
+    const root = bone('root', null, 0, 0, 0);
+
+    // Pelvis / Body at y = 12 texels
+    const body = bone('body', root, 0, 12, 0);
+
+    // Chest & Upper Torso (9x12x5, broad muscular superhero build)
+    const chest = bone('chest', body, 0, 0, 0);
+    box(chest, 'torso_suit', 9, 12, 5, 0, 6, 0, paintTorso);
+
+    // Head mounted DIRECTLY on chest at y = 12.0 (standard Minecraft humanoid, no neck box, no collar)
+    const head = bone('head', chest, 0, 12.0, 0);
+    box(head, 'head_cranium', 8, 8, 8, 0, 4.0, 0, paintHead);
+
+    // No nose block: flat player-style face like The King (nose is painted in paintHead)
+
+    // Extruded Blonde Hair: Authentic combed slickback outer shell, encases head top with zero clipping
+    box(head, 'hair_main', 8, 5, 8, 0, 5.7, 0, paintHair, { cut: true, inflate: 0.25, rough: 0.65 });
+
+    // Face Features: Menacing cold predator eyes, angled sinister brows, psychopathic closed-mouth smirk
+    const NO_SHADOW = { shadow: false };
+    box(head, 'eye_white_right', 2, 1, 0, -2, 4.5, 4.02, flat('eyeWhite'), NO_SHADOW);
+    box(head, 'eye_white_left', 2, 1, 0, 2, 4.5, 4.02, flat('eyeWhite'), NO_SHADOW);
+
+    const pupilR = bone('pupil_right', head, -2, 4.5, 4.04);
+    box(pupilR, 'pupil_right', 1, 1, 0, 0, 0, 0, flat('eyePupil'), NO_SHADOW);
+
+    const pupilL = bone('pupil_left', head, 2, 4.5, 4.04);
+    box(pupilL, 'pupil_left', 1, 1, 0, 0, 0, 0, flat('eyePupil'), NO_SHADOW);
+
+    const lidR = bone('lid_right', head, -2, 5, 3.98);
+    box(lidR, 'lid_right', 2, 1, 0, 0, -0.5, 0, flat('lidSkin'), NO_SHADOW);
+
+    const lidL = bone('lid_left', head, 2, 5, 3.98);
+    box(lidL, 'lid_left', 2, 1, 0, 0, -0.5, 0, flat('lidSkin'), NO_SHADOW);
+
+    // Eyebrows: nearly straight, low and confident (photos); frown tilts them inward
+    const browR = bone('brow_right', head, -2, 5.5, 4.08, 0, 0, -0.06);
+    box(browR, 'brow_right', 2, 1, 0, 0, 0, 0, flat('browHair'), NO_SHADOW);
+
+    const browL = bone('brow_left', head, 2, 5.5, 4.08, 0, 0, 0.06);
+    box(browL, 'brow_left', 2, 1, 0, 0, 0, 0, flat('browHair'), NO_SHADOW);
+
+    // Mouth: thin lip line (tilts for his one-sided smirk) + teeth plane under it that
+    // grows down from the lip line for the big PR grin (scale y 0 -> 1)
+    const mouth = bone('mouth', head, 0, 2.0, 4.03);
+    box(mouth, 'mouth', 2, 0.35, 0, 0, 0, 0, flat('lipSmirk'), NO_SHADOW);
+    const teeth = bone('teeth', mouth, 0, -0.1, -0.05); // rests just inside the head (hidden), steps out while grinning
+    box(teeth, 'teeth', 2, 0.8, 0, 0, -0.4, 0, flat('teeth'), NO_SHADOW);
+
+    // Red eye glow (heat vision warming up): additive planes over the eyes, not in the
+    // texture atlas (like the laser beams); opacity = face 'glow' / 'laser' channel
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xff2a1a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+    const eyeGlow = [-2, 2].map((x) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.3 * TEXEL, 1.3 * TEXEL), glowMat);
+      m.position.set(x * TEXEL, 4.5 * TEXEL, 4.1 * TEXEL);
+      head.add(m);
+      return m;
+    });
+
+    // Heat-Vision Laser Emitters (Special Animation VFX)
+    const laserMat = new THREE.MeshBasicMaterial({ color: 0xff1e1e, transparent: true, opacity: 0 });
+    const laserCoreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 });
+    const laserGlowLight = new THREE.PointLight(0xff1100, 0, 6, 2);
+    laserGlowLight.position.set(0, 4.5 * TEXEL, 5 * TEXEL);
+    head.add(laserGlowLight);
+
+    const laserBeamR = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 3.5, 8), laserMat);
+    laserBeamR.rotation.x = Math.PI / 2;
+    laserBeamR.position.set(-2 * TEXEL, 4.5 * TEXEL, 1.8);
+    head.add(laserBeamR);
+
+    const laserCoreR = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 3.5, 6), laserCoreMat);
+    laserCoreR.rotation.x = Math.PI / 2;
+    laserCoreR.position.set(-2 * TEXEL, 4.5 * TEXEL, 1.8);
+    head.add(laserCoreR);
+
+    const laserBeamL = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 3.5, 8), laserMat);
+    laserBeamL.rotation.x = Math.PI / 2;
+    laserBeamL.position.set(2 * TEXEL, 4.5 * TEXEL, 1.8);
+    head.add(laserBeamL);
+
+    const laserCoreL = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 3.5, 6), laserCoreMat);
+    laserCoreL.rotation.x = Math.PI / 2;
+    laserCoreL.position.set(2 * TEXEL, 4.5 * TEXEL, 1.8);
+    head.add(laserCoreL);
+
+    // Fluent 5-Segment Articulated American Flag Cape (natural graceful drape)
+    const cape1 = bone('cape_seg_1', chest, 0, 11.6, -2.65, 0.04, 0, 0);
+    box(cape1, 'cape_seg_1', 10.0, 4, 0.4, 0, -2.0, 0, paintCapeMantle, { rough: 0.65 });
+
+    const cape2 = bone('cape_seg_2', cape1, 0, -4.0, 0, 0.02, 0, 0);
+    box(cape2, 'cape_seg_2', 9.6, 4, 0.4, 0, -2.0, 0, paintCapeTrans, { rough: 0.65 });
+
+    const cape3 = bone('cape_seg_3', cape2, 0, -4.0, 0, 0.02, 0, 0);
+    box(cape3, 'cape_seg_3', 9.6, 4, 0.4, 0, -2.0, 0, paintCapeStripes, { rough: 0.65 });
+
+    const cape4 = bone('cape_seg_4', cape3, 0, -4.0, 0, 0.02, 0, 0);
+    box(cape4, 'cape_seg_4', 9.6, 4, 0.4, 0, -2.0, 0, paintCapeStripes, { rough: 0.65 });
+
+    const cape5 = bone('cape_seg_5', cape4, 0, -4.0, 0, 0.02, 0, 0);
+    box(cape5, 'cape_seg_5', 9.6, 4, 0.4, 0, -2.0, 0, paintCapeStripes, { rough: 0.65 });
+
+    // Arms with Golden Eagle Pauldrons and Gauntlet Bracers (muscular proportions)
+    function buildArm(side, sx) {
+      const s = bone(`arm_${side}`, chest, sx * 6.8, 11.2, 0, 0, 0, sx * 0.08);
+      box(s, `upper_arm_${side}`, 4.0, 5.6, 4.0, 0, -2.8, 0, paintUpperArm);
+
+      // Sculpted Golden Eagle Pauldron on top of shoulder (outer armor shell below head height, zero clipping)
+      box(s, `pauldron_${side}`, 4.4, 1.4, 4.4, sx * 0.2, -0.10, 0, paintPauldrons, { metal: 0.45, rough: 0.4 });
+      box(s, `pauldron_wing_${side}`, 1.4, 1.4, 3.6, sx * 2.2, -0.10, 0, paintPauldrons, { metal: 0.45, rough: 0.4 });
+
+      const e = bone(`forearm_${side}`, s, 0, -5.8, 0, -0.08, 0, 0);
+      box(e, `lower_arm_${side}`, 3.8, 5.6, 3.8, 0, -2.8, 0, paintLowerArm);
+
+      // Copper scale bracer (photos): from 1.1 below the elbow to 4.7, so the red glove
+      // shows below it (lower arm rows 4-5) and blue sleeve above it
+      box(e, `gauntlet_${side}`, 4.2, 3.6, 4.2, 0, -2.9, 0, paintBracer, { inflate: 0.05 });
+    }
+    // 2 bones per arm (rig rule): arm_<side> = upper arm (shoulder), forearm_<side> = forearm + glove (elbow)
+    buildArm('right', -1);
+    buildArm('left', 1);
+
+    // 2 bones per leg (rig rule): leg_<side> = thigh (hip), knee_<side> = shin + boot (knee).
+    // No ankle: the boot tilts with the shin (foot angle = hip + knee).
+    function buildLeg(side, sx) {
+      const hp = bone(`leg_${side}`, body, sx * 2.2, 0, 0);
+      box(hp, `thigh_${side}`, 4.2, 5.8, 4.2, 0, -2.8, 0, paintThigh);
+
+      const k = bone(`knee_${side}`, hp, 0, -5.6, 0);
+      box(k, `calf_${side}`, 4.0, 5.0, 4.0, 0, -2.3, 0, paintCalf);
+      // Boot: sole at knee - 6.4 = floor at rest, toe 2.9 forward, heel 2.1 back (used by footLow())
+      box(k, `boot_${side}`, 4.2, 2.2, 5.0, 0, -5.3, 0.4, paintBootFoot, { rough: 0.8 }); // matte: at 0.4 the blue rim light glared on the toe top
+    }
+    buildLeg('right', -1);
+    buildLeg('left', 1);
+
+    const B = {};
+    boneList.forEach((b, i) => { B[b.name] = i; });
+    const NB = boneList.length;
+
+    /* ───────── Texture Atlas Packing ───────── */
+    const FACES = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+    const faceSize = (c, f) => {
+      const [w, h, d] = c.size, r = (v) => Math.max(1, Math.round(v));
+      return f < 2 ? [r(d), r(h)] : f < 4 ? [r(w), r(d)] : [r(w), r(h)];
+    };
+
+    (function packAtlas() {
+      const items = [];
+      for (const c of cubeList) for (let f = 0; f < 6; f++) { const [w, h] = faceSize(c, f); items.push({ c, f, w, h }); }
+      items.sort((a, b) => b.h - a.h || b.w - a.w);
+      let x = 1, y = 1, shelf = 0;
+      for (const it of items) {
+        if (x + it.w + 1 > ATLAS_W) { x = 1; y += shelf + 2; shelf = 0; }
+        it.c.rects[it.f] = { x, y, w: it.w, h: it.h };
+        x += it.w + 2;
+        shelf = Math.max(shelf, it.h);
+      }
+      while (y + shelf + 1 > ATLAS_H) ATLAS_H *= 2;
+      atlas.width = ATLAS_W; atlas.height = ATLAS_H;
+    })();
+
+    // Map face UVs to packed atlas rects
+    for (const c of cubeList) {
+      const uv = c.mesh.geometry.attributes.uv;
+      for (let f = 0; f < 6; f++) {
+        const r = c.rects[f];
+        for (let k = 0; k < 4; k++) {
+          const i = f * 4 + k, u = uv.getX(i), v = uv.getY(i);
+          uv.setXY(i, (r.x + u * r.w) / ATLAS_W, 1 - (r.y + (1 - v) * r.h) / ATLAS_H);
+        }
+      }
+      uv.needsUpdate = true;
+    }
+
+    const scratch = document.createElement('canvas');
+    scratch.width = scratch.height = 32;
+    const sctx = scratch.getContext('2d');
+    const GUTTER = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+    function paintAtlas() {
+      atlasCtx.imageSmoothingEnabled = false;
+      atlasCtx.clearRect(0, 0, ATLAS_W, ATLAS_H);
+      for (const c of cubeList) {
+        for (let f = 0; f < 6; f++) {
+          const r = c.rects[f];
+          sctx.clearRect(0, 0, 32, 32);
+          c.painter(sctx, FACES[f], r.w, r.h);
+          for (const [dx, dy] of GUTTER) atlasCtx.drawImage(scratch, 0, 0, r.w, r.h, r.x + dx, r.y + dy, r.w, r.h);
+          atlasCtx.clearRect(r.x, r.y, r.w, r.h);
+          atlasCtx.drawImage(scratch, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
+        }
+      }
+      atlasTex.needsUpdate = true;
+    }
+
+    function setVariant(i) {
+      P = { ...BASE, ...VARIANTS[i].pal };
+      paintAtlas();
+      document.querySelectorAll('.dot').forEach((d, k) => d.classList.toggle('active', k === i));
+    }
+
+    /* ───────── Pose Buffers & Kinematics ───────── */
+    // Face channels: grin = teeth showing, smirk = one-sided mouth lift, glow = red eyes (heat vision warming up)
+    const FACE_KEYS = ['browUp', 'frown', 'open', 'wide', 'glance', 'squint', 'laser', 'grin', 'smirk', 'glow'];
+    const zeroFace = () => Object.fromEntries(FACE_KEYS.map((k) => [k, 0]));
+    function makePose() {
+      return { r: new Float32Array(NB * 3), p: new Float32Array(NB * 3), f: zeroFace(), yawLimit: 0.45, follow: 1 };
+    }
+    function clearPose(Q) { Q.r.fill(0); Q.p.fill(0); for (const k of FACE_KEYS) Q.f[k] = 0; }
+    function copyPose(src, dst) { dst.r.set(src.r); dst.p.set(src.p); for (const k of FACE_KEYS) dst.f[k] = src.f[k]; dst.yawLimit = src.yawLimit; dst.follow = src.follow; }
+    function rot(Q, b, x, y, z) { if (B[b] !== undefined) { const i = B[b] * 3; Q.r[i] += x; Q.r[i + 1] += y; Q.r[i + 2] += z; } }
+    function pos(Q, b, x, y, z) { if (B[b] !== undefined) { const i = B[b] * 3; Q.p[i] += x; Q.p[i + 1] += y; Q.p[i + 2] += z; } }
+
+    const TAU = Math.PI * 2;
+    const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+    function kf(t, keys) {
+      for (let i = 1; i < keys.length; i++) {
+        if (t <= keys[i][0]) {
+          const a = keys[i - 1], b = keys[i];
+          const s = (t - a[0]) / (b[0] - a[0]);
+          return a[1] + (b[1] - a[1]) * (0.5 - 0.5 * Math.cos(Math.PI * s));
+        }
+      }
+      return keys[keys.length - 1][1];
+    }
+
+    /* ───────── Legs + ground (2-bone legs, no ankle) ───────── */
+    // Boot geometry below the hip joint (texels): knee 5.6 down, sole 6.4 below the knee,
+    // heel 2.1 back and toe 2.9 forward of the shin line. The foot angle is hip + knee.
+    const THIGH = 5.6, SOLE = 6.4, HEEL = -2.1, TOE = 2.9, HIP_H = 12;
+
+    // Smooth min (no corner where the two values cross). Under-estimates by at most k*ln2.
+    function smin(a, b, k = 0.06) { return Math.min(a, b) - k * Math.log1p(Math.exp(-Math.abs(a - b) / k)); }
+
+    // Lowest boot point below the hip for hip angle h and knee angle k (Rx: y' = y cos - z sin)
+    function footLow(h, k) {
+      const a = h + k, c = Math.cos(a), s = Math.sin(a);
+      return -THIGH * Math.cos(h) + smin(-SOLE * c - HEEL * s, -SOLE * c - TOE * s);
+    }
+
+    // Pose both legs (hip forward = negative, knee bend = positive) and set the root height
+    // so the lower foot just touches the floor, plus `lift` (flying). Splay = legs a bit apart.
+    function legs(Q, hR, kR, hL, kL, lift = 0, splay = 0.03) {
+      rot(Q, 'leg_right', hR, 0, -splay); rot(Q, 'knee_right', kR, 0, 0);
+      rot(Q, 'leg_left', hL, 0, splay);   rot(Q, 'knee_left', kL, 0, 0);
+      pos(Q, 'root', 0, -HIP_H - smin(footLow(hR, kR), footLow(hL, kL)) + 0.06 + lift, 0);
+    }
+
+    // Hands on hips (photo 1): elbows out, fists on the belt. w = 0..1 blend weight.
+    function handsOnHips(Q, side, w, breath = 0) {
+      const sx = side === 'right' ? -1 : 1;
+      rot(Q, `arm_${side}`, -0.1 * w, 0, sx * (0.34 + 0.02 * breath) * w);
+      rot(Q, `forearm_${side}`, (-0.45 - 0.04 * breath) * w, 0, -sx * 0.08 * w);
+    }
+
+    // Hands behind the back (photo 3): upper arm swung back + elbow out, forearm folds
+    // inward (forearm z) so both fists rest behind the lower back. w = 0..1.
+    // Values from a clip search (hover t = 4): fists end ~3 texels beside the spine, ~6 behind the torso center
+    const HB = { ax: 0.8, az: 0.2, fx: 0.2, fz: 1.2 };
+    // w = upper arm swing, fold = forearm fold (fold lags behind w so the fists never pass through the back)
+    function handsBehind(Q, side, w, fold = w) {
+      const sx = side === 'right' ? -1 : 1;
+      rot(Q, `arm_${side}`, HB.ax * w, 0, sx * HB.az * w);
+      rot(Q, `forearm_${side}`, HB.fx * fold, 0, -sx * HB.fz * fold);
+    }
+
+    const CAPE = ['cape_seg_1', 'cape_seg_2', 'cape_seg_3', 'cape_seg_4', 'cape_seg_5'];
+
+    /* ───────── Keyframe Sequences ───────── */
+    // Idle: surveys the city (8.0 s = 960 frames). Head yaw keys; eyes lead the head by 0.3 s.
+    const ID_LOOK  = [[0, 0], [1.2, 0], [2.0, 0.36], [3.2, 0.36], [4.4, -0.32], [5.4, -0.32], [6.4, 0], [8.0, 0]];
+    const ID_SMIRK = [[0, 0], [2.2, 0], [2.6, 1], [3.2, 1], [3.6, 0], [6.6, 0], [7.0, 0.7], [7.6, 0.7], [8.0, 0]];
+
+    // Hover (random from Idle, 9.0 s): lifts off, hands behind the back, looks around, lands
+    const HV_AIR    = [[0, 0], [1.4, 1], [7.4, 1], [9.0, 0]];
+    const HV_HANDS  = [[0, 0], [0.4, 0], [1.4, 1], [7.4, 1], [8.4, 0], [9.0, 0]];   // arms swing back
+    const HV_FOLD   = [[0, 0], [0.9, 0], [1.9, 1], [6.6, 1], [7.6, 0], [9.0, 0]];   // forearms fold behind (later in, earlier out)
+    const HV_LOOK   = [[0, 0], [1.8, 0], [2.6, -0.34], [3.8, -0.34], [4.8, 0.3], [5.8, 0.3], [6.6, 0], [9.0, 0]];
+    const HV_DOWN   = [[0, 0], [6.4, 0], [6.8, 1], [7.4, 1], [7.8, 0], [9.0, 0]];
+
+    // Idle 2: PR smile + peace sign (photo 2), then the smile drops into a cold stare (8.0 s)
+    const ID2_RAISE = [[0, 0], [0.7, 0], [1.5, 1], [3.6, 1], [4.3, 0], [8.0, 0]];
+    const ID2_WAVE  = [[0, 0], [1.5, 0], [1.8, 1], [3.3, 1], [3.6, 0], [8.0, 0]];
+    const ID2_GRIN  = [[0, 0], [0.9, 0], [1.3, 1], [4.5, 1], [4.75, 0], [8.0, 0]];
+    const ID2_STARE = [[0, 0], [4.5, 0], [4.75, 1], [6.6, 1], [7.3, 0], [8.0, 0]];
+    const ID2_RED   = [[0, 0], [5.2, 0], [5.6, 1], [6.0, 1], [6.5, 0], [8.0, 0]];
+    const ID2_SMIRK = [[0, 0], [6.8, 0], [7.2, 0.8], [7.7, 0.8], [8.0, 0]];
+
+    // Attack Sequence Curves: Anticipation -> Devastating Super-Punch -> Snap Recoil -> Recovery
+    const ATK_COIL   = [[0, 0], [0.35, 1], [0.55, 1], [0.65, 0], [1.8, 0]];
+    const ATK_PUNCH  = [[0, 0], [0.5, 0], [0.65, 1], [0.95, 1], [1.4, 0.2], [1.8, 0]];
+    const ATK_TWIST  = [[0, 0], [0.45, -0.35], [0.65, 0.65], [1.0, 0.5], [1.5, 0.1], [1.8, 0]];
+
+    // Special: Levitation Hover + Heat-Vision Laser Eyes Curves
+    const SPEC_LIFT  = [[0, 0], [0.6, 6], [1.2, 9.5], [2.8, 9.5], [3.4, 4], [4.0, 0]];
+    const SPEC_LASER = [[0, 0], [0.7, 0], [1.0, 1], [2.6, 1], [2.9, 0], [4.0, 0]];
+    const SPEC_SWEEP = [[0, 0], [1.0, 0], [1.5, -0.25], [2.1, 0.25], [2.6, 0], [4.0, 0]];
+
+    /* ───────── Animations: Idle, Idle 2, Walk + asked-for Attack, Special (+ hidden Hover) ───────── */
+    const ANIMS = {
+      // 1 · Idle: "surveying his city". Hands on hips, chest out, slow weight shift from leg to
+      // leg (the free knee softens), looks left and right with smug pauses and a one-sided smirk.
+      // Random extras live in step(): faint red eye glow, and now and then a short Hover.
+      idle: {
+        T: 8.0, yawLimit: 0.35,
+        fn(t, Q) {
+          const T = 8.0;
+          const br = Math.sin(TAU * 2 * t / T), inB = (br + 1) * 0.5; // 2 breaths per loop
+          const shift = Math.sin(TAU * t / T);                         // weight: + = on his right leg
+          const look = kf(t, ID_LOOK);
+
+          // Legs: weight-bearing leg straight, the other knee softens; hips follow the knee a bit
+          const kR = 0.03 + 0.09 * (1 - shift) * 0.5, kL = 0.03 + 0.09 * (1 + shift) * 0.5;
+          legs(Q, -0.4 * kR, kR, -0.4 * kL, kL);
+          pos(Q, 'body', -0.3 * shift, 0, 0);
+
+          // Chest out, breathing, shoulders follow the gaze a little
+          rot(Q, 'chest', -0.04 - 0.03 * inB, 0.25 * look, 0.015 * shift);
+          pos(Q, 'chest', 0, 0.08 * inB, 0);
+
+          handsOnHips(Q, 'right', 1, inB);
+          handsOnHips(Q, 'left', 1, inB);
+
+          // Head: turns with the look keys, chin lifts while holding a look (look^2: smooth)
+          rot(Q, 'head', -0.03 - 0.25 * look * look - 0.015 * br, 0.75 * look, -0.02 * shift);
+          pos(Q, 'head', 0, 1.5 * look * look, 0);
+
+          // Face: eyes lead the head, smirk at the holds, brows lift when he looks around
+          Q.f.glance = clamp(1.2 * kf(t + 0.3, ID_LOOK), -0.45, 0.45);
+          Q.f.smirk = kf(t, ID_SMIRK);
+          Q.f.browUp = 0.08 + 1.4 * look * look + 0.04 * br;
+          Q.f.frown = 0.12 + 0.2 * Math.max(0, -look) ** 2 / 0.1;    // judging frown to his left side
+          Q.f.squint = 0.15;
+          Q.f.wide = 0.15;
+
+          CAPE.forEach((bName, idx) => {
+            const phase = TAU * 2 * t / T - idx * 0.45;
+            rot(Q, bName, 0.015 + idx * 0.008 + (0.012 + idx * 0.006) * Math.sin(phase), 0, 0.003 * Math.cos(phase));
+          });
+        }
+      },
+
+      // Hidden · Hover: plays by itself from Idle now and then (step()). Floats ~3.5 texels up,
+      // legs hang loose (toes down), hands behind the back, cape blown back over the hands,
+      // slow look around and a look down at the ground, then lands back into Idle.
+      hover: {
+        T: 9.0, yawLimit: 0.12, // arms swung back raise the pauldron fronts: keep head turns small
+        fn(t, Q) {
+          const T = 9.0;
+          const air = kf(t, HV_AIR), hands = kf(t, HV_HANDS), fold = kf(t, HV_FOLD);
+          const look = kf(t, HV_LOOK), down = kf(t, HV_DOWN);
+          const bob = 0.35 * Math.sin(TAU * 3 * t / T) * air;        // 3 slow bobs per hover
+          const br = Math.sin(TAU * 2 * t / T), inB = (br + 1) * 0.5;
+
+          // Legs: idle stance on the ground -> hanging (knees soft, right one a bit more)
+          legs(Q, -0.03 - 0.05 * air, 0.06 + 0.2 * air, -0.03 - 0.08 * air, 0.06 + 0.12 * air, 3.5 * air + bob);
+
+          rot(Q, 'chest', -0.05 - 0.02 * inB, 0.2 * look, 0);
+          pos(Q, 'chest', 0, 0.06 * inB, 0);
+
+          // Arms: hands on hips -> hands behind the back
+          handsOnHips(Q, 'right', 1 - hands, inB);
+          handsOnHips(Q, 'left', 1 - hands, inB);
+          handsBehind(Q, 'right', hands, fold);
+          handsBehind(Q, 'left', hands, fold);
+
+          // Head: look around, then a cold look down at the ground below him
+          rot(Q, 'head', -0.03 - 0.2 * look * look + 0.1 * down, 0.6 * look, 0);
+          pos(Q, 'head', 0, 1.5 * look * look + 0.3 * hands, 0); // chin up / neck long: head clears the raised pauldrons
+
+          Q.f.glance = clamp(1.2 * kf(t + 0.3, HV_LOOK), -0.45, 0.45);
+          Q.f.smirk = 0.6 * air;
+          Q.f.browUp = 0.1 + 0.15 * air - 0.1 * down;
+          Q.f.frown = 0.12 + 0.25 * down;
+          Q.f.squint = 0.15 + 0.15 * down;
+          Q.f.wide = 0.15;
+
+          // Cape: pushed back over the hands behind the back (seg 1-3 out, 4-5 hang down again)
+          // straight back-slant (~0.85 rad) over the fists for 12 texels, then the tail hangs down
+          const flare = [0.82, 0, 0, -0.5, -0.3];
+          CAPE.forEach((bName, idx) => {
+            const phase = TAU * 3 * t / T - idx * 0.5;
+            rot(Q, bName, 0.015 + idx * 0.008 + flare[idx] * hands + (0.01 + idx * 0.006) * Math.sin(phase), 0, 0.003 * Math.cos(phase));
+          });
+        }
+      },
+
+      // 2 · Idle 2: the PR showman. Big fake grin + peace sign (photo 2) and a little wave, then
+      // the arm comes down and the smile drops off his face in a quarter second: cold dead stare,
+      // a flicker of red in the eyes, until the smug smirk comes back. Left hand stays on the hip.
+      idle2: {
+        T: 8.0, yawLimit: 0.3,
+        fn(t, Q) {
+          const T = 8.0;
+          const raise = kf(t, ID2_RAISE), grin = kf(t, ID2_GRIN), stare = kf(t, ID2_STARE);
+          const wave = kf(t, ID2_WAVE) * Math.sin(TAU * 2.25 * t);  // ~2 waves per second while held
+          const br = Math.sin(TAU * 2 * t / T), inB = (br + 1) * 0.5;
+
+          // Legs: weight on his left leg, right knee relaxed (contrapposto)
+          legs(Q, -0.05, 0.13, 0.0, 0.03);
+          pos(Q, 'body', 0.25, 0, 0);
+
+          // Chest lifts on the breath and leans back a little while posing
+          rot(Q, 'chest', -0.02 * inB - 0.04 * raise, 0.05 * raise, -0.02);
+          pos(Q, 'chest', 0, 0.06 * inB, 0);
+
+          // Right arm: hand-on-hip -> raised out to the side, twisted -1.5 so the elbow bend
+          // points up (peace sign); the wave rocks the raised arm side to side
+          rot(Q, 'arm_right', -0.1 - 0.1 * raise, -1.5 * raise, -0.34 - 0.91 * raise + 0.07 * wave);
+          rot(Q, 'forearm_right', -0.45 - 0.87 * raise, 0, 0.08 * (1 - raise));
+          handsOnHips(Q, 'left', 1, inB);
+
+          // Head: tilts toward the raised hand; in the stare it drops a little and goes still
+          rot(Q, 'head', -0.03 - 0.01 * inB + 0.06 * stare, 0.05 * Math.sin(TAU * t / T) * (1 - stare), 0.06 * raise + 0.03 * stare);
+          pos(Q, 'head', 0, 0.3 * raise, 0);
+
+          // Face: grin (teeth) + raised brows -> flat brows, open eyes locked on you, red flicker
+          Q.f.grin = grin;
+          Q.f.wide = 0.15 + 0.5 * grin;
+          Q.f.browUp = 0.08 + 0.45 * grin - 0.05 * stare;
+          Q.f.frown = 0.12 * (1 - grin) + 0.15 * stare;
+          Q.f.squint = 0.12 + 0.18 * grin - 0.12 * stare;
+          Q.f.glance = 0.15 * Math.sin(TAU * 2 * t / T) * (1 - stare);
+          Q.f.glow = 0.3 * kf(t, ID2_RED);
+          Q.f.smirk = kf(t, ID2_SMIRK);
+
+          // Cape: slower, wider sway than Idle (own rhythm)
+          CAPE.forEach((bName, idx) => {
+            const phase = TAU * 2 * t / T - idx * 0.6;
+            rot(Q, bName, 0.02 + idx * 0.01 + (0.01 + idx * 0.007) * Math.sin(phase), 0, 0.004 * Math.sin(phase * 0.5));
+          });
+        }
+      },
+
+      // 3 · Walk: upright, chest-out, unhurried stride (1 gait cycle = 2 steps in 1.25 s = 150 frames).
+      // 2-bone legs: heel strikes with toes up, toe-off with heel up (foot angle = hip + knee),
+      // knee folds ~1 rad in the swing for foot clearance; elbows bend more on the forward swing.
+      walk: {
+        T: 1.25, yawLimit: 0.20,
+        fn(t, Q) {
+          const p = t / 1.25, c = Math.cos(TAU * p), s = Math.sin(TAU * p);
+          // Per leg: hip from -0.42 (forward, heel strike) to +0.42 (back, toe-off); knee: small
+          // flex in stance, big fold in the swing (sin^2 halves: smooth at every joint of the cycle)
+          const leg = (ph) => {
+            const sp = Math.sin(TAU * ph), sw = sp * sp, swing = sp < 0 ? 1 : 0;
+            return [-0.42 * Math.cos(TAU * ph) - 0.1 * sw * swing, (swing ? 1.0 : 0.07) * sw];
+          };
+          const [hR, kR] = leg(p), [hL, kL] = leg(p + 0.5);
+          legs(Q, hR, kR, hL, kL);
+
+          // Weight moves over the stance foot; pelvis turns with the forward leg, chest counters
+          pos(Q, 'body', -0.3 * s, 0, 0);
+          rot(Q, 'body', 0, 0.06 * c, 0);
+          rot(Q, 'chest', 0.03, -0.1 * c, 0.02 * s);
+
+          // Arms opposite to the legs, elbows bend more on the forward swing, slight flare
+          rot(Q, 'arm_right', 0.38 * c, 0, -0.12);
+          rot(Q, 'arm_left', -0.38 * c, 0, 0.12);
+          rot(Q, 'forearm_right', -0.22 - 0.3 * (1 - c) * 0.5, 0, 0);
+          rot(Q, 'forearm_left', -0.22 - 0.3 * (1 + c) * 0.5, 0, 0);
+
+          // Head steady (counter-turns the chest), small nod on every step
+          rot(Q, 'head', -0.03 + 0.015 * Math.cos(2 * TAU * p), 0.04 * c, 0);
+
+          CAPE.forEach((bName, idx) => {
+            const wave = Math.sin(2 * TAU * p - idx * 0.48);
+            rot(Q, bName, 0.04 + idx * 0.014 + (0.012 + idx * 0.008) * wave, 0, (0.004 + idx * 0.002) * s);
+          });
+
+          Q.f.smirk = 0.35;
+          Q.f.browUp = 0.08;
+          Q.f.frown = 0.15;
+          Q.f.squint = 0.15;
+          Q.f.wide = 0.15;
+          Q.f.glance = 0.12 * Math.sin(TAU * p * 0.5) ** 2 - 0.06;
+        }
+      },
+
+      // 4 · Attack: wind-up and explosive right super-punch, lunging onto the left leg
+      attack: {
+        T: 1.8, yawLimit: 0.05, follow: 0,
+        fn(t, Q) {
+          const coil = kf(t, ATK_COIL);
+          const punch = kf(t, ATK_PUNCH);
+          const twist = kf(t, ATK_TWIST);
+
+          // Lunge: left leg steps forward (flat foot: hip + knee = 0), right leg pushes back on its toes
+          legs(Q, 0.12 * coil + 0.3 * punch, 0.1 * coil + 0.15 * punch, -0.1 * coil - 0.38 * punch, 0.25 * coil + 0.38 * punch);
+
+          // Torso wind-up and explosive forward torque
+          rot(Q, 'chest', 0.08 * punch, twist * 0.6, 0);
+          pos(Q, 'chest', 0, -0.15 * punch, 0.3 * punch);
+
+          // Right Arm: chambers back during wind-up with outward shoulder clearance, snaps forward
+          rot(Q, 'arm_right', 0.22 * coil - 1.45 * punch, 0, -0.32 - 0.15 * coil);
+          rot(Q, 'forearm_right', -0.85 * coil - 0.25 * punch, 0, 0);
+
+          // Left Arm: guards chest and counter-balances
+          rot(Q, 'arm_left', -0.2 * coil + 0.4 * punch, 0, 0.35);
+          rot(Q, 'forearm_left', -0.6 * coil - 0.3 * punch, 0, 0);
+
+          // Head locked onto the victim
+          rot(Q, 'head', 0.04 * punch, 0, 0);
+
+          CAPE.forEach((bName, idx) => {
+            const snapAngle = 0.035 + idx * 0.015 + (0.04 + idx * 0.02) * punch;
+            rot(Q, bName, snapAngle, 0, -(0.008 + idx * 0.004) * twist);
+          });
+
+          // Violent grimace: bared teeth, low brows, eyes flash red on the hit
+          Q.f.frown = 0.95 * (coil + punch);
+          Q.f.squint = 0.65 * punch;
+          Q.f.open = 0.3 * punch;
+          Q.f.grin = 0.6 * punch;
+          Q.f.glow = 0.4 * punch;
+        }
+      },
+
+      // 5 · Special: Levitation Hover & Heat-Vision Laser Eyes!
+      special: {
+        T: 4.0, yawLimit: 0.2, follow: 0.15,
+        fn(t, Q) {
+          const lift = kf(t, SPEC_LIFT);
+          const laser = kf(t, SPEC_LASER);
+          const sweep = kf(t, SPEC_SWEEP);
+
+          // Hover legs: relaxed hanging pose once airborne (toes point down with the shin)
+          const hoverAir = clamp((lift - 0.4) / 3.0, 0, 1);
+          legs(Q, 0.06 * hoverAir, 0.06 + 0.2 * hoverAir, 0.06 * hoverAir, 0.06 + 0.14 * hoverAir, lift);
+
+          // Supreme power stance: arms drawn back and clenched at sides
+          rot(Q, 'arm_right', 0.18 * Math.min(1, lift / 4), 0, -0.32);
+          rot(Q, 'forearm_right', -0.25 * Math.min(1, lift / 4), 0, 0.1);
+          rot(Q, 'arm_left', 0.18 * Math.min(1, lift / 4), 0, 0.32);
+          rot(Q, 'forearm_left', -0.25 * Math.min(1, lift / 4), 0, -0.1);
+
+          // Head tilted downward with terrifying laser gaze sweeping across the target
+          rot(Q, 'head', 0.12 * laser, sweep, 0);
+
+          const flap = Math.sin(TAU * 4.8 * t);
+          CAPE.forEach((bName, idx) => {
+            const segFlap = Math.sin(TAU * 4.8 * t - idx * 0.52);
+            const liftAngle = (0.05 + idx * 0.025) * Math.min(1, lift / 4);
+            rot(Q, bName, liftAngle + (0.02 + idx * 0.012) * segFlap, 0, (0.006 + idx * 0.004) * flap);
+          });
+
+          Q.f.laser = laser;
+          Q.f.glow = 0.5 * clamp(lift / 6, 0, 1);  // eyes heat up while he rises
+          Q.f.frown = 1.0 * laser;
+          Q.f.open = 0.25 * laser;
+          Q.f.grin = 0.5 * laser;
+          Q.f.squint = 0.45 * laser;
+        }
+      }
+    };
+
+    const ANIM_ORDER = ['idle', 'idle2', 'walk', 'attack', 'special'];   // dock buttons / keys 1-5
+    const ALL_ANIMS = [...ANIM_ORDER, 'hover'];                           // + hidden ones (tests, export)
+
+    /* ───────── Dynamic Physics Springs (Fluent Cape Ripple) ───────── */
+    const SPRINGS = [
+      { bone: 'cape_seg_1', k: 80, d: 10, accel: 0.25, x: [0.0, 0.15], z: [-0.015, 0.015], bx: 0.015, breeze: 0.008, f: 1.2 },
+      { bone: 'cape_seg_2', k: 70, d: 9,  accel: 0.30, x: [0.0, 0.18], z: [-0.015, 0.015], bx: 0.018, breeze: 0.010, f: 1.1 },
+      { bone: 'cape_seg_3', k: 60, d: 8,  accel: 0.35, x: [0.0, 0.20], z: [-0.015, 0.015], bx: 0.020, breeze: 0.012, f: 1.0 },
+      { bone: 'cape_seg_4', k: 50, d: 8,  accel: 0.40, x: [0.0, 0.22], z: [-0.015, 0.015], bx: 0.022, breeze: 0.014, f: 0.9 },
+      { bone: 'cape_seg_5', k: 40, d: 7,  accel: 0.45, x: [0.0, 0.25], z: [-0.015, 0.015], bx: 0.025, breeze: 0.016, f: 0.8 }
+    ];
+
+    // Seeded random (mulberry32): same seed = same blinks / glow / hover timing (tests, shots)
+    function rng(seed) {
+      let a = seed >>> 0;
+      return () => {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function makeSim(seed = 12345) {
+      const rand = rng(seed);
+      return {
+        anim: 'idle', t: 0, time: 0, blend: 1, rand,
+        snap: makePose(), cur: makePose(), out: makePose(),
+        face: zeroFace(),
+        yawLimit: 0.45,
+        blink: { wait: 1.4, t: -1 },
+        // Random Idle extras: faint red eye glow + a short Hover (first one after ~8 s)
+        events: true,
+        ev: { glowWait: 3 + rand() * 4, glowT: -1, glowDur: 1.5, glowAmp: 0.5, hoverWait: 8 + rand() * 3 },
+        follow: { on: true, w: 1, yaw: 0, pitch: 0, eye: 0, mx: 0, my: 0, has: false },
+        springs: SPRINGS.map((s) => ({ ...s, ax: 0, az: 0, vx: 0, vz: 0, prev: new THREE.Vector3(), vel: new THREE.Vector3(), velPrev: new THREE.Vector3(), acc: new THREE.Vector3(), init: false }))
+      };
+    }
+
+    function switchAnim(S, name) {
+      if (name === S.anim) return;
+      copyPose(S.out, S.snap);
+      S.anim = name; S.t = 0; S.blend = 0;
+    }
+
+    const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3();
+    function filt(dt, rate) { return 1 - Math.exp(-dt * rate); }
+
+    function trackMotion(st, world, dt) {
+      if (!st.init) { st.prev.copy(world); st.vel.set(0, 0, 0); st.velPrev.set(0, 0, 0); st.acc.set(0, 0, 0); st.init = true; return; }
+      vC.copy(world).sub(st.prev).divideScalar(dt);
+      st.prev.copy(world);
+      st.vel.lerp(vC, filt(dt, 25));
+      vC.copy(st.vel).sub(st.velPrev).divideScalar(dt);
+      st.velPrev.copy(st.vel);
+      st.acc.lerp(vC, filt(dt, 18));
+    }
+
+    /* ───────── Simulation Step ───────── */
+    function step(S, dt) {
+      S.time += dt;
+      S.t += dt;
+
+      // Random Idle extras (only Idle / Hover): start a red glow pulse; switch into Hover now
+      // and then; Hover plays once, then crossfades back into Idle.
+      if (S.events) {
+        const ev = S.ev;
+        if (S.anim === 'idle' || S.anim === 'hover') {
+          ev.glowWait -= dt;
+          if (ev.glowWait <= 0 && ev.glowT < 0) {
+            ev.glowT = 0; ev.glowDur = 1.2 + S.rand() * 1.2; ev.glowAmp = 0.35 + S.rand() * 0.3;
+            ev.glowWait = 6 + S.rand() * 9;
+          }
+        }
+        if (S.anim === 'idle' && S.blend >= 1) {
+          ev.hoverWait -= dt;
+          if (ev.hoverWait <= 0) { switchAnim(S, 'hover'); ev.hoverWait = 16 + S.rand() * 14; }
+        }
+        if (S.anim === 'hover' && S.t >= ANIMS.hover.T) switchAnim(S, 'idle');
+      }
+      let evGlow = 0;
+      if (S.ev.glowT >= 0) {
+        S.ev.glowT += dt;
+        const u = clamp(S.ev.glowT / S.ev.glowDur, 0, 1);
+        evGlow = S.ev.glowAmp * Math.sin(Math.PI * u) ** 2; // smooth in and out
+        if (u >= 1) S.ev.glowT = -1;
+      }
+
+      const A = ANIMS[S.anim] || ANIMS.idle;
+      const loopT = S.t % A.T;
+
+      clearPose(S.cur);
+      A.fn(loopT, S.cur);
+
+      // Smooth crossfade between animation transitions
+      if (S.blend < 1) {
+        S.blend = Math.min(1, S.blend + dt * 4.2);
+        const w = S.blend * S.blend * (3 - 2 * S.blend);
+        for (let i = 0; i < NB * 3; i++) {
+          S.out.r[i] = S.snap.r[i] + (S.cur.r[i] - S.snap.r[i]) * w;
+          S.out.p[i] = S.snap.p[i] + (S.cur.p[i] - S.snap.p[i]) * w;
+        }
+        for (const k of FACE_KEYS) S.out.f[k] = S.snap.f[k] + (S.cur.f[k] - S.snap.f[k]) * w;
+        S.yawLimit = S.cur.yawLimit || 0.45;
+      } else {
+        copyPose(S.cur, S.out);
+        S.yawLimit = A.yawLimit || 0.45;
+      }
+
+      // Smooth facial expression easing
+      for (const k of FACE_KEYS) {
+        S.face[k] += (S.out.f[k] - S.face[k]) * filt(dt, 16);
+      }
+
+      // Natural eye blinking
+      S.blink.wait -= dt;
+      if (S.blink.wait <= 0 && S.blink.t < 0) {
+        S.blink.t = 0;
+        S.blink.wait = 2.5 + S.rand() * 3.5;
+      }
+      let blinkVal = 0;
+      if (S.blink.t >= 0) {
+        S.blink.t += dt;
+        blinkVal = Math.sin(clamp(S.blink.t / 0.18, 0, 1) * Math.PI);
+        if (S.blink.t >= 0.18) {
+          S.blink.t = -1;
+          if (S.blink.wait > 1 && S.rand() < 0.2) S.blink.wait = 0.12; // now and then a quick double blink
+        }
+      }
+
+      // Mouse tracking head & eye follow
+      const fTgt = (S.follow.on && S.follow.has) ? (A.follow !== undefined ? A.follow : 1) : 0;
+      S.follow.w += (fTgt - S.follow.w) * filt(dt, 8);
+
+      const targetYaw = clamp(S.follow.mx * 0.55, -S.yawLimit, S.yawLimit);
+      const targetPitch = clamp(-S.follow.my * 0.15, -0.08, 0.08);
+      S.follow.yaw += (targetYaw - S.follow.yaw) * filt(dt, 9);
+      S.follow.pitch += (targetPitch - S.follow.pitch) * filt(dt, 9);
+
+      // Apply Kinematic Pose to Bones
+      for (let i = 0; i < NB; i++) {
+        const g = boneList[i];
+        const r0 = g.userData.restRot, p0 = g.userData.rest;
+        const j = i * 3;
+        g.rotation.set(r0.x + S.out.r[j], r0.y + S.out.r[j + 1], r0.z + S.out.r[j + 2]);
+        g.position.set(p0.x + S.out.p[j] * TEXEL, p0.y + S.out.p[j + 1] * TEXEL, p0.z + S.out.p[j + 2] * TEXEL);
+      }
+
+      // Apply Head Follow
+      if (bones.head) {
+        bones.head.rotation.y += S.follow.yaw * S.follow.w;
+        bones.head.rotation.x += S.follow.pitch * S.follow.w;
+      }
+
+      // Pupils eye glance tracking
+      const pGlance = clamp(S.face.glance + S.follow.yaw * 0.35 * S.follow.w, -0.45, 0.45);
+      if (bones.pupil_right && bones.pupil_left) {
+        bones.pupil_right.position.x = (-2 + pGlance) * TEXEL;
+        bones.pupil_left.position.x = (2 + pGlance) * TEXEL;
+      }
+
+      // Sliding Eyelids
+      const closeAmt = clamp(blinkVal + S.face.squint * 0.5, 0, 1);
+      if (bones.lid_right && bones.lid_left) {
+        bones.lid_right.scale.y = closeAmt;
+        bones.lid_left.scale.y = closeAmt;
+        bones.lid_right.position.z = (closeAmt > 0.05 ? 4.06 : 3.98) * TEXEL;
+        bones.lid_left.position.z = (closeAmt > 0.05 ? 4.06 : 3.98) * TEXEL;
+      }
+
+      // Eyebrows
+      if (bones.brow_right && bones.brow_left) {
+        const browY = (5.6 + S.face.browUp * 0.4 - S.face.frown * 0.3) * TEXEL;
+        bones.brow_right.position.y = browY;
+        bones.brow_left.position.y = browY;
+        bones.brow_right.rotation.z = -0.06 - S.face.frown * 0.25;
+        bones.brow_left.rotation.z = 0.06 + S.face.frown * 0.25;
+      }
+
+      // Mouth: open / wider for the grin, smirk tilts it up on his left side and shifts it over;
+      // teeth grow down from the lip line and step out of the head only while grinning
+      if (bones.mouth) {
+        bones.mouth.scale.y = 1 + S.face.open * 1.5;
+        bones.mouth.scale.x = 1 + S.face.wide * 0.4 + S.face.grin * 0.3;
+        bones.mouth.rotation.z = 0.14 * S.face.smirk;
+        bones.mouth.position.x = 0.25 * S.face.smirk * TEXEL;
+        bones.teeth.scale.y = Math.max(0.001, S.face.grin);
+        bones.teeth.position.z = (-0.05 + 0.045 * clamp(S.face.grin * 10, 0, 1)) * TEXEL;
+      }
+
+      // Red eye glow: anim channel + random Idle pulse, dimmed while the lids are closed
+      const glow = clamp(Math.max(S.face.glow + evGlow, S.face.laser), 0, 1);
+      glowMat.opacity = glow * 0.85 * (1 - 0.9 * blinkVal);
+
+      // Heat-Vision Laser VFX
+      const laserActive = S.face.laser;
+      laserMat.opacity = laserActive;
+      laserCoreMat.opacity = laserActive * 0.95;
+      laserGlowLight.intensity = laserActive * 4.5 + glow * 0.3; // faint red light on the face from the glowing eyes
+      const beamScale = laserActive > 0.01 ? (0.8 + 0.2 * Math.sin(S.time * 45)) : 0.0001;
+      laserBeamR.scale.set(beamScale, 1, beamScale);
+      laserBeamL.scale.set(beamScale, 1, beamScale);
+      laserCoreR.scale.set(beamScale, 1, beamScale);
+      laserCoreL.scale.set(beamScale, 1, beamScale);
+
+      // Cape Physics Springs
+      for (const sp of S.springs) {
+        const b = bones[sp.bone];
+        if (!b) continue;
+        b.getWorldPosition(vA);
+        trackMotion(sp, vA, dt);
+
+        const breeze = Math.sin(S.time * TAU * sp.f) * sp.breeze;
+        const targetX = clamp(-sp.acc.z * sp.accel * 0.03 + sp.bx + breeze, sp.x[0], sp.x[1]);
+        const targetZ = clamp(sp.acc.x * sp.accel * 0.03, sp.z[0], sp.z[1]);
+
+        sp.vx += (targetX - sp.ax) * sp.k * dt;
+        sp.vx *= Math.max(0, 1 - sp.d * dt);
+        sp.ax += sp.vx * dt;
+
+        sp.vz += (targetZ - sp.az) * sp.k * dt;
+        sp.vz *= Math.max(0, 1 - sp.d * dt);
+        sp.az += sp.vz * dt;
+
+        b.rotation.x += sp.ax;
+        b.rotation.z += sp.az;
+      }
+    }
+
+    /* ───────── Blockbench .bbmodel Exporter ───────── */
+    function uuid() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+      });
+    }
+
+    const bbVec = (p) => [-p[0], p[1], p[2]];
+    const bbRot = (rx, ry, rz) => [-rx * 180 / Math.PI, -ry * 180 / Math.PI, rz * 180 / Math.PI];
+    const r4 = (v) => Math.round(v * 10000) / 10000;
+
+    function bakeAnimation(name) {
+      const A = ANIMS[name];
+      const fps = 24, frames = Math.round(A.T * fps);
+      const S = makeSim(1);
+      S.anim = name; S.follow.on = false;
+      const tracks = {};
+      boneList.forEach((g) => { tracks[g.name] = { rot: [], pos: [], scl: [] }; });
+
+      for (let f = 0; f <= frames; f++) {
+        S.t = (f / fps) % A.T;
+        clearPose(S.cur);
+        A.fn(S.t, S.cur);
+        for (let i = 0; i < NB; i++) {
+          const g = boneList[i], b = g.name;
+          const j = i * 3;
+          tracks[b].rot.push(bbRot(S.cur.r[j], S.cur.r[j + 1], S.cur.r[j + 2]));
+          tracks[b].pos.push(bbVec([S.cur.p[j], S.cur.p[j + 1], S.cur.p[j + 2]]));
+          tracks[b].scl.push([1, 1, 1]);
+        }
+      }
+
+      const animators = {};
+      const isRest = (list, def) => list.every((p) => Math.abs(p[0] - def) < 1e-4 && Math.abs(p[1] - def) < 1e-4 && Math.abs(p[2] - def) < 1e-4);
+      boneList.forEach((g) => {
+        const b = g.name, tr = tracks[b], keyframes = [];
+        const add = (channel, list) => list.forEach((v, f) => keyframes.push({
+          channel, data_points: [{ x: v[0], y: v[1], z: v[2] }], uuid: uuid(), time: r4(f / fps), color: -1, interpolation: 'catmullrom'
+        }));
+        if (!isRest(tr.rot, 0)) add('rotation', tr.rot);
+        if (!isRest(tr.pos, 0)) add('position', tr.pos);
+        if (keyframes.length) animators[g.userData.uuid] = { name: g.name, type: 'bone', keyframes };
+      });
+
+      return {
+        uuid: uuid(), name: `animation.homelander.${name}`, loop: 'loop', override: false,
+        length: A.T, snapping: 24, selected: name === 'idle', anim_time_update: '', blend_weight: '',
+        start_delay: '', loop_delay: '', animators
+      };
+    }
+
+    function buildBBModel() {
+      const abs = new Map();
+      boneList.forEach((g) => {
+        g.userData.uuid = uuid();
+        const p = g.parent.isGroup && abs.has(g.parent) ? abs.get(g.parent) : [0, 0, 0];
+        const r = g.userData.rest;
+        abs.set(g, [p[0] + r.x / TEXEL, p[1] + r.y / TEXEL, p[2] + r.z / TEXEL]);
+      });
+
+      const elements = [];
+      const groupOf = {};
+      for (const c of cubeList) {
+        const id = uuid();
+        const bp = abs.get(bones[c.bone]);
+        const ctr = bbVec([bp[0] + c.center[0], bp[1] + c.center[1], bp[2] + c.center[2]]);
+        const [w, h, d] = c.size;
+        const R = (f) => { const r = c.rects[f]; return [r.x, r.y, r.x + r.w, r.y + r.h]; };
+        const Rf = (f) => { const r = c.rects[f]; return [r.x + r.w, r.y + r.h, r.x, r.y]; };
+        const rotated = c.rot.some((v) => v !== 0);
+
+        elements.push({
+          name: c.name, box_uv: false, rescale: false, locked: false, render_order: 'default', allow_mirror_modeling: true,
+          from: [r4(ctr[0] - w / 2), r4(ctr[1] - h / 2), r4(ctr[2] - d / 2)],
+          to: [r4(ctr[0] + w / 2), r4(ctr[1] + h / 2), r4(ctr[2] + d / 2)],
+          autouv: 0, color: 0, inflate: c.inflate,
+          origin: rotated ? ctr : bbVec(bp),
+          ...(rotated ? { rotation: bbRot(c.rot[0], c.rot[1], c.rot[2]) } : {}),
+          faces: {
+            north: { uv: R(4), texture: 0 }, south: { uv: R(5), texture: 0 },
+            east: { uv: R(1), texture: 0 }, west: { uv: R(0), texture: 0 },
+            up: { uv: Rf(2), texture: 0 }, down: { uv: Rf(3), texture: 0 }
+          },
+          type: 'cube', uuid: id
+        });
+        (groupOf[c.bone] = groupOf[c.bone] || []).push(id);
+      }
+
+      const outlinerNode = (g) => ({
+        name: g.name, origin: bbVec(abs.get(g)), rotation: bbRot(g.userData.restRot.x, g.userData.restRot.y, g.userData.restRot.z),
+        color: 0, uuid: g.userData.uuid, export: true, mirror_uv: false, isOpen: true, locked: false, visibility: true, autouv: 0,
+        children: [...(groupOf[g.name] || []), ...g.children.filter((ch) => ch.isGroup).map(outlinerNode)]
+      });
+
+      const animations = ALL_ANIMS.map(bakeAnimation);
+
+      return {
+        meta: { format_version: '4.5', model_format: 'free', box_uv: false },
+        name: 'homelander', model_identifier: 'homelander',
+        visible_box: [2, 2.5, 1], variable_placeholders: '', variable_placeholder_buttons: [],
+        resolution: { width: ATLAS_W, height: ATLAS_H },
+        elements, outliner: [outlinerNode(root)],
+        textures: [{
+          path: '', name: 'homelander.png', folder: 'entity', namespace: '', id: '0', particle: false,
+          render_mode: 'default', render_sides: 'auto', frame_time: 1, frame_order_type: 'loop', frame_order: '',
+          frame_interpolate: false, visible: true, internal: true, saved: false, uuid: uuid(),
+          source: atlas.toDataURL('image/png')
+        }],
+        animations
+      };
+    }
+
+    /* ───────── Rig overlay ("Show bones" button, key B) ───────── */
+    // Same block in every mob. A dot on every bone pivot (yellow) and a line to its parent
+    // (cyan), drawn on top of the model. Buffers are made once; update() only rewrites them.
+    const rigView = (() => {
+      const list = boneList.filter((b) => b.name !== 'root');
+      const linePos = new Float32Array(list.length * 6), dotPos = new Float32Array(list.length * 3);
+      const lineGeo = new THREE.BufferGeometry(), dotGeo = new THREE.BufferGeometry();
+      lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+      dotGeo.setAttribute('position', new THREE.BufferAttribute(dotPos, 3));
+      const lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: 0x67e8f9, depthTest: false, transparent: true, opacity: 0.9 }));
+      const dots = new THREE.Points(dotGeo, new THREE.PointsMaterial({ color: 0xfacc15, size: 6, sizeAttenuation: false, depthTest: false, transparent: true }));
+      for (const o of [lines, dots]) { o.renderOrder = 999; o.frustumCulled = false; o.visible = false; scene.add(o); }
+      const a = new THREE.Vector3(), b = new THREE.Vector3();
+      return {
+        on: false,
+        set(on) { this.on = on; lines.visible = dots.visible = on; if (on) this.update(); },
+        update() {
+          mobRoot.updateMatrixWorld(true);
+          list.forEach((g, i) => {
+            g.getWorldPosition(a);
+            (g.parent.isGroup && g.parent !== mobRoot ? g.parent : g).getWorldPosition(b);
+            const j = i * 6, k = i * 3; // plain writes: no new arrays per frame
+            linePos[j] = b.x; linePos[j + 1] = b.y; linePos[j + 2] = b.z;
+            linePos[j + 3] = a.x; linePos[j + 4] = a.y; linePos[j + 5] = a.z;
+            dotPos[k] = a.x; dotPos[k + 1] = a.y; dotPos[k + 2] = a.z;
+          });
+          lineGeo.attributes.position.needsUpdate = true;
+          dotGeo.attributes.position.needsUpdate = true;
+        }
+      };
+    })();
+
+    /* ───────── UI Controls ───────── */
+    let sim = makeSim(999);
+    const toast = document.getElementById('toast');
+    let toastTimer = 0;
+
+    const dotsEl = document.getElementById('dots');
+    VARIANTS.forEach((v, i) => {
+      const d = document.createElement('button');
+      d.className = 'dot';
+      d.title = `${v.name} colors`;
+      d.style.background = (v.pal.suitBase || BASE.suitBase);
+      d.addEventListener('click', () => setVariant(i));
+      dotsEl.appendChild(d);
+    });
+
+    const animBtns = document.querySelectorAll('.anim-btn');
+    const markAnim = (name) => animBtns.forEach((b) => b.classList.toggle('active', b.dataset.anim === name));
+
+    function selectAnim(name) {
+      switchAnim(sim, name);
+      markAnim(name);
+    }
+    animBtns.forEach((b) => b.addEventListener('click', () => selectAnim(b.dataset.anim)));
+
+    const followBtn = document.getElementById('followBtn');
+    followBtn.addEventListener('click', () => {
+      sim.follow.on = !sim.follow.on;
+      followBtn.classList.toggle('on', sim.follow.on);
+      followBtn.setAttribute('aria-pressed', String(sim.follow.on));
+    });
+
+    const bonesBtn = document.getElementById('bonesBtn');
+    function toggleBones() {
+      rigView.set(!rigView.on);
+      bonesBtn.classList.toggle('on', rigView.on);
+      bonesBtn.setAttribute('aria-pressed', String(rigView.on));
+    }
+    bonesBtn.addEventListener('click', toggleBones);
+
+    let resetting = false;
+    document.getElementById('resetBtn').addEventListener('click', () => { resetting = true; });
+
+    document.getElementById('dlBtn').addEventListener('click', () => {
+      const data = buildBBModel();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'homelander.bbmodel';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      const i = ['1', '2', '3', '4', '5'].indexOf(e.key);
+      if (i >= 0) selectAnim(ANIM_ORDER[i]);
+      if (e.key === 'r' || e.key === 'R') resetting = true;
+      if (e.key === 'b' || e.key === 'B') toggleBones();
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      sim.follow.mx = (e.clientX / window.innerWidth) * 2 - 1;
+      sim.follow.my = -(e.clientY / window.innerHeight) * 2 + 1;
+      sim.follow.has = true;
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    /* ───────── 60/120 FPS Locked Render Loop ───────── */
+    let targetHz = 60, measuring = true, lastNow = 0, lastRender = 0;
+    const intervals = [];
+
+    function frame(now) {
+      requestAnimationFrame(frame);
+      if (measuring) {
+        if (lastNow) intervals.push(now - lastNow);
+        lastNow = now;
+        if (intervals.length >= 30) {
+          const sorted = intervals.slice().sort((a, b) => a - b);
+          targetHz = 1000 / sorted[15] >= 110 ? 120 : 60;
+          measuring = false;
+        }
+      } else {
+        const interval = 1000 / targetHz;
+        if (now < lastRender + interval - 1) return;
+      }
+      const dt = lastRender ? Math.min((now - lastRender) / 1000, 0.1) : 1 / 60;
+      lastRender = measuring ? now : Math.max(lastRender + 1000 / targetHz, now - 1000 / targetHz);
+
+      step(sim, dt);
+      if (rigView.on) rigView.update();
+
+      if (resetting) {
+        const k = filt(dt, 8);
+        camera.position.lerp(CAM_POS, k);
+        controls.target.lerp(CAM_TARGET, k);
+        if (camera.position.distanceTo(CAM_POS) < 0.005 && controls.target.distanceTo(CAM_TARGET) < 0.005) resetting = false;
+      }
+      controls.dampingFactor = filt(dt, 4.5);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    setVariant(0);
+
+    /* ───────── Self-Tests & Headless Testing ───────── */
+    function restPose() {
+      boneList.forEach((g) => {
+        g.rotation.copy(new THREE.Euler(g.userData.restRot.x, g.userData.restRot.y, g.userData.restRot.z, 'ZYX'));
+        g.position.copy(g.userData.rest);
+        g.scale.set(1, 1, 1);
+      });
+    }
+
+    function clipTest() {
+      const meshes = cubeList.map((c) => c.mesh);
+      const inv = meshes.map(() => new THREE.Matrix4());
+      const half = cubeList.map((c) => c.size.map((s) => (Math.abs(s) / 2 + c.inflate) * TEXEL));
+      const pts = cubeList.map((c, i) => {
+        const [hx, hy, hz] = half[i], list = [];
+        for (let a = 0; a < 5; a++) for (let b = 0; b < 5; b++) {
+          const u = -1 + a * 0.5, v = -1 + b * 0.5;
+          list.push([hx, u * hy, v * hz], [-hx, u * hy, v * hz], [u * hx, hy, v * hz], [u * hx, -hy, v * hz], [u * hx, v * hy, hz], [u * hx, v * hy, -hz]);
+        }
+        return list.map((p) => new THREE.Vector3(...p));
+      });
+      const radius = half.map((h) => Math.hypot(h[0], h[1], h[2]) * 2.2);
+      const centers = meshes.map(() => new THREE.Vector3());
+      const EPS = 0.06, LAYER = 0.15;
+      const wp = new THREE.Vector3(), lp = new THREE.Vector3();
+
+      function depthInside(j, p) {
+        const [hx, hy, hz] = half[j];
+        const dx = hx - Math.abs(p.x), dy = hy - Math.abs(p.y), dz = hz - Math.abs(p.z);
+        if (dx <= 0 || dy <= 0 || dz <= 0) return 0;
+        return Math.min(dx, dy, dz);
+      }
+
+      function measure() {
+        mobRoot.updateMatrixWorld(true);
+        meshes.forEach((m, i) => { inv[i].copy(m.matrixWorld).invert(); centers[i].setFromMatrixPosition(m.matrixWorld); });
+        const res = new Map();
+        for (let i = 0; i < meshes.length; i++) for (let j = 0; j < meshes.length; j++) {
+          if (i === j || cubeList[i].bone === cubeList[j].bone) continue;
+          if (centers[i].distanceTo(centers[j]) > radius[i] + radius[j]) continue;
+          let worst = 0;
+          for (const p of pts[i]) {
+            wp.copy(p).applyMatrix4(meshes[i].matrixWorld);
+            lp.copy(wp).applyMatrix4(inv[j]);
+            const d = depthInside(j, lp);
+            if (d > worst) worst = d;
+          }
+          if (worst > 0) res.set(i + ':' + j, worst / TEXEL);
+        }
+        return res;
+      }
+
+      const JOINTS = [
+        [/^(thigh_|calf_|boot_)/, /^torso_suit$/],
+        [/^(calf_|boot_)/, /^thigh_/],
+        [/^(lower_arm_|gauntlet_)/, /^(upper_arm_|pauldron_)/],
+        [/^(upper_arm_|pauldron_)/, /^(torso_suit|head_cranium)$/],
+        [/^head_cranium$/, /^torso_suit$/],
+        [/^cape_seg_1$/, /^(torso_suit|head_cranium|pauldron_|upper_arm_)/],
+        [/^cape_seg_2$/, /^(cape_seg_1|upper_arm_)/],
+        [/^cape_seg_3$/, /^cape_seg_2$/],
+        [/^cape_seg_4$/, /^cape_seg_3$/],
+        [/^cape_seg_5$/, /^cape_seg_4$/]
+      ];
+      const isJoint = (a, b) => JOINTS.some(([x, y]) => (x.test(a) && y.test(b)) || (x.test(b) && y.test(a)));
+
+      restPose();
+      const baseline = measure();
+      const report = {
+        cubes: cubeList.length, bones: NB, atlas: [ATLAS_W, ATLAS_H],
+        clips: {}, joints: {}, ground: {},
+        layeredAtRest: [...baseline].filter(([, d]) => d > EPS).map(([k, d]) => k.split(':').map((i) => cubeList[i].name).join(' / ') + ' ' + d.toFixed(2))
+      };
+
+      const boots = cubeList.filter((c) => /^boot_/.test(c.name));
+      const corner = new THREE.Vector3();
+      const mice = [[0, 0], [-0.95, 0], [0.95, 0], [0, 0.95], [0, -0.95]];
+
+      for (const name of ALL_ANIMS) {
+        let low = 99;
+        for (const [, [mx, my]] of mice.entries()) {
+          const S = makeSim(99);
+          S.anim = name;
+          S.events = false; // no random anim switches while testing one animation
+          Object.assign(S.follow, { on: true, has: true, mx, my });
+          const dt = 1 / 120;
+          for (let t = 0; t < ANIMS[name].T; t += dt) step(S, dt);
+          let since = 0;
+          for (let t = 0; t < ANIMS[name].T * 2; t += dt) {
+            step(S, dt);
+            since += dt;
+            if (since < 1 / 20) continue;
+            since = 0;
+            for (const [key, d] of measure()) {
+              const base = baseline.get(key) || 0;
+              const [i, j] = key.split(':').map(Number);
+              const a = cubeList[i].name, b = cubeList[j].name;
+              const joint = isJoint(a, b);
+              if (!joint && d <= (base > EPS ? base + LAYER : EPS)) continue;
+              if (joint && d <= base + EPS) continue;
+              const bucket = joint ? report.joints : report.clips;
+              const id = `${a} in ${b}`;
+              if (!bucket[id] || bucket[id].depth < d) bucket[id] = { depth: +d.toFixed(3), rest: +base.toFixed(3), anim: name };
+            }
+            for (const c of boots) {
+              const [hx, hy, hz] = half[cubeList.indexOf(c)];
+              for (let k = 0; k < 8; k++) {
+                corner.set(k & 1 ? hx : -hx, k & 2 ? hy : -hy, k & 4 ? hz : -hz).applyMatrix4(c.mesh.matrixWorld);
+                low = Math.min(low, corner.y / TEXEL);
+              }
+            }
+          }
+        }
+        report.ground[name] = +low.toFixed(3);
+      }
+
+      const bb = buildBBModel();
+      const badUV = bb.elements.filter((e) => Object.values(e.faces).some((f) => f.uv.some((v, k) => v < 0 || v > (k % 2 ? ATLAS_H : ATLAS_W)))).map((e) => e.name);
+      report.export = {
+        elements: bb.elements.length, badUV,
+        animations: bb.animations.map((a) => ({ name: a.name, bones: Object.keys(a.animators).length, keyframes: Object.values(a.animators).reduce((n, x) => n + x.keyframes.length, 0) })),
+        bytes: JSON.stringify(bb).length
+      };
+
+      const out = document.createElement('pre');
+      out.id = 'cliptest';
+      out.textContent = JSON.stringify(report, null, 1);
+      document.body.appendChild(out);
+    }
+
+    function dumpFrame() {
+      controls.update();
+      renderer.render(scene, camera);
+      const out = document.createElement('pre');
+      out.id = 'shot';
+      out.textContent = canvas.toDataURL('image/png');
+      document.body.appendChild(out);
+    }
+
+    function shot(anim, variant, secs) {
+      setVariant(variant);
+      sim.anim = anim;
+      sim.events = false;
+      Object.assign(sim.follow, { has: true, mx: 0.25, my: 0.15 });
+      if (anim === 'special') {
+        camera.position.set(2.8, 2.2, 3.4);
+        controls.target.set(0, 1.45, 0);
+      }
+      for (let t = 0; t < secs; t += 1 / 60) step(sim, 1 / 60);
+      dumpFrame();
+    }
+
+    window.setVariant = setVariant;
+    window.selectAnim = selectAnim;
+    window.homelanderDebug = { cubeList, bones, atlas, sim, ANIMS, camera, controls, dumpFrame, setVariant, selectAnim, buildBBModel, rigView, toggleBones, makeSim, step, HB };
+    if (location.hash === '#cliptest') clipTest();
+    else if (location.hash === '#rest') { restPose(); dumpFrame(); }
+    else if (location.hash === '#back') { restPose(); camera.position.set(0, 1.7, -3.6); controls.target.set(0, 1.05, 0); dumpFrame(); }
+    else if (location.hash.startsWith('#shot')) { const [, a, v, s] = location.hash.split('-'); shot(a, +v, +s); }
+    else requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Black Noir - 3D Vanilla+ Minecraft Model Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!--
+    Black Noir - 3D Vanilla+ Minecraft Model Viewer
+    - Strict 16x16 model resolution (Blockbench standard humanoid entity).
+    - Muscular stealth assassin build: head (8x8x8), torso (9x12x5), arms (4x12x4), legs (4x12x4).
+    - Layered 3D details: full tactical cowl mask with tinted visor, segmented composite
+      chest & 6-pack abdominal armor plates, tactical shoulder pauldrons, forearm gauntlets,
+      dual reverse-grip combat knives, modular utility belt with ammo pouches, drop-leg thigh
+      holsters, composite knee armor pads, and reinforced combat boots.
+    - Exactly 3 core animations per Rule 38:
+        1. Idle: Silent Predator - ominous stillness, subtle tactical breathing, micro-scanning.
+        2. Idle 2: Combat Stance & Blade Flourish - low crouch, reverse-grip knife raise, sharp target scan.
+        3. Walk: Silent Stalker Prowl - forward-canted stealth prowl, grounded predatory strides.
+    - Ultra-minimal dark UI (#0f1115), OrbitControls, soft shadows, .bbmodel export.
+  -->
+
+  <style>
+    /* ───────── Tokens ───────── */
+    :root {
+      color-scheme: dark;
+      --bg: #0f1115;
+      --pill: rgba(20, 23, 30, 0.82);
+      --line: rgba(255, 255, 255, 0.09);
+      --text: rgba(255, 255, 255, 0.62);
+      --text-hi: #ffffff;
+      --accent: #64748b;
+      --accent-bg: rgba(100, 116, 139, 0.25);
+      --accent-text: #f1f5f9;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    /* ───────── Page ───────── */
+    * { box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+    html, body {
+      margin: 0; width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg); color: var(--text-hi); font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+    #viewport { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; cursor: grab; }
+    #viewport:active { cursor: grabbing; }
+
+    /* ───────── Glass pills ───────── */
+    .pill {
+      background: var(--pill);
+      -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+    }
+    button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+    .icon-btn {
+      height: 36px; min-width: 36px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      color: var(--text); font-size: 12px; font-weight: 500;
+      transition: color .2s, background .2s, transform .2s cubic-bezier(.22, 1, .36, 1);
+    }
+    .icon-btn:hover { color: var(--text-hi); transform: translateY(-1px); }
+    .icon-btn:active { transform: scale(.97); }
+    .icon-btn svg { width: 16px; height: 16px; flex: none; }
+    #resetBtn { padding: 0; width: 36px; }
+
+    /* ───────── Top right: download + reset ───────── */
+    #topRight { position: fixed; top: 16px; right: 16px; z-index: 20; display: flex; gap: 8px; }
+
+    /* ───────── Bottom dock ───────── */
+    #dock {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 20;
+      display: flex; align-items: center; gap: 4px; padding: 6px; max-width: calc(100vw - 32px);
+    }
+    .anim-btn {
+      padding: 7px 14px; border-radius: 999px; font-size: 12px; font-weight: 500; letter-spacing: .02em;
+      color: var(--text); border: 1px solid transparent; white-space: nowrap;
+      transition: color .2s, background .2s, border-color .2s, box-shadow .2s;
+    }
+    .anim-btn:hover { color: var(--text-hi); }
+    .anim-btn.active { color: var(--accent-text); background: var(--accent-bg); border-color: rgba(148, 163, 184, .45); box-shadow: 0 0 18px rgba(100, 116, 139, .32); }
+    .anim-btn kbd { font: inherit; opacity: .45; margin-right: 6px; }
+    .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+    #followBtn, #bonesBtn { width: 32px; height: 32px; min-width: 32px; padding: 0; border-radius: 999px; }
+    #followBtn.on, #bonesBtn.on { color: var(--accent-text); background: var(--accent-bg); }
+    .dot {
+      width: 18px; height: 18px; border-radius: 999px; margin: 0 3px;
+      border: 2px solid rgba(255, 255, 255, .18); transition: transform .2s, border-color .2s;
+    }
+    .dot:hover { transform: scale(1.12); }
+    .dot.active { border-color: var(--accent); }
+
+    /* ───────── Toast ───────── */
+    #toast {
+      position: fixed; top: 64px; right: 16px; z-index: 30; padding: 8px 14px; font-size: 12px; color: #f1f5f9;
+      opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity .3s, transform .3s;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 540px) {
+      .anim-btn { padding: 7px 10px; }
+      .anim-btn kbd { display: none; }
+      #dlBtn span { display: none; }
+    }
+  </style>
+
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <canvas id="viewport"></canvas>
+
+  <!-- Top right: download .bbmodel + camera reset -->
+  <div id="topRight">
+    <button id="dlBtn" class="pill icon-btn" title="Download .bbmodel (model, texture, animations)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span>Download .bbmodel</span>
+    </button>
+    <button id="resetBtn" class="pill icon-btn" title="Reset camera (R)" aria-label="Reset camera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+    </button>
+  </div>
+
+  <div id="toast" class="pill">Downloaded black_noir.bbmodel</div>
+
+  <!-- Bottom dock: exactly 3 animations (Idle, Idle 2, Walk), follow toggle, color variants -->
+  <nav id="dock" class="pill" aria-label="Viewer controls">
+    <button class="anim-btn active" data-anim="idle"><kbd>1</kbd>Idle</button>
+    <button class="anim-btn" data-anim="idle2"><kbd>2</kbd>Idle 2</button>
+    <button class="anim-btn" data-anim="walk"><kbd>3</kbd>Walk</button>
+    <span class="sep"></span>
+    <button id="followBtn" class="icon-btn on" title="Head follows the mouse" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+    <button id="bonesBtn" class="icon-btn" title="Show bones (B)" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><circle cx="7" cy="12" r="1.6"/><circle cx="17" cy="12" r="1.6"/><circle cx="9" cy="20" r="1.6"/><circle cx="15" cy="20" r="1.6"/><path d="M12 6v8M12 8l-5 4M12 8l5 4M12 14l-3 6M12 14l3 6"/></svg>
+    </button>
+    <span class="sep"></span>
+    <span id="dots"></span>
+  </nav>
+
+  <script>
+    window.__errors = [];
+    window.onerror = (m, u, l, c, e) => window.__errors.push({ m, u, l, c, s: e ? e.stack : '' });
+    window.addEventListener('unhandledrejection', (e) => window.__errors.push({ m: String(e.reason) }));
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    /* ───────── Renderer, Scene, Camera ───────── */
+    const canvas = document.getElementById('viewport');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.25;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f1115);
+    scene.fog = new THREE.FogExp2(0x0f1115, 0.012);
+
+    const TEXEL = 1 / 16; // 1 unit = 1 texel, 16 texels per block
+
+    // Heroic full-body framing
+    const CAM_POS = new THREE.Vector3(2.6, 1.8, 3.2);
+    const CAM_TARGET = new THREE.Vector3(0, 1.15, 0);
+    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.copy(CAM_POS);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.copy(CAM_TARGET);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 1.4;
+    controls.maxDistance = 7.5;
+    controls.maxPolarAngle = Math.PI * 0.495;
+    controls.update();
+
+    /* ───────── Tactical Lighting ───────── */
+    // Balanced studio lighting with sharp rim contour to sculpt stealth black armor
+    scene.add(new THREE.HemisphereLight(0x475569, 0x1e222d, 1.05));
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.6);
+    keyLight.position.set(3.4, 5.8, 3.8);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.camera.near = 0.5;
+    keyLight.shadow.camera.far = 16;
+    keyLight.shadow.camera.left = keyLight.shadow.camera.bottom = -2.6;
+    keyLight.shadow.camera.right = keyLight.shadow.camera.top = 2.6;
+    keyLight.shadow.bias = -0.0004;
+    keyLight.shadow.radius = 3.0;
+    scene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0x94a3b8, 2.2);
+    rimLight.position.set(-3.8, 3.6, -3.8);
+    scene.add(rimLight);
+
+    const fillLight = new THREE.DirectionalLight(0x64748b, 0.85);
+    fillLight.position.set(-2.8, 1.6, 2.8);
+    scene.add(fillLight);
+
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(24, 24), new THREE.ShadowMaterial({ opacity: 0.52 }));
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    /* ───────── Color Palettes ───────── */
+    const BASE = {
+      // Visor & Goggles (Recessed dark tinted ballistic lenses, Ref 1, 2, 3 - pitch black tint, dark specular sheen)
+      visorBase: '#07090d', visorTint: '#0d1017', visorGloss: '#181e2a', visorSheen: '#283244',
+      // Inner Balaclava & Cowl Fabric (Smooth taut black tactical fabric)
+      cowlDeep: '#080a0e', cowlDark: '#0e1117', cowlBase: '#141822', cowlCarbon: '#1a1f2a',
+      // Molded Composite Helmet Shell & Brow Ridge (Angular stealth composite armor, Ref 1 & 3)
+      maskDeep: '#0a0d12', maskDark: '#0f131a', maskBase: '#141822', maskCarbon: '#1a202c',
+      maskRidge: '#232b3c', maskHighlight: '#2c374c', maskApex: '#36435c',
+      // Molded Composite Body Armor (Chest plates, Abs, Knees, Pauldrons)
+      armorDeep: '#0f1117', armorBase: '#171a22', armorEdge: '#303848', armorBevel: '#636f86', armorRivet: '#d1d9e6',
+      // Ballistic Undersuit Fabric & Flank Stretch Panels
+      suitDeep: '#0b0d11', suitBase: '#13151c', suitWeave: '#1c202a', flankGrey: '#2b313d', flankHighlight: '#384050',
+      // Utility Belt, Straps, & Nylon Webbing
+      strapDark: '#0a0c0f', strapBase: '#14171f', strapEdge: '#262c38',
+      // Gunmetal Buckles & Hardware
+      metalDark: '#222834', metalBase: '#546075', metalBright: '#8f9db5', metalWhite: '#e2e8f0',
+      // Tactical Combat Knives (Double-edged steel blades with black grip)
+      bladeDark: '#283140', bladeSteel: '#cbd5e1', bladeEdge: '#f8fafc', hiltBlack: '#121419',
+      // Reinforced Combat Boots & Sole
+      bootBase: '#13161d', bootHighlight: '#222834', soleDark: '#08090c'
+    };
+
+    const VARIANTS = [
+      { id: 'classic', name: 'Stealth Black (Show)', pal: {} },
+      { id: 'damaged', name: 'Battle Damaged', pal: {
+        armorBevel: '#94a3b8', // ricochet scratch bevels
+        bladeEdge: '#dc2626', // bloodied blade edge
+        suitWeave: '#181b22',
+        armorRivet: '#ef4444'
+      } },
+      { id: 'comic', name: 'Comic Book (Midnight Navy)', pal: {
+        maskBase: '#1e293b', maskHighlight: '#334155', maskApex: '#475569',
+        cowlBase: '#0f172a', cowlCarbon: '#1e293b',
+        armorBase: '#1e293b', armorEdge: '#334155', armorBevel: '#475569',
+        suitBase: '#0b1120', suitWeave: '#1e293b',
+        flankGrey: '#1e293b', flankHighlight: '#334155',
+        metalBase: '#94a3b8'
+      } }
+    ];
+
+    let P = { ...BASE };
+
+    /* ───────── Texture Painters ───────── */
+    function px(ctx, x, y, col) { ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1); }
+    const flat = (key) => (ctx, f, w, h) => { ctx.fillStyle = P[key]; ctx.fillRect(0, 0, w, h); };
+
+    // Head Cowl (8x8x8): Full all-black ballistic cowl, recessed dark tinted lenses, and taut balaclava (Ref 1 & 3)
+    function paintHead(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = (x + y) % 2 === 0 ? P.cowlBase : P.cowlCarbon;
+
+          if (face === 'front') {
+            // Rows 0-1: Crown dome & upper forehead balaclava
+            if (y === 0) {
+              col = (x === 0 || x === 7) ? P.cowlDeep : P.cowlDark;
+            } else if (y === 1) {
+              col = (x === 0 || x === 7) ? P.cowlDark : ((x + y) % 2 === 0 ? P.cowlBase : P.cowlCarbon);
+            }
+            // Row 2: Deep orbital shadow under the helmet brow ridge
+            else if (y === 2) {
+              if (x === 0 || x === 7) col = P.cowlDark;
+              else if (x === 3 || x === 4) col = P.maskDark; // root of nose bridge
+              else col = P.cowlDeep; // deep shadow pocket above eyes
+            }
+            // Rows 3-4: 2x2 Almond Tinted Goggle Lenses (stealth sunglasses look, Ref 1, 2, 3)
+            else if (y === 3) {
+              if (x === 0 || x === 7) col = P.cowlDark; // temple border
+              else if (x === 1 || x === 6) col = P.visorTint; // outer lens tint
+              else if (x === 2 || x === 5) col = P.visorGloss; // subtle dark sheen
+              else col = P.maskDark; // center nose base
+            } else if (y === 4) {
+              if (x === 0 || x === 7) col = P.cowlDark; // temple border
+              else if (x === 1 || x === 6) col = P.visorBase; // deep black lower lens
+              else if (x === 2 || x === 5) col = P.visorTint; // dark tint
+              else col = P.cowlDark; // center nose base
+            }
+            // Row 5: Lower orbital socket contour & upper cheek balaclava
+            else if (y === 5) {
+              if (x === 0 || x === 7) col = P.cowlDeep;
+              else if (x === 3 || x === 4) col = P.cowlDark; // base of nose bridge
+              else col = (x === 2 || x === 5) ? P.cowlBase : P.cowlDark;
+            }
+            // Row 6: Smooth taut balaclava fabric over mouth (Ref 1 & 2 - no mouth opening/no snout)
+            else if (y === 6) {
+              if (x === 0 || x === 7) col = P.cowlDeep;
+              else if (x === 3 || x === 4) col = P.cowlDark; // subtle center crease
+              else col = P.cowlBase; // taut fabric across mouth
+            }
+            // Row 7: Tapered chin & jawline leading to neck
+            else if (y === 7) {
+              if (x === 0 || x === 7) col = P.cowlDeep;
+              else if (x >= 2 && x <= 5) col = P.cowlCarbon; // chin contour
+              else col = P.cowlDark;
+            }
+          } else if (face === 'top') {
+            // Rounded ballistic cranial dome
+            if (x === 0 || x === 7 || y === 0 || y === 7) col = P.cowlDark;
+            else col = (x + y) % 2 === 0 ? P.cowlBase : P.cowlCarbon;
+          } else if (face === 'bottom') {
+            col = P.cowlDeep;
+          } else if (face === 'left' || face === 'right') {
+            // Temple, circular ear guard, and jawline
+            const fx = face === 'right' ? x : (w - 1 - x); // distance from front
+            if (fx >= 3 && fx <= 5 && y >= 3 && y <= 5) {
+              // Molded ear cover disc (Ref 1 & 2)
+              col = (fx === 4 && y === 4) ? P.maskRidge : P.cowlCarbon;
+            } else if (y >= 6) {
+              col = (fx <= 2) ? P.cowlBase : P.cowlDark; // jawline contour
+            } else {
+              col = (x + y) % 2 === 0 ? P.cowlBase : P.cowlDark;
+            }
+          } else if (face === 'back') {
+            // Rear skull reinforcement seam
+            col = (x === 3 || x === 4) ? P.cowlDark : ((x + y) % 2 === 0 ? P.cowlBase : P.cowlCarbon);
+          }
+
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Outer Mask & Brow Shell (8x8x8, cut: true, inflate: 0.22):
+    // Sleek molded composite helmet shell with down-turned brow ridge and 3D eye cutouts (Ref 1 & 3)
+    function paintMaskOuter(ctx, face, w, h) {
+      ctx.clearRect(0, 0, w, h);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let filled = false;
+          let col = P.maskBase;
+
+          if (face === 'front') {
+            // Rows 0-1: Smooth rounded composite helmet dome (Ref 1 & 3)
+            if (y === 0) {
+              filled = true;
+              col = (x === 0 || x === 7) ? P.maskDark : P.maskBase;
+            } else if (y === 1) {
+              filled = true;
+              col = (x === 0 || x === 7) ? P.maskDark : ((x + y) % 2 === 0 ? P.maskBase : P.maskCarbon);
+            }
+            // Row 2: Menacing furrowed brow ridge curving down toward the nose
+            else if (y === 2) {
+              filled = true;
+              if (x === 0 || x === 7) col = P.maskDark;
+              else if (x === 1 || x === 6) col = P.maskCarbon; // outer brow arch
+              else col = P.maskRidge; // brow ridge over eyes and nose
+            }
+            // Rows 3-4: Goggle frame and angular nose bridge (eyes at x=1,2 and x=5,6 are transparent cutouts!)
+            else if (y === 3) {
+              if (x === 0 || x === 7) {
+                filled = true;
+                col = P.maskDark;
+              } else if (x === 3 || x === 4) {
+                filled = true;
+                col = P.maskRidge; // nose bridge
+              }
+            } else if (y === 4) {
+              if (x === 0 || x === 7) {
+                filled = true;
+                col = P.maskDark;
+              } else if (x === 3 || x === 4) {
+                filled = true;
+                col = P.maskCarbon; // lower nose bridge
+              }
+            }
+            // Row 5: Lower orbital frame & molded cheekbone plates
+            else if (y === 5) {
+              filled = true;
+              if (x === 0 || x === 7) col = P.maskDark;
+              else if (x === 2 || x === 5) col = P.maskCarbon; // orbital socket rim under lenses
+              else col = P.maskBase;
+            }
+            // Rows 6 & 7: Completely transparent! The taut balaclava mouth and jawline remain sleek and form-fitting.
+          } else if (face === 'top') {
+            // Crown helmet dome
+            filled = true;
+            col = (x === 0 || x === w - 1 || y === 0 || y === h - 1) ? P.maskDark : ((x + y) % 2 === 0 ? P.maskBase : P.maskCarbon);
+          } else if (face === 'left' || face === 'right') {
+            // Temple armor plate and molded circular ear cover guard (Ref 1 & 2)
+            if (y <= 5) {
+              filled = true;
+              const fx = face === 'right' ? x : (w - 1 - x);
+              if (fx >= 3 && fx <= 5 && y >= 3 && y <= 5) {
+                // Circular ear cover guard
+                if (fx === 4 && y === 4) col = P.maskHighlight;
+                else col = P.maskRidge;
+              } else {
+                col = (y <= 1) ? P.maskBase : P.maskDark;
+              }
+            }
+          } else if (face === 'back') {
+            // Rear cowl protective shell
+            if (y <= 5) {
+              filled = true;
+              col = (x === 3 || x === 4) ? P.maskRidge : ((x + y) % 2 === 0 ? P.maskBase : P.maskCarbon);
+            }
+          }
+
+          if (filled) px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // High Bunched Balaclava Neck Gaiter (5.2x1.2x5.2): Accordion-pleated fabric folds (Ref 1)
+    function paintNeckGaiter(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = (y % 2 === 0) ? P.maskDark : P.maskBase;
+          if (x === 0 || x === w - 1) col = P.maskDark;
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Torso Undersuit (9x12x5): Ballistic fabric with athletic charcoal flank panels (Ref 1 & 3)
+    function paintTorso(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = (x + y) % 2 === 0 ? P.suitBase : P.suitWeave;
+          if (face === 'front') {
+            // Athletic charcoal grey flank stretch panels (Ref 1 & Ref 3)
+            if ((x <= 1 || x >= w - 2) && y >= 2 && y <= 9) {
+              col = (y % 2 === 0) ? P.flankGrey : P.flankHighlight;
+            }
+            // Lower waist horizontal ribbed flex seams
+            else if (y >= 10) {
+              col = (y % 2 === 0) ? P.suitDeep : P.suitBase;
+            }
+          } else if (face === 'left' || face === 'right') {
+            // Side ribbing
+            col = (y >= 2 && y <= 9 && y % 2 === 0) ? P.flankGrey : P.suitDeep;
+          } else if (face === 'back') {
+            // Athletic charcoal grey flank stretch panels (matching front flanks)
+            if ((x <= 1 || x >= w - 2) && y >= 2 && y <= 9) {
+              col = (y % 2 === 0) ? P.flankGrey : P.flankHighlight;
+            } else if (x === Math.floor(w / 2)) {
+              col = P.suitDeep;
+            }
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Segmented Pectoral Armor Plates (8.6x4.8x0.8): Dual composite chest plates with silver rivets (Ref 1 & 3)
+    function paintPectorals(ctx, face, w, h) {
+      const mid = Math.floor(w / 2);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.armorBase;
+          if (face === 'front') {
+            // Sternum vertical split gap
+            if (x === mid) {
+              col = P.armorDeep;
+            } else {
+              const isRight = x < mid;
+              const pxPos = isRight ? x : (w - 1 - x); // 0 (outer) to 3 (inner)
+              // Perimeter bevel border
+              if (pxPos === 0 || pxPos === 3 || y === 0 || y === h - 1) {
+                // Chamfer top-outer corners to create rounded pentagon shield shape
+                if (pxPos === 0 && (y === 0 || y === h - 1)) col = P.armorDeep;
+                else col = P.armorBevel;
+              }
+              // Silver corner rivets visible in reference 3
+              else if (pxPos === 2 && y === 1) {
+                col = P.armorRivet;
+              }
+              // Dark carbon fiber mesh center
+              else {
+                col = ((x + y) % 2 === 0) ? P.armorBase : P.armorDeep;
+              }
+            }
+          } else {
+            col = P.armorDeep;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // 6-Pack Abdominal Armor Plates (6.8x4.2x0.7): 6 sculpted trauma segments (Ref 1, 2, 3)
+    function paintAbs(ctx, face, w, h) {
+      const mid = Math.floor(w / 2);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.armorBase;
+          if (face === 'front') {
+            // Vertical center linea alba groove
+            if (x === mid) {
+              col = P.armorDeep;
+            }
+            // Horizontal groove separating upper and lower abs
+            else if (y === 2) {
+              col = P.armorDeep;
+            }
+            // Perimeter bevel borders for each segment
+            else if (x === 0 || x === mid - 1 || x === mid + 1 || x === w - 1 || y === 0 || y === h - 1) {
+              col = P.armorEdge;
+            }
+            // Individual pad cores
+            else {
+              col = ((x + y) % 2 === 0) ? P.armorBase : P.armorDeep;
+            }
+          } else {
+            col = P.armorDeep;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Segmented Spinal & Scapular Back Armor Plates (8.2x7.6x0.7):
+    // Dual composite scapula plates with silver rivets and lower spinal column armor (Ref 1 & 3)
+    function paintBackArmor(ctx, face, w, h) {
+      const mid = Math.floor(w / 2);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.armorBase;
+          if (face === 'back') {
+            // Central spinal vertical split trench
+            if (x === mid || (w % 2 === 0 && x === mid - 1)) {
+              col = (y % 2 === 0) ? P.armorDeep : P.armorEdge;
+            } else {
+              const isRight = x < mid;
+              const pxPos = isRight ? x : (w - 1 - x); // 0 (outer) to inner
+
+              // Upper Scapular Armor Plates (matching pectoral plates on front)
+              if (y <= 3) {
+                // Outer chamfered bevel border in gray armor
+                if (pxPos === 0 || pxPos === (Math.floor(w / 2) - 1) || y === 0 || y === 3) {
+                  col = (pxPos === 0 && (y === 0 || y === 3)) ? P.armorDeep : P.armorBevel;
+                }
+                // Silver corner rivets (matching front chest rivets)
+                else if (pxPos === 2 && y === 1) {
+                  col = P.armorRivet;
+                }
+                // Dark carbon plate core
+                else {
+                  col = ((x + y) % 2 === 0) ? P.armorBase : P.armorDeep;
+                }
+              }
+              // Horizontal groove separating upper and lower plates
+              else if (y === 4) {
+                col = P.armorDeep;
+              }
+              // Lower Lumbar & Kidney Armor Plates (matching abdominal trauma pads on front)
+              else {
+                // Beveled borders in gray armor
+                if (pxPos === 0 || pxPos === (Math.floor(w / 2) - 1) || y === h - 1) {
+                  col = P.armorBevel;
+                } else if (y === 5) {
+                  col = P.armorEdge;
+                } else {
+                  col = ((x + y) % 2 === 0) ? P.armorBase : P.armorDeep;
+                }
+              }
+            }
+          } else {
+            col = P.armorDeep;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Tactical Utility Belt & Pouches (9.5x1.8x5.5): Heavy duty nylon duty belt with steel buckle (Ref 1)
+    function paintBelt(ctx, face, w, h) {
+      const mid = Math.floor(w / 2);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.strapBase;
+          if (face === 'front') {
+            // Quick-release tactical gunmetal buckle
+            if (x >= mid - 1 && x <= mid + 1) {
+              col = (x === mid && y === 1) ? P.strapDark : ((y === 0 || y === h - 1) ? P.metalBright : P.metalBase);
+            } else if (x === mid - 2 || x === mid + 2) {
+              col = P.metalDark;
+            } else {
+              col = (x + y) % 2 === 0 ? P.strapBase : P.strapDark;
+            }
+          } else {
+            col = (x + y) % 2 === 0 ? P.strapBase : P.strapDark;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Belt Ammo / Gadget Pouch (1.2x1.8x1.6): Modular tactical hip pouch (Ref 1)
+    function paintPouch(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.armorBase;
+          if (y === 0) col = P.strapEdge; // top flap rim
+          else if (y === 1 && face === 'front') col = P.metalBright; // snap button
+          else col = P.armorDeep;
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Groin Codpiece Armor (3.4x2.4x0.8): Shield-shaped grooved groin protector (Ref 1, 2, 3)
+    function paintCodpiece(ctx, face, w, h) {
+      const mid = Math.floor(w / 2);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.armorBase;
+          if (face === 'front') {
+            // Center vertical ridge
+            if (x === mid) col = P.armorBevel;
+            // Angled shield border
+            else if (x === 0 || x === w - 1 || y === 0 || y === h - 1) col = P.armorEdge;
+            else col = P.armorDeep;
+          } else {
+            col = P.armorDeep;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Upper Arm Sleeve: Tactical ballistic fabric with composite bicep, tricep, and lateral armor plates
+    function paintUpperArm(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = (x + y) % 2 === 0 ? P.suitBase : P.suitWeave;
+          if (y === h - 1) {
+            col = P.suitDeep;
+          } else if (face === 'back' || face === 'left' || face === 'right' || face === 'front') {
+            // Tactical gray composite armor plate on front, back, and sides of upper arm
+            if (y >= 1 && y <= 4) {
+              if (x === 1 || x === 2) {
+                col = (y <= 2) ? P.armorBevel : P.armorEdge;
+              } else {
+                col = (y === 1 || y === 4) ? P.armorDeep : P.armorEdge;
+              }
+            }
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Tactical Shoulder Pauldron (4.4x1.4x4.4): Curved composite shoulder cup with gray armor bevels
+    function paintPauldron(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.armorBase;
+          if (face === 'top') {
+            col = (x === 0 || y === 0 || x === w - 1 || y === h - 1) ? P.armorBevel : P.armorDeep;
+          } else if (face === 'back' || face === 'left' || face === 'right' || face === 'front') {
+            // Gray bevel rim on all outer pauldron edges (front, back, and sides)
+            col = (y === 0 || x === 0 || x === w - 1) ? P.armorBevel : P.armorEdge;
+          } else {
+            col = P.armorDeep;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Forearm & Gauntlet: Armored bracer with composite armor on front, back, and sides, plus combat glove
+    function paintForearm(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.armorBase;
+          if (face === 'front') {
+            // Front forearm armor ridge (gray bevel and edge)
+            if (x === 1 || x === 2) col = (y <= 2) ? P.armorBevel : P.armorEdge;
+            else col = P.armorDeep;
+          } else if (face === 'back') {
+            // Back forearm & elbow armor plate (gray bevel and edge)
+            if (x === 1 || x === 2) col = (y <= 2) ? P.armorBevel : P.armorEdge;
+            else if (y <= 3) col = P.armorEdge;
+            else col = P.armorDeep;
+          } else if (face === 'left' || face === 'right') {
+            // Lateral gauntlet side armor guard (gray bevel and edge)
+            if (x === 1 || x === 2) col = (y <= 2) ? P.armorBevel : P.armorEdge;
+            else if (y <= 3) col = P.armorDeep;
+            else col = (x + y) % 2 === 0 ? P.armorBase : P.armorDeep;
+          } else if (face === 'bottom') {
+            col = P.metalDark; // reinforced glove knuckles
+          } else {
+            col = (x + y) % 2 === 0 ? P.armorBase : P.armorDeep;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Tactical Combat Knife (0.6x4.6x1.2): Double-edged gunmetal dagger (Ref 2)
+    function paintKnife(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.bladeSteel;
+          if (y <= 1) {
+            // Black tactical grip & pommel
+            col = (y === 0) ? P.metalBright : P.hiltBlack;
+          } else if (y === 2) {
+            // Crossguard
+            col = P.metalDark;
+          } else {
+            // Steel dagger blade
+            if (x === 0) col = P.bladeEdge; // sharpened cutting edge
+            else if (x === w - 1) col = P.bladeSteel;
+            else col = P.bladeDark; // fuller channel
+            if (y === h - 1) col = P.bladeEdge; // pointed tip
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Thighs: Cargo combat trousers with dual wrap-around harness straps and composite armor plates (Ref 1)
+    function paintThigh(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = (x + y) % 2 === 0 ? P.suitBase : P.suitWeave;
+          // Dual horizontal harness straps at y = 1 and y = 4 (Ref 1)
+          if (y === 1 || y === 4) {
+            if (face === 'front' && (x === 1 || x === 2)) {
+              col = P.metalBright; // snap buckle
+            } else {
+              col = P.strapDark; // nylon strap
+            }
+          }
+          // Gray composite armor plates on front, back, and sides of thigh between straps (y = 2, 3)
+          else if (y === 2 || y === 3) {
+            if (face === 'front' || face === 'back' || face === 'left' || face === 'right') {
+              if (x === 1 || x === 2) col = (y === 2) ? P.armorBevel : P.armorEdge;
+              else col = P.armorDeep;
+            }
+          } else if (y === h - 1) {
+            col = P.suitDeep; // lower flex joint
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Thigh Holster Rig (1.0x3.4x2.0): Drop-leg sheath with dual straps and gray armor rim (Ref 1)
+    function paintHolster(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.armorDeep;
+          if (y === 0 || y === h - 1) {
+            col = P.strapEdge; // buckle strap
+          } else if (face === 'left' || face === 'right') {
+            col = (x === 0 || x === w - 1) ? P.armorBevel : P.armorBase;
+          } else if (face === 'front' || face === 'back') {
+            col = (y === 1) ? P.armorBevel : P.armorEdge;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Calf & Shin Armor: Trouser shaft with composite calf muscle and lateral guards (Ref 1 & 3)
+    function paintCalf(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = (x + y) % 2 === 0 ? P.suitBase : P.suitWeave;
+          if (y === 0 || y === h - 1) {
+            col = P.suitDeep; // horizontal flex-ribs at knee and ankle
+          } else if (face === 'back') {
+            // Rear calf muscle armor guard
+            col = (x === 1 || x === 2) ? P.armorBevel : P.armorEdge;
+          } else if (face === 'left' || face === 'right') {
+            // Lateral calf side armor guard
+            col = (x === 1 || x === 2) ? P.armorBevel : P.armorEdge;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Knee Armor Pad (3.6x2.4x0.8): Molded composite knee cap with wrap-around gray armor bevel (Ref 1, 2, 3)
+    function paintKneePad(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.armorBase;
+          if (face === 'front') {
+            // Beveled border
+            if (x === 0 || x === w - 1 || y === 0 || y === h - 1) {
+              col = ((x === 0 && (y === 0 || y === h - 1)) || (x === w - 1 && (y === 0 || y === h - 1))) ? P.armorDeep : P.armorBevel;
+            } else {
+              col = P.armorBase;
+            }
+          } else if (face === 'left' || face === 'right') {
+            // Side wrap-around armor bevel
+            col = (y === 0 || y === h - 1 || x === 0) ? P.armorBevel : P.armorEdge;
+          } else if (face === 'top' || face === 'bottom') {
+            col = P.armorEdge;
+          } else {
+            col = P.armorDeep;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Shin & Lateral Calf Armor Guard with gray bevels on front, back, and sides (Ref 1 & 3)
+    function paintShinGuard(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.armorBase;
+          if (face === 'front' || face === 'back') {
+            col = (x === 0 || x === w - 1 || y === 0 || y === h - 1) ? P.armorBevel : P.armorDeep;
+          } else if (face === 'left' || face === 'right') {
+            col = (y === 0 || y === h - 1 || x === 0 || x === w - 1) ? P.armorBevel : P.armorEdge;
+          } else {
+            col = P.armorDeep;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Combat Boot Foot (4.2x2.2x5.0): Heavy treaded combat boot
+    function paintBootFoot(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.bootBase;
+          if (y === h - 1 || face === 'bottom') col = P.soleDark; // rubber tread
+          else if (face === 'top' || (face === 'front' && y === 0)) col = P.bootHighlight;
+          else col = (x + y) % 2 === 0 ? P.bootBase : P.soleDark;
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    /* ───────── Materials & Texture Atlas ───────── */
+    const atlas = document.createElement('canvas');
+    const atlasCtx = atlas.getContext('2d');
+    const atlasTex = new THREE.CanvasTexture(atlas);
+    atlasTex.magFilter = atlasTex.minFilter = THREE.NearestFilter;
+    atlasTex.generateMipmaps = false;
+    atlasTex.colorSpace = THREE.SRGBColorSpace;
+    let ATLAS_W = 128, ATLAS_H = 128;
+
+    const matCache = {};
+    function mat(rough = 0.88, metal = 0.08, cut = false) {
+      const key = rough + '|' + metal + '|' + cut;
+      return matCache[key] || (matCache[key] = new THREE.MeshStandardMaterial({
+        map: atlasTex, roughness: rough, metalness: metal,
+        alphaTest: cut ? 0.5 : 0, side: cut ? THREE.DoubleSide : THREE.FrontSide
+      }));
+    }
+
+    /* ───────── Model Rigging ───────── */
+    const mobRoot = new THREE.Group();
+    mobRoot.name = 'black_noir';
+    scene.add(mobRoot);
+
+    const bones = {};
+    const boneList = [];
+    const cubeList = [];
+
+    function bone(name, parent, x, y, z, rx = 0, ry = 0, rz = 0) {
+      const g = new THREE.Group();
+      g.name = name;
+      g.rotation.order = 'ZYX';
+      g.position.set(x * TEXEL, y * TEXEL, z * TEXEL);
+      g.rotation.set(rx, ry, rz);
+      g.userData = { rest: g.position.clone(), restRot: new THREE.Vector3(rx, ry, rz) };
+      (parent || mobRoot).add(g);
+      bones[name] = g;
+      boneList.push(g);
+      return g;
+    }
+
+    function box(b, name, w, h, d, x, y, z, painter, opt = {}) {
+      const inflate = opt.inflate || 0;
+      const geo = new THREE.BoxGeometry((w + inflate * 2) * TEXEL, (h + inflate * 2) * TEXEL, (d + inflate * 2) * TEXEL);
+      const nrm = geo.attributes.normal;
+      for (let i = 0; i < 24; i++) {
+        const f = i >> 2;
+        nrm.setXYZ(i, f === 0 ? 1 : f === 1 ? -1 : 0, f === 2 ? 1 : f === 3 ? -1 : 0, f === 4 ? 1 : f === 5 ? -1 : 0);
+      }
+      const mesh = new THREE.Mesh(geo, mat(opt.rough, opt.metal, opt.cut));
+      const rot = opt.rot || [0, 0, 0];
+      mesh.position.set(x * TEXEL, y * TEXEL, z * TEXEL);
+      mesh.rotation.order = 'ZYX';
+      mesh.rotation.set(rot[0], rot[1], rot[2]);
+      mesh.castShadow = opt.shadow !== false;
+      mesh.receiveShadow = true;
+      mesh.name = name;
+      b.add(mesh);
+      const c = { name, bone: b.name, size: [w, h, d], inflate, center: [x, y, z], rot, painter, mesh, shell: opt.shell || null, rects: [] };
+      cubeList.push(c);
+      return c;
+    }
+
+    /* ───────── Build Black Noir Hierarchy ───────── */
+    // Ground root pivot
+    const root = bone('root', null, 0, 0, 0);
+
+    // Pelvis / Body at y = 12 texels
+    const body = bone('body', root, 0, 12, 0);
+
+    // Chest & Upper Torso (9x12x5, broad muscular tactical build)
+    const chest = bone('chest', body, 0, 0, 0);
+    box(chest, 'torso_base', 9, 12, 5, 0, 6, 0, paintTorso);
+
+    // Segmented Pectoral Armor Plates with Silver Rivets (Ref 1 & 3)
+    box(chest, 'pectoral_armor', 8.6, 4.8, 0.8, 0, 8.8, 2.6, paintPectorals, { rough: 0.5, metal: 0.15 });
+
+    // 6-Pack Abdominal Trauma Armor (Ref 1, 2, 3)
+    box(chest, 'ab_armor', 6.8, 4.2, 0.7, 0, 4.2, 2.6, paintAbs, { rough: 0.5, metal: 0.15 });
+
+    // Spinal Reinforcement Plate with Segmented Scapula & Back Armor
+    box(chest, 'spine_armor', 8.2, 7.6, 0.7, 0, 5.8, -2.6, paintBackArmor, { rough: 0.5, metal: 0.15 });
+
+    // Tactical Utility Belt, Buckle & Double Hip Pouches (Ref 1)
+    box(chest, 'belt_strap', 9.5, 1.8, 5.5, 0, 1.4, 0, paintBelt, { rough: 0.65, metal: 0.35 });
+    box(chest, 'pouch_right_front', 1.2, 1.8, 1.6, -4.8, 1.4, 0.9, paintPouch, { rough: 0.6 });
+    box(chest, 'pouch_right_back', 1.2, 1.8, 1.6, -4.8, 1.4, -0.9, paintPouch, { rough: 0.6 });
+    box(chest, 'pouch_left_front', 1.2, 1.8, 1.6, 4.8, 1.4, 0.9, paintPouch, { rough: 0.6 });
+    box(chest, 'pouch_left_back', 1.2, 1.8, 1.6, 4.8, 1.4, -0.9, paintPouch, { rough: 0.6 });
+
+    // Groin Codpiece Armor Plate (Ref 1, 2, 3)
+    box(chest, 'codpiece', 3.4, 2.4, 0.8, 0, 0.4, 2.6, paintCodpiece, { rough: 0.55 });
+
+    // Balaclava Neck Gaiter Shroud (Ref 1)
+    box(chest, 'collar_trim', 5.2, 1.2, 5.2, 0, 11.6, 0, paintNeckGaiter, { inflate: 0.05 });
+
+    // Head mounted directly on chest at y = 12.0
+    const head = bone('head', chest, 0, 12.0, 0);
+    box(head, 'head_cowl', 8, 8, 8, 0, 4.0, 0, paintHead, { rough: 0.55 });
+
+    // Outer Mask & Brow Shell (8x8x8, inflate: 0.22, cut: true)
+    box(head, 'mask_outer', 8, 8, 8, 0, 4.0, 0, paintMaskOuter, { cut: true, rough: 0.45, metal: 0.15 });
+
+    // Arms with Tactical Pauldrons, Armored Gauntlets, and Dual Combat Knives
+    function buildArm(side, sx) {
+      const s = bone(`arm_${side}`, chest, sx * 6.8, 11.2, 0, 0, 0, sx * 0.08);
+      box(s, `upper_arm_${side}`, 4.0, 5.6, 4.0, 0, -2.8, 0, paintUpperArm);
+
+      // Curved Shoulder Armor Pauldron (Ref 1 & 3)
+      box(s, `pauldron_${side}`, 4.4, 1.4, 4.4, sx * 0.2, -0.30, 0, paintPauldron, { rough: 0.45, metal: 0.2 });
+      box(s, `arm_pouch_${side}`, 0.8, 1.8, 1.8, sx * 2.1, -2.4, 0, paintPouch, { rough: 0.6 });
+
+      const e = bone(`forearm_${side}`, s, 0, -5.8, 0, -0.08, 0, 0);
+      box(e, `lower_arm_${side}`, 3.8, 5.6, 3.8, 0, -2.8, 0, paintForearm);
+
+      // Forearm Gauntlet Bracer
+      box(e, `gauntlet_${side}`, 4.2, 3.8, 4.2, 0, -3.4, 0, paintForearm, { inflate: 0.05, rough: 0.45, metal: 0.2 });
+
+      // Combat Knife held in the fist (tactical reverse/combat dagger hold, Ref 2): on the forearm
+      // bone (rig rule: 2 bones per arm, no hand bone), blade runs on along the forearm line
+      box(e, `combat_knife_${side}`, 0.6, 5.2, 1.2, sx * 0.4, -7.6, 0.4, paintKnife, { rough: 0.35, metal: 0.65 });
+    }
+    // 2 bones per arm (rig rule): arm_<side> = upper arm (shoulder), forearm_<side> = forearm + fist + knife (elbow)
+    buildArm('right', -1);
+    buildArm('left', 1);
+
+    // Legs with Tactical Holsters, Knee Armor, Lateral Calf Guards, and Combat Boots
+    function buildLeg(side, sx) {
+      const hp = bone(`leg_${side}`, body, sx * 2.2, 0, 0);
+      box(hp, `thigh_${side}`, 4.2, 5.8, 4.2, 0, -2.8, 0, paintThigh);
+
+      // Drop-leg Tactical Holster (Ref 1)
+      box(hp, `holster_${side}`, 1.0, 3.4, 2.0, sx * 2.2, -2.6, 0.2, paintHolster, { rough: 0.55 });
+
+      const k = bone(`knee_${side}`, hp, 0, -5.6, 0);
+      box(k, `calf_${side}`, 4.0, 5.0, 4.0, 0, -2.3, 0, paintCalf);
+
+      // Sculpted Composite Knee Armor Pad (Ref 1, 2, 3) - proud at z = 2.15 to sit cleanly over shin guard
+      box(k, `knee_pad_${side}`, 3.6, 2.2, 0.8, 0, 0.0, 2.15, paintKneePad, { rough: 0.45, metal: 0.2 });
+
+      // Shin Armor Guard - recessed at z = 2.02, ending at y = -1.1 to eliminate co-planar overlap
+      box(k, `shin_guard_${side}`, 3.6, 2.6, 0.7, 0, -2.4, 2.02, paintShinGuard, { rough: 0.45, metal: 0.2 });
+
+      // Lateral Calf Armor / Sheath Guard (Ref 1 & 3)
+      box(k, `calf_outer_${side}`, 0.7, 2.8, 1.8, sx * 2.1, -2.4, 0.2, paintShinGuard, { rough: 0.45, metal: 0.2 });
+
+      // Heavy Combat Boot on the shin bone (rig rule: no ankle). Sole at knee - 6.4 = floor at rest.
+      box(k, `boot_${side}`, 4.2, 2.2, 5.0, 0, -5.3, 0.4, paintBootFoot, { rough: 0.5 });
+    }
+    // 2 bones per leg (rig rule): leg_<side> = thigh (hip), knee_<side> = shin + boot (knee)
+    buildLeg('right', -1);
+    buildLeg('left', 1);
+
+    const B = {};
+    boneList.forEach((b, i) => { B[b.name] = i; });
+    const NB = boneList.length;
+
+    /* ───────── Texture Atlas Packing ───────── */
+    const FACES = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+    const faceSize = (c, f) => {
+      const [w, h, d] = c.size, r = (v) => Math.max(1, Math.round(v));
+      return f < 2 ? [r(d), r(h)] : f < 4 ? [r(w), r(d)] : [r(w), r(h)];
+    };
+
+    (function packAtlas() {
+      const items = [];
+      for (const c of cubeList) for (let f = 0; f < 6; f++) { const [w, h] = faceSize(c, f); items.push({ c, f, w, h }); }
+      items.sort((a, b) => b.h - a.h || b.w - a.w);
+      let x = 1, y = 1, shelf = 0;
+      for (const it of items) {
+        if (x + it.w + 1 > ATLAS_W) { x = 1; y += shelf + 2; shelf = 0; }
+        it.c.rects[it.f] = { x, y, w: it.w, h: it.h };
+        x += it.w + 2;
+        shelf = Math.max(shelf, it.h);
+      }
+      while (y + shelf + 1 > ATLAS_H) ATLAS_H *= 2;
+      atlas.width = ATLAS_W; atlas.height = ATLAS_H;
+    })();
+
+    // Map face UVs to packed atlas rects
+    for (const c of cubeList) {
+      const uv = c.mesh.geometry.attributes.uv;
+      for (let f = 0; f < 6; f++) {
+        const r = c.rects[f];
+        for (let k = 0; k < 4; k++) {
+          const i = f * 4 + k, u = uv.getX(i), v = uv.getY(i);
+          uv.setXY(i, (r.x + u * r.w) / ATLAS_W, 1 - (r.y + (1 - v) * r.h) / ATLAS_H);
+        }
+      }
+      uv.needsUpdate = true;
+    }
+
+    const scratch = document.createElement('canvas');
+    scratch.width = scratch.height = 32;
+    const sctx = scratch.getContext('2d');
+    const GUTTER = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+    function paintAtlas() {
+      atlasCtx.imageSmoothingEnabled = false;
+      atlasCtx.clearRect(0, 0, ATLAS_W, ATLAS_H);
+      for (const c of cubeList) {
+        for (let f = 0; f < 6; f++) {
+          const r = c.rects[f];
+          sctx.clearRect(0, 0, 32, 32);
+          c.painter(sctx, FACES[f], r.w, r.h);
+          for (const [dx, dy] of GUTTER) atlasCtx.drawImage(scratch, 0, 0, r.w, r.h, r.x + dx, r.y + dy, r.w, r.h);
+          atlasCtx.clearRect(r.x, r.y, r.w, r.h);
+          atlasCtx.drawImage(scratch, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
+        }
+      }
+      atlasTex.needsUpdate = true;
+    }
+
+    function setVariant(i) {
+      P = { ...BASE, ...VARIANTS[i].pal };
+      paintAtlas();
+      document.querySelectorAll('.dot').forEach((d, k) => d.classList.toggle('active', k === i));
+    }
+
+    /* ───────── Pose Buffers & Kinematics ───────── */
+    function makePose() {
+      return { r: new Float32Array(NB * 3), p: new Float32Array(NB * 3), yawLimit: 0.45, follow: 1 };
+    }
+
+    function applyPose(p) {
+      for (let i = 0; i < NB; i++) {
+        const g = boneList[i];
+        const off = i * 3;
+        const rest = g.userData.rest;
+        const restRot = g.userData.restRot;
+        g.position.set(rest.x + p.p[off], rest.y + p.p[off + 1], rest.z + p.p[off + 2]);
+        g.rotation.set(restRot.x + p.r[off], restRot.y + p.r[off + 1], restRot.z + p.r[off + 2]);
+      }
+    }
+
+    function restPose() {
+      for (let i = 0; i < NB; i++) {
+        const g = boneList[i];
+        g.position.copy(g.userData.rest);
+        g.rotation.set(g.userData.restRot.x, g.userData.restRot.y, g.userData.restRot.z);
+      }
+      mobRoot.updateMatrixWorld(true);
+    }
+
+    function setBone(p, name, rx, ry, rz, px = 0, py = 0, pz = 0) {
+      const i = B[name];
+      if (i === undefined) return;
+      const off = i * 3;
+      p.r[off] = rx; p.r[off + 1] = ry; p.r[off + 2] = rz;
+      p.p[off] = px * TEXEL; p.p[off + 1] = py * TEXEL; p.p[off + 2] = pz * TEXEL;
+    }
+
+    function addRot(p, name, rx, ry, rz) {
+      const i = B[name];
+      if (i === undefined) return;
+      const off = i * 3;
+      p.r[off] += rx; p.r[off + 1] += ry; p.r[off + 2] += rz;
+    }
+
+    function blendPoses(out, a, b, t) {
+      const s = 1 - t;
+      for (let i = 0; i < NB * 3; i++) {
+        out.r[i] = a.r[i] * s + b.r[i] * t;
+        out.p[i] = a.p[i] * s + b.p[i] * t;
+      }
+      out.yawLimit = a.yawLimit * s + b.yawLimit * t;
+      out.follow = a.follow * s + b.follow * t;
+    }
+
+    /* ───────── Animation Curves & Easing ───────── */
+    function sampleCurve(pts, t) {
+      if (!pts || !pts.length) return 0;
+      if (t <= pts[0][0]) return pts[0][1];
+      const last = pts[pts.length - 1];
+      if (t >= last[0]) return last[1];
+      let i = 0;
+      while (i < pts.length - 1 && pts[i + 1][0] < t) i++;
+      const [t0, v0] = pts[i], [t1, v1] = pts[i + 1];
+      const f = (t - t0) / (t1 - t0);
+      const e = f * f * (3 - 2 * f);
+      return v0 + (v1 - v0) * e;
+    }
+
+    /* ───────── Legs + ground (2-bone legs, no ankle) ───────── */
+    // Boot geometry below the hip joint (texels): knee 5.6 down, sole 6.4 below the knee,
+    // heel 2.1 back and toe 2.9 forward of the shin line. The foot angle is hip + knee.
+    const THIGH = 5.6, SOLE = 6.4, HEEL = -2.1, TOE = 2.9, HIP_H = 12;
+    const TAU = Math.PI * 2;
+
+    // Smooth min (no corner where the two values cross)
+    function smin(a, b, k = 0.06) { return Math.min(a, b) - k * Math.log1p(Math.exp(-Math.abs(a - b) / k)); }
+
+    // Lowest boot point below the hip for hip angle h and knee angle k (Rx: y' = y cos - z sin)
+    function footLow(h, k) {
+      const a = h + k, c = Math.cos(a), s = Math.sin(a);
+      return -THIGH * Math.cos(h) + smin(-SOLE * c - HEEL * s, -SOLE * c - TOE * s);
+    }
+
+    // Set both legs (hip forward = negative, knee bend = positive) and the root height so the
+    // lower foot just touches the floor. `drop` lowers the hips via the knees only (no float).
+    function legs(p, hR, kR, hL, kL, splay = 0.03) {
+      setBone(p, 'leg_right', hR, 0, -splay); setBone(p, 'knee_right', kR, 0, 0);
+      setBone(p, 'leg_left', hL, 0, splay);   setBone(p, 'knee_left', kL, 0, 0);
+      setBone(p, 'root', 0, 0, 0, 0, -HIP_H - smin(footLow(hR, kR), footLow(hL, kL)) + 0.06, 0);
+    }
+
+    /* ───────── 3 Unique Animations ─────────
+       1. Idle: Silent Predator Vigil (4.0 s) - dead-still breathing, soft ready knees, micro-scan
+       2. Idle 2: Blade Flourish & Target Scan (5.0 s) - drops into a flat-footed combat crouch
+          (hips back, knees forward), both reverse-grip knives come up in a V-guard, sharp scan
+       3. Walk: Silent Stalker Prowl (2.0 s = 2 steps) - low, bent-knee, rolling heel-to-toe steps
+    */
+    const ANIMS = {
+      idle: {
+        T: 4.0,
+        eval(t, p) {
+          const w = (t / 4.0) * TAU;
+          const breath = Math.sin(w);
+          const breath2 = Math.cos(w);   // whole cycles per loop: no jump at the wrap
+
+          // Soft, ready knees (flat feet: hip = -knee/2 keeps the boots almost level)
+          legs(p, -0.04, 0.08 + 0.01 * breath, -0.04, 0.08 - 0.01 * breath);
+
+          // Controlled menacing chest rise and settle
+          setBone(p, 'body', 0, 0, 0);
+          setBone(p, 'chest', 0.04 + breath * 0.025, 0, 0, 0, breath * 0.06, 0);
+
+          // Subtle eerie predator head tilt and micro-scan
+          setBone(p, 'head', breath * 0.015, breath2 * 0.04, breath * 0.012);
+
+          // Arms held low beside the thigh holsters, knives pointing down, elbows a touch bent
+          setBone(p, 'arm_right', 0.04 + breath * 0.015, 0, -0.05);
+          setBone(p, 'forearm_right', -0.14, 0, 0);
+          setBone(p, 'arm_left', 0.04 + breath * 0.015, 0, 0.05);
+          setBone(p, 'forearm_left', -0.14, 0, 0);
+        }
+      },
+
+      idle2: {
+        T: 5.0,
+        eval(t, p) {
+          // Tactical combat check: crouch, raise reverse-grip blades, target scan (Ref 2)
+          const crouch = sampleCurve([[0, 0], [0.8, 1], [3.8, 1], [4.8, 0], [5.0, 0]], t);
+          const draw = sampleCurve([[0, 0], [0.8, 0], [1.4, 1], [3.4, 1], [4.2, 0], [5.0, 0]], t);
+          const scan = sampleCurve([[0, 0], [1.4, 0], [2.0, 1], [2.7, 1], [3.2, -0.6], [3.8, -0.6], [4.4, 0], [5.0, 0]], t);
+          const flex = Math.sin(t * TAU * 2) * draw * 0.02;
+
+          // Flat-footed combat crouch: thighs forward, knees bend the same amount (shin stays
+          // upright, boots flat), legs a bit wider; the hips sink through the leg solve
+          legs(p, -0.38 * crouch, 0.38 * crouch, -0.38 * crouch, 0.38 * crouch, 0.03 + 0.07 * crouch);
+
+          // Lean into the crouch from the chest (the body bone carries the legs, so it stays level)
+          setBone(p, 'body', 0, 0, 0);
+          setBone(p, 'chest', crouch * 0.16, scan * 0.04, 0);
+
+          // Sharp predator target lock
+          setBone(p, 'head', crouch * -0.06, scan * 0.35, scan * 0.10);
+
+          // Both knives up in front of the chest (no wrist bone): upper arms rise 0.6 forward and
+          // the elbows fold 1.75, so forearm + blade point up-forward at ~45 deg (fists at chin
+          // height); upper arms twist in and the forearms lean in for the V-guard
+          const elbowBend = -1.75 * draw - flex;
+          setBone(p, 'arm_right', -0.6 * draw, 0.15 * draw, -0.06 * draw);
+          setBone(p, 'forearm_right', elbowBend, 0, 0.12 * draw);
+          setBone(p, 'arm_left', -0.6 * draw, -0.15 * draw, 0.06 * draw);
+          setBone(p, 'forearm_left', elbowBend, 0, -0.12 * draw);
+        }
+      },
+
+      walk: {
+        T: 2.0,
+        eval(t, p) {
+          const ph = t / 2.0, w = ph * TAU;
+          const stride = Math.sin(w), strideCos = Math.cos(w);
+
+          // Per leg: hip -0.36 (forward) .. +0.36 (back); knees never straight (0.18 in stance:
+          // stealth), fold 0.95 in the swing (sin^2 halves: smooth)
+          const leg = (q) => {
+            const sp = Math.sin(TAU * q), sw = sp * sp, swing = sp < 0 ? 1 : 0;
+            return [-0.36 * Math.cos(TAU * q) - 0.12 * sw * swing - 0.06, 0.18 + (swing ? 0.95 : 0.06) * sw];
+          };
+          const [hR, kR] = leg(ph), [hL, kL] = leg(ph + 0.5);
+          legs(p, hR, kR, hL, kL);
+
+          // Forward-canted stealth posture, shoulders roll with the steps
+          setBone(p, 'body', 0, -strideCos * 0.04, 0, -0.25 * stride, 0, 0); // weight over the stance foot
+          setBone(p, 'chest', 0.14, strideCos * 0.08, -stride * 0.02);
+
+          // Head locked forward on target (counters the chest roll)
+          setBone(p, 'head', -0.14, -strideCos * 0.05, 0);
+
+          // Arms counter-swing tightly, knives low; elbows bend more on the forward swing
+          setBone(p, 'arm_right', 0.3 * strideCos, 0, -0.06);
+          setBone(p, 'forearm_right', -0.2 - 0.14 * (1 - strideCos) * 0.5, 0, 0);
+          setBone(p, 'arm_left', -0.3 * strideCos, 0, 0.06);
+          setBone(p, 'forearm_left', -0.2 - 0.14 * (1 + strideCos) * 0.5, 0, 0);
+        }
+      }
+    };
+
+    const ANIM_ORDER = ['idle', 'idle2', 'walk'];
+
+    /* ───────── Simulation State & Blend Engine ───────── */
+    function makeSim(seed = 1) {
+      return {
+        anim: 'idle',
+        prevAnim: 'idle',
+        time: 0,
+        prevTime: 0,
+        blend: 1,
+        blendDur: 0.32,
+        pose: makePose(),
+        prevPose: makePose(),
+        curPose: makePose(),
+        follow: { on: true, has: false, x: 0, y: 0, mx: 0, my: 0 }
+      };
+    }
+
+    function switchAnim(s, name) {
+      if (s.anim === name) return;
+      s.prevAnim = s.anim;
+      s.prevTime = s.time;
+      s.anim = name;
+      s.time = 0;
+      s.blend = 0;
+    }
+
+    function step(s, dt) {
+      s.time = (s.time + dt) % ANIMS[s.anim].T;
+      s.prevTime = (s.prevTime + dt) % ANIMS[s.prevAnim].T;
+      if (s.blend < 1) s.blend = Math.min(1, s.blend + dt / s.blendDur);
+
+      ANIMS[s.anim].eval(s.time, s.curPose);
+      if (s.blend < 1) {
+        ANIMS[s.prevAnim].eval(s.prevTime, s.prevPose);
+        const ease = s.blend * s.blend * (3 - 2 * s.blend);
+        blendPoses(s.pose, s.prevPose, s.curPose, ease);
+      } else {
+        for (let i = 0; i < NB * 3; i++) {
+          s.pose.r[i] = s.curPose.r[i];
+          s.pose.p[i] = s.curPose.p[i];
+        }
+        s.pose.yawLimit = s.curPose.yawLimit;
+        s.pose.follow = s.curPose.follow;
+      }
+
+      // Smooth mouse follow easing (Rule 78)
+      const f = s.follow;
+      const targetX = (f.on && f.has) ? f.mx : 0;
+      const targetY = (f.on && f.has) ? f.my : 0;
+      f.x += (targetX - f.x) * (1 - Math.exp(-dt * 12));
+      f.y += (targetY - f.y) * (1 - Math.exp(-dt * 12));
+
+      // Head tracking follows mouse
+      const yaw = THREE.MathUtils.clamp(f.x * 0.42, -s.pose.yawLimit, s.pose.yawLimit) * s.pose.follow;
+      const pitch = THREE.MathUtils.clamp(-f.y * 0.28, -0.08, 0.08) * s.pose.follow; // rule: head pitch ~±0.08 (no neck clipping)
+      addRot(s.pose, 'head', pitch, yaw, 0);
+
+      root.position.y = 0;
+      applyPose(s.pose);
+
+      // Ground clamp: soles never sink below floor y = 0
+      mobRoot.updateMatrixWorld(true);
+      let low = 0;
+      for (const c of SOLES) {
+        for (let k = 0; k < 8; k++) {
+          cornerVec.set(k & 1 ? c.h[0] : -c.h[0], k & 2 ? c.h[1] : -c.h[1], k & 4 ? c.h[2] : -c.h[2]).applyMatrix4(c.mesh.matrixWorld);
+          if (cornerVec.y < low) low = cornerVec.y;
+        }
+      }
+      if (low < 0) {
+        root.position.y -= low;
+        mobRoot.updateMatrixWorld(true);
+      }
+    }
+
+    const cornerVec = new THREE.Vector3();
+    const SOLES = cubeList.filter((c) => /^boot_/.test(c.name)).map((c) => ({
+      mesh: c.mesh,
+      h: [(c.size[0] / 2 + c.inflate) * TEXEL, (c.size[1] / 2 + c.inflate) * TEXEL, (c.size[2] / 2 + c.inflate) * TEXEL]
+    }));
+
+    /* ───────── Blockbench (.bbmodel) Exporter ───────── */
+    function r4(v) { return Math.round(v * 10000) / 10000; }
+    function uuid() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+    }
+
+    const bbVec = (v) => [r4(-v[0]), r4(v[1]), r4(v[2])];
+    const bbRot = (rx, ry, rz) => [r4(-rx * 180 / Math.PI), r4(-ry * 180 / Math.PI), r4(rz * 180 / Math.PI)];
+
+    function bakeAnimation(name) {
+      const A = ANIMS[name];
+      const fps = 24;
+      const totalFrames = Math.max(2, Math.round(A.T * fps));
+      const S = makeSim(1);
+      S.anim = name;
+      S.blend = 1;
+
+      const tracks = {};
+      boneList.forEach((g) => { tracks[g.name] = { rot: [], pos: [] }; });
+
+      for (let f = 0; f < totalFrames; f++) {
+        const t = (f / totalFrames) * A.T;
+        A.eval(t, S.curPose);
+        for (let i = 0; i < NB; i++) {
+          const g = boneList[i];
+          const b = g.name;
+          const off = i * 3;
+          tracks[b].rot.push(bbRot(S.curPose.r[off], S.curPose.r[off + 1], S.curPose.r[off + 2]));
+          tracks[b].pos.push(bbVec([S.curPose.p[off] / TEXEL, S.curPose.p[off + 1] / TEXEL, S.curPose.p[off + 2] / TEXEL]));
+        }
+      }
+
+      const animators = {};
+      const isRest = (list, def) => list.every((p) => Math.abs(p[0] - def) < 1e-4 && Math.abs(p[1] - def) < 1e-4 && Math.abs(p[2] - def) < 1e-4);
+      boneList.forEach((g) => {
+        const b = g.name, tr = tracks[b], keyframes = [];
+        const add = (channel, list) => list.forEach((v, f) => keyframes.push({
+          channel, data_points: [{ x: v[0], y: v[1], z: v[2] }], uuid: uuid(), time: r4(f / fps), color: -1, interpolation: 'catmullrom'
+        }));
+        if (!isRest(tr.rot, 0)) add('rotation', tr.rot);
+        if (!isRest(tr.pos, 0)) add('position', tr.pos);
+        if (keyframes.length) animators[g.userData.uuid] = { name: g.name, type: 'bone', keyframes };
+      });
+
+      return {
+        uuid: uuid(), name: `animation.black_noir.${name}`, loop: 'loop', override: false,
+        length: A.T, snapping: 24, selected: name === 'idle', anim_time_update: '', blend_weight: '',
+        start_delay: '', loop_delay: '', animators
+      };
+    }
+
+    function buildBBModel() {
+      const abs = new Map();
+      boneList.forEach((g) => {
+        g.userData.uuid = uuid();
+        const p = g.parent.isGroup && abs.has(g.parent) ? abs.get(g.parent) : [0, 0, 0];
+        const r = g.userData.rest;
+        abs.set(g, [p[0] + r.x / TEXEL, p[1] + r.y / TEXEL, p[2] + r.z / TEXEL]);
+      });
+
+      const elements = [];
+      const groupOf = {};
+      for (const c of cubeList) {
+        const id = uuid();
+        const bp = abs.get(bones[c.bone]);
+        const ctr = bbVec([bp[0] + c.center[0], bp[1] + c.center[1], bp[2] + c.center[2]]);
+        const [w, h, d] = c.size;
+        const R = (f) => { const r = c.rects[f]; return [r.x, r.y, r.x + r.w, r.y + r.h]; };
+        const Rf = (f) => { const r = c.rects[f]; return [r.x + r.w, r.y + r.h, r.x, r.y]; };
+        const rotated = c.rot.some((v) => v !== 0);
+
+        elements.push({
+          name: c.name, box_uv: false, rescale: false, locked: false, render_order: 'default', allow_mirror_modeling: true,
+          from: [r4(ctr[0] - w / 2), r4(ctr[1] - h / 2), r4(ctr[2] - d / 2)],
+          to: [r4(ctr[0] + w / 2), r4(ctr[1] + h / 2), r4(ctr[2] + d / 2)],
+          autouv: 0, color: 0, inflate: c.inflate,
+          origin: rotated ? ctr : bbVec(bp),
+          ...(rotated ? { rotation: bbRot(c.rot[0], c.rot[1], c.rot[2]) } : {}),
+          faces: {
+            north: { uv: R(4), texture: 0 }, south: { uv: R(5), texture: 0 },
+            east: { uv: R(1), texture: 0 }, west: { uv: R(0), texture: 0 },
+            up: { uv: Rf(2), texture: 0 }, down: { uv: Rf(3), texture: 0 }
+          },
+          type: 'cube', uuid: id
+        });
+        (groupOf[c.bone] = groupOf[c.bone] || []).push(id);
+      }
+
+      const outlinerNode = (g) => ({
+        name: g.name, origin: bbVec(abs.get(g)), rotation: bbRot(g.userData.restRot.x, g.userData.restRot.y, g.userData.restRot.z),
+        color: 0, uuid: g.userData.uuid, export: true, mirror_uv: false, isOpen: true, locked: false, visibility: true, autouv: 0,
+        children: [...(groupOf[g.name] || []), ...g.children.filter((ch) => ch.isGroup).map(outlinerNode)]
+      });
+
+      const animations = ANIM_ORDER.map(bakeAnimation);
+
+      return {
+        meta: { format_version: '4.5', model_format: 'free', box_uv: false },
+        name: 'black_noir', model_identifier: 'black_noir',
+        visible_box: [2, 2.5, 1], variable_placeholders: '', variable_placeholder_buttons: [],
+        resolution: { width: ATLAS_W, height: ATLAS_H },
+        elements, outliner: [outlinerNode(root)],
+        textures: [{
+          path: '', name: 'black_noir.png', folder: 'entity', namespace: '', id: '0', particle: false,
+          render_mode: 'default', render_sides: 'auto', frame_time: 1, frame_order_type: 'loop', frame_order: '',
+          frame_interpolate: false, visible: true, internal: true, saved: false, uuid: uuid(),
+          source: atlas.toDataURL('image/png')
+        }],
+        animations
+      };
+    }
+
+    /* ───────── Rig overlay ("Show bones" button, key B) ───────── */
+    // Same block in every mob. A dot on every bone pivot (yellow) and a line to its parent
+    // (cyan), drawn on top of the model. Buffers are made once; update() only rewrites them.
+    const rigView = (() => {
+      const list = boneList.filter((b) => b.name !== 'root');
+      const linePos = new Float32Array(list.length * 6), dotPos = new Float32Array(list.length * 3);
+      const lineGeo = new THREE.BufferGeometry(), dotGeo = new THREE.BufferGeometry();
+      lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+      dotGeo.setAttribute('position', new THREE.BufferAttribute(dotPos, 3));
+      const lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: 0x67e8f9, depthTest: false, transparent: true, opacity: 0.9 }));
+      const dots = new THREE.Points(dotGeo, new THREE.PointsMaterial({ color: 0xfacc15, size: 6, sizeAttenuation: false, depthTest: false, transparent: true }));
+      for (const o of [lines, dots]) { o.renderOrder = 999; o.frustumCulled = false; o.visible = false; scene.add(o); }
+      const a = new THREE.Vector3(), b = new THREE.Vector3();
+      return {
+        on: false,
+        set(on) { this.on = on; lines.visible = dots.visible = on; if (on) this.update(); },
+        update() {
+          mobRoot.updateMatrixWorld(true);
+          list.forEach((g, i) => {
+            g.getWorldPosition(a);
+            (g.parent.isGroup && g.parent !== mobRoot ? g.parent : g).getWorldPosition(b);
+            const j = i * 6, k = i * 3; // plain writes: no new arrays per frame
+            linePos[j] = b.x; linePos[j + 1] = b.y; linePos[j + 2] = b.z;
+            linePos[j + 3] = a.x; linePos[j + 4] = a.y; linePos[j + 5] = a.z;
+            dotPos[k] = a.x; dotPos[k + 1] = a.y; dotPos[k + 2] = a.z;
+          });
+          lineGeo.attributes.position.needsUpdate = true;
+          dotGeo.attributes.position.needsUpdate = true;
+        }
+      };
+    })();
+
+    /* ───────── UI Controls ───────── */
+    let sim = makeSim(999);
+    const toast = document.getElementById('toast');
+    let toastTimer = 0;
+
+    const dotsEl = document.getElementById('dots');
+    VARIANTS.forEach((v, i) => {
+      const d = document.createElement('button');
+      d.className = 'dot';
+      d.title = `${v.name} colors`;
+      d.style.background = (v.pal.armorBase || BASE.armorBase);
+      d.addEventListener('click', () => setVariant(i));
+      dotsEl.appendChild(d);
+    });
+
+    const animBtns = document.querySelectorAll('.anim-btn');
+    const markAnim = (name) => animBtns.forEach((b) => b.classList.toggle('active', b.dataset.anim === name));
+
+    function selectAnim(name) {
+      switchAnim(sim, name);
+      markAnim(name);
+    }
+    animBtns.forEach((b) => b.addEventListener('click', () => selectAnim(b.dataset.anim)));
+
+    const followBtn = document.getElementById('followBtn');
+    followBtn.addEventListener('click', () => {
+      sim.follow.on = !sim.follow.on;
+      followBtn.classList.toggle('on', sim.follow.on);
+      followBtn.setAttribute('aria-pressed', String(sim.follow.on));
+    });
+
+    let resetting = false;
+    document.getElementById('resetBtn').addEventListener('click', () => { resetting = true; });
+
+    document.getElementById('dlBtn').addEventListener('click', () => {
+      const data = buildBBModel();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'black_noir.bbmodel';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      const i = ['1', '2', '3'].indexOf(e.key);
+      if (i >= 0) selectAnim(ANIM_ORDER[i]);
+      if (e.key === 'r' || e.key === 'R') resetting = true;
+      if (e.key === 'b' || e.key === 'B') toggleBones();
+    });
+
+    const bonesBtn = document.getElementById('bonesBtn');
+    function toggleBones() {
+      rigView.set(!rigView.on);
+      bonesBtn.classList.toggle('on', rigView.on);
+      bonesBtn.setAttribute('aria-pressed', String(rigView.on));
+    }
+    bonesBtn.addEventListener('click', toggleBones);
+
+    window.addEventListener('pointermove', (e) => {
+      sim.follow.mx = (e.clientX / window.innerWidth) * 2 - 1;
+      sim.follow.my = -(e.clientY / window.innerHeight) * 2 + 1;
+      sim.follow.has = true;
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    /* ───────── Render Loop (Locked 60 / 120 FPS, Delta-Time) ───────── */
+    let lastT = performance.now();
+    let frameCount = 0;
+    let targetFps = 60;
+    let rates = [];
+
+    function frame(now) {
+      requestAnimationFrame(frame);
+      const rawDt = (now - lastT) / 1000;
+      lastT = now;
+
+      // Refresh rate auto-lock (Rule 14)
+      if (frameCount < 30) {
+        rates.push(rawDt);
+        frameCount++;
+        if (frameCount === 30) {
+          const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
+          targetFps = (avg <= 0.0092) ? 120 : 60;
+        }
+      }
+
+      const dt = Math.min(rawDt, 0.05);
+
+      if (resetting) {
+        camera.position.lerp(CAM_POS, 0.12);
+        controls.target.lerp(CAM_TARGET, 0.12);
+        if (camera.position.distanceTo(CAM_POS) < 0.02 && controls.target.distanceTo(CAM_TARGET) < 0.02) {
+          camera.position.copy(CAM_POS);
+          controls.target.copy(CAM_TARGET);
+          resetting = false;
+        }
+        controls.update();
+      } else {
+        controls.update();
+      }
+
+      step(sim, dt);
+      if (rigView.on) rigView.update();
+      renderer.render(scene, camera);
+    }
+
+    // Initial texture generation
+    setVariant(0);
+
+    /* ───────── Automated Numerical Collision Test Suite (#cliptest) ───────── */
+    function clipTest() {
+      const meshes = cubeList.map((c) => c.mesh);
+      const inv = meshes.map(() => new THREE.Matrix4());
+      const half = cubeList.map((c) => {
+        const [w, h, d] = c.size;
+        return [(w / 2 + c.inflate) * TEXEL, (h / 2 + c.inflate) * TEXEL, (d / 2 + c.inflate) * TEXEL];
+      });
+
+      const pts = cubeList.map((c, idx) => {
+        const [hx, hy, hz] = half[idx];
+        const list = [];
+        const N = 4;
+        for (let u = 0; u <= N; u++) {
+          for (let v = 0; v <= N; v++) {
+            const fu = (u / N) * 2 - 1, fv = (v / N) * 2 - 1;
+            list.push([hx, fu * hy, fv * hz], [-hx, fu * hy, fv * hz]);
+            list.push([fu * hx, hy, fv * hz], [fu * hx, -hy, fv * hz]);
+            list.push([fu * hx, fv * hy, hz], [fu * hx, fv * hy, -hz]);
+          }
+        }
+        return list.map((p) => new THREE.Vector3(...p));
+      });
+      const radius = half.map((h) => Math.hypot(h[0], h[1], h[2]) * 2.2);
+      const centers = meshes.map(() => new THREE.Vector3());
+      const EPS = 0.06, LAYER = 0.15;
+      const wp = new THREE.Vector3(), lp = new THREE.Vector3();
+
+      function depthInside(j, p) {
+        const [hx, hy, hz] = half[j];
+        const dx = hx - Math.abs(p.x), dy = hy - Math.abs(p.y), dz = hz - Math.abs(p.z);
+        if (dx <= 0 || dy <= 0 || dz <= 0) return 0;
+        return Math.min(dx, dy, dz);
+      }
+
+      function measure() {
+        mobRoot.updateMatrixWorld(true);
+        meshes.forEach((m, i) => { inv[i].copy(m.matrixWorld).invert(); centers[i].setFromMatrixPosition(m.matrixWorld); });
+        const res = new Map();
+        for (let i = 0; i < meshes.length; i++) for (let j = 0; j < meshes.length; j++) {
+          if (i === j || cubeList[i].bone === cubeList[j].bone) continue;
+          if (centers[i].distanceTo(centers[j]) > radius[i] + radius[j]) continue;
+          let worst = 0;
+          for (const p of pts[i]) {
+            wp.copy(p).applyMatrix4(meshes[i].matrixWorld);
+            lp.copy(wp).applyMatrix4(inv[j]);
+            const d = depthInside(j, lp);
+            if (d > worst) worst = d;
+          }
+          if (worst > 0) res.set(i + ':' + j, worst / TEXEL);
+        }
+        return res;
+      }
+
+      const JOINTS = [
+        [/^(thigh_|calf_|boot_|holster_|knee_pad_|shin_guard_|calf_outer_)/, /^(torso_base|belt_strap|codpiece|pouch_)/],
+        [/^(calf_|boot_|knee_pad_|shin_guard_|calf_outer_)/, /^(thigh_|holster_)/],
+        [/^boot_/, /^(calf_|shin_guard_|calf_outer_)/],
+        [/^(lower_arm_|gauntlet_|combat_knife_)/, /^(upper_arm_|pauldron_|arm_pouch_)/],
+        [/^combat_knife_/, /^(lower_arm_|gauntlet_)/],
+        [/^(upper_arm_|pauldron_)/, /^(torso_base|collar_trim|head_cowl|mask_outer)$/],
+        [/^(head_cowl|mask_outer)$/, /^(torso_base|collar_trim|spine_armor)$/]
+      ];
+      const isJoint = (a, b) => JOINTS.some(([x, y]) => (x.test(a) && y.test(b)) || (x.test(b) && y.test(a)));
+
+      restPose();
+      const baseline = measure();
+      const report = {
+        cubes: cubeList.length, bones: NB, atlas: [ATLAS_W, ATLAS_H],
+        clips: {}, joints: {}, ground: {},
+        layeredAtRest: [...baseline].filter(([, d]) => d > EPS).map(([k, d]) => k.split(':').map((i) => cubeList[i].name).join(' / ') + ' ' + d.toFixed(2))
+      };
+
+      const boots = cubeList.filter((c) => /^boot_/.test(c.name));
+      const corner = new THREE.Vector3();
+      const mice = [[0, 0], [-0.95, 0], [0.95, 0], [0, 0.95], [0, -0.95]];
+
+      for (const name of ANIM_ORDER) {
+        let low = 99;
+        for (const [, [mx, my]] of mice.entries()) {
+          const S = makeSim(99);
+          S.anim = name;
+          Object.assign(S.follow, { on: true, has: true, mx, my });
+          const dt = 1 / 120;
+          for (let t = 0; t < ANIMS[name].T; t += dt) step(S, dt);
+          let since = 0;
+          for (let t = 0; t < ANIMS[name].T * 2; t += dt) {
+            step(S, dt);
+            since += dt;
+            if (since < 1 / 20) continue;
+            since = 0;
+            for (const [key, d] of measure()) {
+              const base = baseline.get(key) || 0;
+              const [i, j] = key.split(':').map(Number);
+              const a = cubeList[i].name, b = cubeList[j].name;
+              const joint = isJoint(a, b);
+              if (!joint && d <= (base > EPS ? base + LAYER : EPS)) continue;
+              if (joint && d <= base + EPS) continue;
+              const bucket = joint ? report.joints : report.clips;
+              const id = `${a} in ${b}`;
+              if (!bucket[id] || bucket[id].depth < d) bucket[id] = { depth: +d.toFixed(3), rest: +base.toFixed(3), anim: name };
+            }
+            for (const c of boots) {
+              const [hx, hy, hz] = half[cubeList.indexOf(c)];
+              for (let k = 0; k < 8; k++) {
+                corner.set(k & 1 ? hx : -hx, k & 2 ? hy : -hy, k & 4 ? hz : -hz).applyMatrix4(c.mesh.matrixWorld);
+                low = Math.min(low, corner.y / TEXEL);
+              }
+            }
+          }
+        }
+        report.ground[name] = +low.toFixed(3);
+      }
+
+      const bb = buildBBModel();
+      const badUV = bb.elements.filter((e) => Object.values(e.faces).some((f) => f.uv.some((v, k) => v < 0 || v > (k % 2 ? ATLAS_H : ATLAS_W)))).map((e) => e.name);
+      report.export = {
+        elements: bb.elements.length, badUV,
+        animations: bb.animations.map((a) => ({ name: a.name, bones: Object.keys(a.animators).length, keyframes: Object.values(a.animators).reduce((n, x) => n + x.keyframes.length, 0) })),
+        bytes: JSON.stringify(bb).length
+      };
+
+      const out = document.createElement('pre');
+      out.id = 'cliptest';
+      out.textContent = JSON.stringify(report, null, 1);
+      document.body.appendChild(out);
+    }
+
+    function dumpFrame() {
+      controls.update();
+      renderer.render(scene, camera);
+      const out = document.createElement('pre');
+      out.id = 'shot';
+      out.textContent = canvas.toDataURL('image/png');
+      document.body.appendChild(out);
+    }
+
+    function shot(anim, variant, secs) {
+      setVariant(variant);
+      sim.anim = anim;
+      Object.assign(sim.follow, { has: true, mx: 0.22, my: 0.12 });
+      for (let t = 0; t < secs; t += 1 / 60) step(sim, 1 / 60);
+      dumpFrame();
+    }
+
+    window.setVariant = setVariant;
+    window.selectAnim = selectAnim;
+    window.blackNoirDebug = { cubeList, bones, atlas, sim, ANIMS, camera, controls, dumpFrame, setVariant, selectAnim, buildBBModel, rigView, toggleBones };
+    if (location.hash === '#cliptest') clipTest();
+    else if (location.hash === '#rest') { restPose(); dumpFrame(); }
+    else if (location.hash.startsWith('#shot')) { const [, a, v, s] = location.hash.split('-'); shot(a, +v, +s); }
+    else requestAnimationFrame(frame);
+  </script>
+</body>
+</html>

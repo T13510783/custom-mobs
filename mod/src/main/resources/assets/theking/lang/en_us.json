@@ -1,0 +1,15 @@
+{
+  "entity.theking.the_king": "The King",
+  "item.theking.the_king_spawn_egg": "The King Spawn Egg",
+  "itemGroup.theking": "The King",
+  "subtitles.theking.voice": "The King talks",
+  "subtitles.theking.dance": "The King dances",
+  "theking.configuration.title": "The King Settings",
+  "theking.configuration.naturalSpawns": "Natural spawns",
+  "theking.configuration.dropkick": "Dropkick attack",
+  "theking.configuration.dropkickDamageMultiplier": "Dropkick damage multiplier",
+  "theking.configuration.danceOnKill": "Dance after a kill",
+  "theking.configuration.voiceLines": "Voice lines",
+  "theking.configuration.voiceVolume": "Voice volume",
+  "theking.configuration.musicVolume": "Dance music volume"
+}

@@ -1,0 +1,1761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Vanilla+ Crowned Traveler — 16x16 Blockbench Model Viewer & Exporter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0f1115;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    #viewport {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      outline: none;
+      cursor: grab;
+    }
+    #viewport:active {
+      cursor: grabbing;
+    }
+    .glass-pill {
+      background: rgba(20, 23, 30, 0.82);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+    .anim-btn {
+      position: relative;
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      color: rgba(255, 255, 255, 0.58);
+    }
+    .anim-btn:hover {
+      color: rgba(255, 255, 255, 0.92);
+    }
+    .anim-btn.active {
+      color: #fef3c7;
+      background: rgba(217, 119, 6, 0.24);
+      border-color: rgba(245, 158, 11, 0.45);
+      box-shadow: 0 0 18px rgba(217, 119, 6, 0.24);
+    }
+    .action-btn {
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      color: rgba(255, 255, 255, 0.75);
+    }
+    .action-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.09);
+      transform: translateY(-1px);
+    }
+    .action-btn:active {
+      transform: translateY(0) scale(0.97);
+    }
+    .bb-btn {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.32), rgba(14, 165, 233, 0.22));
+      border: 1px solid rgba(56, 189, 248, 0.42);
+      color: #e0f2fe;
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      box-shadow: 0 4px 18px rgba(14, 165, 233, 0.18);
+    }
+    .bb-btn:hover {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.48), rgba(14, 165, 233, 0.36));
+      border-color: rgba(125, 211, 252, 0.65);
+      color: #ffffff;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 22px rgba(14, 165, 233, 0.3);
+    }
+    .bb-btn:active {
+      transform: translateY(0) scale(0.98);
+    }
+    .pixelated-canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background-image:
+        linear-gradient(45deg, #181b22 25%, transparent 25%),
+        linear-gradient(-45deg, #181b22 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #181b22 75%),
+        linear-gradient(-45deg, transparent 75%, #181b22 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+      background-color: #12141a;
+    }
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#0f1115] text-white antialiased">
+
+  <!-- 3D Viewport Canvas -->
+  <canvas id="viewport"></canvas>
+
+  <!-- Top Floating Header & Quick Export Pill -->
+  <div class="fixed top-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 px-2 max-w-full">
+    <div class="glass-pill rounded-full px-4 py-2 flex items-center gap-3">
+      <span class="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24]"></span>
+      <span class="text-xs font-medium tracking-wide text-slate-200 whitespace-nowrap">Crowned Traveler</span>
+      <span class="text-[11px] mono text-slate-400 hidden sm:inline">16×16 Texel Scale</span>
+    </div>
+
+    <button id="quickExportBbBtn" class="glass-pill bb-btn rounded-full px-4 py-2 flex items-center gap-2 text-xs font-semibold tracking-wide whitespace-nowrap">
+      <!-- Blockbench Cube Icon -->
+      <svg class="w-4 h-4 text-sky-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+        <line x1="12" y1="22.08" x2="12" y2="12"/>
+      </svg>
+      <span>Download .bbmodel</span>
+    </button>
+
+    <button id="openExportModalBtn" title="Export Options & UV Atlas" class="glass-pill action-btn rounded-full px-3.5 py-2 flex items-center gap-1.5 text-xs font-medium whitespace-nowrap">
+      <svg class="w-3.5 h-3.5 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+      </svg>
+      <span class="hidden md:inline">Atlas & Formats</span>
+    </button>
+  </div>
+
+  <!-- Toast Notification Banner -->
+  <div id="exportToast" class="fixed top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none opacity-0 -translate-y-2 transition-all duration-300">
+    <div class="glass-pill rounded-full px-4 py-2 flex items-center gap-2.5 border border-emerald-400/30 bg-emerald-950/70 text-emerald-100 text-xs font-medium shadow-lg">
+      <svg class="w-4 h-4 text-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 6L9 17l-5-5"/>
+      </svg>
+      <span id="exportToastText">Exported crowned_traveler.bbmodel!</span>
+    </div>
+  </div>
+
+  <!-- Bottom Floating Animation Pill Bar -->
+  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 pointer-events-auto">
+    <nav class="glass-pill rounded-full p-1.5 flex items-center gap-1" aria-label="Animation Controls">
+      <button data-anim="idle" class="anim-btn active px-4 py-1.5 rounded-full text-xs font-medium tracking-wide border border-transparent">
+        Idle
+      </button>
+      <button data-anim="walk" class="anim-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide border border-transparent">
+        Walk
+      </button>
+      <button data-anim="attack" class="anim-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide border border-transparent">
+        Attack
+      </button>
+      <button data-anim="special" class="anim-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide border border-transparent">
+        Special
+      </button>
+    </nav>
+
+    <button id="resetCameraBtn" title="Reset Camera" aria-label="Reset Camera" class="glass-pill action-btn w-9 h-9 rounded-full flex items-center justify-center">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Blockbench Export & Texture Atlas Modal -->
+  <div id="exportModal" class="fixed inset-0 z-40 hidden items-center justify-center p-4 bg-black/65 backdrop-blur-sm">
+    <div class="glass-pill rounded-2xl w-full max-w-lg p-6 border border-white/10 text-slate-100 shadow-2xl">
+      <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h2 class="text-base font-semibold text-white flex items-center gap-2">
+            <svg class="w-5 h-5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+              <line x1="12" y1="22.08" x2="12" y2="12"/>
+            </svg>
+            Import into Blockbench
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Complete bone hierarchy, pivots, per-face UVs, embedded 128×128 texture atlas, and baked animations.
+          </p>
+        </div>
+        <button id="closeExportModalBtn" class="action-btn w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-white">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Atlas Preview & Stats -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-black/35 rounded-xl p-3.5 border border-white/5 mb-4">
+        <div class="flex flex-col items-center justify-center">
+          <div class="relative rounded-lg overflow-hidden border border-white/10 p-1.5 pixelated-canvas">
+            <canvas id="atlasPreviewCanvas" width="128" height="128" class="w-36 h-36 pixelated-canvas block"></canvas>
+          </div>
+          <span class="text-[11px] mono text-slate-400 mt-2">128×128 Packed UV Atlas</span>
+        </div>
+
+        <div class="flex flex-col justify-between text-xs space-y-2.5">
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-slate-300">
+              <span class="text-slate-400">Model Format:</span>
+              <span class="mono font-medium text-sky-300">Blockbench (.bbmodel)</span>
+            </div>
+            <div class="flex justify-between text-slate-300">
+              <span class="text-slate-400">Bone Groups:</span>
+              <span id="statBones" class="mono font-medium">19</span>
+            </div>
+            <div class="flex justify-between text-slate-300">
+              <span class="text-slate-400">Texel Cubes:</span>
+              <span id="statCubes" class="mono font-medium">23</span>
+            </div>
+            <div class="flex justify-between text-slate-300">
+              <span class="text-slate-400">Animations:</span>
+              <span class="mono font-medium text-amber-300">Idle, Walk, Attack, Special</span>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-white/10 space-y-2">
+            <label class="flex items-center gap-2 cursor-pointer text-slate-200">
+              <input id="includeCruiserCheckbox" type="checkbox" class="rounded border-white/20 bg-slate-900 text-sky-500 focus:ring-0">
+              <span>Include Cruiser Car Wheel Prop</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer text-slate-200">
+              <input id="includeAnimsCheckbox" type="checkbox" checked class="rounded border-white/20 bg-slate-900 text-sky-500 focus:ring-0">
+              <span>Include Keyframed Animations</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export Buttons -->
+      <div class="space-y-2.5">
+        <button id="downloadBbmodelBtn" class="bb-btn w-full py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>Download Blockbench Project (.bbmodel) — Recommended</span>
+        </button>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <button id="downloadGeoJsonBtn" class="action-btn bg-white/5 border border-white/10 py-2 px-3 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            <span>Bedrock (.geo.json)</span>
+          </button>
+
+          <button id="downloadAtlasPngBtn" class="action-btn bg-white/5 border border-white/10 py-2 px-3 rounded-xl text-xs font-medium flex items-center justify-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-emerald-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            <span>Texture Sheet (.png)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Instructions Footer -->
+      <div class="mt-4 pt-3 border-t border-white/10 text-[11px] text-slate-400 leading-relaxed">
+        <strong class="text-slate-200">How to open in Blockbench:</strong> Launch Blockbench (Desktop or <span class="mono text-slate-300">web.blockbench.net</span>) and drag &amp; drop <span class="mono text-sky-300">crowned_traveler.bbmodel</span> directly into the window, or click <span class="text-slate-200">File &rarr; Open Model</span>.
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const canvas = document.getElementById('viewport');
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      powerPreference: 'high-performance'
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f1115);
+    scene.fog = new THREE.FogExp2(0x0f1115, 0.018);
+
+    // Strict 16x16 Vanilla+ scale: 1 texel = 1/16 block unit
+    const TEXEL = 1 / 16;
+
+    const DEFAULT_CAM_POS = new THREE.Vector3(2.45, 1.72, 2.85);
+    const DEFAULT_TARGET = new THREE.Vector3(0.0, 1.04, 0.0);
+
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 60);
+    camera.position.copy(DEFAULT_CAM_POS);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.copy(DEFAULT_TARGET);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.065;
+    controls.minDistance = 1.4;
+    controls.maxDistance = 7.0;
+    controls.maxPolarAngle = Math.PI * 0.492;
+    controls.update();
+
+    // Warm golden-hour studio lighting
+    const ambientLight = new THREE.HemisphereLight(0xffedd5, 0x161922, 0.92);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xfff7ed, 2.35);
+    keyLight.position.set(3.8, 6.2, 4.2);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    keyLight.shadow.camera.near = 0.5;
+    keyLight.shadow.camera.far = 18;
+    const shadowBound = 2.4;
+    keyLight.shadow.camera.left = -shadowBound;
+    keyLight.shadow.camera.right = shadowBound;
+    keyLight.shadow.camera.top = shadowBound;
+    keyLight.shadow.camera.bottom = -shadowBound;
+    keyLight.shadow.bias = -0.0005;
+    keyLight.shadow.radius = 3.5;
+    scene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0xfbbf24, 0.95);
+    rimLight.position.set(-3.8, 3.2, -3.4);
+    scene.add(rimLight);
+
+    const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.42);
+    fillLight.position.set(-2.8, 1.6, 3.2);
+    scene.add(fillLight);
+
+    // Soft ground shadow catcher
+    const shadowPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(20, 20),
+      new THREE.ShadowMaterial({ opacity: 0.46 })
+    );
+    shadowPlane.rotation.x = -Math.PI / 2;
+    shadowPlane.position.y = 0;
+    shadowPlane.receiveShadow = true;
+    scene.add(shadowPlane);
+
+    function hash2D(x, y, seed = 1) {
+      const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123;
+      return n - Math.floor(n);
+    }
+
+    const PAL = {
+      // Skin tones
+      skinLight: '#f4c7b0',
+      skinBase: '#e5af95',
+      skinWarm: '#d6977b',
+      skinRosy: '#d98473',
+      skinShadow: '#b8765c',
+      skinDeep: '#8f553f',
+
+      // Facial details
+      eyeWhite: '#f8fafc',
+      eyeIris: '#4a3728',
+      eyePupil: '#1c140d',
+      browHair: '#6e5038',
+      lipRosy: '#b56557',
+      lipLine: '#7c3f34',
+
+      // Wavy shoulder-length brown hair
+      hairDark: '#3d281a',
+      hairBase: '#593d28',
+      hairWarm: '#735138',
+      hairHighlight: '#8f684b',
+      hairGolden: '#a67c5b',
+
+      // Golden paper crown + front logo
+      crownGoldLight: '#fef08a',
+      crownGold: '#facc15',
+      crownGoldWarm: '#eab308',
+      crownGoldShadow: '#ca8a04',
+      crownLogoRed: '#dc2626',
+      crownLogoOrange: '#f59e0b',
+      crownLogoWhite: '#ffffff',
+      crownJewel: '#a16207',
+
+      // Red paisley bandana on chin/neck
+      bandanaDark: '#7f1d1d',
+      bandanaRed: '#b91c1c',
+      bandanaBright: '#dc2626',
+      bandanaPaisley: '#fca5a5',
+      bandanaWhite: '#fee2e2',
+
+      // Pastel pink short-sleeve button-down shirt
+      shirtLight: '#fce7f3',
+      shirtBase: '#f9d5e5',
+      shirtFold: '#eebec2',
+      shirtShadow: '#dc9fa6',
+      shirtButton: '#ffffff',
+      badgeGreen: '#86efac',
+      badgeGrey: '#cbd5e1',
+
+      // Black smartphone in left breast pocket
+      phoneBlack: '#0f172a',
+      phoneSlate: '#1e293b',
+      phoneEdge: '#334155',
+      phoneLens: '#020617',
+
+      // Brown leather belt & khaki slacks
+      beltLeather: '#451a03',
+      beltWarm: '#652b0d',
+      beltBuckle: '#e2e8f0',
+      khakiLight: '#dcd3c2',
+      khakiBase: '#cfc3ae',
+      khakiFold: '#b8aa93',
+      khakiShadow: '#9c8d76',
+
+      // Brown leather shoes
+      shoeDark: '#29150c',
+      shoeBrown: '#432314',
+      shoeHighlight: '#5c331e',
+      shoeSole: '#170d08',
+
+      // White paper napkin / bag
+      paperWhite: '#ffffff',
+      paperSoft: '#f1f5f9',
+      paperCrease: '#cbd5e1',
+      paperShadow: '#94a3b8',
+
+      // Custom Red/Yellow Cruiser Car Wheel prop
+      carRed: '#b91c1c',
+      carBrightRed: '#dc2626',
+      carYellow: '#facc15',
+      carBlueStripe: '#1d4ed8',
+      tireBlack: '#111827',
+      rimGold: '#eab308',
+      rimGoldBright: '#fde047'
+    };
+
+    function px(ctx, x, y, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, 1, 1);
+    }
+
+    /**
+     * Builds a strict 16x16 texel-aligned box mesh where 1 unit = 1 texel (scaled by TEXEL).
+     * Stores the 6 procedural face canvases and dimensions in `mesh.userData` for Blockbench export.
+     */
+    function createTexelBox(w, h, d, painterFn, options = {}) {
+      const inflate = options.inflate || 0;
+      const transparent = options.transparent || false;
+      const castShadow = options.castShadow !== undefined ? options.castShadow : true;
+      const receiveShadow = options.receiveShadow !== undefined ? options.receiveShadow : true;
+      const name = options.name || 'cube';
+
+      const geom = new THREE.BoxGeometry(
+        (w + inflate * 2) * TEXEL,
+        (h + inflate * 2) * TEXEL,
+        (d + inflate * 2) * TEXEL
+      );
+
+      // BoxGeometry material order: [right(+x), left(-x), top(+y), bottom(-y), front(+z), back(-z)]
+      const faceSpecs = [
+        { name: 'right',  cw: Math.max(1, Math.round(d)), ch: Math.max(1, Math.round(h)) },
+        { name: 'left',   cw: Math.max(1, Math.round(d)), ch: Math.max(1, Math.round(h)) },
+        { name: 'top',    cw: Math.max(1, Math.round(w)), ch: Math.max(1, Math.round(d)) },
+        { name: 'bottom', cw: Math.max(1, Math.round(w)), ch: Math.max(1, Math.round(d)) },
+        { name: 'front',  cw: Math.max(1, Math.round(w)), ch: Math.max(1, Math.round(h)) },
+        { name: 'back',   cw: Math.max(1, Math.round(w)), ch: Math.max(1, Math.round(h)) }
+      ];
+
+      const faceCanvases = {};
+
+      const materials = faceSpecs.map((spec) => {
+        const c = document.createElement('canvas');
+        c.width = spec.cw;
+        c.height = spec.ch;
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
+        painterFn(ctx, spec.name, spec.cw, spec.ch);
+        faceCanvases[spec.name] = c;
+
+        const tex = new THREE.CanvasTexture(c);
+        tex.magFilter = THREE.NearestFilter;
+        tex.minFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.needsUpdate = true;
+
+        return new THREE.MeshStandardMaterial({
+          map: tex,
+          roughness: options.roughness ?? 0.85,
+          metalness: options.metalness ?? 0.03,
+          transparent,
+          alphaTest: transparent ? 0.5 : 0,
+          side: transparent ? THREE.DoubleSide : THREE.FrontSide
+        });
+      });
+
+      const mesh = new THREE.Mesh(geom, materials);
+      mesh.name = name;
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = receiveShadow;
+      mesh.userData.isTexelBox = true;
+      mesh.userData.boxSpec = {
+        name,
+        w,
+        h,
+        d,
+        inflate,
+        transparent,
+        faceCanvases
+      };
+      return mesh;
+    }
+
+    // 1. Head Painter (8w x 8h x 8d)
+    function paintHead(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const n = hash2D(x, y, 13);
+          let col = n > 0.55 ? PAL.skinBase : PAL.skinWarm;
+
+          if (face === 'front') {
+            if (y <= 1) col = PAL.skinLight;
+            if (y === 2 && ((x >= 1 && x <= 2) || (x >= 5 && x <= 6))) {
+              col = PAL.browHair;
+            }
+            if (y === 3) {
+              if (x === 1 || x === 6) col = PAL.eyeWhite;
+              else if (x === 2 || x === 5) col = PAL.eyePupil;
+            }
+            if (y === 4 && (x === 1 || x === 6)) col = PAL.skinRosy;
+            if (y === 5 && (x === 1 || x === 6)) col = PAL.skinShadow;
+            if (y === 5 && x >= 2 && x <= 5) col = PAL.skinLight;
+            if (y === 6 && x >= 2 && x <= 5) {
+              col = (x === 2 || x === 5) ? PAL.skinShadow : PAL.lipLine;
+            }
+            if (y === 7) col = PAL.skinShadow;
+          } else if (face === 'left' || face === 'right') {
+            const fromFront = (face === 'right') ? x : (w - 1 - x);
+            if (fromFront >= 4) {
+              col = (x + y) % 2 === 0 ? PAL.hairBase : PAL.hairWarm;
+            } else if (fromFront === 3 && y >= 2 && y <= 5) {
+              col = PAL.hairHighlight;
+            } else if (fromFront === 2 && (y === 3 || y === 4)) {
+              col = PAL.skinRosy;
+            }
+          } else if (face === 'back' || face === 'top') {
+            col = (x + y) % 2 === 0 ? PAL.hairBase : PAL.hairDark;
+          } else if (face === 'bottom') {
+            col = PAL.skinShadow;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // 2. Golden Paper Crown Painter (8w x 6h x 8d)
+    function paintCrown(ctx, face, w, h) {
+      if (face === 'top' || face === 'bottom') return;
+      ctx.clearRect(0, 0, w, h);
+
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const isCenterPeak = (x === 3 || x === 4);
+          const isSidePeak = (x === 0 || x === 1 || x === 6 || x === 7);
+          let filled = false;
+
+          if (y >= 3) {
+            filled = true;
+          } else if (y === 2) {
+            filled = isCenterPeak || isSidePeak || x === 2 || x === 5;
+          } else if (y === 1) {
+            filled = isCenterPeak || x === 0 || x === 7;
+          } else if (y === 0) {
+            filled = isCenterPeak;
+          }
+
+          if (!filled) continue;
+
+          let col = y <= 1 ? PAL.crownGoldLight : (y <= 3 ? PAL.crownGold : PAL.crownGoldWarm);
+          if (y === h - 1) col = PAL.crownGoldShadow;
+
+          if (y === 4 && (x === 1 || x === 4 || x === 6)) {
+            col = PAL.crownJewel;
+          }
+
+          if (face === 'front') {
+            if (y === 2 && (x === 3 || x === 4)) {
+              col = x === 3 ? PAL.crownLogoOrange : PAL.crownLogoRed;
+            } else if (y === 3 && (x === 3 || x === 4)) {
+              col = x === 3 ? PAL.crownLogoWhite : PAL.crownLogoRed;
+            } else if (y === 2 && x === 5) {
+              col = PAL.hairDark;
+            }
+          }
+
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // 3. Wavy Shoulder-Length Brown Hair Painter
+    function paintHair(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const wave = Math.sin(y * 1.4 + x * 0.9);
+          const n = hash2D(x, y, 37);
+          let col = PAL.hairBase;
+          if (wave > 0.45) col = PAL.hairHighlight;
+          else if (wave > 0.1 && n > 0.5) col = PAL.hairGolden;
+          else if (wave < -0.45) col = PAL.hairDark;
+          else col = PAL.hairWarm;
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // 4. Pulled-Down Red Paisley Chin Bandana Painter
+    function paintBandana(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = (x + y) % 2 === 0 ? PAL.bandanaRed : PAL.bandanaBright;
+          if (y === h - 1) col = PAL.bandanaDark;
+          if ((x * 3 + y * 5) % 7 === 0) {
+            col = PAL.bandanaWhite;
+          } else if ((x + y * 2) % 5 === 0) {
+            col = PAL.bandanaPaisley;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // 5. Pastel Pink Button-Down Shirt & Brown Belt Torso Painter (8w x 12h x 4d)
+    function paintTorso(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const n = hash2D(x, y, 53);
+          let col = n > 0.65 ? PAL.shirtLight : (n > 0.25 ? PAL.shirtBase : PAL.shirtFold);
+
+          if (y === h - 2) {
+            col = (x + y) % 2 === 0 ? PAL.beltLeather : PAL.beltWarm;
+            if (face === 'front' && (x === 3 || x === 4)) col = PAL.beltBuckle;
+            if (face === 'front' && (x === 1 || x === 6)) col = PAL.khakiLight;
+          } else if (y === h - 1) {
+            col = (x + y) % 2 === 0 ? PAL.khakiBase : PAL.khakiFold;
+          } else if (face === 'front') {
+            if (y === 0 && (x === 3 || x === 4)) {
+              col = PAL.skinShadow;
+            } else if (x === 3 || x === 4) {
+              if (x === 3 && y % 3 === 1) col = PAL.shirtButton;
+              else if (x === 4) col = PAL.shirtFold;
+            }
+            if (x >= 5 && x <= 6 && y >= 3 && y <= 6) {
+              col = PAL.shirtLight;
+              if (y === 3) col = PAL.shirtShadow;
+              if (x === 5 && (y === 5 || y === 6)) col = PAL.badgeGreen;
+              if (x === 6 && y === 5) col = PAL.badgeGrey;
+            }
+            if (y === h - 3 && (x === 1 || x === 2 || x === 6)) {
+              col = PAL.shirtShadow;
+            }
+          } else if (face === 'back') {
+            if (y === 2) col = PAL.shirtFold;
+            if (y === h - 3 && (x === 2 || x === 5)) col = PAL.shirtShadow;
+          }
+
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // 6. Arm Painter
+    function paintArm(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const n = hash2D(x, y, 71);
+          if (y <= 4) {
+            let col = n > 0.5 ? PAL.shirtBase : PAL.shirtLight;
+            if (y === 4) col = PAL.shirtFold;
+            px(ctx, x, y, col);
+          } else {
+            let col = n > 0.45 ? PAL.skinBase : PAL.skinWarm;
+            if (y === 5) col = PAL.skinShadow;
+            if (y === h - 1 && face === 'front') col = PAL.skinRosy;
+            px(ctx, x, y, col);
+          }
+        }
+      }
+    }
+
+    // 7. Khaki Chinos / Slacks Leg Painter
+    function paintKhaki(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const n = hash2D(x, y, 89);
+          let col = n > 0.6 ? PAL.khakiLight : (n > 0.2 ? PAL.khakiBase : PAL.khakiFold);
+          if (face === 'front' && x === Math.floor(w * 0.5)) {
+            col = PAL.khakiLight;
+          }
+          if ((face === 'left' || face === 'right') && x === Math.floor(w * 0.5)) {
+            col = PAL.khakiShadow;
+          }
+          if (y === h - 1) col = PAL.khakiShadow;
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // 8. Brown Leather Dress Shoes Painter
+    function paintShoe(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = PAL.shoeBrown;
+          if (y === h - 1 || face === 'bottom') col = PAL.shoeSole;
+          else if (face === 'top' || (face === 'front' && y === 0)) col = PAL.shoeHighlight;
+          else if ((x + y) % 2 === 0) col = PAL.shoeDark;
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    const worldRoot = new THREE.Group();
+    worldRoot.name = 'world_root';
+    scene.add(worldRoot);
+
+    const deerRoot = new THREE.Group();
+    deerRoot.name = 'crowned_traveler';
+    worldRoot.add(deerRoot);
+
+    // Master Pelvis / Waist Pivot (12 texels above the ground)
+    const bodyPivot = new THREE.Group();
+    bodyPivot.name = 'body';
+    bodyPivot.position.set(0, 12.0 * TEXEL, 0);
+    deerRoot.add(bodyPivot);
+
+    // --- TORSO: PASTEL PINK BUTTON-DOWN SHIRT (8w x 12h x 4d) ---
+    const chestPivot = new THREE.Group();
+    chestPivot.name = 'chest';
+    chestPivot.position.set(0, 0, 0);
+    bodyPivot.add(chestPivot);
+
+    const torsoMesh = createTexelBox(8, 12, 4, paintTorso, { name: 'torso_shirt' });
+    torsoMesh.position.set(0, 6.0 * TEXEL, 0);
+    chestPivot.add(torsoMesh);
+
+    // Extruded Shirt Collar Points
+    const collarPainter = (ctx, face, w, h) => {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          px(ctx, x, y, y === h - 1 ? PAL.shirtShadow : PAL.shirtLight);
+        }
+      }
+    };
+    const leftCollarMesh = createTexelBox(2.5, 1.6, 1.2, collarPainter, { name: 'collar_left' });
+    leftCollarMesh.position.set(1.5 * TEXEL, 11.4 * TEXEL, 1.85 * TEXEL);
+    leftCollarMesh.rotation.z = -0.25;
+    leftCollarMesh.rotation.y = 0.2;
+    chestPivot.add(leftCollarMesh);
+
+    const rightCollarMesh = createTexelBox(2.5, 1.6, 1.2, collarPainter, { name: 'collar_right' });
+    rightCollarMesh.position.set(-1.5 * TEXEL, 11.4 * TEXEL, 1.85 * TEXEL);
+    rightCollarMesh.rotation.z = 0.25;
+    rightCollarMesh.rotation.y = -0.2;
+    chestPivot.add(rightCollarMesh);
+
+    // Left Breast Pocket 3D Patch + Black Smartphone Peeking Out
+    const pocketPatchMesh = createTexelBox(2.6, 3.2, 0.5, (ctx, face, w, h) => {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = PAL.shirtLight;
+          if (y === 0) col = PAL.shirtFold;
+          else if (x === 0 && y >= 1) col = PAL.badgeGreen;
+          px(ctx, x, y, col);
+        }
+      }
+    }, { name: 'breast_pocket' });
+    pocketPatchMesh.position.set(2.1 * TEXEL, 7.2 * TEXEL, 2.15 * TEXEL);
+    chestPivot.add(pocketPatchMesh);
+
+    const phonePivot = new THREE.Group();
+    phonePivot.name = 'pocket_phone';
+    phonePivot.position.set(2.1 * TEXEL, 9.1 * TEXEL, 2.05 * TEXEL);
+    phonePivot.rotation.z = 0.14;
+    chestPivot.add(phonePivot);
+
+    const phoneMesh = createTexelBox(2.2, 2.6, 0.6, (ctx, face, w, h) => {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = PAL.phoneBlack;
+          if (x === 0 || y === 0) col = PAL.phoneEdge;
+          if (face === 'front' && x === 0 && y === 0) col = PAL.phoneLens;
+          px(ctx, x, y, col);
+        }
+      }
+    }, { name: 'smartphone', roughness: 0.25, metalness: 0.35 });
+    phonePivot.add(phoneMesh);
+
+    // --- NECK & HEAD RIG (Clean Group-to-Mesh tree for Blockbench Outliner) ---
+    const neckPivot = new THREE.Group();
+    neckPivot.name = 'neck';
+    neckPivot.position.set(0, 12.0 * TEXEL, 0);
+    chestPivot.add(neckPivot);
+
+    const neckMesh = createTexelBox(4, 2, 4, (ctx, f, w, h) => {
+      ctx.fillStyle = PAL.skinWarm;
+      ctx.fillRect(0, 0, w, h);
+    }, { name: 'neck_column' });
+    neckMesh.position.set(0, 0.8 * TEXEL, 0);
+    neckPivot.add(neckMesh);
+
+    const headPivot = new THREE.Group();
+    headPivot.name = 'head';
+    headPivot.position.set(0, 1.4 * TEXEL, 0);
+    neckPivot.add(headPivot);
+
+    const headMesh = createTexelBox(8, 8, 8, paintHead, { name: 'head_cranium' });
+    headMesh.position.set(0, 4.0 * TEXEL, 0);
+    headPivot.add(headMesh);
+
+    // 3D Sculpted Nose Bridge (parented directly to headPivot so all Groups hold Cubes cleanly)
+    const noseMesh = createTexelBox(2, 2, 1.2, (ctx, face, w, h) => {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          px(ctx, x, y, y === 0 ? PAL.skinLight : PAL.skinRosy);
+        }
+      }
+    }, { name: 'nose_bridge' });
+    noseMesh.position.set(0, 4.2 * TEXEL, 4.4 * TEXEL);
+    headPivot.add(noseMesh);
+
+    // --- RED PAISLEY BANDANA PULLED DOWN UNDER THE CHIN ---
+    const jawPivot = new THREE.Group();
+    jawPivot.name = 'chin_bandana';
+    jawPivot.position.set(0, 0.4 * TEXEL, 0.4 * TEXEL);
+    headPivot.add(jawPivot);
+
+    const bandanaChinMesh = createTexelBox(7.2, 2.6, 6.8, paintBandana, {
+      name: 'bandana_fold',
+      inflate: 0.15
+    });
+    bandanaChinMesh.position.set(0, -0.3 * TEXEL, 0.4 * TEXEL);
+    bandanaChinMesh.rotation.x = 0.12;
+    jawPivot.add(bandanaChinMesh);
+
+    const bandanaTriangleMesh = createTexelBox(4.6, 2.2, 2.0, paintBandana, {
+      name: 'bandana_tail'
+    });
+    bandanaTriangleMesh.position.set(0, -1.6 * TEXEL, 2.7 * TEXEL);
+    bandanaTriangleMesh.rotation.x = 0.22;
+    jawPivot.add(bandanaTriangleMesh);
+
+    // --- GOLDEN PAPER CROWN ---
+    const crownGroup = new THREE.Group();
+    crownGroup.name = 'golden_crown';
+    crownGroup.position.set(0, 9.4 * TEXEL, 0);
+    crownGroup.rotation.x = -0.06;
+    headPivot.add(crownGroup);
+
+    const crownMesh = createTexelBox(8, 6, 8, paintCrown, {
+      name: 'paper_crown',
+      inflate: 0.42,
+      transparent: true,
+      roughness: 0.55,
+      metalness: 0.12
+    });
+    crownGroup.add(crownMesh);
+
+    // --- SHOULDER-LENGTH WAVY BROWN HAIR ---
+    const leftHairPivot = new THREE.Group();
+    leftHairPivot.name = 'hair_left';
+    leftHairPivot.position.set(3.8 * TEXEL, 5.8 * TEXEL, -0.4 * TEXEL);
+    leftHairPivot.rotation.z = 0.24;
+    headPivot.add(leftHairPivot);
+
+    const leftHairUpper = createTexelBox(2.6, 7.5, 7.6, paintHair, { name: 'hair_left_upper' });
+    leftHairUpper.position.set(0.6 * TEXEL, -3.2 * TEXEL, 0);
+    leftHairPivot.add(leftHairUpper);
+
+    const leftHairLower = createTexelBox(2.8, 4.5, 6.6, paintHair, { name: 'hair_left_lower' });
+    leftHairLower.position.set(1.1 * TEXEL, -6.2 * TEXEL, 0.2 * TEXEL);
+    leftHairPivot.add(leftHairLower);
+
+    const rightHairPivot = new THREE.Group();
+    rightHairPivot.name = 'hair_right';
+    rightHairPivot.position.set(-3.8 * TEXEL, 5.8 * TEXEL, -0.4 * TEXEL);
+    rightHairPivot.rotation.z = -0.24;
+    headPivot.add(rightHairPivot);
+
+    const rightHairUpper = createTexelBox(2.6, 7.5, 7.6, paintHair, { name: 'hair_right_upper' });
+    rightHairUpper.position.set(-0.6 * TEXEL, -3.2 * TEXEL, 0);
+    rightHairPivot.add(rightHairUpper);
+
+    const rightHairLower = createTexelBox(2.8, 4.5, 6.6, paintHair, { name: 'hair_right_lower' });
+    rightHairLower.position.set(-1.1 * TEXEL, -6.2 * TEXEL, 0.2 * TEXEL);
+    rightHairPivot.add(rightHairLower);
+
+    const backHairPivot = new THREE.Group();
+    backHairPivot.name = 'hair_back';
+    backHairPivot.position.set(0, 5.6 * TEXEL, -3.8 * TEXEL);
+    backHairPivot.rotation.x = 0.16;
+    headPivot.add(backHairPivot);
+
+    const backHairMesh = createTexelBox(8.6, 9.5, 2.6, paintHair, { name: 'hair_back_curtain' });
+    backHairMesh.position.set(0, -4.2 * TEXEL, -0.6 * TEXEL);
+    backHairPivot.add(backHairMesh);
+
+    function createHumanoidArm(sideSign, sideLabel) {
+      const shoulderPivot = new THREE.Group();
+      shoulderPivot.name = `arm_${sideLabel}`;
+      shoulderPivot.position.set(sideSign * 5.6 * TEXEL, 11.0 * TEXEL, 0);
+      chestPivot.add(shoulderPivot);
+
+      const upperArmMesh = createTexelBox(3.2, 6, 3.4, paintArm, { name: `upper_arm_${sideLabel}` });
+      upperArmMesh.position.set(0, -2.5 * TEXEL, 0);
+      shoulderPivot.add(upperArmMesh);
+
+      const sleeveShell = createTexelBox(3.6, 5.2, 3.8, (ctx, f, w, h) => {
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            px(ctx, x, y, y === h - 1 ? PAL.shirtShadow : PAL.shirtLight);
+          }
+        }
+      }, { name: `sleeve_cuff_${sideLabel}` });
+      sleeveShell.position.set(0, -2.0 * TEXEL, 0);
+      shoulderPivot.add(sleeveShell);
+
+      const elbowPivot = new THREE.Group();
+      elbowPivot.name = `forearm_${sideLabel}`;
+      elbowPivot.position.set(0, -5.2 * TEXEL, 0);
+      shoulderPivot.add(elbowPivot);
+
+      const forearmMesh = createTexelBox(2.8, 5.5, 2.8, (ctx, f, w, h) => {
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const n = hash2D(x, y, 91);
+            px(ctx, x, y, y === h - 1 ? PAL.skinRosy : (n > 0.4 ? PAL.skinBase : PAL.skinWarm));
+          }
+        }
+      }, { name: `lower_arm_${sideLabel}` });
+      forearmMesh.position.set(0, -2.6 * TEXEL, 0);
+      elbowPivot.add(forearmMesh);
+
+      const wristPivot = new THREE.Group();
+      wristPivot.name = `hand_${sideLabel}`;
+      wristPivot.position.set(0, -5.2 * TEXEL, 0);
+      elbowPivot.add(wristPivot);
+
+      return { shoulderPivot, elbowPivot, wristPivot, sideSign };
+    }
+
+    const leftArm = createHumanoidArm(-1, 'right'); // Character's Right Arm (-X)
+    const rightArm = createHumanoidArm(1, 'left');  // Character's Left Arm (+X)
+
+    function createHumanoidLeg(sideSign, sideLabel) {
+      const hipPivot = new THREE.Group();
+      hipPivot.name = `leg_${sideLabel}`;
+      hipPivot.position.set(sideSign * 2.0 * TEXEL, 0, 0);
+      bodyPivot.add(hipPivot);
+
+      const thighMesh = createTexelBox(3.8, 6, 3.8, paintKhaki, { name: `thigh_${sideLabel}` });
+      thighMesh.position.set(0, -2.8 * TEXEL, 0);
+      hipPivot.add(thighMesh);
+
+      const kneePivot = new THREE.Group();
+      kneePivot.name = `knee_${sideLabel}`;
+      kneePivot.position.set(0, -5.6 * TEXEL, 0);
+      hipPivot.add(kneePivot);
+
+      const calfMesh = createTexelBox(3.5, 5, 3.6, paintKhaki, { name: `calf_${sideLabel}` });
+      calfMesh.position.set(0, -2.3 * TEXEL, 0);
+      kneePivot.add(calfMesh);
+
+      const anklePivot = new THREE.Group();
+      anklePivot.name = `ankle_${sideLabel}`;
+      anklePivot.position.set(0, -4.8 * TEXEL, 0);
+      kneePivot.add(anklePivot);
+
+      const shoeMesh = createTexelBox(3.6, 2.0, 5.2, paintShoe, {
+        name: `shoe_${sideLabel}`,
+        roughness: 0.38
+      });
+      shoeMesh.position.set(0, -0.6 * TEXEL, 0.7 * TEXEL);
+      anklePivot.add(shoeMesh);
+
+      return { hipPivot, kneePivot, anklePivot, sideSign };
+    }
+
+    const rightLeg = createHumanoidLeg(-1, 'right');
+    const leftLeg = createHumanoidLeg(1, 'left');
+
+    // --- CUSTOM RED & YELLOW CRUISER CAR FENDER + GOLD-LIPPED WHEEL PROP ---
+    const cruiserPropGroup = new THREE.Group();
+    cruiserPropGroup.name = 'cruiser_car_prop';
+    cruiserPropGroup.position.set(11.5 * TEXEL, 0, -2.5 * TEXEL);
+
+    const carFenderMesh = createTexelBox(7, 9, 14, (ctx, face, w, h) => {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = PAL.carBrightRed;
+          if (face === 'top' || y <= 1) col = PAL.carYellow;
+          else if (y === 2) col = PAL.carBlueStripe;
+          else if (y >= h - 2) col = PAL.carRed;
+          px(ctx, x, y, col);
+        }
+      }
+    }, { name: 'cruiser_fender', roughness: 0.25, metalness: 0.35 });
+    carFenderMesh.position.set(0, 7.5 * TEXEL, 0);
+    cruiserPropGroup.add(carFenderMesh);
+
+    const wheelGroup = new THREE.Group();
+    wheelGroup.name = 'cruiser_wheel';
+    wheelGroup.position.set(-2.2 * TEXEL, 4.5 * TEXEL, 0);
+    cruiserPropGroup.add(wheelGroup);
+
+    const wheelMesh = createTexelBox(3.5, 9, 9, (ctx, face, w, h) => {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const cx = x - (w - 1) * 0.5;
+          const cy = y - (h - 1) * 0.5;
+          const dist = Math.sqrt(cx * cx + cy * cy);
+          let col = PAL.tireBlack;
+          if (face === 'left' || face === 'right') {
+            if (dist < 1.3) {
+              col = (x + y) % 2 === 0 ? PAL.crownLogoWhite : PAL.crownLogoRed;
+            } else if (dist < 2.9) {
+              col = (x === Math.floor(w * 0.5) || y === Math.floor(h * 0.5)) ? PAL.carBrightRed : PAL.bandanaDark;
+            } else if (dist < 3.8) {
+              col = (x + y) % 2 === 0 ? PAL.rimGoldBright : PAL.rimGold;
+            }
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }, { name: 'gold_rim_wheel', roughness: 0.3, metalness: 0.3 });
+    wheelGroup.add(wheelMesh);
+
+    cruiserPropGroup.visible = false;
+    worldRoot.add(cruiserPropGroup);
+
+    let currentAnim = 'idle';
+    let animTime = 0;
+
+    function resetRigToNeutral() {
+      bodyPivot.position.set(0, 12.0 * TEXEL, 0);
+      bodyPivot.rotation.set(0, 0, 0);
+
+      chestPivot.position.set(0, 0, 0);
+      chestPivot.rotation.set(0, 0, 0);
+      chestPivot.scale.set(1, 1, 1);
+
+      neckPivot.rotation.set(0, 0, 0);
+      headPivot.rotation.set(0, 0, 0);
+      jawPivot.rotation.set(0, 0, 0);
+
+      crownGroup.position.set(0, 9.4 * TEXEL, 0);
+      crownGroup.rotation.set(-0.06, 0, 0);
+
+      leftHairPivot.rotation.set(0, 0, 0.24);
+      rightHairPivot.rotation.set(0, 0, -0.24);
+      backHairPivot.rotation.set(0.16, 0, 0);
+
+      phonePivot.position.set(2.1 * TEXEL, 9.1 * TEXEL, 2.05 * TEXEL);
+      phonePivot.rotation.set(0, 0, 0.14);
+
+      [leftArm, rightArm].forEach((arm) => {
+        arm.shoulderPivot.rotation.set(0, 0, arm.sideSign * 0.06);
+        arm.elbowPivot.rotation.set(-0.12, 0, 0);
+        arm.wristPivot.rotation.set(0, 0, 0);
+      });
+
+      [leftLeg, rightLeg].forEach((leg) => {
+        leg.hipPivot.rotation.set(0, 0, 0);
+        leg.kneePivot.rotation.set(0, 0, 0);
+        leg.anklePivot.rotation.set(0, 0, 0);
+      });
+
+      cruiserPropGroup.visible = false;
+      cruiserPropGroup.scale.setScalar(1.0);
+      wheelGroup.rotation.set(0, 0, 0);
+    }
+
+    function applyBipedalStride(leg, phase) {
+      const sinP = Math.sin(phase);
+      const lift = Math.max(0, Math.cos(phase));
+      leg.hipPivot.rotation.x = sinP * 0.48;
+      leg.kneePivot.rotation.x = lift * 0.62;
+      leg.anklePivot.rotation.x = -sinP * 0.22;
+    }
+
+    function evaluatePoseAtTime(mode, t, elapsed) {
+      resetRigToNeutral();
+
+      if (mode === 'idle') {
+        const breath = Math.sin(elapsed * 2.2);
+        const lookY = Math.sin(elapsed * 0.85);
+        const lookZ = Math.cos(elapsed * 0.65);
+
+        chestPivot.scale.set(1 + breath * 0.012, 1 + breath * 0.015, 1 + breath * 0.015);
+        chestPivot.rotation.y = lookY * 0.03;
+
+        headPivot.rotation.y = lookY * 0.05;
+        headPivot.rotation.x = Math.sin(elapsed * 1.4) * 0.04;
+        headPivot.rotation.z = lookZ * 0.03;
+
+        leftHairPivot.rotation.z = 0.24 + Math.max(0, breath) * 0.04;
+        rightHairPivot.rotation.z = -0.24 - Math.max(0, breath) * 0.04;
+        jawPivot.rotation.x = breath * 0.03;
+
+        leftArm.shoulderPivot.rotation.x = Math.sin(elapsed * 1.5) * 0.06;
+        rightArm.shoulderPivot.rotation.x = -Math.sin(elapsed * 1.5) * 0.05;
+
+      } else if (mode === 'walk') {
+        const speed = 4.2;
+        const cycle = t * speed;
+
+        const bounce = Math.abs(Math.sin(cycle));
+        bodyPivot.position.y = (12.0 + bounce * 0.65) * TEXEL;
+        bodyPivot.rotation.y = Math.sin(cycle) * 0.08;
+        bodyPivot.rotation.z = Math.cos(cycle) * 0.035;
+
+        chestPivot.rotation.x = 0.06;
+        headPivot.rotation.x = -0.05 + Math.sin(cycle * 2.0) * 0.05;
+        headPivot.rotation.y = -Math.sin(cycle) * 0.12;
+
+        leftHairPivot.rotation.z = 0.26 + bounce * 0.14;
+        rightHairPivot.rotation.z = -0.26 - bounce * 0.14;
+        backHairPivot.rotation.x = 0.18 + bounce * 0.12;
+        crownGroup.position.y = (9.4 + Math.max(0, Math.sin(cycle * 2.0 - 0.5)) * 0.28) * TEXEL;
+
+        leftArm.shoulderPivot.rotation.x = Math.sin(cycle + Math.PI) * 0.36;
+        leftArm.elbowPivot.rotation.x = -0.22 - Math.max(0, Math.sin(cycle + Math.PI)) * 0.25;
+
+        rightArm.shoulderPivot.rotation.x = Math.sin(cycle) * 0.36;
+        rightArm.elbowPivot.rotation.x = -0.18 - Math.max(0, Math.sin(cycle)) * 0.22;
+
+        applyBipedalStride(rightLeg, cycle);
+        applyBipedalStride(leftLeg, cycle + Math.PI);
+
+      } else if (mode === 'attack') {
+        const duration = 2.2;
+        const localT = t % duration;
+        const p = localT / duration;
+        const wave = Math.sin(p * Math.PI * 2);
+        const env = Math.sin(p * Math.PI);
+
+        bodyPivot.position.z = env * 1.4 * TEXEL;
+        chestPivot.rotation.x = env * 0.14;
+        chestPivot.rotation.y = wave * 0.22;
+
+        headPivot.rotation.y = -wave * 0.18;
+        headPivot.rotation.x = -env * 0.12;
+        jawPivot.rotation.x = Math.abs(Math.sin(localT * 10.0)) * 0.12 * env;
+
+        leftArm.shoulderPivot.rotation.x = -1.15 * env + Math.sin(localT * 9.0) * 0.25 * env;
+        leftArm.shoulderPivot.rotation.z = -0.25 * env;
+        leftArm.elbowPivot.rotation.x = -0.45 * env;
+
+        rightArm.shoulderPivot.rotation.x = -0.75 * env;
+        rightArm.shoulderPivot.rotation.z = 0.32 * env;
+        rightArm.elbowPivot.rotation.x = -0.35 * env;
+
+        rightLeg.hipPivot.rotation.x = -env * 0.32;
+        rightLeg.kneePivot.rotation.x = env * 0.32;
+        leftLeg.hipPivot.rotation.x = env * 0.24;
+
+      } else if (mode === 'special') {
+        const duration = 3.2;
+        const localT = t % duration;
+
+        cruiserPropGroup.visible = true;
+        const propScale = localT < 0.3 ? (localT / 0.3) : (localT > 2.9 ? Math.max(0, (3.2 - localT) / 0.3) : 1.0);
+        cruiserPropGroup.scale.setScalar(propScale);
+        wheelGroup.rotation.x = localT * 2.5;
+
+        const env = Math.sin(Math.min(1, localT / 0.45) * Math.PI * 0.5) *
+                    (localT > 2.65 ? Math.cos(((localT - 2.65) / 0.55) * Math.PI * 0.5) : 1.0);
+
+        bodyPivot.rotation.y = -0.28 * env;
+        chestPivot.rotation.z = 0.05 * env;
+        headPivot.rotation.y = 0.48 * env + Math.sin(localT * 2.5) * 0.08 * env;
+        headPivot.rotation.z = -0.06 * env;
+
+        rightArm.shoulderPivot.rotation.x = -2.35 * env;
+        rightArm.shoulderPivot.rotation.z = -0.38 * env;
+        rightArm.elbowPivot.rotation.x = -0.85 * env;
+
+        crownGroup.rotation.z = Math.sin(localT * 5.0) * 0.06 * env;
+        crownGroup.position.y = (9.4 + Math.abs(Math.sin(localT * 5.0)) * 0.25 * env) * TEXEL;
+
+        leftArm.shoulderPivot.rotation.z = -0.15 * env;
+      }
+    }
+
+    function updateBearAnimation(dt, elapsed) {
+      animTime += dt;
+      evaluatePoseAtTime(currentAnim, animTime, elapsed);
+    }
+
+    function makeUUID() {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    }
+
+    const RAD2DEG = 180 / Math.PI;
+    function round4(n) {
+      return Math.round(n * 10000) / 10000;
+    }
+
+    /**
+     * Collects the entire rig in neutral bind pose, packs all 6 face canvases of every cube into a
+     * 128x128 PNG texture atlas, and produces both `.bbmodel` and `.geo.json` data structures.
+     */
+    function buildBlockbenchExportData(options = {}) {
+      const includeCruiser = options.includeCruiser ?? false;
+      const includeAnimations = options.includeAnimations ?? true;
+
+      // Temporarily reset rig to neutral bind pose to read exact rest coordinates
+      resetRigToNeutral();
+
+      const ATLAS_W = 128;
+      const ATLAS_H = 128;
+      const atlasCanvas = document.createElement('canvas');
+      atlasCanvas.width = ATLAS_W;
+      atlasCanvas.height = ATLAS_H;
+      const atlasCtx = atlasCanvas.getContext('2d');
+      atlasCtx.imageSmoothingEnabled = false;
+      atlasCtx.clearRect(0, 0, ATLAS_W, ATLAS_H);
+
+      // Simple shelf rectangle packer with 1px padding to avoid texture bleeding
+      let cursorX = 1;
+      let cursorY = 1;
+      let shelfHeight = 0;
+
+      function packCanvasIntoAtlas(faceCanvas) {
+        const cw = faceCanvas.width;
+        const ch = faceCanvas.height;
+        if (cursorX + cw + 1 > ATLAS_W) {
+          cursorX = 1;
+          cursorY += shelfHeight + 1;
+          shelfHeight = 0;
+        }
+        const ux = cursorX;
+        const uy = cursorY;
+        atlasCtx.drawImage(faceCanvas, ux, uy);
+        cursorX += cw + 1;
+        if (ch > shelfHeight) shelfHeight = ch;
+        return { ux, uy, cw, ch };
+      }
+
+      const elements = [];
+      const bedrockBones = [];
+      const boneTrackList = [];
+
+      /**
+       * Recursively traverses a THREE.Group bone node in the bind pose.
+       * Note: We map (x, y, z) -> (-x, y, -z) so the model faces North (-Z) in Blockbench's Front View.
+       */
+      function traverseGroup(group, parentUnrotatedWorldPos, parentName = null) {
+        const unrotatedWorldPos = parentUnrotatedWorldPos.clone().add(group.position);
+
+        const originBB = [
+          round4(-unrotatedWorldPos.x / TEXEL),
+          round4(unrotatedWorldPos.y / TEXEL),
+          round4(-unrotatedWorldPos.z / TEXEL)
+        ];
+
+        const rotBB = [
+          round4(-group.rotation.x * RAD2DEG),
+          round4(group.rotation.y * RAD2DEG),
+          round4(-group.rotation.z * RAD2DEG)
+        ];
+
+        const groupUUID = makeUUID();
+        const outlinerNode = {
+          name: group.name || 'bone',
+          origin: originBB,
+          rotation: rotBB,
+          uuid: groupUUID,
+          export: true,
+          isOpen: true,
+          locked: false,
+          visibility: true,
+          autouv: 0,
+          children: []
+        };
+
+        const bedrockCubes = [];
+
+        boneTrackList.push({
+          group,
+          uuid: groupUUID,
+          name: outlinerNode.name,
+          restPos: group.position.clone(),
+          restRot: group.rotation.clone()
+        });
+
+        for (const child of group.children) {
+          if (child.isMesh && child.userData.isTexelBox) {
+            const spec = child.userData.boxSpec;
+            const cubeWorldCenter = unrotatedWorldPos.clone().add(child.position);
+
+            const cx = -cubeWorldCenter.x / TEXEL;
+            const cy = cubeWorldCenter.y / TEXEL;
+            const cz = -cubeWorldCenter.z / TEXEL;
+
+            const fromBB = [
+              round4(cx - spec.w * 0.5),
+              round4(cy - spec.h * 0.5),
+              round4(cz - spec.d * 0.5)
+            ];
+            const toBB = [
+              round4(cx + spec.w * 0.5),
+              round4(cy + spec.h * 0.5),
+              round4(cz + spec.d * 0.5)
+            ];
+            const cubeOriginBB = [round4(cx), round4(cy), round4(cz)];
+            const cubeRotBB = [
+              round4(-child.rotation.x * RAD2DEG),
+              round4(child.rotation.y * RAD2DEG),
+              round4(-child.rotation.z * RAD2DEG)
+            ];
+
+            // Pack the 6 faces into the 128x128 atlas
+            const fc = spec.faceCanvases;
+            const uvNorth = packCanvasIntoAtlas(fc.front);  // Three.js +Z front -> Blockbench -Z north
+            const uvSouth = packCanvasIntoAtlas(fc.back);   // Three.js -Z back  -> Blockbench +Z south
+            const uvEast  = packCanvasIntoAtlas(fc.left);   // Three.js -X left  -> Blockbench +X east
+            const uvWest  = packCanvasIntoAtlas(fc.right);  // Three.js +X right -> Blockbench -X west
+            const uvUp    = packCanvasIntoAtlas(fc.top);    // Three.js +Y top   -> Blockbench +Y up
+            const uvDown  = packCanvasIntoAtlas(fc.bottom); // Three.js -Y bottom-> Blockbench -Y down
+
+            const cubeUUID = makeUUID();
+            const elementObj = {
+              name: spec.name,
+              box_uv: false,
+              rescale: false,
+              locked: false,
+              from: fromBB,
+              to: toBB,
+              autouv: 0,
+              color: 0,
+              inflate: spec.inflate || 0,
+              origin: cubeOriginBB,
+              rotation: cubeRotBB,
+              visibility: true,
+              export: true,
+              faces: {
+                north: { uv: [uvNorth.ux, uvNorth.uy, uvNorth.ux + uvNorth.cw, uvNorth.uy + uvNorth.ch], texture: 0 },
+                south: { uv: [uvSouth.ux, uvSouth.uy, uvSouth.ux + uvSouth.cw, uvSouth.uy + uvSouth.ch], texture: 0 },
+                east:  { uv: [uvEast.ux,  uvEast.uy,  uvEast.ux + uvEast.cw,   uvEast.uy + uvEast.ch],   texture: 0 },
+                west:  { uv: [uvWest.ux,  uvWest.uy,  uvWest.ux + uvWest.cw,   uvWest.uy + uvWest.ch],   texture: 0 },
+                up:    { uv: [uvUp.ux + uvUp.cw, uvUp.uy + uvUp.ch, uvUp.ux, uvUp.uy], texture: 0 },
+                down:  { uv: [uvDown.ux + uvDown.cw, uvDown.uy + uvDown.ch, uvDown.ux, uvDown.uy], texture: 0 }
+              },
+              type: 'cube',
+              uuid: cubeUUID
+            };
+
+            elements.push(elementObj);
+            outlinerNode.children.push(cubeUUID);
+
+            bedrockCubes.push({
+              origin: fromBB,
+              size: [round4(spec.w), round4(spec.h), round4(spec.d)],
+              pivot: cubeOriginBB,
+              rotation: cubeRotBB,
+              inflate: spec.inflate || 0,
+              uv: {
+                north: { uv: [uvNorth.ux, uvNorth.uy], uv_size: [uvNorth.cw, uvNorth.ch] },
+                south: { uv: [uvSouth.ux, uvSouth.uy], uv_size: [uvSouth.cw, uvSouth.ch] },
+                east:  { uv: [uvEast.ux,  uvEast.uy],  uv_size: [uvEast.cw,  uvEast.ch] },
+                west:  { uv: [uvWest.ux,  uvWest.uy],  uv_size: [uvWest.cw,  uvWest.ch] },
+                up:    { uv: [uvUp.ux + uvUp.cw, uvUp.uy + uvUp.ch], uv_size: [-uvUp.cw, -uvUp.ch] },
+                down:  { uv: [uvDown.ux + uvDown.cw, uvDown.uy + uvDown.ch], uv_size: [-uvDown.cw, -uvDown.ch] }
+              }
+            });
+          } else if (child.isGroup) {
+            const childOutliner = traverseGroup(child, unrotatedWorldPos, outlinerNode.name);
+            outlinerNode.children.push(childOutliner);
+          }
+        }
+
+        const bedrockBone = {
+          name: outlinerNode.name,
+          pivot: originBB,
+          rotation: rotBB
+        };
+        if (parentName) bedrockBone.parent = parentName;
+        if (bedrockCubes.length > 0) bedrockBone.cubes = bedrockCubes;
+        bedrockBones.push(bedrockBone);
+
+        return outlinerNode;
+      }
+
+      const outliner = [];
+      outliner.push(traverseGroup(bodyPivot, new THREE.Vector3(0, 0, 0), null));
+
+      if (includeCruiser) {
+        outliner.push(traverseGroup(cruiserPropGroup, new THREE.Vector3(0, 0, 0), null));
+      }
+
+      // Sample keyframed animations for Blockbench's Animate mode
+      const bbAnimations = [];
+      if (includeAnimations) {
+        const animSpecs = [
+          { id: 'idle',    name: 'animation.crowned_traveler.idle',    duration: 2.85, steps: 16, loop: 'loop' },
+          { id: 'walk',    name: 'animation.crowned_traveler.walk',    duration: (Math.PI * 2) / 4.2, steps: 16, loop: 'loop' },
+          { id: 'attack',  name: 'animation.crowned_traveler.attack',  duration: 2.2,  steps: 16, loop: 'once' },
+          { id: 'special', name: 'animation.crowned_traveler.special', duration: 3.2,  steps: 20, loop: 'loop' }
+        ];
+
+        for (const spec of animSpecs) {
+          const animators = {};
+          for (const track of boneTrackList) {
+            animators[track.uuid] = {
+              name: track.name,
+              type: 'bone',
+              keyframes: []
+            };
+          }
+
+          for (let s = 0; s <= spec.steps; s++) {
+            const timeSec = round4((s / spec.steps) * spec.duration);
+            evaluatePoseAtTime(spec.id, timeSec, timeSec);
+
+            for (const track of boneTrackList) {
+              const g = track.group;
+              const dxRot = round4(-(g.rotation.x - track.restRot.x) * RAD2DEG);
+              const dyRot = round4((g.rotation.y - track.restRot.y) * RAD2DEG);
+              const dzRot = round4(-(g.rotation.z - track.restRot.z) * RAD2DEG);
+
+              const dxPos = round4(-(g.position.x - track.restPos.x) / TEXEL);
+              const dyPos = round4((g.position.y - track.restPos.y) / TEXEL);
+              const dzPos = round4(-(g.position.z - track.restPos.z) / TEXEL);
+
+              if (s === 0 || s === spec.steps || Math.abs(dxRot) > 0.01 || Math.abs(dyRot) > 0.01 || Math.abs(dzRot) > 0.01) {
+                animators[track.uuid].keyframes.push({
+                  channel: 'rotation',
+                  data_points: [{ x: String(dxRot), y: String(dyRot), z: String(dzRot) }],
+                  uuid: makeUUID(),
+                  time: timeSec,
+                  color: -1,
+                  interpolation: 'linear'
+                });
+              }
+
+              if (Math.abs(dxPos) > 0.01 || Math.abs(dyPos) > 0.01 || Math.abs(dzPos) > 0.01) {
+                animators[track.uuid].keyframes.push({
+                  channel: 'position',
+                  data_points: [{ x: String(dxPos), y: String(dyPos), z: String(dzPos) }],
+                  uuid: makeUUID(),
+                  time: timeSec,
+                  color: -1,
+                  interpolation: 'linear'
+                });
+              }
+            }
+          }
+
+          // Prune bones with only zero keyframes
+          for (const uuid of Object.keys(animators)) {
+            const kfs = animators[uuid].keyframes;
+            const hasMotion = kfs.some((k) => {
+              const dp = k.data_points[0];
+              return Number(dp.x) !== 0 || Number(dp.y) !== 0 || Number(dp.z) !== 0;
+            });
+            if (!hasMotion) {
+              delete animators[uuid];
+            }
+          }
+
+          bbAnimations.push({
+            uuid: makeUUID(),
+            name: spec.name,
+            loop: spec.loop,
+            override: false,
+            length: round4(spec.duration),
+            snapping: 24,
+            selected: spec.id === 'idle',
+            animators
+          });
+        }
+      }
+
+      // Restore current live viewer pose
+      evaluatePoseAtTime(currentAnim, animTime, totalElapsed);
+
+      const atlasDataUrl = atlasCanvas.toDataURL('image/png');
+
+      const bbmodel = {
+        meta: {
+          format_version: '4.5',
+          model_format: 'free',
+          box_uv: false
+        },
+        name: 'crowned_traveler',
+        model_identifier: 'crowned_traveler',
+        visible_box: [1, 2, 0],
+        variable_placeholders: '',
+        resolution: {
+          width: ATLAS_W,
+          height: ATLAS_H
+        },
+        elements,
+        outliner,
+        textures: [
+          {
+            path: '',
+            name: 'crowned_traveler_atlas.png',
+            folder: 'block',
+            namespace: '',
+            id: '0',
+            particle: false,
+            render_mode: 'default',
+            render_sides: 'auto',
+            frame_time: 1,
+            frame_order_type: 'loop',
+            frame_order: '',
+            frame_interpolate: false,
+            visible: true,
+            mode: 'bitmap',
+            saved: false,
+            uuid: makeUUID(),
+            source: atlasDataUrl
+          }
+        ],
+        animations: bbAnimations
+      };
+
+      const bedrockGeo = {
+        format_version: '1.12.0',
+        'minecraft:geometry': [
+          {
+            description: {
+              identifier: 'geometry.crowned_traveler',
+              texture_width: ATLAS_W,
+              texture_height: ATLAS_H,
+              visible_bounds_width: 2,
+              visible_bounds_height: 3,
+              visible_bounds_offset: [0, 1.25, 0]
+            },
+            bones: bedrockBones
+          }
+        ]
+      };
+
+      return {
+        bbmodel,
+        bedrockGeo,
+        atlasCanvas,
+        atlasDataUrl,
+        stats: {
+          bones: boneTrackList.length,
+          cubes: elements.length
+        }
+      };
+    }
+
+    let toastTimeout = null;
+    function showExportToast(message) {
+      const toast = document.getElementById('exportToast');
+      const toastText = document.getElementById('exportToastText');
+      toastText.textContent = message;
+      toast.classList.remove('opacity-0', '-translate-y-2');
+      toast.classList.add('opacity-100', 'translate-y-0');
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.add('opacity-0', '-translate-y-2');
+        toast.classList.remove('opacity-100', 'translate-y-0');
+      }, 3200);
+    }
+
+    function triggerDownload(blobOrDataUrl, filename) {
+      const a = document.createElement('a');
+      if (typeof blobOrDataUrl === 'string') {
+        a.href = blobOrDataUrl;
+      } else {
+        a.href = URL.createObjectURL(blobOrDataUrl);
+      }
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      if (typeof blobOrDataUrl !== 'string') {
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      }
+    }
+
+    const exportModal = document.getElementById('exportModal');
+    const includeCruiserCheckbox = document.getElementById('includeCruiserCheckbox');
+    const includeAnimsCheckbox = document.getElementById('includeAnimsCheckbox');
+    const atlasPreviewCanvas = document.getElementById('atlasPreviewCanvas');
+    const statBones = document.getElementById('statBones');
+    const statCubes = document.getElementById('statCubes');
+
+    function refreshModalPreview() {
+      const data = buildBlockbenchExportData({
+        includeCruiser: includeCruiserCheckbox.checked,
+        includeAnimations: includeAnimsCheckbox.checked
+      });
+      const ctx = atlasPreviewCanvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, 128, 128);
+      ctx.drawImage(data.atlasCanvas, 0, 0);
+      statBones.textContent = String(data.stats.bones);
+      statCubes.textContent = String(data.stats.cubes);
+      return data;
+    }
+
+    // Quick 1-Click .bbmodel Export from Top Bar
+    document.getElementById('quickExportBbBtn').addEventListener('click', () => {
+      const data = buildBlockbenchExportData({
+        includeCruiser: currentAnim === 'special' || includeCruiserCheckbox.checked,
+        includeAnimations: true
+      });
+      const jsonBlob = new Blob([JSON.stringify(data.bbmodel, null, 2)], { type: 'application/json' });
+      triggerDownload(jsonBlob, 'crowned_traveler.bbmodel');
+      showExportToast('Downloaded crowned_traveler.bbmodel — Open directly in Blockbench!');
+    });
+
+    // Open & Close Modal
+    document.getElementById('openExportModalBtn').addEventListener('click', () => {
+      if (currentAnim === 'special') {
+        includeCruiserCheckbox.checked = true;
+      }
+      refreshModalPreview();
+      exportModal.classList.remove('hidden');
+      exportModal.classList.add('flex');
+    });
+
+    document.getElementById('closeExportModalBtn').addEventListener('click', () => {
+      exportModal.classList.add('hidden');
+      exportModal.classList.remove('flex');
+    });
+
+    exportModal.addEventListener('click', (e) => {
+      if (e.target === exportModal) {
+        exportModal.classList.add('hidden');
+        exportModal.classList.remove('flex');
+      }
+    });
+
+    includeCruiserCheckbox.addEventListener('change', refreshModalPreview);
+    includeAnimsCheckbox.addEventListener('change', refreshModalPreview);
+
+    document.getElementById('downloadBbmodelBtn').addEventListener('click', () => {
+      const data = refreshModalPreview();
+      const jsonBlob = new Blob([JSON.stringify(data.bbmodel, null, 2)], { type: 'application/json' });
+      triggerDownload(jsonBlob, 'crowned_traveler.bbmodel');
+      showExportToast('Downloaded crowned_traveler.bbmodel!');
+    });
+
+    document.getElementById('downloadGeoJsonBtn').addEventListener('click', () => {
+      const data = refreshModalPreview();
+      const jsonBlob = new Blob([JSON.stringify(data.bedrockGeo, null, 2)], { type: 'application/json' });
+      triggerDownload(jsonBlob, 'crowned_traveler.geo.json');
+      showExportToast('Downloaded crowned_traveler.geo.json!');
+    });
+
+    document.getElementById('downloadAtlasPngBtn').addEventListener('click', () => {
+      const data = refreshModalPreview();
+      triggerDownload(data.atlasDataUrl, 'crowned_traveler_atlas.png');
+      showExportToast('Downloaded crowned_traveler_atlas.png (128×128)!');
+    });
+
+    const animButtons = document.querySelectorAll('.anim-btn');
+    animButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const selected = btn.getAttribute('data-anim');
+        if (selected === currentAnim && selected !== 'attack') return;
+        currentAnim = selected;
+        animTime = 0;
+
+        animButtons.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+
+    let isResettingCamera = false;
+    document.getElementById('resetCameraBtn').addEventListener('click', () => {
+      isResettingCamera = true;
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    const clock = new THREE.Clock();
+    const STEP = 1 / 60;
+    let accumulator = 0;
+    let totalElapsed = 0;
+
+    function animateLoop() {
+      requestAnimationFrame(animateLoop);
+
+      const frameDelta = Math.min(clock.getDelta(), 0.1);
+      accumulator += frameDelta;
+
+      while (accumulator >= STEP) {
+        totalElapsed += STEP;
+        updateBearAnimation(STEP, totalElapsed);
+        accumulator -= STEP;
+      }
+
+      if (isResettingCamera) {
+        camera.position.lerp(DEFAULT_CAM_POS, 0.12);
+        controls.target.lerp(DEFAULT_TARGET, 0.12);
+        if (
+          camera.position.distanceTo(DEFAULT_CAM_POS) < 0.01 &&
+          controls.target.distanceTo(DEFAULT_TARGET) < 0.01
+        ) {
+          camera.position.copy(DEFAULT_CAM_POS);
+          controls.target.copy(DEFAULT_TARGET);
+          isResettingCamera = false;
+        }
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function () {
+      animateLoop();
+    };
+  </script>
+</body>
+</html>

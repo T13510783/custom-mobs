@@ -1,0 +1,15 @@
+{
+  "entity.theking.the_king": "De Koning",
+  "item.theking.the_king_spawn_egg": "De Koning-spawnei",
+  "itemGroup.theking": "De Koning",
+  "subtitles.theking.voice": "De Koning praat",
+  "subtitles.theking.dance": "De Koning danst",
+  "theking.configuration.title": "De Koning-instellingen",
+  "theking.configuration.naturalSpawns": "Vanzelf spawnen",
+  "theking.configuration.dropkick": "Dropkick-aanval",
+  "theking.configuration.dropkickDamageMultiplier": "Dropkick-schade (vermenigvuldiger)",
+  "theking.configuration.danceOnKill": "Dansen na een kill",
+  "theking.configuration.voiceLines": "Voice lines",
+  "theking.configuration.voiceVolume": "Volume voice lines",
+  "theking.configuration.musicVolume": "Volume dansmuziek"
+}

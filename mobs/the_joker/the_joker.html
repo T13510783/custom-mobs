@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Joker — 16x16 Vanilla+ Model Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap');
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0f1115;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+
+        /* Sleek minimal pill button transitions */
+        .anim-btn {
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .anim-btn.active {
+            background-color: #b82323;
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(184, 35, 35, 0.45);
+        }
+
+        .anim-btn:not(.active):hover {
+            background-color: rgba(255, 255, 255, 0.08);
+            color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="bg-[#0f1115] text-gray-200 antialiased">
+
+    <div id="canvas-container">
+        <!-- Floating Bottom Pill Bar + Small Camera Reset Button -->
+        <div class="fixed bottom-7 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5">
+            <div class="flex items-center gap-1 p-1.5 rounded-full bg-[#161920]/90 backdrop-blur-md border border-white/10 shadow-2xl">
+                <button data-anim="idle" class="anim-btn active px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide text-gray-400">
+                    Idle
+                </button>
+                <button data-anim="walk" class="anim-btn px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide text-gray-400">
+                    Walk
+                </button>
+                <button data-anim="attack" class="anim-btn px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide text-gray-400">
+                    Attack
+                </button>
+                <button data-anim="special" class="anim-btn px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide text-gray-400">
+                    Special
+                </button>
+            </div>
+
+            <button id="reset-cam-btn" title="Reset Camera" aria-label="Reset Camera"
+                class="p-2.5 rounded-full bg-[#161920]/90 hover:bg-[#20242e] text-gray-400 hover:text-white backdrop-blur-md border border-white/10 shadow-2xl transition-all duration-200 active:scale-95">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * COLOR PALETTE — Matched directly to the Arthur Fleck / Joker reference photos:
+         * - Crimson/Burgundy tailored suit jacket & trousers
+         * - Golden-mustard waistcoat (vest)
+         * - Emerald/Teal green patterned dress shirt
+         * - Chalky white face paint, crimson smile/nose/brows, slate-blue eye diamonds & tear drip
+         * - Swept-back mossy/olive green hair
+         * - Two-tone brown vintage wingtip dress shoes
+         */
+        const PALETTE = {
+            // Face paint & skin
+            paintLight: '#f0f2f5',
+            paintBase:  '#e2e5ea',
+            paintShade: '#cbd0d8',
+            paintDark:  '#b0b7c2',
+            skinLight:  '#dca588',
+            skinBase:   '#c98d6e',
+            skinShade:  '#a86f52',
+            skinDark:   '#87543b',
+
+            // Clown makeup accents
+            makeupRedLight: '#cc2424',
+            makeupRedBase:  '#a61717',
+            makeupRedDark:  '#780e0e',
+            makeupBlueLight:'#26799e',
+            makeupBlueBase: '#185875',
+            makeupBlueDark: '#0f3c52',
+            eyeDark:        '#1d242b',
+            eyeSclera:      '#d9dee3',
+
+            // Mossy / Olive green hair
+            hairHighlight: '#6b9c3e',
+            hairLight:     '#527d2c',
+            hairBase:      '#3c611e',
+            hairShade:     '#2b4714',
+            hairDark:      '#1c300c',
+
+            // Crimson Red Suit
+            suitHighlight: '#cf2d2d',
+            suitLight:     '#b52121',
+            suitBase:      '#9c1919',
+            suitShade:     '#7d1212',
+            suitDark:      '#5e0c0c',
+            suitDeep:      '#420707',
+
+            // Golden-Mustard Waistcoat (Vest)
+            vestHighlight: '#f2b12e',
+            vestLight:     '#e09b1b',
+            vestBase:      '#c78310',
+            vestShade:     '#a3670a',
+            vestDark:      '#7d4c05',
+
+            // Emerald-Teal Dress Shirt
+            shirtHighlight:'#20876e',
+            shirtLight:    '#166e58',
+            shirtBase:     '#105745',
+            shirtShade:    '#0b4032',
+            shirtDark:     '#072b21',
+
+            // Vintage Brown Wingtip Shoes
+            shoeHighlight: '#855331',
+            shoeLight:     '#693f22',
+            shoeBase:      '#4d2c16',
+            shoeDark:      '#2b170b',
+            shoeSole:      '#170d06'
+        };
+
+        /**
+         * Creates a crisp pixel-art THREE.CanvasTexture of exact texel dimensions (w x h)
+         * using THREE.NearestFilter so every texel maps 1:1 to the 16x16 Blockbench grid.
+         */
+        function createPixelTexture(w, h, drawFn) {
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = false;
+
+            // Helper functions passed to the drawing callback
+            const api = {
+                ctx,
+                w,
+                h,
+                fill(color) {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(0, 0, w, h);
+                },
+                rect(x, y, rw, rh, color) {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y, rw, rh);
+                },
+                px(x, y, color) {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y, 1, 1);
+                },
+                noise(x, y, rw, rh, colors, density = 0.35, seedOffset = 0) {
+                    for (let ix = x; ix < x + rw; ix++) {
+                        for (let iy = y; iy < y + rh; iy++) {
+                            const hash = Math.sin((ix * 12.9898 + iy * 78.233 + seedOffset) * 43758.5453);
+                            const frac = hash - Math.floor(hash);
+                            if (frac < density) {
+                                const cIdx = Math.floor((frac / density) * colors.length);
+                                ctx.fillStyle = colors[cIdx];
+                                ctx.fillRect(ix, iy, 1, 1);
+                            }
+                        }
+                    }
+                }
+            };
+
+            drawFn(api);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestFilter;
+            tex.generateMipmaps = false;
+            tex.needsUpdate = true;
+            return tex;
+        }
+
+        /**
+         * Builds a 6-sided material array for a Blockbench-style box of pixel dimensions [w, h, d].
+         * Face order in Three.js BoxGeometry:
+         * 0: Right (+X), 1: Left (-X), 2: Top (+Y), 3: Bottom (-Y), 4: Front (+Z), 5: Back (-Z)
+         */
+        function createBoxMaterials(w, h, d, facePainters, options = {}) {
+            const tw = Math.max(1, Math.round(w));
+            const th = Math.max(1, Math.round(h));
+            const td = Math.max(1, Math.round(d));
+
+            const dims = [
+                [td, th], // 0: right
+                [td, th], // 1: left
+                [tw, td], // 2: top
+                [tw, td], // 3: bottom
+                [tw, th], // 4: front
+                [tw, th]  // 5: back
+            ];
+
+            const keys = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+
+            return keys.map((key, idx) => {
+                const [fw, fh] = dims[idx];
+                const painter = facePainters[key] || facePainters.all || ((p) => p.fill('#ff00ff'));
+                const tex = createPixelTexture(fw, fh, painter);
+                return new THREE.MeshStandardMaterial({
+                    map: tex,
+                    roughness: options.roughness !== undefined ? options.roughness : 0.82,
+                    metalness: options.metalness !== undefined ? options.metalness : 0.05,
+                    transparent: !!options.transparent,
+                    alphaTest: options.alphaTest || 0
+                });
+            });
+        }
+
+        /**
+         * Helper to create a mesh with pixel dimensions (w, h, d) where 16 pixels = 1 block unit.
+         */
+        function createVoxelBox(w, h, d, facePainters, options = {}) {
+            const geom = new THREE.BoxGeometry(w, h, d);
+            const mats = createBoxMaterials(w, h, d, facePainters, options);
+            const mesh = new THREE.Mesh(geom, mats);
+            mesh.castShadow = options.castShadow !== undefined ? options.castShadow : true;
+            mesh.receiveShadow = options.receiveShadow !== undefined ? options.receiveShadow : true;
+            return mesh;
+        }
+    </script>
+
+    <script>
+        /**
+         * PROCEDURAL 16x16 PIXEL ART PAINTERS FOR THE JOKER
+         */
+        const JokerTextures = {
+            // 1. HEAD (8x8x8 pixels)
+            head: {
+                front(p) {
+                    // Base skin around edges & jawline
+                    p.fill(PALETTE.skinBase);
+                    p.rect(0, 0, 8, 1, PALETTE.hairBase); // Top hairline edge
+                    p.px(0, 0, PALETTE.hairShade);
+                    p.px(7, 0, PALETTE.hairShade);
+
+                    // Chalky white greasepaint covering face (with organic uneven edges)
+                    p.rect(1, 0, 6, 7, PALETTE.paintBase);
+                    p.rect(0, 1, 8, 5, PALETTE.paintBase);
+                    p.rect(2, 7, 4, 1, PALETTE.paintShade); // Chin paint
+
+                    // Subtle chalky shading & forehead wrinkles
+                    p.rect(2, 0, 4, 1, PALETTE.paintLight);
+                    p.px(1, 1, PALETTE.paintShade);
+                    p.px(6, 1, PALETTE.paintShade);
+                    p.px(0, 5, PALETTE.paintShade);
+                    p.px(7, 5, PALETTE.paintShade);
+
+                    // Skin peeking at lower jaw corners
+                    p.px(0, 6, PALETTE.skinShade);
+                    p.px(7, 6, PALETTE.skinShade);
+                    p.px(0, 7, PALETTE.skinDark);
+                    p.px(1, 7, PALETTE.skinBase);
+                    p.px(6, 7, PALETTE.skinBase);
+                    p.px(7, 7, PALETTE.skinDark);
+
+                    // High arched red eyebrows (Row 1)
+                    p.px(1, 1, PALETTE.makeupRedBase);
+                    p.px(2, 1, PALETTE.makeupRedLight);
+                    p.px(5, 1, PALETTE.makeupRedLight);
+                    p.px(6, 1, PALETTE.makeupRedBase);
+
+                    // Teal-blue eye diamonds (Rows 2, 3, 4)
+                    // Upper diamond points (Row 2)
+                    p.px(1, 2, PALETTE.makeupBlueBase);
+                    p.px(2, 2, PALETTE.makeupBlueLight);
+                    p.px(5, 2, PALETTE.makeupBlueLight);
+                    p.px(6, 2, PALETTE.makeupBlueBase);
+
+                    // Eyes row (Row 3)
+                    p.px(1, 3, PALETTE.eyeSclera);
+                    p.px(2, 3, PALETTE.eyeDark);
+                    p.px(5, 3, PALETTE.eyeDark);
+                    p.px(6, 3, PALETTE.eyeSclera);
+
+                    // Lower blue diamond points under eyes (Row 4)
+                    p.px(1, 4, PALETTE.makeupBlueDark);
+                    p.px(2, 4, PALETTE.makeupBlueBase);
+                    p.px(5, 4, PALETTE.makeupBlueBase);
+                    p.px(6, 4, PALETTE.makeupBlueDark);
+
+                    // Iconic smeared blue tear streak dripping down left eye (viewer's right, x=5, y=5)
+                    p.px(5, 5, PALETTE.makeupBlueLight);
+
+                    // Red painted nose (Row 4, center x=3,4)
+                    p.px(3, 4, PALETTE.makeupRedLight);
+                    p.px(4, 4, PALETTE.makeupRedBase);
+
+                    // Wide smeared crimson smile (Rows 5, 6, 7)
+                    // Cheek upturns (Row 5)
+                    p.px(1, 5, PALETTE.makeupRedLight);
+                    p.px(6, 5, PALETTE.makeupRedLight);
+                    // Main mouth & lips (Row 6)
+                    p.px(1, 6, PALETTE.makeupRedBase);
+                    p.px(2, 6, PALETTE.makeupRedDark);
+                    p.px(3, 6, PALETTE.makeupRedDark);
+                    p.px(4, 6, PALETTE.makeupRedDark);
+                    p.px(5, 6, PALETTE.makeupRedDark);
+                    p.px(6, 6, PALETTE.makeupRedBase);
+                    // Lower lip smear (Row 7)
+                    p.px(3, 7, PALETTE.makeupRedBase);
+                    p.px(4, 7, PALETTE.makeupRedBase);
+                },
+                right(p) {
+                    // Skin & ear + swept back green hair
+                    p.fill(PALETTE.skinBase);
+                    p.rect(0, 0, 8, 2, PALETTE.hairBase);
+                    p.rect(3, 0, 5, 7, PALETTE.hairBase);
+                    p.noise(3, 0, 5, 7, [PALETTE.hairLight, PALETTE.hairShade, PALETTE.hairDark], 0.55, 11);
+                    // White paint edge near front of face (left side of right face)
+                    p.rect(0, 1, 1, 5, PALETTE.paintShade);
+                    // Ear detail
+                    p.px(2, 3, PALETTE.skinShade);
+                    p.px(2, 4, PALETTE.skinDark);
+                },
+                left(p) {
+                    p.fill(PALETTE.skinBase);
+                    p.rect(0, 0, 8, 2, PALETTE.hairBase);
+                    p.rect(0, 0, 5, 7, PALETTE.hairBase);
+                    p.noise(0, 0, 5, 7, [PALETTE.hairLight, PALETTE.hairShade, PALETTE.hairDark], 0.55, 22);
+                    // White paint edge near front of face (right side of left face)
+                    p.rect(7, 1, 1, 5, PALETTE.paintShade);
+                    // Ear detail
+                    p.px(5, 3, PALETTE.skinShade);
+                    p.px(5, 4, PALETTE.skinDark);
+                },
+                top(p) {
+                    // Swept-back green hair strands
+                    p.fill(PALETTE.hairBase);
+                    for (let x = 0; x < 8; x++) {
+                        const c = (x % 2 === 0) ? PALETTE.hairLight : PALETTE.hairShade;
+                        p.rect(x, 0, 1, 8, c);
+                    }
+                    p.noise(0, 0, 8, 8, [PALETTE.hairHighlight, PALETTE.hairDark], 0.35, 33);
+                    // Forehead white edge at front bottom of top face
+                    p.rect(2, 7, 4, 1, PALETTE.paintBase);
+                },
+                back(p) {
+                    p.fill(PALETTE.hairBase);
+                    for (let x = 0; x < 8; x++) {
+                        p.rect(x, 0, 1, 8, (x % 2 === 0) ? PALETTE.hairShade : PALETTE.hairBase);
+                    }
+                    p.noise(0, 0, 8, 8, [PALETTE.hairLight, PALETTE.hairDark, PALETTE.hairHighlight], 0.5, 44);
+                },
+                bottom(p) {
+                    p.fill(PALETTE.skinDark);
+                    p.rect(2, 0, 4, 3, PALETTE.paintDark);
+                }
+            },
+
+            // 2. HAIR LOCKS (Reusable mossy green wavy texture)
+            hairLayer: {
+                all(p) {
+                    p.fill(PALETTE.hairBase);
+                    for (let x = 0; x < p.w; x++) {
+                        if (x % 2 === 0) p.rect(x, 0, 1, p.h, PALETTE.hairShade);
+                    }
+                    p.noise(0, 0, p.w, p.h, [PALETTE.hairHighlight, PALETTE.hairLight, PALETTE.hairDark], 0.55, 77);
+                }
+            },
+
+            // 3. TORSO BASE (8x12x4) — Shows Emerald Green Shirt + Golden Waistcoat + Red Trousers Waist
+            torso: {
+                front(p) {
+                    // Base golden-mustard waistcoat
+                    p.fill(PALETTE.vestBase);
+                    p.noise(0, 0, 8, 10, [PALETTE.vestLight, PALETTE.vestShade], 0.35, 101);
+
+                    // Deep Emerald-Teal patterned shirt at upper chest & neck (y = 0..4)
+                    p.rect(2, 0, 4, 3, PALETTE.shirtBase);
+                    p.rect(3, 3, 2, 2, PALETTE.shirtBase);
+                    // Subtle circular pattern highlights on green shirt
+                    p.px(2, 0, PALETTE.shirtHighlight);
+                    p.px(4, 1, PALETTE.shirtHighlight);
+                    p.px(3, 2, PALETTE.shirtLight);
+                    p.px(4, 3, PALETTE.shirtHighlight);
+                    // Open neck skin at very top center
+                    p.rect(3, 0, 2, 1, PALETTE.skinShade);
+
+                    // Shirt collar shading
+                    p.px(2, 2, PALETTE.shirtDark);
+                    p.px(5, 2, PALETTE.shirtDark);
+
+                    // Waistcoat V-neck border highlights
+                    p.px(2, 3, PALETTE.vestHighlight);
+                    p.px(5, 3, PALETTE.vestHighlight);
+                    p.px(3, 5, PALETTE.vestHighlight);
+                    p.px(4, 5, PALETTE.vestLight);
+
+                    // Waistcoat center seam & buttons (y = 5..9)
+                    p.rect(4, 5, 1, 5, PALETTE.vestShade);
+                    p.px(3, 5, PALETTE.vestDark);
+                    p.px(3, 7, PALETTE.vestDark);
+                    p.px(3, 9, PALETTE.vestDark);
+
+                    // Waistcoat pockets & shading
+                    p.rect(1, 7, 2, 1, PALETTE.vestDark);
+                    p.rect(5, 7, 2, 1, PALETTE.vestDark);
+
+                    // Bottom V-cut notches of the yellow vest exposing the red trousers underneath (y = 10..11)
+                    p.rect(0, 10, 8, 2, PALETTE.suitBase);
+                    p.rect(3, 10, 2, 2, PALETTE.suitDark); // Center notch between vest points
+                    // Two golden vest points hanging down at x=1..2 and x=5..6 on row 10
+                    p.rect(1, 10, 2, 1, PALETTE.vestBase);
+                    p.rect(5, 10, 2, 1, PALETTE.vestBase);
+                    p.px(2, 11, PALETTE.vestShade);
+                    p.px(5, 11, PALETTE.vestShade);
+                },
+                back(p) {
+                    p.fill(PALETTE.suitBase);
+                    p.noise(0, 0, 8, 12, [PALETTE.suitLight, PALETTE.suitShade], 0.4, 102);
+                    // Center back seam of suit jacket
+                    p.rect(4, 0, 1, 12, PALETTE.suitShade);
+                    // Green collar edge at top
+                    p.rect(2, 0, 4, 1, PALETTE.shirtShade);
+                },
+                right(p) {
+                    p.fill(PALETTE.suitShade);
+                    p.noise(0, 0, 4, 12, [PALETTE.suitBase, PALETTE.suitDark], 0.4, 103);
+                },
+                left(p) {
+                    p.fill(PALETTE.suitShade);
+                    p.noise(0, 0, 4, 12, [PALETTE.suitBase, PALETTE.suitDark], 0.4, 104);
+                },
+                top(p) {
+                    p.fill(PALETTE.shirtBase);
+                    p.rect(0, 0, 2, 4, PALETTE.suitBase);
+                    p.rect(6, 0, 2, 4, PALETTE.suitBase);
+                },
+                bottom(p) {
+                    p.fill(PALETTE.suitDark);
+                }
+            },
+
+            // 4. SUIT JACKET OUTER PANELS & LAPELS
+            suitPanel: {
+                front(p) {
+                    p.fill(PALETTE.suitBase);
+                    p.noise(0, 0, p.w, p.h, [PALETTE.suitLight, PALETTE.suitShade], 0.35, 201);
+                    // Subtle inner lapel highlight along inner edge
+                    p.rect(0, 0, 1, p.h, PALETTE.suitHighlight);
+                    // Pocket welt detail
+                    if (p.h >= 10) {
+                        p.rect(0, 8, p.w, 1, PALETTE.suitDark);
+                        p.rect(0, 9, p.w, 1, PALETTE.suitHighlight);
+                    }
+                },
+                all(p) {
+                    p.fill(PALETTE.suitBase);
+                    p.noise(0, 0, p.w, p.h, [PALETTE.suitLight, PALETTE.suitShade, PALETTE.suitDark], 0.4, 202);
+                }
+            },
+
+            // 5. ARMS (4x12x4) — Red Suit Sleeve + Emerald Green Cuff + Painted/Skin Hands
+            arm: {
+                all(p) {
+                    // Suit sleeve top (y = 0..8)
+                    p.fill(PALETTE.suitBase);
+                    p.noise(0, 0, p.w, 9, [PALETTE.suitLight, PALETTE.suitShade], 0.4, 301);
+                    p.rect(0, 8, p.w, 1, PALETTE.suitDark);
+
+                    // Emerald green patterned shirt cuff peeking out at wrist (y = 9)
+                    p.rect(0, 9, p.w, 1, PALETTE.shirtLight);
+                    p.px(1, 9, PALETTE.shirtHighlight);
+                    p.px(3, 9, PALETTE.shirtShade);
+
+                    // Hand skin & knuckles (y = 10..11)
+                    p.rect(0, 10, p.w, 2, PALETTE.skinBase);
+                    p.rect(0, 11, p.w, 1, PALETTE.skinShade);
+                    p.px(1, 10, PALETTE.skinLight);
+                },
+                top(p) {
+                    p.fill(PALETTE.suitLight);
+                    p.noise(0, 0, 4, 4, [PALETTE.suitBase, PALETTE.suitHighlight], 0.35, 302);
+                },
+                bottom(p) {
+                    p.fill(PALETTE.skinDark);
+                }
+            },
+
+            // 6. LEGS (4x12x4) — Crimson Suit Trousers + Vintage Brown Leather Wingtip Shoes
+            leg: {
+                front(p) {
+                    // Crimson trousers (y = 0..9)
+                    p.fill(PALETTE.suitBase);
+                    p.noise(0, 0, 4, 10, [PALETTE.suitLight, PALETTE.suitShade], 0.35, 401);
+                    // Crisp vertical trouser crease down center
+                    p.rect(1, 0, 1, 9, PALETTE.suitHighlight);
+                    p.rect(3, 0, 1, 10, PALETTE.suitShade);
+
+                    // Vintage two-tone brown dress shoes (y = 10..11)
+                    p.rect(0, 10, 4, 2, PALETTE.shoeBase);
+                    p.rect(1, 10, 2, 1, PALETTE.shoeHighlight); // Polished leather tongue/instep
+                    p.px(1, 11, PALETTE.shoeLight);
+                    p.px(2, 11, PALETTE.shoeLight);
+                    p.px(0, 11, PALETTE.shoeSole);
+                    p.px(3, 11, PALETTE.shoeSole);
+                },
+                back(p) {
+                    p.fill(PALETTE.suitShade);
+                    p.noise(0, 0, 4, 10, [PALETTE.suitBase, PALETTE.suitDark], 0.4, 402);
+                    p.rect(0, 10, 4, 2, PALETTE.shoeDark);
+                },
+                right(p) {
+                    p.fill(PALETTE.suitBase);
+                    p.noise(0, 0, 4, 10, [PALETTE.suitLight, PALETTE.suitShade], 0.4, 403);
+                    p.rect(2, 0, 1, 10, PALETTE.suitDark); // Side seam
+                    p.rect(0, 10, 4, 2, PALETTE.shoeBase);
+                    p.rect(0, 11, 4, 1, PALETTE.shoeSole);
+                },
+                left(p) {
+                    p.fill(PALETTE.suitBase);
+                    p.noise(0, 0, 4, 10, [PALETTE.suitLight, PALETTE.suitShade], 0.4, 404);
+                    p.rect(1, 0, 1, 10, PALETTE.suitDark);
+                    p.rect(0, 10, 4, 2, PALETTE.shoeBase);
+                    p.rect(0, 11, 4, 1, PALETTE.shoeSole);
+                },
+                top(p) {
+                    p.fill(PALETTE.suitDark);
+                },
+                bottom(p) {
+                    p.fill(PALETTE.shoeSole);
+                }
+            }
+        };
+    </script>
+
+    <script>
+        /**
+         * Builds the complete hierarchical Arthur Fleck / Joker model.
+         * Coordinate scale: 1 unit = 1 Minecraft pixel (16 units = 1 full block).
+         * Total standing height = 32 units (2 blocks).
+         */
+        function buildJokerModel() {
+            const root = new THREE.Group();
+
+            // Master Pelvis / Body Pivot at hip height (y = 12)
+            const bodyPivot = new THREE.Group();
+            bodyPivot.position.set(0, 12, 0);
+            root.add(bodyPivot);
+
+            // Waist / Torso Pivot (at y = 0 relative to pelvis, extends up to +12)
+            const torsoPivot = new THREE.Group();
+            bodyPivot.add(torsoPivot);
+
+            // 1. BASE TORSO (8x12x4)
+            const torsoMesh = createVoxelBox(8, 12, 4, JokerTextures.torso);
+            torsoMesh.position.set(0, 6, 0);
+            torsoPivot.add(torsoMesh);
+
+            // 2. 3D LAYERED SUIT JACKET & LAPELS (Vanilla+ Depth Details)
+            // Left & Right Open Front Jacket Panels (leaving the golden vest recessed in center)
+            const rightJacketFront = createVoxelBox(2.4, 12.2, 0.5, JokerTextures.suitPanel);
+            rightJacketFront.position.set(-2.9, 6, 2.15);
+            torsoPivot.add(rightJacketFront);
+
+            const leftJacketFront = createVoxelBox(2.4, 12.2, 0.5, JokerTextures.suitPanel);
+            leftJacketFront.position.set(2.9, 6, 2.15);
+            torsoPivot.add(leftJacketFront);
+
+            // 3D Extruded Peaked Lapels (angled neatly over the chest panels like Pictures 1 & 3)
+            const rightLapel = createVoxelBox(1.8, 6.5, 0.45, {
+                all: (p) => {
+                    p.fill(PALETTE.suitLight);
+                    p.noise(0, 0, p.w, p.h, [PALETTE.suitHighlight, PALETTE.suitBase], 0.4, 501);
+                    p.rect(0, 0, 1, p.h, PALETTE.suitHighlight);
+                }
+            });
+            rightLapel.position.set(-2.1, 8.3, 2.5);
+            rightLapel.rotation.z = -0.18;
+            torsoPivot.add(rightLapel);
+
+            const leftLapel = createVoxelBox(1.8, 6.5, 0.45, {
+                all: (p) => {
+                    p.fill(PALETTE.suitLight);
+                    p.noise(0, 0, p.w, p.h, [PALETTE.suitHighlight, PALETTE.suitBase], 0.4, 502);
+                    p.rect(p.w - 1, 0, 1, p.h, PALETTE.suitHighlight);
+                }
+            });
+            leftLapel.position.set(2.1, 8.3, 2.5);
+            leftLapel.rotation.z = 0.18;
+            torsoPivot.add(leftLapel);
+
+            // 3D Extruded Emerald Green Shirt Collar Points
+            const rightCollar = createVoxelBox(1.4, 2.2, 0.35, {
+                all: (p) => {
+                    p.fill(PALETTE.shirtLight);
+                    p.px(0, 0, PALETTE.shirtHighlight);
+                }
+            });
+            rightCollar.position.set(-1.15, 10.7, 2.15);
+            rightCollar.rotation.z = 0.22;
+            torsoPivot.add(rightCollar);
+
+            const leftCollar = createVoxelBox(1.4, 2.2, 0.35, {
+                all: (p) => {
+                    p.fill(PALETTE.shirtLight);
+                    p.px(0, 0, PALETTE.shirtHighlight);
+                }
+            });
+            leftCollar.position.set(1.15, 10.7, 2.15);
+            leftCollar.rotation.z = -0.22;
+            torsoPivot.add(leftCollar);
+
+            // 3D Suit Back Coat Layer & Lower Coat Skirts/Tails overlapping the hips
+            const backJacketLayer = createVoxelBox(8.5, 12.2, 0.45, JokerTextures.suitPanel);
+            backJacketLayer.position.set(0, 6, -2.15);
+            torsoPivot.add(backJacketLayer);
+
+            const rightCoatTail = createVoxelBox(2.6, 3.2, 4.6, JokerTextures.suitPanel);
+            rightCoatTail.position.set(-3.0, -1.2, 0);
+            torsoPivot.add(rightCoatTail);
+
+            const leftCoatTail = createVoxelBox(2.6, 3.2, 4.6, JokerTextures.suitPanel);
+            leftCoatTail.position.set(3.0, -1.2, 0);
+            torsoPivot.add(leftCoatTail);
+
+            // 3. HEAD & LAYERED 3D GREEN HAIR (Pivoted at neck y = 12)
+            const headPivot = new THREE.Group();
+            headPivot.position.set(0, 12, 0);
+            torsoPivot.add(headPivot);
+
+            const headMesh = createVoxelBox(8, 8, 8, JokerTextures.head);
+            headMesh.position.set(0, 4, 0);
+            headPivot.add(headMesh);
+
+            // 3D Extruded Red Clown Nose Tip
+            const noseMesh = createVoxelBox(1.8, 1.5, 0.85, {
+                all: (p) => {
+                    p.fill(PALETTE.makeupRedLight);
+                    p.px(0, 1, PALETTE.makeupRedBase);
+                }
+            });
+            noseMesh.position.set(0, 3.65, 4.35);
+            headPivot.add(noseMesh);
+
+            // 3D Swept-Back Hair Crown (top volume)
+            const hairTopCrown = createVoxelBox(8.5, 1.4, 8.4, JokerTextures.hairLayer);
+            hairTopCrown.position.set(0, 8.35, -0.25);
+            headPivot.add(hairTopCrown);
+
+            const hairUpperSweep = createVoxelBox(7.2, 0.9, 6.8, JokerTextures.hairLayer);
+            hairUpperSweep.position.set(0, 9.2, -0.6);
+            headPivot.add(hairUpperSweep);
+
+            // 3D Wavy Side Hair Locks (flaring out on left & right like Pictures 1 & 3)
+            const hairSideLocks = [];
+
+            const rightSideUpper = createVoxelBox(1.3, 5.8, 5.5, JokerTextures.hairLayer);
+            rightSideUpper.position.set(-4.35, 4.8, -1.1);
+            rightSideUpper.rotation.z = 0.08;
+            headPivot.add(rightSideUpper);
+            hairSideLocks.push(rightSideUpper);
+
+            const rightSideFlare = createVoxelBox(1.4, 4.5, 4.2, JokerTextures.hairLayer);
+            rightSideFlare.position.set(-4.75, 2.2, -1.4);
+            rightSideFlare.rotation.z = 0.18;
+            headPivot.add(rightSideFlare);
+            hairSideLocks.push(rightSideFlare);
+
+            const leftSideUpper = createVoxelBox(1.3, 5.8, 5.5, JokerTextures.hairLayer);
+            leftSideUpper.position.set(4.35, 4.8, -1.1);
+            leftSideUpper.rotation.z = -0.08;
+            headPivot.add(leftSideUpper);
+            hairSideLocks.push(leftSideUpper);
+
+            const leftSideFlare = createVoxelBox(1.4, 4.5, 4.2, JokerTextures.hairLayer);
+            leftSideFlare.position.set(4.75, 2.2, -1.4);
+            leftSideFlare.rotation.z = -0.18;
+            headPivot.add(leftSideFlare);
+            hairSideLocks.push(leftSideFlare);
+
+            // 3D Back Hair Curtain hanging down over collar
+            const backHairCurtain = createVoxelBox(8.6, 7.2, 1.5, JokerTextures.hairLayer);
+            backHairCurtain.position.set(0, 3.6, -4.45);
+            backHairCurtain.rotation.x = 0.08;
+            headPivot.add(backHairCurtain);
+            hairSideLocks.push(backHairCurtain);
+
+            const backHairLowerWave = createVoxelBox(7.6, 2.4, 1.3, JokerTextures.hairLayer);
+            backHairLowerWave.position.set(0, -0.3, -4.7);
+            backHairLowerWave.rotation.x = 0.16;
+            headPivot.add(backHairLowerWave);
+            hairSideLocks.push(backHairLowerWave);
+
+            // 4. ARMS (Right & Left, pivoted at shoulders y = 10 on torso, x = ±6)
+            const rightArmPivot = new THREE.Group();
+            rightArmPivot.position.set(-6, 10, 0);
+            torsoPivot.add(rightArmPivot);
+
+            const rightArmMesh = createVoxelBox(4, 12, 4, JokerTextures.arm);
+            rightArmMesh.position.set(0, -4, 0);
+            rightArmPivot.add(rightArmMesh);
+
+            // 3D Right Jacket Sleeve Layer
+            const rightSleeveOuter = createVoxelBox(4.45, 8.6, 4.45, JokerTextures.suitPanel);
+            rightSleeveOuter.position.set(0, -2.2, 0);
+            rightArmPivot.add(rightSleeveOuter);
+
+            // Left Arm
+            const leftArmPivot = new THREE.Group();
+            leftArmPivot.position.set(6, 10, 0);
+            torsoPivot.add(leftArmPivot);
+
+            const leftArmMesh = createVoxelBox(4, 12, 4, JokerTextures.arm);
+            leftArmMesh.position.set(0, -4, 0);
+            leftArmPivot.add(leftArmMesh);
+
+            // 3D Left Jacket Sleeve Layer
+            const leftSleeveOuter = createVoxelBox(4.45, 8.6, 4.45, JokerTextures.suitPanel);
+            leftSleeveOuter.position.set(0, -2.2, 0);
+            leftArmPivot.add(leftSleeveOuter);
+
+            // 5. PROPS:
+            // A) Lit Cigarette (from Reference Photo #2 — can sit at mouth corner or right hand)
+            const mouthCigarette = new THREE.Group();
+            const cigFilter = createVoxelBox(0.65, 0.65, 0.9, { all: (p) => p.fill('#d4883b') });
+            const cigPaper = createVoxelBox(0.65, 0.65, 2.1, { all: (p) => p.fill('#f2f2eb') });
+            cigPaper.position.z = 1.5;
+            const cigEmber = createVoxelBox(0.68, 0.68, 0.45, { all: (p) => p.fill('#ff4d00') }, { roughness: 0.3 });
+            cigEmber.position.z = 2.75;
+            mouthCigarette.add(cigFilter, cigPaper, cigEmber);
+            // Positioned at right corner of mouth like Reference Photo #2
+            mouthCigarette.position.set(-1.35, 1.55, 4.2);
+            mouthCigarette.rotation.set(0.32, -0.35, 0);
+            headPivot.add(mouthCigarette);
+
+            // B) Voxel Snub-Nosed Revolver (Equipped in Right Hand during Attack animation)
+            const revolverGroup = new THREE.Group();
+            const gunGrip = createVoxelBox(1.2, 2.6, 1.4, {
+                all: (p) => { p.fill('#4a2c18'); p.px(0, 0, '#693f22'); }
+            });
+            gunGrip.position.set(0, 0, -0.4);
+            gunGrip.rotation.x = 0.25;
+
+            const gunFrame = createVoxelBox(1.4, 1.8, 3.2, {
+                all: (p) => { p.fill('#2b3038'); p.px(0, 0, '#454d59'); }
+            }, { metalness: 0.6, roughness: 0.35 });
+            gunFrame.position.set(0, 1.4, 0.8);
+
+            const gunCylinder = createVoxelBox(1.8, 1.6, 1.6, {
+                all: (p) => { p.fill('#1f2329'); p.px(0, 0, '#3a414d'); }
+            }, { metalness: 0.7, roughness: 0.3 });
+            gunCylinder.position.set(0, 1.4, 0.5);
+
+            const gunBarrel = createVoxelBox(1.1, 1.1, 2.4, {
+                all: (p) => { p.fill('#363c47'); }
+            }, { metalness: 0.7, roughness: 0.3 });
+            gunBarrel.position.set(0, 1.65, 3.0);
+
+            // Muzzle Flash Voxel Star (hidden except on firing frame)
+            const muzzleFlash = createVoxelBox(3.2, 3.2, 3.2, {
+                all: (p) => {
+                    p.fill('#ffae00');
+                    p.rect(1, 1, 2, 2, '#ffffff');
+                }
+            }, { roughness: 0.1 });
+            muzzleFlash.position.set(0, 1.65, 5.2);
+            muzzleFlash.visible = false;
+
+            revolverGroup.add(gunGrip, gunFrame, gunCylinder, gunBarrel, muzzleFlash);
+            revolverGroup.position.set(0, -9.2, 2.2);
+            revolverGroup.rotation.x = Math.PI / 2;
+            revolverGroup.visible = false;
+            rightArmPivot.add(revolverGroup);
+
+            // 6. LEGS (Right & Left, pivoted at hips y = 12 in world / y = 0 in bodyPivot, x = ±2)
+            const rightLegPivot = new THREE.Group();
+            rightLegPivot.position.set(-2, 0, 0);
+            bodyPivot.add(rightLegPivot);
+
+            const rightLegMesh = createVoxelBox(4, 12, 4, JokerTextures.leg);
+            rightLegMesh.position.set(0, -6, 0);
+            rightLegPivot.add(rightLegMesh);
+
+            // 3D Trouser Cuff Break over vintage shoe
+            const rightPantCuff = createVoxelBox(4.35, 2.2, 4.35, JokerTextures.suitPanel);
+            rightPantCuff.position.set(0, -8.8, 0);
+            rightLegPivot.add(rightPantCuff);
+
+            const leftLegPivot = new THREE.Group();
+            leftLegPivot.position.set(2, 0, 0);
+            bodyPivot.add(leftLegPivot);
+
+            const leftLegMesh = createVoxelBox(4, 12, 4, JokerTextures.leg);
+            leftLegMesh.position.set(0, -6, 0);
+            leftLegPivot.add(leftLegMesh);
+
+            const leftPantCuff = createVoxelBox(4.35, 2.2, 4.35, JokerTextures.suitPanel);
+            leftPantCuff.position.set(0, -8.8, 0);
+            leftLegPivot.add(leftPantCuff);
+
+            // Scale root so 16 pixels = 1.0 world unit (total height = 2.0 world units)
+            root.scale.setScalar(1 / 16);
+
+            return {
+                root,
+                bodyPivot,
+                torsoPivot,
+                headPivot,
+                rightArmPivot,
+                leftArmPivot,
+                rightLegPivot,
+                leftLegPivot,
+                rightCoatTail,
+                leftCoatTail,
+                hairSideLocks,
+                mouthCigarette,
+                cigEmber,
+                revolverGroup,
+                muzzleFlash
+            };
+        }
+    </script>
+
+    <script>
+        let scene, camera, renderer, controls, jokerRig;
+        let currentAnim = 'idle';
+        let animTime = 0;
+        const smokeParticles = [];
+
+        const DEFAULT_CAM_POS = new THREE.Vector3(1.85, 1.55, 2.75);
+        const DEFAULT_CAM_TARGET = new THREE.Vector3(0, 1.05, 0);
+
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f1115);
+            scene.fog = new THREE.FogExp2(0x0f1115, 0.08);
+
+            camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.copy(DEFAULT_CAM_POS);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.08;
+            container.appendChild(renderer.domElement);
+
+            // Smooth OrbitControls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.target.copy(DEFAULT_CAM_TARGET);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.06;
+            controls.enablePan = false;
+            controls.minDistance = 1.3;
+            controls.maxDistance = 6.5;
+            controls.maxPolarAngle = Math.PI / 2 - 0.02;
+            controls.update();
+
+            // Studio 3-Point Lighting tailored to bring out the crimson suit, golden vest, and face paint
+            const ambientLight = new THREE.HemisphereLight(0xdbe4ff, 0x181a24, 0.72);
+            scene.add(ambientLight);
+
+            const keyLight = new THREE.DirectionalLight(0xfff5e4, 1.25);
+            keyLight.position.set(3.5, 5.5, 4.0);
+            keyLight.castShadow = true;
+            keyLight.shadow.mapSize.width = 2048;
+            keyLight.shadow.mapSize.height = 2048;
+            keyLight.shadow.camera.near = 0.5;
+            keyLight.shadow.camera.far = 15;
+            const d = 2.2;
+            keyLight.shadow.camera.left = -d;
+            keyLight.shadow.camera.right = d;
+            keyLight.shadow.camera.top = d;
+            keyLight.shadow.camera.bottom = -d;
+            keyLight.shadow.bias = -0.0005;
+            scene.add(keyLight);
+
+            // Cool teal rim light (echoing the subway/staircase cinematography)
+            const rimLight = new THREE.DirectionalLight(0x3898b8, 0.65);
+            rimLight.position.set(-3.5, 3.0, -3.2);
+            scene.add(rimLight);
+
+            // Warm golden fill from below-left
+            const fillLight = new THREE.DirectionalLight(0xf5a623, 0.28);
+            fillLight.position.set(-2.5, 1.2, 2.5);
+            scene.add(fillLight);
+
+            // Soft Ground Shadow Catcher & Subtle 16x16 Block Grid Pedestal
+            const shadowPlane = new THREE.Mesh(
+                new THREE.PlaneGeometry(20, 20),
+                new THREE.ShadowMaterial({ opacity: 0.42 })
+            );
+            shadowPlane.rotation.x = -Math.PI / 2;
+            shadowPlane.receiveShadow = true;
+            scene.add(shadowPlane);
+
+            // Subtle 16x16 texel reference ring on the floor
+            const floorGridTex = createPixelTexture(32, 32, (p) => {
+                p.fill('#12151c');
+                for (let x = 0; x < 32; x++) {
+                    for (let y = 0; y < 32; y++) {
+                        if ((x + y) % 2 === 0) p.px(x, y, '#151922');
+                    }
+                }
+                // Border accent
+                p.rect(0, 0, 32, 1, '#1d222e');
+                p.rect(0, 31, 32, 1, '#1d222e');
+                p.rect(0, 0, 1, 32, '#1d222e');
+                p.rect(31, 0, 1, 32, '#1d222e');
+            });
+            const pedestal = new THREE.Mesh(
+                new THREE.PlaneGeometry(2.0, 2.0),
+                new THREE.MeshStandardMaterial({
+                    map: floorGridTex,
+                    roughness: 0.95,
+                    metalness: 0.05,
+                    transparent: true,
+                    opacity: 0.55
+                })
+            );
+            pedestal.rotation.x = -Math.PI / 2;
+            pedestal.position.y = -0.001;
+            pedestal.receiveShadow = true;
+            scene.add(pedestal);
+
+            // Build & Add The Joker
+            jokerRig = buildJokerModel();
+            scene.add(jokerRig.root);
+
+            // Create tiny reusable voxel smoke particles for his cigarette
+            const smokeGeom = new THREE.BoxGeometry(0.03, 0.03, 0.03);
+            for (let i = 0; i < 10; i++) {
+                const smokeMat = new THREE.MeshBasicMaterial({
+                    color: 0xcbd2db,
+                    transparent: true,
+                    opacity: 0
+                });
+                const puff = new THREE.Mesh(smokeGeom, smokeMat);
+                scene.add(puff);
+                smokeParticles.push({
+                    mesh: puff,
+                    age: i * 0.25,
+                    maxAge: 2.5,
+                    vx: 0,
+                    vz: 0
+                });
+            }
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+
+    <script>
+        /**
+         * Resets rig transforms smoothly before applying the active animation pose.
+         */
+        function dampenPose(rig, alpha) {
+            const lerp = THREE.MathUtils.lerp;
+            rig.bodyPivot.position.x = lerp(rig.bodyPivot.position.x, 0, alpha);
+            rig.bodyPivot.position.y = lerp(rig.bodyPivot.position.y, 12, alpha);
+            rig.bodyPivot.position.z = lerp(rig.bodyPivot.position.z, 0, alpha);
+
+            const groups = [
+                rig.bodyPivot,
+                rig.torsoPivot,
+                rig.headPivot,
+                rig.rightArmPivot,
+                rig.leftArmPivot,
+                rig.rightLegPivot,
+                rig.leftLegPivot
+            ];
+            for (const g of groups) {
+                g.rotation.x = lerp(g.rotation.x, 0, alpha);
+                g.rotation.y = lerp(g.rotation.y, 0, alpha);
+                g.rotation.z = lerp(g.rotation.z, 0, alpha);
+            }
+        }
+
+        /**
+         * Updates the 4 bespoke character animations with secondary motion on hair & coat tails.
+         */
+        function updateAnimation(dt) {
+            if (!jokerRig) return;
+            animTime += dt;
+            const t = animTime;
+
+            // Smoothly blend toward neutral base before layering procedural kinematics
+            dampenPose(jokerRig, Math.min(1, dt * 10));
+
+            // Default prop visibility
+            jokerRig.revolverGroup.visible = (currentAnim === 'attack');
+            jokerRig.muzzleFlash.visible = false;
+            jokerRig.mouthCigarette.visible = (currentAnim !== 'attack');
+
+            if (currentAnim === 'idle') {
+                // =========================================================================
+                // 1. IDLE: Brooding Arthur Fleck stance (uneven shoulder posture, eerie head tilt, breathing)
+                // =========================================================================
+                const breath = Math.sin(t * 2.1);
+                const slowSway = Math.sin(t * 1.05);
+                const eerieTwitch = Math.pow(Math.max(0, Math.sin(t * 3.4)), 8) * 0.08;
+
+                jokerRig.bodyPivot.position.y = 12 + breath * 0.15;
+                jokerRig.torsoPivot.rotation.z = 0.035 + slowSway * 0.025; // Characteristic slightly uneven shoulders
+                jokerRig.torsoPivot.rotation.x = 0.04 + breath * 0.02;
+                jokerRig.torsoPivot.rotation.y = slowSway * 0.06;
+
+                // Brooding forward-tilted head (matching Reference Photos 1 & 3)
+                jokerRig.headPivot.rotation.x = 0.14 + Math.sin(t * 1.4) * 0.04;
+                jokerRig.headPivot.rotation.z = -0.09 + slowSway * 0.05 + eerieTwitch;
+                jokerRig.headPivot.rotation.y = Math.sin(t * 0.8) * 0.14;
+
+                // Left hand tucked casually near jacket pocket, right arm relaxed with subtle finger sway
+                jokerRig.leftArmPivot.rotation.x = -0.18 + breath * 0.03;
+                jokerRig.leftArmPivot.rotation.z = -0.06;
+                jokerRig.rightArmPivot.rotation.x = 0.08 - breath * 0.03;
+                jokerRig.rightArmPivot.rotation.z = 0.07 + Math.sin(t * 1.7) * 0.025;
+
+                // Subtle contrapposto leg stance
+                jokerRig.rightLegPivot.rotation.z = -0.025;
+                jokerRig.leftLegPivot.rotation.z = 0.025;
+                jokerRig.leftLegPivot.rotation.x = 0.05;
+
+            } else if (currentAnim === 'walk') {
+                // =========================================================================
+                // 2. WALK: Iconic Street Strut (Matched directly to Reference Photo #2!)
+                //    - Confident swaggering stride, right arm raised gesturing to the side,
+                //      left hand tucked in pocket, head angled down with cigarette & grin.
+                // =========================================================================
+                const speed = 4.6;
+                const phase = t * speed;
+                const stride = Math.sin(phase);
+                const bounce = Math.abs(Math.cos(phase));
+
+                jokerRig.bodyPivot.position.y = 12 - bounce * 0.65;
+                jokerRig.bodyPivot.position.x = Math.cos(phase) * 0.35;
+
+                // Swaggering hip & shoulder counter-rotation
+                jokerRig.bodyPivot.rotation.y = stride * 0.12;
+                jokerRig.torsoPivot.rotation.y = -stride * 0.22;
+                jokerRig.torsoPivot.rotation.z = Math.cos(phase) * 0.06 - 0.04;
+                jokerRig.torsoPivot.rotation.x = 0.09 + bounce * 0.04;
+
+                // Head tilted forward & slightly right like Reference Photo #2
+                jokerRig.headPivot.rotation.x = 0.22 + bounce * 0.05;
+                jokerRig.headPivot.rotation.z = -0.12 - Math.cos(phase) * 0.04;
+                jokerRig.headPivot.rotation.y = stride * 0.10 - 0.12;
+
+                // Right arm raised out to the side in the exact gesture from Reference Photo #2
+                jokerRig.rightArmPivot.rotation.x = -0.68 + Math.sin(phase + 0.6) * 0.18;
+                jokerRig.rightArmPivot.rotation.z = -0.52 - Math.cos(phase) * 0.08;
+                jokerRig.rightArmPivot.rotation.y = -0.25;
+
+                // Left arm tucked into suit trouser pocket (Reference Photo #2)
+                jokerRig.leftArmPivot.rotation.x = -0.26 + stride * 0.08;
+                jokerRig.leftArmPivot.rotation.z = -0.08;
+                jokerRig.leftArmPivot.rotation.y = 0.18;
+
+                // Crisp walking legs with knee-like lift follow-through
+                jokerRig.rightLegPivot.rotation.x = stride * 0.62;
+                jokerRig.leftLegPivot.rotation.x = -stride * 0.62;
+                jokerRig.rightLegPivot.rotation.z = -0.02;
+                jokerRig.leftLegPivot.rotation.z = 0.02;
+
+            } else if (currentAnim === 'attack') {
+                // =========================================================================
+                // 3. ATTACK: Dramatic Snub-Nosed Revolver Draw, Aim & Recoil Shot
+                // =========================================================================
+                const cycle = (t * 0.85) % 1.0; // 1.17s loop
+
+                if (cycle < 0.32) {
+                    // Phase 1: Quick theatrical draw & aim forward
+                    const p = cycle / 0.32;
+                    const ease = 1 - Math.pow(1 - p, 3);
+                    jokerRig.torsoPivot.rotation.y = THREE.MathUtils.lerp(-0.35, 0.28, ease);
+                    jokerRig.torsoPivot.rotation.x = THREE.MathUtils.lerp(0.08, -0.05, ease);
+                    jokerRig.headPivot.rotation.y = THREE.MathUtils.lerp(0.15, -0.22, ease);
+                    jokerRig.headPivot.rotation.z = -0.14 * ease;
+
+                    jokerRig.rightArmPivot.rotation.x = THREE.MathUtils.lerp(0.4, -1.48, ease);
+                    jokerRig.rightArmPivot.rotation.y = THREE.MathUtils.lerp(0, -0.18, ease);
+                    jokerRig.leftArmPivot.rotation.x = THREE.MathUtils.lerp(0, 0.35, ease);
+                    jokerRig.leftArmPivot.rotation.z = THREE.MathUtils.lerp(0, 0.28, ease);
+
+                    jokerRig.rightLegPivot.rotation.x = -0.18 * ease;
+                    jokerRig.leftLegPivot.rotation.x = 0.22 * ease;
+
+                } else if (cycle < 0.46) {
+                    // Phase 2: BANG! Sharp recoil kickback + voxel muzzle flash
+                    const p = (cycle - 0.32) / 0.14;
+                    const kick = Math.sin(p * Math.PI);
+                    jokerRig.muzzleFlash.visible = (p < 0.45);
+                    jokerRig.muzzleFlash.rotation.z = p * 6.0;
+
+                    jokerRig.bodyPivot.position.z = -kick * 0.8;
+                    jokerRig.torsoPivot.rotation.x = -0.05 - kick * 0.22;
+                    jokerRig.torsoPivot.rotation.y = 0.28;
+                    jokerRig.headPivot.rotation.x = -kick * 0.25;
+                    jokerRig.headPivot.rotation.z = -0.18;
+
+                    jokerRig.rightArmPivot.rotation.x = -1.48 - kick * 0.48;
+                    jokerRig.leftArmPivot.rotation.x = 0.35 + kick * 0.25;
+                    jokerRig.leftArmPivot.rotation.z = 0.35;
+
+                    jokerRig.rightLegPivot.rotation.x = -0.18;
+                    jokerRig.leftLegPivot.rotation.x = 0.22;
+
+                } else {
+                    // Phase 3: Eerie follow-through recovery & maniacal chuckle shake
+                    const p = (cycle - 0.46) / 0.54;
+                    const laugh = Math.sin(p * Math.PI * 6) * (1 - p) * 0.08;
+
+                    jokerRig.bodyPivot.position.y = 12 + Math.abs(laugh) * 3;
+                    jokerRig.torsoPivot.rotation.y = THREE.MathUtils.lerp(0.28, 0, p);
+                    jokerRig.torsoPivot.rotation.x = laugh;
+                    jokerRig.headPivot.rotation.z = THREE.MathUtils.lerp(-0.18, 0, p) + laugh;
+                    jokerRig.headPivot.rotation.y = THREE.MathUtils.lerp(-0.22, 0, p);
+
+                    jokerRig.rightArmPivot.rotation.x = THREE.MathUtils.lerp(-1.48, -0.35, p);
+                    jokerRig.leftArmPivot.rotation.x = THREE.MathUtils.lerp(0.35, 0, p);
+                    jokerRig.leftArmPivot.rotation.z = THREE.MathUtils.lerp(0.28, 0, p);
+
+                    jokerRig.rightLegPivot.rotation.x = THREE.MathUtils.lerp(-0.18, 0, p);
+                    jokerRig.leftLegPivot.rotation.x = THREE.MathUtils.lerp(0.22, 0, p);
+                }
+
+            } else if (currentAnim === 'special') {
+                // =========================================================================
+                // 4. SPECIAL: The Iconic Staircase Dance!
+                //    - Euphoric outstretched arms, theatrical high kicks, arched back,
+                //      fluid wrist/shoulder waves, and dramatic spins.
+                // =========================================================================
+                const beat = t * 4.2;
+                const sinB = Math.sin(beat);
+                const cosB = Math.cos(beat);
+                const halfBeat = Math.sin(beat * 0.5);
+
+                // Rhythmic vertical bounce and lateral dance step
+                jokerRig.bodyPivot.position.y = 12 + Math.abs(sinB) * 1.15;
+                jokerRig.bodyPivot.position.x = halfBeat * 1.2;
+
+                // Full theatrical body rotation & arched torso sway
+                jokerRig.bodyPivot.rotation.y = Math.sin(t * 1.6) * 0.65;
+                jokerRig.torsoPivot.rotation.z = sinB * 0.18;
+                jokerRig.torsoPivot.rotation.x = -0.18 + cosB * 0.12; // Euphoric lean back
+                jokerRig.torsoPivot.rotation.y = cosB * 0.28;
+
+                // Head thrown back in triumph, swaying with the music
+                jokerRig.headPivot.rotation.x = -0.28 + Math.sin(beat * 1.0) * 0.15;
+                jokerRig.headPivot.rotation.z = -sinB * 0.22;
+                jokerRig.headPivot.rotation.y = halfBeat * 0.3;
+
+                // Outstretched theatrical arms sweeping up and down
+                jokerRig.rightArmPivot.rotation.z = -1.15 - sinB * 0.45;
+                jokerRig.rightArmPivot.rotation.x = -0.45 + cosB * 0.35;
+                jokerRig.leftArmPivot.rotation.z = 1.15 - sinB * 0.45;
+                jokerRig.leftArmPivot.rotation.x = -0.45 - cosB * 0.35;
+
+                // Alternating high kicks on the beat
+                const rightKick = Math.max(0, sinB);
+                const leftKick = Math.max(0, -sinB);
+                jokerRig.rightLegPivot.rotation.x = -rightKick * 0.95 + leftKick * 0.25;
+                jokerRig.rightLegPivot.rotation.z = -rightKick * 0.22;
+
+                jokerRig.leftLegPivot.rotation.x = -leftKick * 0.95 + rightKick * 0.25;
+                jokerRig.leftLegPivot.rotation.z = leftKick * 0.22;
+            }
+
+            // =========================================================================
+            // SECONDARY MOTION (Follow-through on 3D Hair Locks, Coat Tails & Smoke)
+            // =========================================================================
+            const velocityFlare = (currentAnim === 'special') ? 0.18 : (currentAnim === 'walk' ? 0.09 : 0.03);
+            const hairWave = Math.sin(t * 3.8) * velocityFlare;
+
+            jokerRig.hairSideLocks[0].rotation.z = 0.08 + Math.abs(hairWave) * 0.6;
+            jokerRig.hairSideLocks[1].rotation.z = 0.18 + Math.abs(hairWave) * 1.1;
+            jokerRig.hairSideLocks[2].rotation.z = -0.08 - Math.abs(hairWave) * 0.6;
+            jokerRig.hairSideLocks[3].rotation.z = -0.18 - Math.abs(hairWave) * 1.1;
+            jokerRig.hairSideLocks[4].rotation.x = 0.08 + Math.abs(hairWave) * 0.8;
+            jokerRig.hairSideLocks[5].rotation.x = 0.16 + Math.abs(hairWave) * 1.2;
+
+            // Coat tails flare outward with leg & hip motion
+            const legSwing = Math.max(Math.abs(jokerRig.rightLegPivot.rotation.x), Math.abs(jokerRig.leftLegPivot.rotation.x));
+            jokerRig.rightCoatTail.rotation.z = 0.04 + legSwing * 0.22;
+            jokerRig.leftCoatTail.rotation.z = -0.04 - legSwing * 0.22;
+            jokerRig.rightCoatTail.rotation.x = -jokerRig.rightLegPivot.rotation.x * 0.35;
+            jokerRig.leftCoatTail.rotation.x = -jokerRig.leftLegPivot.rotation.x * 0.35;
+
+            // Update rising voxel smoke particles from the cigarette ember
+            const emberWorldPos = new THREE.Vector3();
+            jokerRig.cigEmber.getWorldPosition(emberWorldPos);
+
+            for (let i = 0; i < smokeParticles.length; i++) {
+                const p = smokeParticles[i];
+                p.age += dt;
+                if (p.age >= p.maxAge) {
+                    p.age = 0;
+                    p.mesh.position.copy(emberWorldPos);
+                    p.vx = (Math.random() - 0.5) * 0.08;
+                    p.vz = (Math.random() - 0.5) * 0.08;
+                }
+                const lifeRatio = p.age / p.maxAge;
+                p.mesh.position.y += dt * 0.22;
+                p.mesh.position.x += (p.vx + Math.sin(t * 2 + i) * 0.04) * dt;
+                p.mesh.position.z += p.vz * dt;
+                const scale = 0.6 + lifeRatio * 1.6;
+                p.mesh.scale.setScalar(scale);
+
+                if (jokerRig.mouthCigarette.visible) {
+                    p.mesh.material.opacity = Math.sin(lifeRatio * Math.PI) * 0.28;
+                } else {
+                    p.mesh.material.opacity = 0;
+                }
+            }
+        }
+
+        // UI Event Listeners
+        function setupUI() {
+            const buttons = document.querySelectorAll('.anim-btn');
+            buttons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    buttons.forEach((b) => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentAnim = btn.getAttribute('data-anim');
+                    animTime = 0;
+                });
+            });
+
+            const resetBtn = document.getElementById('reset-cam-btn');
+            resetBtn.addEventListener('click', () => {
+                camera.position.copy(DEFAULT_CAM_POS);
+                controls.target.copy(DEFAULT_CAM_TARGET);
+                controls.update();
+            });
+        }
+
+        // Locked 60 FPS Delta-Time Render Loop
+        let lastTime = performance.now();
+        function animateLoop(now) {
+            requestAnimationFrame(animateLoop);
+
+            const rawDt = (now - lastTime) / 1000;
+            lastTime = now;
+            // Clamp delta time to prevent jumps when switching tabs
+            const dt = Math.min(rawDt, 1 / 20);
+
+            updateAnimation(dt);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            initScene();
+            setupUI();
+            requestAnimationFrame(animateLoop);
+        };
+    </script>
+</body>
+</html>

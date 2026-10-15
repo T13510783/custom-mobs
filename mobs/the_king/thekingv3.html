@@ -1,0 +1,2063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The King v3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!--
+    The King v3
+    - Model: archive/the_king/thekingv2.html (same cubes, pivots, rest rotations and pixel textures).
+      Changes: brows, eyes and mouth are thin planes on the same pixels, so they can move; pupils rest
+      centered (v2 looked cross-eyed); the bandana tip is a thin pointed flap on the same bone as the fold.
+    - Animations, face system, springs, UI and self-tests: TheKing v1. Dance (key 4): reference video 0:15-0:19.
+    - Voice lines: sounds/the_king/, mouth synced (see VOICE_LINES).
+  -->
+
+  <style>
+    /* ───────── Tokens ───────── */
+    :root {
+      color-scheme: dark;
+      --bg: #0f1115;
+      --pill: rgba(20, 23, 30, 0.82);
+      --line: rgba(255, 255, 255, 0.09);
+      --text: rgba(255, 255, 255, 0.62);
+      --text-hi: #ffffff;
+      --accent: #f59e0b;
+      --accent-bg: rgba(217, 119, 6, 0.24);
+      --accent-text: #fef3c7;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    /* ───────── Page ───────── */
+    * { box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+    html, body {
+      margin: 0; width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg); color: var(--text-hi); font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+    #viewport { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; cursor: grab; }
+    #viewport:active { cursor: grabbing; }
+
+    /* ───────── Glass pills ───────── */
+    .pill {
+      background: var(--pill);
+      -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+    }
+    button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+    .icon-btn {
+      height: 36px; min-width: 36px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      color: var(--text); font-size: 12px; font-weight: 500;
+      transition: color .2s, background .2s, transform .2s cubic-bezier(.22, 1, .36, 1);
+    }
+    .icon-btn:hover { color: var(--text-hi); transform: translateY(-1px); }
+    .icon-btn:active { transform: scale(.97); }
+    .icon-btn svg { width: 16px; height: 16px; flex: none; }
+    #resetBtn { padding: 0; width: 36px; }
+
+    /* ───────── Top right: download + reset ───────── */
+    #topRight { position: fixed; top: 16px; right: 16px; z-index: 20; display: flex; gap: 8px; }
+
+    /* ───────── Bottom dock ───────── */
+    #dock {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 20;
+      display: flex; align-items: center; gap: 4px; padding: 6px; max-width: calc(100vw - 32px);
+    }
+    .anim-btn {
+      padding: 7px 14px; border-radius: 999px; font-size: 12px; font-weight: 500; letter-spacing: .02em;
+      color: var(--text); border: 1px solid transparent; white-space: nowrap;
+      transition: color .2s, background .2s, border-color .2s, box-shadow .2s;
+    }
+    .anim-btn:hover { color: var(--text-hi); }
+    .anim-btn.active { color: var(--accent-text); background: var(--accent-bg); border-color: rgba(245, 158, 11, .45); box-shadow: 0 0 18px rgba(217, 119, 6, .24); }
+    .anim-btn kbd { font: inherit; opacity: .45; margin-right: 6px; }
+    .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+    #followBtn, #voiceBtn { width: 32px; height: 32px; min-width: 32px; padding: 0; border-radius: 999px; }
+    #followBtn.on, #voiceBtn.on { color: var(--accent-text); background: var(--accent-bg); }
+    #voiceVol { width: 60px; margin: 0 4px 0 2px; accent-color: var(--accent); cursor: pointer; }
+    #voiceVol:disabled { opacity: .35; cursor: default; }
+    .dot {
+      width: 18px; height: 18px; border-radius: 999px; margin: 0 3px;
+      border: 2px solid rgba(255, 255, 255, .18); transition: transform .2s, border-color .2s;
+    }
+    .dot:hover { transform: scale(1.12); }
+    .dot.active { border-color: var(--accent); }
+
+    /* ───────── Toast ───────── */
+    #toast {
+      position: fixed; top: 64px; right: 16px; z-index: 30; padding: 8px 14px; font-size: 12px; color: #d1fae5;
+      opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity .3s, transform .3s;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 520px) {
+      .anim-btn { padding: 7px 10px; }
+      .anim-btn kbd { display: none; }
+      #voiceVol { width: 44px; }
+      #dlBtn span { display: none; }
+    }
+  </style>
+
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <canvas id="viewport"></canvas>
+
+  <!-- Top right: download .bbmodel + camera reset -->
+  <div id="topRight">
+    <button id="dlBtn" class="pill icon-btn" title="Download .bbmodel (model, texture, animations)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span>Download .bbmodel</span>
+    </button>
+    <button id="resetBtn" class="pill icon-btn" title="Reset camera (R)" aria-label="Reset camera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+    </button>
+  </div>
+
+  <div id="toast" class="pill">Downloaded crowned_traveler.bbmodel</div>
+
+  <!-- Bottom dock: animations, follow toggle, color variants -->
+  <nav id="dock" class="pill" aria-label="Viewer controls">
+    <button class="anim-btn active" data-anim="idle"><kbd>1</kbd>Idle</button>
+    <button class="anim-btn" data-anim="idle2"><kbd>2</kbd>Idle 2</button>
+    <button class="anim-btn" data-anim="walk"><kbd>3</kbd>Walk</button>
+    <button class="anim-btn" data-anim="dance"><kbd>4</kbd>Dance</button>
+    <button class="anim-btn" data-anim="attack"><kbd>5</kbd>Attack</button>
+    <button class="anim-btn" data-anim="attack2"><kbd>6</kbd>Attack 2</button>
+    <button class="anim-btn" data-anim="run"><kbd>7</kbd>Run</button>
+    <span class="sep"></span>
+    <button id="followBtn" class="icon-btn on" title="Head and eyes follow the mouse" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+    <!-- Voice lines on/off (random lines, mouth synced). Key V = say one now. -->
+    <button id="voiceBtn" class="icon-btn on" title="Voice lines on/off (V = say one now)" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>
+    </button>
+    <!-- Voice lines volume (0-100 %, default 35). Saved in this browser. -->
+    <input id="voiceVol" type="range" min="0" max="100" value="35" title="Voice lines volume: 35%" aria-label="Voice lines volume">
+    <span class="sep"></span>
+    <span id="dots"></span>
+  </nav>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    /* ───────── Renderer, scene, camera (same values as v2) ───────── */
+    const canvas = document.getElementById('viewport');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // cap: rule 14
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f1115);
+    scene.fog = new THREE.FogExp2(0x0f1115, 0.018);
+
+    const TEXEL = 1 / 16; // 1 unit = 1 texel, 16 texels per block
+
+    const CAM_POS = new THREE.Vector3(2.45, 1.72, 2.85);
+    const CAM_TARGET = new THREE.Vector3(0, 1.04, 0);
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 60);
+    camera.position.copy(CAM_POS);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.copy(CAM_TARGET);
+    controls.enableDamping = true;
+    controls.minDistance = 1.4;
+    controls.maxDistance = 7;
+    controls.maxPolarAngle = Math.PI * 0.492;
+    controls.update();
+
+    /* ───────── Lights (one shadow caster) ───────── */
+    scene.add(new THREE.HemisphereLight(0xffedd5, 0x161922, 0.92));
+    const keyLight = new THREE.DirectionalLight(0xfff7ed, 2.35);
+    keyLight.position.set(3.8, 6.2, 4.2);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.camera.near = 0.5;
+    keyLight.shadow.camera.far = 18;
+    keyLight.shadow.camera.left = keyLight.shadow.camera.bottom = -2.4;
+    keyLight.shadow.camera.right = keyLight.shadow.camera.top = 2.4;
+    keyLight.shadow.bias = -0.0005;
+    keyLight.shadow.radius = 3.5;
+    scene.add(keyLight, keyLight.target); // target in the scene: it moves with the camera follow below
+    const rimLight = new THREE.DirectionalLight(0xfbbf24, 0.95);
+    rimLight.position.set(-3.8, 3.2, -3.4);
+    scene.add(rimLight);
+    const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.42);
+    fillLight.position.set(-2.8, 1.6, 3.2);
+    scene.add(fillLight);
+
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.ShadowMaterial({ opacity: 0.46 }));
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    /* ───────── Palettes (one per color variant) ─────────
+       BASE = the exact v2 colors. Variants only swap shirt, pants, bandana, hair and brows. */
+    const BASE = {
+      skinLight: '#f4c7b0', skinBase: '#e5af95', skinWarm: '#d6977b', skinRosy: '#d98473', skinShadow: '#b8765c',
+      eyeWhite: '#f8fafc', eyePupil: '#1c140d', browHair: '#6e5038', lipLine: '#7c3f34', lidSkin: '#cd8a6e',
+      hairDark: '#3d281a', hairBase: '#593d28', hairWarm: '#735138', hairHighlight: '#8f684b', hairGolden: '#a67c5b',
+      crownGoldLight: '#fef08a', crownGold: '#facc15', crownGoldWarm: '#eab308', crownGoldShadow: '#ca8a04',
+      crownLogoRed: '#dc2626', crownLogoOrange: '#f59e0b', crownLogoWhite: '#ffffff', crownJewel: '#a16207',
+      bandanaDark: '#7f1d1d', bandanaRed: '#b91c1c', bandanaBright: '#dc2626', bandanaPaisley: '#fca5a5', bandanaWhite: '#fee2e2',
+      shirtLight: '#fce7f3', shirtBase: '#f9d5e5', shirtFold: '#eebec2', shirtShadow: '#dc9fa6', shirtButton: '#ffffff',
+      badgeGreen: '#86efac', badgeGrey: '#cbd5e1',
+      phoneBlack: '#0f172a', phoneEdge: '#334155', phoneLens: '#020617',
+      beltLeather: '#451a03', beltWarm: '#652b0d', beltBuckle: '#e2e8f0',
+      khakiLight: '#dcd3c2', khakiBase: '#cfc3ae', khakiFold: '#b8aa93', khakiShadow: '#9c8d76',
+      shoeDark: '#29150c', shoeBrown: '#432314', shoeHighlight: '#5c331e', shoeSole: '#170d08'
+    };
+    const VARIANTS = [
+      { id: 'classic', name: 'Classic', pal: {} },
+      { id: 'mint', name: 'Mint', pal: {
+        shirtLight: '#e3fbef', shirtBase: '#c3f0da', shirtFold: '#9edcc0', shirtShadow: '#78c4a3',
+        khakiLight: '#cbd5e1', khakiBase: '#a9b5c6', khakiFold: '#8b98ad', khakiShadow: '#6b7890',
+        bandanaDark: '#7c2d12', bandanaRed: '#c2410c', bandanaBright: '#ea580c', bandanaPaisley: '#fdba74', bandanaWhite: '#ffedd5',
+        hairDark: '#1f140d', hairBase: '#2f2016', hairWarm: '#3f2b1e', hairHighlight: '#553b28', hairGolden: '#664833',
+        browHair: '#2f2016'
+      } },
+      { id: 'royal', name: 'Royal', pal: {
+        shirtLight: '#f1edff', shirtBase: '#ddd6fe', shirtFold: '#c4b5fd', shirtShadow: '#a48af5',
+        khakiLight: '#55617a', khakiBase: '#414c63', khakiFold: '#343d52', khakiShadow: '#262d3d',
+        bandanaDark: '#1e3a8a', bandanaRed: '#1d4ed8', bandanaBright: '#2563eb', bandanaPaisley: '#93c5fd', bandanaWhite: '#dbeafe',
+        hairDark: '#8a6a2f', hairBase: '#b08a3e', hairWarm: '#c49a48', hairHighlight: '#e0bf6a', hairGolden: '#ecd28a',
+        browHair: '#9a7838'
+      } }
+    ];
+    let P = { ...BASE }; // active palette, read by the painters
+
+    /* ───────── Painters (copied from v2) ─────────
+       Each painter fills one cube face, (0,0) = top left of that face.
+       Face names are three.js names: right (+x, his left side), left (-x), top, bottom, front (+z), back. */
+    function hash2D(x, y, seed = 1) {
+      const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123;
+      return n - Math.floor(n);
+    }
+    function px(ctx, x, y, color) { ctx.fillStyle = color; ctx.fillRect(x, y, 1, 1); }
+    const flat = (key) => (ctx, f, w, h) => { ctx.fillStyle = P[key]; ctx.fillRect(0, 0, w, h); };
+
+    // Head (8x8x8). Same as v2, except the brow, eye and lip-line pixels: those are now
+    // movable planes on top (see "Face parts"), so plain skin is painted under them.
+    function paintHead(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const n = hash2D(x, y, 13);
+          let col = n > 0.55 ? P.skinBase : P.skinWarm;
+
+          if (face === 'front') {
+            if (y <= 1) col = P.skinLight;
+            if (y === 4 && (x === 1 || x === 6)) col = P.skinRosy;
+            if (y === 5 && (x === 1 || x === 6)) col = P.skinShadow;
+            if (y === 5 && x >= 2 && x <= 5) col = P.skinLight;
+            if (y === 6 && (x === 2 || x === 5)) col = P.skinShadow; // mouth corners (the lip line itself is the mouth plane)
+            if (y === 7) col = P.skinShadow;
+          } else if (face === 'left' || face === 'right') {
+            const fromFront = (face === 'right') ? x : (w - 1 - x);
+            if (fromFront >= 4) {
+              col = (x + y) % 2 === 0 ? P.hairBase : P.hairWarm;
+            } else if (fromFront === 3 && y >= 2 && y <= 5) {
+              col = P.hairHighlight;
+            } else if (fromFront === 2 && (y === 3 || y === 4)) {
+              col = P.skinRosy;
+            }
+          } else if (face === 'back' || face === 'top') {
+            col = (x + y) % 2 === 0 ? P.hairBase : P.hairDark;
+          } else if (face === 'bottom') {
+            col = P.skinShadow;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Golden paper crown (8x6x8): peaks on top, logo on the front. Top and bottom are open.
+    function paintCrown(ctx, face, w, h) {
+      if (face === 'top' || face === 'bottom') return;
+      ctx.clearRect(0, 0, w, h);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const isCenterPeak = (x === 3 || x === 4);
+          const isSidePeak = (x === 0 || x === 1 || x === 6 || x === 7);
+          let filled = false;
+          if (y >= 3) filled = true;
+          else if (y === 2) filled = isCenterPeak || isSidePeak || x === 2 || x === 5;
+          else if (y === 1) filled = isCenterPeak || x === 0 || x === 7;
+          else if (y === 0) filled = isCenterPeak;
+          if (!filled) continue;
+
+          let col = y <= 1 ? P.crownGoldLight : (y <= 3 ? P.crownGold : P.crownGoldWarm);
+          if (y === h - 1) col = P.crownGoldShadow;
+          if (y === 4 && (x === 1 || x === 4 || x === 6)) col = P.crownJewel;
+          if (face === 'front') {
+            if (y === 2 && (x === 3 || x === 4)) col = x === 3 ? P.crownLogoOrange : P.crownLogoRed;
+            else if (y === 3 && (x === 3 || x === 4)) col = x === 3 ? P.crownLogoWhite : P.crownLogoRed;
+            else if (y === 2 && x === 5) col = P.hairDark;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Wavy shoulder-length hair.
+    function paintHair(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const wave = Math.sin(y * 1.4 + x * 0.9);
+          const n = hash2D(x, y, 37);
+          let col = P.hairBase;
+          if (wave > 0.45) col = P.hairHighlight;
+          else if (wave > 0.1 && n > 0.5) col = P.hairGolden;
+          else if (wave < -0.45) col = P.hairDark;
+          else col = P.hairWarm;
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Red paisley bandana pulled down under the chin.
+    function paintBandana(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = (x + y) % 2 === 0 ? P.bandanaRed : P.bandanaBright;
+          if (y === h - 1) col = P.bandanaDark;
+          if ((x * 3 + y * 5) % 7 === 0) col = P.bandanaWhite;
+          else if ((x + y * 2) % 5 === 0) col = P.bandanaPaisley;
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Bandana tip (5x3, thin): the pointed end of the same cloth, hanging under the fold's front.
+    // Cutout triangle: 5 / 3 / 1 pixels wide per row. Sides only on the top row, bottom only at the point.
+    function paintBandanaTip(ctx, face, w, h) {
+      const mid = (w - 1) / 2;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let on = true;
+          if (face === 'front' || face === 'back') on = Math.abs(x - mid) <= mid - y * (mid / (h - 1));
+          else if (face === 'left' || face === 'right') on = y === 0;
+          else if (face === 'bottom') on = Math.abs(x - mid) < 0.6;
+          if (!on) continue;
+          let col = (x + y) % 2 === 0 ? P.bandanaRed : P.bandanaBright;
+          if ((x * 3 + y * 5) % 7 === 0) col = P.bandanaWhite;
+          else if ((x + y * 2) % 5 === 0) col = P.bandanaPaisley;
+          if (y === h - 1 || face === 'bottom') col = P.bandanaDark;
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    // Pink button-down shirt with belt and khaki waist (8x12x4).
+    function paintTorso(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const n = hash2D(x, y, 53);
+          let col = n > 0.65 ? P.shirtLight : (n > 0.25 ? P.shirtBase : P.shirtFold);
+          if (y === h - 2) {
+            col = (x + y) % 2 === 0 ? P.beltLeather : P.beltWarm;
+            if (face === 'front' && (x === 3 || x === 4)) col = P.beltBuckle;
+            if (face === 'front' && (x === 1 || x === 6)) col = P.khakiLight;
+          } else if (y === h - 1) {
+            col = (x + y) % 2 === 0 ? P.khakiBase : P.khakiFold;
+          } else if (face === 'front') {
+            if (y === 0 && (x === 3 || x === 4)) {
+              col = P.skinShadow;
+            } else if (x === 3 || x === 4) {
+              if (x === 3 && y % 3 === 1) col = P.shirtButton;
+              else if (x === 4) col = P.shirtFold;
+            }
+            if (x >= 5 && x <= 6 && y >= 3 && y <= 6) {
+              col = P.shirtLight;
+              if (y === 3) col = P.shirtShadow;
+              if (x === 5 && (y === 5 || y === 6)) col = P.badgeGreen;
+              if (x === 6 && y === 5) col = P.badgeGrey;
+            }
+            if (y === h - 3 && (x === 1 || x === 2 || x === 6)) col = P.shirtShadow;
+          } else if (face === 'back') {
+            if (y === 2) col = P.shirtFold;
+            if (y === h - 3 && (x === 2 || x === 5)) col = P.shirtShadow;
+          }
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    function paintArm(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const n = hash2D(x, y, 71);
+          if (y <= 4) {
+            let col = n > 0.5 ? P.shirtBase : P.shirtLight;
+            if (y === 4) col = P.shirtFold;
+            px(ctx, x, y, col);
+          } else {
+            let col = n > 0.45 ? P.skinBase : P.skinWarm;
+            if (y === 5) col = P.skinShadow;
+            if (y === h - 1 && face === 'front') col = P.skinRosy;
+            px(ctx, x, y, col);
+          }
+        }
+      }
+    }
+
+    function paintKhaki(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const n = hash2D(x, y, 89);
+          let col = n > 0.6 ? P.khakiLight : (n > 0.2 ? P.khakiBase : P.khakiFold);
+          if (face === 'front' && x === Math.floor(w * 0.5)) col = P.khakiLight;
+          if ((face === 'left' || face === 'right') && x === Math.floor(w * 0.5)) col = P.khakiShadow;
+          if (y === h - 1) col = P.khakiShadow;
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    function paintShoe(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.shoeBrown;
+          if (y === h - 1 || face === 'bottom') col = P.shoeSole;
+          else if (face === 'top' || (face === 'front' && y === 0)) col = P.shoeHighlight;
+          else if ((x + y) % 2 === 0) col = P.shoeDark;
+          px(ctx, x, y, col);
+        }
+      }
+    }
+
+    function paintCollar(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px(ctx, x, y, y === h - 1 ? P.shirtShadow : P.shirtLight);
+    }
+    function paintPocket(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.shirtLight;
+          if (y === 0) col = P.shirtFold;
+          else if (x === 0 && y >= 1) col = P.badgeGreen;
+          px(ctx, x, y, col);
+        }
+      }
+    }
+    function paintPhone(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let col = P.phoneBlack;
+          if (x === 0 || y === 0) col = P.phoneEdge;
+          if (face === 'front' && x === 0 && y === 0) col = P.phoneLens;
+          px(ctx, x, y, col);
+        }
+      }
+    }
+    function paintNose(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px(ctx, x, y, y === 0 ? P.skinLight : P.skinRosy);
+    }
+    function paintSleeve(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px(ctx, x, y, y === h - 1 ? P.shirtShadow : P.shirtLight);
+    }
+    function paintForearm(ctx, face, w, h) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const n = hash2D(x, y, 91);
+          px(ctx, x, y, y === h - 1 ? P.skinRosy : (n > 0.4 ? P.skinBase : P.skinWarm));
+        }
+      }
+    }
+
+    /* ───────── Materials (one shared texture atlas) ─────────
+       Same roughness / metalness per part as v2. The atlas size is set after packing. */
+    const atlas = document.createElement('canvas');
+    const atlasCtx = atlas.getContext('2d');
+    const atlasTex = new THREE.CanvasTexture(atlas);
+    atlasTex.magFilter = atlasTex.minFilter = THREE.NearestFilter;
+    atlasTex.generateMipmaps = false;
+    atlasTex.colorSpace = THREE.SRGBColorSpace;
+    let ATLAS_W = 128, ATLAS_H = 128;
+
+    const matCache = {};
+    function mat(rough = 0.85, metal = 0.03, cut = false) {
+      const key = rough + '|' + metal + '|' + cut;
+      return matCache[key] || (matCache[key] = new THREE.MeshStandardMaterial({
+        map: atlasTex, roughness: rough, metalness: metal,
+        alphaTest: cut ? 0.5 : 0, side: cut ? THREE.DoubleSide : THREE.FrontSide
+      }));
+    }
+
+    /* ───────── Rig builder ─────────
+       Positions are in texels, relative to the parent bone (like v2's code), three.js axes:
+       +x = the King's left, +y = up, +z = his front. Feet at y = 0.
+       Every bone keeps its v2 rest rotation; animations add offsets on top of it.
+       Rotation order Z, then Y, then X (Minecraft / Blockbench). */
+    const mobRoot = new THREE.Group();
+    mobRoot.name = 'crowned_traveler';
+    scene.add(mobRoot);
+
+    const bones = {};
+    const boneList = [];
+    const cubeList = [];
+
+    function bone(name, parent, x, y, z, rx = 0, ry = 0, rz = 0) {
+      const g = new THREE.Group();
+      g.name = name;
+      g.rotation.order = 'ZYX';
+      g.position.set(x * TEXEL, y * TEXEL, z * TEXEL);
+      g.rotation.set(rx, ry, rz);
+      g.userData = { rest: g.position.clone(), restRot: new THREE.Vector3(rx, ry, rz) };
+      (parent || mobRoot).add(g);
+      bones[name] = g;
+      boneList.push(g);
+      return g;
+    }
+
+    // One cube: w x h x d texels, centered at (x, y, z) in its bone. opt: inflate, rot [x,y,z], rough, metal, cut, shadow.
+    function box(b, name, w, h, d, x, y, z, painter, opt = {}) {
+      const inflate = opt.inflate || 0;
+      const geo = new THREE.BoxGeometry((w + inflate * 2) * TEXEL, (h + inflate * 2) * TEXEL, (d + inflate * 2) * TEXEL);
+      // BoxGeometry flips the normal of a side whose depth is 0 (face planes), which lights it from behind.
+      // Set every face normal straight out: +x, -x, +y, -y, +z, -z.
+      const nrm = geo.attributes.normal;
+      for (let i = 0; i < 24; i++) { const f = i >> 2; nrm.setXYZ(i, f === 0 ? 1 : f === 1 ? -1 : 0, f === 2 ? 1 : f === 3 ? -1 : 0, f === 4 ? 1 : f === 5 ? -1 : 0); }
+      const mesh = new THREE.Mesh(geo, mat(opt.rough, opt.metal, opt.cut));
+      const rot = opt.rot || [0, 0, 0];
+      mesh.position.set(x * TEXEL, y * TEXEL, z * TEXEL);
+      mesh.rotation.order = 'ZYX';
+      mesh.rotation.set(rot[0], rot[1], rot[2]);
+      mesh.castShadow = opt.shadow !== false;
+      mesh.receiveShadow = true;
+      mesh.name = name;
+      b.add(mesh);
+      const c = { name, bone: b.name, size: [w, h, d], inflate, center: [x, y, z], rot, painter, mesh, shell: opt.shell || null, rects: [] };
+      cubeList.push(c);
+      return c;
+    }
+
+    /* ───────── Rig: The King (exact v2 model) ───────── */
+    const root = bone('root', null, 0, 0, 0);                  // ground pivot for whole-body sway (no cubes)
+    const body = bone('body', root, 0, 12, 0);                 // pelvis, 12 texels up (v2 "body")
+
+    // Torso, collar points, breast pocket, phone.
+    const chest = bone('chest', body, 0, 0, 0);
+    box(chest, 'torso_shirt', 8, 12, 4, 0, 6, 0, paintTorso);
+    box(chest, 'collar_left', 2.5, 1.6, 1.2, 1.5, 11.4, 1.85, paintCollar, { rot: [0, 0.2, -0.25] });
+    box(chest, 'collar_right', 2.5, 1.6, 1.2, -1.5, 11.4, 1.85, paintCollar, { rot: [0, -0.2, 0.25] });
+    box(chest, 'breast_pocket', 2.6, 3.2, 0.5, 2.1, 7.2, 2.15, paintPocket);
+    const phone = bone('pocket_phone', chest, 2.1, 9.1, 2.05, 0, 0, 0.14);
+    box(phone, 'smartphone', 2.2, 2.6, 0.6, 0, 0, 0, paintPhone, { rough: 0.25, metal: 0.35 });
+
+    // Neck and head.
+    const neck = bone('neck', chest, 0, 12, 0);
+    box(neck, 'neck_column', 4, 2, 4, 0, 0.8, 0, flat('skinWarm'));
+    const head = bone('head', neck, 0, 1.4, 0);                // pivot on the bottom of the head
+    box(head, 'head_cranium', 8, 8, 8, 0, 4, 0, paintHead);
+    box(head, 'nose_bridge', 2, 2, 1.2, 0, 4.2, 4.4, paintNose);
+
+    // Bandana (mouth mask pulled under the chin): ONE object on the head, one bone, no parts moving apart.
+    // The bone works as the jaw: it drops a little when the mouth opens.
+    const jaw = bone('chin_bandana', head, 0, 0.4, 0.4);
+    box(jaw, 'bandana_fold', 7.2, 2.6, 6.8, 0, -0.3, 0.4, paintBandana, { inflate: 0.15, rot: [0.12, 0, 0] });
+    // Pointed tip, tilted with the fold, flush with its front face, top 0.5 hidden inside it.
+    // In the fold's own space: center (0, -2.45, 3.3); here turned by the fold's 0.12 and moved to its center.
+    // v2's 4.6x2.2x2 tail block sat 0.1 from the shirt and hit it on every head turn; this thin tip
+    // stays >= 0.1 in front of the collar points at full head turn (0.35 rad).
+    box(jaw, 'bandana_tip', 5, 3, 0.5, 0, -3.127, 3.383, paintBandanaTip, { rot: [0.12, 0, 0], cut: true });
+
+    // Golden paper crown. Shell band: paper is a thin skin; only points this close under it count as clipping.
+    const crown = bone('golden_crown', head, 0, 9.4, 0, -0.06, 0, 0);
+    box(crown, 'paper_crown', 8, 6, 8, 0, 0, 0, paintCrown, { inflate: 0.42, cut: true, rough: 0.55, metal: 0.12, shell: { walls: 'xz', band: 0.15 } });
+
+    // Shoulder-length wavy hair: two side curtains and a back curtain.
+    const hairL = bone('hair_left', head, 3.8, 5.8, -0.4, 0, 0, 0.24);
+    box(hairL, 'hair_left_upper', 2.6, 7.5, 7.6, 0.6, -3.2, 0, paintHair);
+    box(hairL, 'hair_left_lower', 2.8, 4.5, 6.6, 1.1, -6.2, 0.2, paintHair);
+    const hairR = bone('hair_right', head, -3.8, 5.8, -0.4, 0, 0, -0.24);
+    box(hairR, 'hair_right_upper', 2.6, 7.5, 7.6, -0.6, -3.2, 0, paintHair);
+    box(hairR, 'hair_right_lower', 2.8, 4.5, 6.6, -1.1, -6.2, 0.2, paintHair);
+    const hairB = bone('hair_back', head, 0, 5.6, -3.8, 0.16, 0, 0);
+    box(hairB, 'hair_back_curtain', 8.6, 9.5, 2.6, 0, -4.2, -0.6, paintHair);
+
+    /* ───────── Face parts ─────────
+       Thin planes on the exact v2 face pixels (head front is at z 4), each on its own bone.
+       At rest they look the same as v2's painted face. */
+    const NO_SHADOW = { shadow: false };
+    box(head, 'eye_white_right', 2, 1, 0, -2, 4.5, 4.02, flat('eyeWhite'), NO_SHADOW);
+    box(head, 'eye_white_left', 2, 1, 0, 2, 4.5, 4.02, flat('eyeWhite'), NO_SHADOW);
+    // Pupils rest in the middle of the 2-texel eye white (v2 had them on the inner pixel = cross-eyed look).
+    // Both glide together, at most half a texel each way, so they never leave the white.
+    box(bone('pupil_right', head, -2, 4.5, 4.04), 'pupil_right', 1, 1, 0, 0, 0, 0, flat('eyePupil'), NO_SHADOW);
+    box(bone('pupil_left', head, 2, 4.5, 4.04), 'pupil_left', 1, 1, 0, 0, 0, 0, flat('eyePupil'), NO_SHADOW);
+    // Lid pivot on its top edge: it slides down. At rest it sits just inside the head (z 3.98),
+    // so the default pose (Blockbench, the mod) has open eyes; it steps to z 4.06 only while closing.
+    box(bone('lid_right', head, -2, 5, 3.98), 'lid_right', 2, 1, 0, 0, -0.5, 0, flat('lidSkin'), NO_SHADOW);
+    box(bone('lid_left', head, 2, 5, 3.98), 'lid_left', 2, 1, 0, 0, -0.5, 0, flat('lidSkin'), NO_SHADOW);
+    box(bone('brow_right', head, -2, 5.5, 4.08), 'brow_right', 2, 1, 0, 0, 0, 0, flat('browHair'), NO_SHADOW);
+    box(bone('brow_left', head, 2, 5.5, 4.08), 'brow_left', 2, 1, 0, 0, 0, 0, flat('browHair'), NO_SHADOW);
+    // Mouth pivot on the top lip: it opens downward (the bandana hides the lowest part, like a jaw).
+    box(bone('mouth', head, 0, 2, 4.03), 'mouth', 2, 1, 0, 0, -0.5, 0, flat('lipLine'), NO_SHADOW);
+
+    // Arms: shoulder -> forearm -> hand (empty, for held items later). Rest: slightly out, elbow a bit bent.
+    function arm(side, sx) {
+      const s = bone(`arm_${side}`, chest, sx * 5.6, 11, 0, 0, 0, sx * 0.06);
+      box(s, `upper_arm_${side}`, 3.2, 6, 3.4, 0, -2.5, 0, paintArm);
+      box(s, `sleeve_cuff_${side}`, 3.6, 5.2, 3.8, 0, -2, 0, paintSleeve);
+      const e = bone(`forearm_${side}`, s, 0, -5.2, 0, -0.12, 0, 0);
+      box(e, `lower_arm_${side}`, 2.8, 5.5, 2.8, 0, -2.6, 0, paintForearm);
+      bone(`hand_${side}`, e, 0, -5.2, 0);
+    }
+    arm('right', -1); // his right arm is on -x
+    arm('left', 1);
+
+    // Legs: hip -> knee -> ankle with a dress shoe.
+    function leg(side, sx) {
+      const hp = bone(`leg_${side}`, body, sx * 2, 0, 0);
+      box(hp, `thigh_${side}`, 3.8, 6, 3.8, 0, -2.8, 0, paintKhaki);
+      const k = bone(`knee_${side}`, hp, 0, -5.6, 0);
+      box(k, `calf_${side}`, 3.5, 5, 3.6, 0, -2.3, 0, paintKhaki);
+      const a = bone(`ankle_${side}`, k, 0, -4.8, 0);
+      box(a, `shoe_${side}`, 3.6, 2, 5.2, 0, -0.6, 0.7, paintShoe, { rough: 0.38 });
+    }
+    leg('right', -1);
+    leg('left', 1);
+
+    const B = {}; // bone index by name
+    boneList.forEach((b, i) => { B[b.name] = i; });
+    const NB = boneList.length;
+
+    /* ───────── Texture atlas ─────────
+       Every cube face gets its own rect (v2 face sizes: whole texels, at least 1).
+       2-texel gaps; the edge pixels are smeared 1 texel into the gap so seams never show the background. */
+    const FACES = ['right', 'left', 'top', 'bottom', 'front', 'back']; // BoxGeometry face order: +x, -x, +y, -y, +z, -z
+    const faceSize = (c, f) => {
+      const [w, h, d] = c.size, r = (v) => Math.max(1, Math.round(v));
+      return f < 2 ? [r(d), r(h)] : f < 4 ? [r(w), r(d)] : [r(w), r(h)];
+    };
+
+    (function packAtlas() {
+      const items = [];
+      for (const c of cubeList) for (let f = 0; f < 6; f++) { const [w, h] = faceSize(c, f); items.push({ c, f, w, h }); }
+      items.sort((a, b) => b.h - a.h || b.w - a.w);
+      let x = 1, y = 1, shelf = 0;
+      for (const it of items) {
+        if (x + it.w + 1 > ATLAS_W) { x = 1; y += shelf + 2; shelf = 0; }
+        it.c.rects[it.f] = { x, y, w: it.w, h: it.h };
+        x += it.w + 2;
+        shelf = Math.max(shelf, it.h);
+      }
+      while (y + shelf + 1 > ATLAS_H) ATLAS_H *= 2;
+      atlas.width = ATLAS_W; atlas.height = ATLAS_H;
+    })();
+
+    // Point every face's UVs at its rect (same orientation as v2's one-canvas-per-face textures).
+    for (const c of cubeList) {
+      const uv = c.mesh.geometry.attributes.uv;
+      for (let f = 0; f < 6; f++) {
+        const r = c.rects[f];
+        for (let k = 0; k < 4; k++) {
+          const i = f * 4 + k, u = uv.getX(i), v = uv.getY(i);
+          uv.setXY(i, (r.x + u * r.w) / ATLAS_W, 1 - (r.y + (1 - v) * r.h) / ATLAS_H);
+        }
+      }
+      uv.needsUpdate = true;
+    }
+
+    // Repaint the whole atlas. Only called when the color variant changes.
+    const scratch = document.createElement('canvas');
+    scratch.width = scratch.height = 32;
+    const sctx = scratch.getContext('2d');
+    const GUTTER = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    function paintAtlas() {
+      atlasCtx.imageSmoothingEnabled = false;
+      atlasCtx.clearRect(0, 0, ATLAS_W, ATLAS_H);
+      for (const c of cubeList) {
+        for (let f = 0; f < 6; f++) {
+          const r = c.rects[f];
+          sctx.clearRect(0, 0, 32, 32);
+          c.painter(sctx, FACES[f], r.w, r.h);
+          for (const [dx, dy] of GUTTER) atlasCtx.drawImage(scratch, 0, 0, r.w, r.h, r.x + dx, r.y + dy, r.w, r.h);
+          atlasCtx.clearRect(r.x, r.y, r.w, r.h);
+          atlasCtx.drawImage(scratch, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
+        }
+      }
+      atlasTex.needsUpdate = true;
+    }
+
+    let variantIndex = 0;
+    function setVariant(i) {
+      variantIndex = i;
+      P = { ...BASE, ...VARIANTS[i].pal };
+      paintAtlas();
+      document.querySelectorAll('.dot').forEach((d, k) => d.classList.toggle('active', k === i));
+    }
+
+    /* ───────── Pose buffers & helpers ───────── */
+    const FACE_KEYS = ['browUp', 'frown', 'open', 'wide', 'glance', 'squint'];
+    function makePose() {
+      return { r: new Float32Array(NB * 3), p: new Float32Array(NB * 3), f: { browUp: 0, frown: 0, open: 0, wide: 0, glance: 0, squint: 0 }, yawLimit: 0.5, follow: 1 };
+    }
+    function clearPose(Q) { Q.r.fill(0); Q.p.fill(0); for (const k of FACE_KEYS) Q.f[k] = 0; }
+    function copyPose(src, dst) { dst.r.set(src.r); dst.p.set(src.p); for (const k of FACE_KEYS) dst.f[k] = src.f[k]; dst.yawLimit = src.yawLimit; dst.follow = src.follow; }
+    function rot(Q, b, x, y, z) { const i = B[b] * 3; Q.r[i] += x; Q.r[i + 1] += y; Q.r[i + 2] += z; }
+    function pos(Q, b, x, y, z) { const i = B[b] * 3; Q.p[i] += x; Q.p[i + 1] += y; Q.p[i + 2] += z; }
+
+    const TAU = Math.PI * 2;
+    const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+    const smooth01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+    // Looping keyframe curve with cosine easing. keys = [[time, value], ...]; last time = loop length.
+    function kf(t, keys) {
+      for (let i = 1; i < keys.length; i++) {
+        if (t <= keys[i][0]) {
+          const a = keys[i - 1], b = keys[i];
+          const s = (t - a[0]) / (b[0] - a[0]);
+          return a[1] + (b[1] - a[1]) * (0.5 - 0.5 * Math.cos(Math.PI * s));
+        }
+      }
+      return keys[keys.length - 1][1];
+    }
+    // Smooth curve through keys that keeps its speed through each key (no stop at every key) and never
+    // overshoots a key (monotone cubic, Fritsch-Carlson). Used for fast, flowing moves like the attacks.
+    function mc(t, keys) {
+      const n = keys.length;
+      if (t <= keys[0][0]) return keys[0][1];
+      if (t >= keys[n - 1][0]) return keys[n - 1][1];
+      let i = 1;
+      while (t > keys[i][0]) i++;
+      const [t0, v0] = keys[i - 1], [t1, v1] = keys[i], h = t1 - t0;
+      const slope = (a) => (keys[a + 1][1] - keys[a][1]) / (keys[a + 1][0] - keys[a][0]);
+      const tan = (k) => {
+        if (k === 0 || k === n - 1) return 0;
+        const d0 = slope(k - 1), d1 = slope(k);
+        if (d0 * d1 <= 0) return 0;
+        const h0 = keys[k][0] - keys[k - 1][0], h1 = keys[k + 1][0] - keys[k][0];
+        const w1 = 2 * h1 + h0, w2 = h1 + 2 * h0;
+        return (w1 + w2) / (w1 / d0 + w2 / d1);
+      };
+      const s = (t - t0) / h, s2 = s * s, s3 = s2 * s;
+      return (2 * s3 - 3 * s2 + 1) * v0 + (s3 - 2 * s2 + s) * h * tan(i - 1) + (-2 * s3 + 3 * s2) * v1 + (s3 - s2) * h * tan(i);
+    }
+    // Key-pose table -> one key list per channel: times [t0, t1, ...], table { channel: [v0, v1, ...] }.
+    function poseTable(times, table) {
+      const out = {};
+      for (const ch in table) out[ch] = times.map((t, i) => [t, table[ch][i]]);
+      return out;
+    }
+
+    /* ───────── Animations (from TheKing v1) ─────────
+       Each one writes offsets from the rest pose (radians, texels) plus face targets.
+       Every periodic term fits a whole number of times into the loop length T.
+       v1 bone "body" (torso) = "chest" here. New in v3: elbows, knees and ankles of the v2 rig join in. */
+
+    // 1 · Idle: calm, proud breathing. Slow chest rise, chin lifts on the in-breath, arms drift out.
+    const IDLE_GLANCE = [[0, 0], [1.1, 0], [1.4, -0.7], [2.1, -0.7], [2.4, 0.2], [3.3, 0.2], [3.6, 0], [4, 0]];
+    const IDLE_BROW = [[0, 0], [1.3, 0.25], [2.2, 0.1], [3.4, -0.05], [4, 0]];
+    // 2 · Idle 2: looks around his kingdom, shifts weight, hand to the hip, smug grin.
+    const I2_HEAD = [[0, 0], [0.7, 0], [1.3, 0.34], [2.6, 0.34], [3.3, -0.3], [4.6, -0.3], [5.3, 0], [6, 0]];
+    const I2_EYES = [[0, 0], [0.5, 0], [0.8, 0.9], [2.4, 0.6], [2.8, -0.9], [4.4, -0.6], [4.9, 0.2], [5.6, 0], [6, 0]];
+    const I2_SHIFT = [[0, 0], [1.0, 0.45], [2.8, 0.45], [3.6, -0.4], [4.9, -0.4], [6, 0]];
+    const I2_HIP = [[0, 0], [0.6, 0], [1.2, 1], [4.4, 1], [5.2, 0], [6, 0]];
+    const I2_GRIN = [[0, 0], [1.2, 0], [1.6, 1], [2.6, 1], [3.0, 0], [3.4, -0.8], [4.4, -0.8], [4.8, 0], [6, 0]];
+    const I2_BROW = [[0, 0], [1.1, 0.6], [1.8, 0.35], [2.7, 0], [3.2, -0.2], [4.3, 0.5], [5.0, 0], [6, 0]];
+    const I2_FROWN = [[0, 0], [2.8, 0], [3.2, 0.6], [4.0, 0.3], [4.6, 0], [6, 0]];
+    // 3 · Walk: confident royal stroll, chin up, shoulders counter-twist, humming through an "o" mouth.
+    const W_HUM = [[0, 0.2], [0.5, 0.45], [1.0, 0.25], [1.25, 0.5], [1.5, 0.3], [2, 0.2]];
+    // 4 · Dance: a 1:1 copy of the reference video 0:14.0-0:19.0 (references/the_king/VID_..._395.mp4),
+    // studied frame by frame at 10 fps. Dance time t = video time - 14.0 s. The dance music
+    // (sounds/the_king/backgroundmusic) is exactly that piece of the video's sound, so it plays in sync.
+    //   0.0-1.6  stands with the napkin; right hand swings to the waist, left hand on the hip, looks at the passer-by
+    //   1.7-2.1  two steps forward, napkin waved up beside his face, left hand to the chest
+    //   2.2-3.0  quick crouched hops, landing on the music hits (2.20, 2.39, 2.58 s)
+    //   2.9-3.5  napkin to the chest, then to his face (wiping), leaning in
+    //   3.6-4.4  deep crouch, ~35 deg lean, arms dangling by the knees, left arm swings out, knees bounce
+    //   4.5-5.0  both hands up to his face, crouched, feet apart
+    // Values: crouch a (rad: thighs forward, calves back by a), lean (rad), travel (texels), arm rotations (rad).
+    const D_CROUCH = [[0, 0], [1.6, 0], [1.75, 0.06], [1.95, 0.04], [2.1, 0.1], [2.2, 0.36], [2.4, 0.48], [2.6, 0.52], [2.9, 0.54], [3.1, 0.56], [3.4, 0.6], [3.7, 0.64], [4.2, 0.66], [4.5, 0.6], [4.7, 0.55], [5, 0.55]];
+    const D_LEAN = [[0, 0], [1.6, 0], [2.0, 0.03], [2.2, 0.1], [2.5, 0.16], [2.8, 0.2], [3.1, 0.3], [3.4, 0.36], [3.7, 0.52], [3.9, 0.68], [4.3, 0.72], [4.5, 0.56], [4.7, 0.34], [5, 0.3]];
+    const D_TRAVEL = [[0, 0], [1.65, 0], [2.2, 1.6], [5, 1.6]];
+    const D_SPREAD = [[0, 0], [2.1, 0], [2.3, 0.06], [2.9, 0.06], [3.5, 0.04], [4.0, 0.07], [4.6, 0.09], [5, 0.09]]; // knees apart (rad)
+    const D_HOPS = [[2.2, 2.39, 0.8], [2.39, 2.575, 0.8], [2.575, 2.78, 0.55], [2.78, 2.98, 0.35]]; // [take-off, landing, height]
+    const D_PUMPS = [3.12, 3.32, 3.53, 3.735, 3.95, 4.16, 4.37, 4.58, 4.79];                        // knee bounces (deepest moment)
+    const D_STEPS = [['right', 1.68, 1.92], ['left', 1.88, 2.12]];                                  // foot lifts while stepping in
+    const D_HEAD_YAW = [[0, 0.12], [1.4, 0.12], [1.7, 0], [5, 0]];                                  // looks at the passer-by first
+    const D_R_X = [[0, 0], [0.3, -0.05], [0.45, -0.35], [0.65, -0.3], [0.85, -0.05], [1.1, -0.05], [1.25, -0.25], [1.45, -0.05], [1.7, -0.1], [1.8, -0.35], [1.9, -1.25], [2.0, -1.45], [2.1, -1.3], [2.2, -0.45], [2.3, -0.3], [2.42, -0.05], [2.8, -0.1], [2.9, -0.45], [3.0, -0.35], [3.1, -0.8], [3.2, -1.15], [3.5, -1.25], [3.6, -0.9], [3.7, -0.4], [3.8, -0.15], [4.3, -0.15], [4.4, -0.45], [4.5, -0.9], [4.6, -1.3], [4.75, -1.4], [5, -1.4]];
+    const D_R_FX = [[0, -0.1], [0.3, -0.15], [0.45, -0.9], [0.65, -0.85], [0.85, -0.2], [1.1, -0.2], [1.25, -0.6], [1.45, -0.2], [1.7, -0.3], [1.8, -0.6], [1.9, -1.35], [2.0, -1.2], [2.1, -1.4], [2.2, -0.8], [2.3, -0.9], [2.42, -0.3], [2.8, -0.3], [2.9, -0.9], [3.0, -0.6], [3.1, -1.2], [3.2, -1.3], [3.5, -1.35], [3.6, -1.1], [3.7, -0.6], [3.8, -0.35], [4.3, -0.35], [4.4, -0.8], [4.5, -1.1], [4.6, -1.15], [4.75, -1.15], [5, -1.15]]; // hands in front of the face (not up through the hair)
+    const D_R_Z = [[0, 0], [1.8, -0.05], [1.9, -0.34], [2.1, -0.34], [2.25, -0.08], [3.05, -0.05], [3.15, -0.3], [3.55, -0.3], [3.7, -0.08], [4.4, -0.08], [4.55, -0.38], [5, -0.38]];
+    const D_L_X = [[0, 0], [0.55, 0], [0.7, -0.12], [0.85, -0.12], [1.0, 0], [2.0, 0], [2.1, -0.6], [2.2, -0.3], [2.4, 0], [3.25, 0], [3.4, -0.15], [3.6, -0.1], [3.8, -0.05], [4.0, 0.1], [4.1, -0.25], [4.3, -0.2], [4.45, 0], [4.55, -0.55], [4.65, -1.2], [4.8, -1.35], [5, -1.35]];
+    const D_L_FX = [[0, -0.05], [0.55, -0.05], [0.7, -0.25], [0.85, -0.25], [1.0, -0.05], [2.0, -0.1], [2.1, -1.2], [2.2, -0.6], [2.4, -0.15], [3.6, -0.2], [4.4, -0.2], [4.55, -0.85], [4.65, -1.05], [4.8, -1.2], [5, -1.2]];
+    const D_L_Z = [[0, 0.02], [0.55, 0.02], [0.7, 0.32], [0.85, 0.32], [1.0, 0.02], [2.4, 0.05], [2.6, 0.12], [3.3, 0.12], [3.45, 0.28], [3.6, 0.22], [3.9, 0.2], [4.1, 0.5], [4.3, 0.45], [4.45, 0.15], [4.6, 0.33], [5, 0.33]];
+    const D_L_FZ = [[0, 0], [0.55, 0], [0.7, -0.6], [0.85, -0.6], [1.0, 0], [5, 0]];                // hand on the hip
+    const D_WAVE = [[0, 0], [1.85, 0], [1.95, 1], [2.1, 1], [2.2, 0], [5, 0]];                       // napkin wave
+    const D_WIPE = [[0, 0], [3.15, 0], [3.25, 1], [3.5, 1], [3.6, 0], [4.6, 0], [4.75, 1], [5, 1]];  // napkin at the face
+    const D_DANGLE = [[0, 0], [3.75, 0], [3.9, 1], [4.3, 1], [4.45, 0], [5, 0]];                     // loose arm sway
+    const D_LOOK_AWAY = [[0, 1], [1.45, 1], [1.75, 0], [5, 0]];                                       // eyes on the passer-by
+    // Head-follow fades out ~0.3 s before the hands come up to the face (else the side hair turns into the arm).
+    const D_HANDS_UP = [[0, 0], [2.75, 0], [3.0, 1], [3.6, 1], [3.8, 0], [4.1, 0], [4.35, 1], [5, 1]];
+
+    // 5 · Attack: leap + two-footed dropkick, from the reference video (references/_unsorted/Drop kick - Extreme Slow Motion.mp4):
+    //   load (crouch, arms back) -> one-foot take-off, right knee drives up -> both knees tucked at the top,
+    //   one arm stretched back -> legs shoot out, body flat (hit) -> rolls onto his right side, falls, lands on it
+    //   -> groans, sits up, squats, stands, dusts himself off.
+    // travel + arc = root motion: the whole mob moves (texels). The mod moves the real entity along these two curves.
+    // Body: x + = lean forward, roll + = right side down. Legs/arms x - = forward. Arm z: right - / left + = outward.
+    const A1_T = [0, 0.18, 0.35, 0.45, 0.6, 0.78, 0.92, 1.02, 1.15, 1.38, 1.5, 1.62, 1.85, 2.1, 2.35, 2.6, 2.85, 3.1, 3.4];
+    const A1 = poseTable(A1_T, {
+      travel: [0, 0, -0.5, 0.6, 7, 16, 24, 29, 33, 37.5, 40, 40, 40, 40, 40, 40, 40, 40, 40],
+      arc: [0, 0, 0, 0.6, 6.5, 10, 10.5, 9.5, 7.5, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      bodyX: [0, 0.15, 0.32, 0.1, -0.25, -0.45, -1.0, -1.45, -1.5, -1.5, -1.5, -1.5, -1.5, -0.7, -0.15, 0.55, 0.3, 0.02, 0],
+      // On the ground (1.5-2.35 s) the body is set a bit too low on purpose: the ground check in step() lifts it to exact contact.
+      bodyY: [0, -0.17, -1.04, -0.5, 0, 0, 0, 0, -1, -5, -9, -8.8, -9, -10.5, -11, -5.6, -1.8, 0, 0],
+      bodyZ: [0, -0.14, -0.35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -0.71, -0.45, 0, 0],
+      roll: [0, 0, 0, 0, 0, 0, 0, 0, 0.25, 1.0, 1.35, 1.38, 1.4, 0.6, 0.05, 0, 0, 0, 0],
+      chestY: [0, 0, -0.1, 0.2, 0.1, -0.1, 0, 0, -0.1, -0.2, -0.15, -0.15, -0.1, 0, 0, 0, 0, 0.1, 0],
+      thR: [0, -0.33, -0.77, -1.3, -1.6, -1.6, -0.6, -0.15, -0.35, -0.3, -0.25, -0.25, -0.3, -0.8, -0.95, -1.65, -0.9, -0.05, 0],
+      knR: [0, 0.36, 0.9, 1.5, 1.9, 2.1, 0.6, 0.05, 0.4, 0.3, 0.3, 0.35, 0.4, 0.4, 1.8, 2.2, 1.2, 0.1, 0],
+      anR: [0, -0.18, -0.45, 0.2, 0.3, 0.25, 0, -0.1, 0, 0.1, 0.1, 0.1, 0.1, 0, -0.7, -1.1, -0.6, -0.05, 0],
+      thL: [0, -0.33, -0.77, 0.3, -0.8, -1.6, -0.6, -0.15, -0.35, -0.45, -0.45, -0.5, -0.5, -0.8, -0.95, -1.65, -0.9, -0.05, 0],
+      knL: [0, 0.36, 0.9, 0.15, 1.6, 2.1, 0.6, 0.05, 0.4, 0.6, 0.7, 0.75, 0.8, 0.6, 1.8, 2.2, 1.2, 0.1, 0],
+      anL: [0, -0.18, -0.45, 0.45, 0.3, 0.25, 0, -0.1, 0, 0.2, 0.2, 0.2, 0.2, 0, -0.7, -1.1, -0.6, -0.05, 0],
+      // Right arm raised to the sky like the video: he lies back in the air, so body-forward (x -1.7) points up.
+      // Turned outward on y (a forward arm's z is its own axis, so z would not move it away from the bandana).
+      // Overhead (x < -2.2) or sideways-up (big z) would cross the head or the side hair. On the ground it props him up.
+      armRX: [0, 0.35, 0.7, -0.8, -1.2, -1.6, -1.7, -1.7, -1.6, -0.6, -0.7, -0.7, -0.7, 0.3, -0.9, -1.0, -0.5, -0.25, 0],
+      armRY: [0, 0, 0, -0.2, -0.45, -0.4, -0.3, -0.3, -0.3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      armRZ: [0, 0, -0.15, -0.2, -0.2, -0.2, -0.2, -0.2, -0.4, -1.4, -1.3, -1.3, -1.25, -0.6, -0.35, -0.35, -0.15, -0.05, 0],
+      foreRX: [0, -0.2, -0.3, -0.4, -0.2, -0.1, -0.1, -0.1, -0.2, -0.3, -0.6, -0.55, -0.5, -0.2, -0.6, -0.5, -0.4, -1.2, 0],
+      armLX: [0, 0.35, 0.7, -1.2, -1.1, -1.2, -1.0, -0.9, -1.0, -0.8, -0.6, -0.55, -0.5, -0.6, -0.9, -1.0, -0.5, 0.1, 0],
+      armLY: [0, 0, 0, 0.3, 0.4, 0.35, 0.25, 0.2, 0.1, 0, 0, 0, 0, 0, 0.15, 0.15, 0, 0, 0],
+      armLZ: [0, 0, 0.15, 0.35, 0.3, 0.3, 0.35, 0.35, 0.6, 0.9, 0.7, 0.5, 0.4, 0.35, 0.35, 0.35, 0.15, 0.05, 0],
+      foreLX: [0, -0.2, -0.3, -0.5, -1.4, -1.5, -1.3, -1.2, -0.8, -0.6, -0.4, -0.45, -0.5, -0.8, -0.6, -0.5, -0.4, -0.3, 0],
+      // Face: snarl while loading, yell in the air, "o" while falling, eyes squeezed on landing, groan, smug at the end.
+      open: [0.08, 0.2, 0.3, 0.9, 0.8, 0.7, 0.9, 1.0, 0.9, 0.7, 0.5, 0.3, 0.25, 0.2, 0.15, 0.2, 0.15, 0.1, 0.08],
+      wide: [0.15, 0.5, 0.7, 0.4, 0.4, 0.5, 0.7, 0.8, 0.3, -0.6, 0.6, 0.4, -0.3, 0.2, 0.3, 0.4, 0.3, 0.6, 0.15],
+      frown: [0, 0.5, 0.8, 0.7, 0.6, 0.6, 0.6, 0.6, 0.3, 0, 0.4, 0.5, 0.6, 0.5, 0.5, 0.5, 0.3, 0, 0],
+      browUp: [0, -0.2, -0.3, -0.2, -0.1, -0.1, -0.2, -0.2, 0.4, 0.8, 0.1, 0, 0.1, 0.2, 0.2, 0.1, 0.2, 0.4, 0],
+      squint: [0.1, 0.3, 0.4, 0.3, 0.3, 0.4, 0.5, 0.6, 0.3, 0.1, 1.0, 0.8, 0.7, 0.5, 0.4, 0.4, 0.3, 0.3, 0.1],
+      glance: [0, 0, 0, 0, 0, 0, 0, 0, 0, -0.3, 0, 0, 0.3, 0, 0, 0, 0, 0.5, 0]
+    });
+    const A1_FOLLOW = [[0, 1], [0.03, 1], [0.3, 0], [2.6, 0], [3.1, 1], [3.4, 1]];  // head-follow off while the arms fly past the head
+    const A1_DUST = [[0, 0], [2.95, 0], [3.05, 1], [3.25, 1], [3.35, 0], [3.4, 0]]; // dusting his shirt off
+
+    // 6 · Attack 2: a straight right punch. Weight back and fist cocked, left foot steps in, hips and shoulders
+    // turn into the hit, arm snaps straight, then back to guard. Small body step only (no root motion).
+    const A2_T = [0, 0.22, 0.34, 0.42, 0.55, 0.8, 1.1];
+    const A2 = poseTable(A2_T, {
+      // Legs worked out so the back (right) foot stays planted and both soles stay flat:
+      // step = how far the hips move = 5.6 sin(thigh) + 4.8 sin(shin) of the back leg (world angles), bodyY = lost leg height.
+      step: [0, 0.89, 3.37, 3.77, 3.37, 1.51, 0],
+      bodyY: [0, -0.05, -0.62, -0.76, -0.62, -0.13, 0],
+      bodyX: [0, -0.06, 0.12, 0.18, 0.14, 0.05, 0],
+      chestY: [0, -0.3, 0.08, 0.12, 0.1, 0.03, 0],
+      thR: [0, 0.1, 0.12, 0.1, 0.1, 0.05, 0], knR: [0, 0.1, 0.2, 0.2, 0.2, 0.1, 0], anR: [0, -0.14, -0.44, -0.48, -0.44, -0.2, 0],
+      // Left foot steps in, then lifts (knee up) while it steps back.
+      thL: [0, -0.05, -0.55, -0.6, -0.55, -0.4, 0], knL: [0, 0.1, 0.6, 0.65, 0.6, 0.6, 0], anL: [0, 0.01, -0.17, -0.23, -0.19, -0.25, 0],
+      armRX: [0, 0.55, -1.2, -1.45, -1.3, -0.4, 0],
+      armRY: [0, 0, -0.25, -0.35, -0.4, -0.1, 0], // aimed a little outward: passes beside the bandana
+      armRZ: [0, -0.3, -0.3, -0.3, -0.28, -0.1, 0], // outward: the shoulder top stays clear of the bandana
+      foreRX: [0, -1.7, -0.6, -0.05, -0.05, -0.8, 0],
+      armLX: [0, -0.9, -0.6, 0.15, 0.1, -0.2, 0],
+      armLY: [0, 0.35, 0.3, 0.15, 0.1, 0, 0],
+      armLZ: [0, 0.3, 0.3, 0.2, 0.15, 0.05, 0],
+      foreLX: [0, -1.2, -1.3, -1.4, -1.2, -0.6, 0],
+      open: [0.08, 0.2, 0.6, 0.95, 0.6, 0.2, 0.08],
+      wide: [0.15, 0.6, 0.7, 0.8, 0.6, 0.5, 0.15],
+      frown: [0, 0.8, 0.8, 0.6, 0.4, 0.2, 0],
+      browUp: [0, -0.3, -0.2, -0.1, 0.1, 0.2, 0],
+      squint: [0.1, 0.5, 0.6, 0.6, 0.4, 0.3, 0.1]
+    });
+    const A2_FOLLOW = [[0, 1], [0.12, 0.1], [0.85, 0.1], [1.1, 1]]; // head stays on the target, not on the mouse
+
+    // 7 · Run: every foot follows a running path, and the hip + knee angles are solved from it (2-bone IK).
+    // Per leg, phase u (0..1): stance 0..D (foot on the ground, sliding back under him), then swing D..1
+    // (heel kicks up high behind, knee drives forward, foot reaches out and paws back to land).
+    // D 0.36 -> both feet are off the ground 28% of the time (the flight that makes it a run, not a fast walk).
+    // Texels: thigh 5.6, shin 4.8, ankle 1.6 above a flat sole; heel 1.9 behind and toe 3.3 in front of the ankle.
+    const RUN = {
+      P: 0.5625, D: 0.36,
+      Zf: 2.4, Zb: 5.0,      // foot lands 2.4 in front of the hip, pushes off 5 behind it (leg nearly straight)
+      H0: 11.59, A: 0.31,    // hip height: 11.28 at mid-stance (knee ~0.7 bent) .. 11.9 mid-flight (rest 12)
+      Hk: 5                  // heel kick: swing foot up to 5 texels
+    };
+    // Foot pitch over the cycle (+ = toe down): heel strike, flat, heel rises at push-off, toe pointed in the swing,
+    // toe up again before landing.
+    const RUN_PITCH = [[0, -0.1], [0.07, 0], [0.2, 0], [0.36, 0.55], [0.46, 0.9], [0.72, 0.35], [0.9, -0.15], [1, -0.1]];
+    // Ankle height when the lowest sole corner touches the ground (toe corner if pitched down, heel corner if up).
+    const runContact = (f) => Math.max(1.6 * Math.cos(f) + 3.3 * Math.sin(f), 1.6 * Math.cos(f) - 1.9 * Math.sin(f));
+    function runLeg(Q, side, u, hip, lean) {
+      const f = mc(u, RUN_PITCH), L = RUN.Zf + RUN.Zb;
+      let z, y;
+      if (u < RUN.D) {                                   // stance: steady slide back, sole on the ground
+        z = RUN.Zf - L * u / RUN.D;
+        y = runContact(f);
+      } else {                                           // swing: Hermite curve, both ends moving backward
+        // End speeds = the stance slide speed (no jerk at lift-off or landing): the foot keeps going back a little
+        // after lift-off and paws back before it lands.
+        const s = (u - RUN.D) / (1 - RUN.D), s2 = s * s, s3 = s2 * s, m = -L * (1 - RUN.D) / RUN.D;
+        z = (2 * s3 - 3 * s2 + 1) * -RUN.Zb + (s3 - 2 * s2 + s) * m + (-2 * s3 + 3 * s2) * RUN.Zf + (s3 - s2) * m;
+        y = runContact(f) + RUN.Hk * 10.91 * s ** 1.5 * (1 - s) ** 2; // lift peaks early (s 0.43): heel up behind
+      }
+      // 2-bone IK in the hip's side plane. ty < 0 = below the hip. Angles: + = backward (rig convention).
+      // d >= 6.6 keeps the knee bend under ~1.8 rad (deeper, the shoe folds into the back of the thigh);
+      // d <= 10.38 = leg nearly straight. Soft limits (softplus), so the knee never stops with a jerk.
+      const ty = y - hip, d0 = Math.hypot(z, ty);
+      const d1 = 6.6 + 0.3 * Math.log1p(Math.exp((d0 - 6.6) / 0.3));
+      const d = 10.38 - 0.15 * Math.log1p(Math.exp((10.38 - d1) / 0.15));
+      const line = Math.atan2(z, -ty);                   // forward angle of the hip -> ankle line
+      const aHip = Math.acos(clamp((5.6 * 5.6 + d * d - 4.8 * 4.8) / (2 * 5.6 * d), -1, 1));
+      const aKnee = Math.acos(clamp((5.6 * 5.6 + 4.8 * 4.8 - d * d) / (2 * 5.6 * 4.8), -1, 1));
+      const thigh = -(line + aHip), knee = Math.PI - aKnee; // knee points forward, bends backward
+      rot(Q, `leg_${side}`, thigh - lean, 0, 0);
+      rot(Q, `knee_${side}`, knee, 0, 0);
+      rot(Q, `ankle_${side}`, f - (thigh + knee), 0, 0);   // foot pitch in world space
+    }
+
+    const ANIMS = {
+      idle: {
+        T: 4, yawLimit: 0.35,
+        fn(t, Q) {
+          const w = TAU / 4;
+          const br = Math.sin(w * t);            // breath: + = in
+          const inB = (br + 1) * 0.5;
+          rot(Q, 'head', -0.03 * br, 0, 0);       // chin lifts on the in-breath
+          pos(Q, 'head', 0, 0.06 * inB, 0);    // never below rest: the bandana sits right on the collar
+          rot(Q, 'chest', 0, 0.02 * Math.sin(w * t + 0.8), 0);
+          rot(Q, 'arm_right', 0.03 * Math.sin(w * t + 1.2), 0, -0.02 - 0.02 * inB);
+          rot(Q, 'arm_left', -0.025 * Math.sin(w * t + 1.2), 0, 0.02 + 0.02 * inB);
+          rot(Q, 'forearm_right', -0.04 * inB, 0, 0); // forearms lift a touch with the breath
+          rot(Q, 'forearm_left', -0.04 * inB, 0, 0);
+          rot(Q, 'root', 0, 0, 0.006 * Math.sin(w * t));
+          pos(Q, 'root', 0, 0.025 * Math.sin(w * t) ** 2, 0); // the roll would dip a shoe edge into the ground
+          Q.f.browUp = 0.1 * br + kf(t, IDLE_BROW);
+          Q.f.open = 0.08 + 0.18 * Math.max(0, -br); // breathes out through the mouth
+          Q.f.wide = 0.15;
+          Q.f.glance = kf(t, IDLE_GLANCE);
+          Q.f.squint = 0.1;
+        }
+      },
+      idle2: {
+        T: 6, yawLimit: 0.35,
+        fn(t, Q) {
+          const shift = kf(t, I2_SHIFT), hip = kf(t, I2_HIP), grin = kf(t, I2_GRIN);
+          pos(Q, 'root', shift * 0.6, 0, 0);
+          rot(Q, 'root', 0, 0, -shift * 0.018);   // lean over the standing leg
+          pos(Q, 'root', 0, 0.16 * shift * shift, 0); // keeps the outer shoe edge out of the ground
+          rot(Q, 'chest', 0, kf(t, I2_HEAD) * 0.3, 0);
+          rot(Q, 'head', 0, kf(t, I2_HEAD) * 0.7, 0);
+          rot(Q, 'head', -0.04 * hip, 0, 0);       // proud chin
+          // Relaxed free leg: knee bends softly, the ankle keeps the shoe flat.
+          const freeR = Math.max(0, shift), freeL = Math.max(0, -shift);
+          rot(Q, 'leg_right', -0.05 * freeR, 0, 0);
+          rot(Q, 'knee_right', 0.12 * freeR, 0, 0);
+          rot(Q, 'ankle_right', -0.07 * freeR, 0, 0);
+          rot(Q, 'leg_left', -0.05 * freeL, 0, 0);
+          rot(Q, 'knee_left', 0.12 * freeL, 0, 0);
+          rot(Q, 'ankle_left', -0.07 * freeL, 0, 0);
+          // Hand to the hip: shoulder out (outward only), elbow bends back in toward the belt.
+          rot(Q, 'arm_left', -0.1 * hip, 0, 0.38 * hip);
+          rot(Q, 'forearm_left', -0.12 * hip, 0, -0.62 * hip);
+          rot(Q, 'arm_right', 0.05 * Math.sin(TAU * t / 6), 0, -0.03 - 0.03 * Math.sin(TAU * t / 3));
+          rot(Q, 'forearm_right', -0.05 - 0.05 * Math.sin(TAU * t / 6), 0, 0);
+          Q.f.glance = kf(t, I2_EYES);
+          Q.f.browUp = kf(t, I2_BROW);
+          Q.f.frown = kf(t, I2_FROWN);
+          Q.f.wide = grin;                                     // + grin, - "hmm" o-mouth
+          Q.f.open = 0.12 + 0.2 * Math.abs(grin);
+          Q.f.squint = 0.3 * Math.max(0, grin);
+        }
+      },
+      walk: {
+        T: 2, yawLimit: 0.25,
+        fn(t, Q) {
+          const c = TAU * t;                       // one stride cycle per second, two per loop
+          const s = Math.sin(c), co = Math.cos(c);
+          // Bounce lives in the torso (down on contact), so the feet stay on the ground.
+          pos(Q, 'chest', 0, -0.2 * (0.5 - 0.5 * Math.cos(2 * c)), 0);
+          rot(Q, 'root', 0, 0.05 * s, 0.02 * s);   // hips turn with the leading leg, weight rolls side to side
+          pos(Q, 'root', 0, 0.08 * s * s, 0);       // the roll would dip a shoe edge into the ground
+          const hipR = 0.34 * s, hipL = -0.34 * s;
+          // Knee bends while that leg swings forward (right swings when cos < 0). Squared: smooth start and end.
+          const swR = Math.max(0, -co), swL = Math.max(0, co);
+          const kneeR = 0.42 * swR * swR, kneeL = 0.42 * swL * swL;
+          rot(Q, 'leg_right', hipR, 0, 0);
+          rot(Q, 'leg_left', hipL, 0, 0);
+          rot(Q, 'knee_right', kneeR, 0, 0);
+          rot(Q, 'knee_left', kneeL, 0, 0);
+          // Ankle keeps the sole flat on the ground (no toe or heel digging in); toe drops a little in the swing.
+          rot(Q, 'ankle_right', -hipR - 0.8 * kneeR, 0, 0);
+          rot(Q, 'ankle_left', -hipL - 0.8 * kneeL, 0, 0);
+          rot(Q, 'chest', 0.02, -0.09 * s, 0);     // shoulders counter-twist
+          rot(Q, 'arm_right', -0.3 * s, 0, -0.06); // swagger: arms a bit out
+          rot(Q, 'arm_left', 0.3 * s, 0, 0.06);
+          rot(Q, 'forearm_right', -0.1 * (1 + s), 0, 0); // elbow bends more on the forward swing
+          rot(Q, 'forearm_left', -0.1 * (1 - s), 0, 0);
+          rot(Q, 'head', -0.05 + 0.02 * Math.cos(2 * c), 0.05 * s, 0);
+          Q.f.browUp = 0.15 + 0.12 * Math.cos(2 * c);
+          Q.f.open = kf(t, W_HUM);
+          Q.f.wide = -0.6;                         // "o" mouth, humming
+          Q.f.glance = 0.6 * Math.sin(TAU * t / 2);
+        }
+      },
+      // 4 · Dance (asked for by the user): 1:1 copy of the reference video, see the D_ curves above.
+      // Plays with the dance music; also starts by itself now and then from the idles.
+      // Head-follow is faded down (follow 0.35). loopFade: when it loops, it crossfades back to the start pose.
+      dance: {
+        T: 5, yawLimit: 0.25, follow: 0.35, loopFade: true,
+        fn(t, Q) {
+          // Hops: sine arcs between take-off and landing. Knee bounces: soft pulses on the beat.
+          let lift = 0, pump = 0;
+          for (const [t0, t1, h] of D_HOPS) if (t > t0 && t < t1) lift += h * Math.sin(Math.PI * (t - t0) / (t1 - t0));
+          for (const tb of D_PUMPS) pump += Math.exp(-(((t - tb) / 0.06) ** 2));
+          const a = kf(t, D_CROUCH) + 0.08 * pump;      // crouch: deepest on each bounce
+          const lean = kf(t, D_LEAN) + 0.03 * pump;
+          const spread = kf(t, D_SPREAD);
+          // Pelvis: drops by the leg's lost height (5.6 + 4.8 texels of leg), rises on a hop, moves back by the
+          // 0.8 sin(a) the ankles move forward (feet stay put), and the whole body steps 1.6 texels forward.
+          pos(Q, 'root', 0, 0, kf(t, D_TRAVEL));
+          pos(Q, 'body', 0, -10.4 * (1 - Math.cos(a)) + lift, -0.8 * Math.sin(a));
+          rot(Q, 'body', lean, 0, 0);
+          rot(Q, 'chest', 0, -0.08 * Math.sin(Math.PI * clamp((t - 1.6) / 0.6, 0, 1) * 2) + 0.05 * kf(t, D_DANGLE) * Math.sin(TAU * 2.4 * t), 0);
+          // Legs: same crouch on both; a stepping foot lifts (smooth sin^2 bump); toes point down in the air.
+          const toe = 0.15 * lift;
+          for (const side of ['right', 'left']) {
+            let e = 0;
+            for (const [s, t0, t1] of D_STEPS) if (s === side && t > t0 && t < t1) e += 0.35 * Math.sin(Math.PI * (t - t0) / (t1 - t0)) ** 2;
+            const sx = side === 'right' ? -1 : 1;  // outward on Z: right leg negative
+            rot(Q, `leg_${side}`, -(a + e / 2) - lean, 0, sx * spread);
+            rot(Q, `knee_${side}`, 2 * a + e, 0, 0);
+            rot(Q, `ankle_${side}`, -(a + e / 2) + toe, 0, -sx * spread); // sole flat on the ground
+          }
+          // Arms from the curves. A hanging arm (curve near 0) also gets "-0.6 lean" so it dangles down
+          // instead of tipping forward with the body; dangling arms sway in the deep crouch.
+          const sway = 0.15 * kf(t, D_DANGLE) * Math.sin(TAU * 2.4 * t);
+          const rx = kf(t, D_R_X), lx = kf(t, D_L_X);
+          const hangR = clamp(1 + rx / 0.3, 0, 1), hangL = clamp(1 + lx / 0.3, 0, 1);
+          const wave = kf(t, D_WAVE), wipe = kf(t, D_WIPE);
+          // Raised arms flare out a little so the sleeve tops pass beside the bandana.
+          const flareR = 0.15 * clamp(-rx / 0.6, 0, 1), flareL = 0.15 * clamp(-lx / 0.6, 0, 1);
+          rot(Q, 'arm_right', rx + hangR * (-0.6 * lean + sway), 0, kf(t, D_R_Z) - flareR);
+          rot(Q, 'forearm_right', kf(t, D_R_FX), 0, 0.3 * wave * Math.sin(TAU * 4 * t) + 0.12 * wipe * Math.sin(TAU * 5 * t));
+          rot(Q, 'arm_left', lx + hangL * (-0.6 * lean - sway), 0, kf(t, D_L_Z) + flareL);
+          rot(Q, 'forearm_left', kf(t, D_L_FX), 0, kf(t, D_L_FZ) + 0.1 * wipe * Math.sin(TAU * 5 * t + 1));
+          Q.follow *= 1 - 0.9 * kf(t, D_HANDS_UP);
+          // Head: looks at the passer-by, then forward; small nod on each bounce.
+          rot(Q, 'head', 0.03 * pump - 0.03 * wave, kf(t, D_HEAD_YAW), 0);
+          // Face: happy and wound up; eyes squeeze while wiping.
+          Q.f.wide = 0.6 - 0.4 * wipe;
+          Q.f.open = 0.2 + 0.35 * lift / 0.8 + 0.15 * pump + 0.2 * wave;
+          Q.f.browUp = 0.4 + 0.25 * lift / 0.8 - 0.3 * wipe;
+          Q.f.squint = 0.25 + 0.45 * wipe;
+          const look = kf(t, D_LOOK_AWAY); // eyes on the passer-by, then glide to a slow side-to-side glance (no snap)
+          Q.f.glance = 0.7 * look + 0.3 * Math.sin(TAU * t / 2.5) * (1 - look);
+        }
+      },
+      // 5 · Attack (asked for by the user): leap + dropkick, see A1 above. events = moments the mod uses
+      // (take-off, hit, landing). rootMotion = curves the mod turns into real movement of the entity.
+      attack: {
+        T: 3.4, yawLimit: 0.25, loopFade: true,
+        events: { takeoff: 0.45, hit: 1.02, land: 1.5 },
+        rootMotion: { z: A1.travel, y: A1.arc },
+        fn(t, Q) {
+          const v = (ch) => mc(t, A1[ch]);
+          pos(Q, 'root', 0, v('arc'), v('travel'));
+          pos(Q, 'body', 0, v('bodyY'), v('bodyZ'));
+          rot(Q, 'body', v('bodyX'), 0, v('roll'));
+          rot(Q, 'chest', 0, v('chestY'), 0);
+          rot(Q, 'leg_right', v('thR'), 0, 0); rot(Q, 'knee_right', v('knR'), 0, 0); rot(Q, 'ankle_right', v('anR'), 0, 0);
+          rot(Q, 'leg_left', v('thL'), 0, 0); rot(Q, 'knee_left', v('knL'), 0, 0); rot(Q, 'ankle_left', v('anL'), 0, 0);
+          const dust = kf(t, A1_DUST) * Math.sin(TAU * 6 * t);
+          rot(Q, 'arm_right', v('armRX'), v('armRY'), v('armRZ'));
+          rot(Q, 'forearm_right', v('foreRX') + 0.25 * dust, 0, 0);
+          // A forward-raised arm pokes its sleeve top above the shoulder pivot, next to the bandana (no turn moves it away):
+          // the shoulder slides out up to 0.55 texel while the arm is raised.
+          pos(Q, 'arm_right', -0.55 * clamp(-v('armRX'), 0, 1), 0, 0);
+          pos(Q, 'arm_left', 0.55 * clamp(-v('armLX'), 0, 1), 0, 0);
+          rot(Q, 'arm_left', v('armLX'), v('armLY'), v('armLZ'));
+          rot(Q, 'forearm_left', v('foreLX'), 0, 0);
+          for (const k of FACE_KEYS) Q.f[k] = v(k);
+          Q.follow *= kf(t, A1_FOLLOW);
+        }
+      },
+      // 6 · Attack 2 (asked for by the user): straight right punch, see A2 above.
+      attack2: {
+        T: 1.1, yawLimit: 0.25, loopFade: true,
+        events: { hit: 0.42 },
+        fn(t, Q) {
+          const v = (ch) => mc(t, A2[ch]);
+          pos(Q, 'root', 0, 0, v('step'));
+          pos(Q, 'body', 0, v('bodyY'), 0);
+          rot(Q, 'body', v('bodyX'), 0, 0);
+          rot(Q, 'chest', 0, v('chestY'), 0);
+          rot(Q, 'leg_right', v('thR'), 0, 0); rot(Q, 'knee_right', v('knR'), 0, 0); rot(Q, 'ankle_right', v('anR'), 0, 0);
+          rot(Q, 'leg_left', v('thL'), 0, 0); rot(Q, 'knee_left', v('knL'), 0, 0); rot(Q, 'ankle_left', v('anL'), 0, 0);
+          rot(Q, 'arm_right', v('armRX'), v('armRY'), v('armRZ'));
+          rot(Q, 'forearm_right', v('foreRX'), 0, 0);
+          // A forward-raised arm pokes its sleeve top above the shoulder pivot, next to the bandana (no turn moves it away):
+          // the shoulder slides out up to 0.55 texel while the arm is raised.
+          pos(Q, 'arm_right', -0.55 * clamp(-v('armRX'), 0, 1), 0, 0);
+          pos(Q, 'arm_left', 0.55 * clamp(-v('armLX'), 0, 1), 0, 0);
+          rot(Q, 'arm_left', v('armLX'), v('armLY'), v('armLZ'));
+          rot(Q, 'forearm_left', v('foreLX'), 0, 0);
+          for (const k of ['open', 'wide', 'frown', 'browUp', 'squint']) Q.f[k] = v(k);
+          Q.f.glance = 0;
+          Q.follow *= kf(t, A2_FOLLOW);
+        }
+      },
+      // 7 · Run (asked for by the user): a heavy, determined sprint, see RUN above.
+      // 0.5625 s per stride pair (3.6 steps a second), two pairs per loop.
+      run: {
+        T: 1.125, yawLimit: 0.25, follow: 0.7,
+        fn(t, Q) {
+          const uR = (t / RUN.P) % 1, uL = (uR + 0.5) % 1;   // leg phases: 0 = that foot lands
+          const lean = 0.2;                                    // pelvis tips forward (legs subtract it: world angles)
+          rot(Q, 'body', lean, 0, 0);
+          const c = Math.cos(TAU * uR);                        // +1 = right leg in front
+          rot(Q, 'chest', 0.08, 0.14 * c, 0);                  // more lean; shoulders turn against the hips
+          rot(Q, 'root', 0, -0.1 * c, 0.015 * Math.sin(TAU * uR));
+          pos(Q, 'root', 0, 0.06 * Math.sin(TAU * uR) ** 2, 0); // the side roll would dip a shoe edge
+          // Hip height: lowest at mid-stance, highest in the flight (one bounce per step).
+          const hip = RUN.H0 - RUN.A * Math.cos(2 * TAU * (uR - RUN.D / 2));
+          pos(Q, 'body', 0, hip - 12, 0);                      // body pivot = hip, 12 above the ground at rest
+          runLeg(Q, 'right', uR, hip, lean);
+          runLeg(Q, 'left', uL, hip, lean);
+          // Arms pump against the legs, elbows bent hard. A backward arm also swings out a little (outward Z only):
+          // its cuff passes beside the back hair, not into it.
+          const ar = Math.cos(TAU * (uR + 0.03)), al = -ar;    // + = that arm back
+          rot(Q, 'arm_right', -0.12 + 0.7 * ar, 0, -0.1 - 0.16 * Math.max(0, ar) ** 2);
+          rot(Q, 'arm_left', -0.12 + 0.7 * al, 0, 0.1 + 0.16 * Math.max(0, al) ** 2);
+          rot(Q, 'forearm_right', -1.35 - 0.3 * Math.max(0, -ar) ** 2, 0, 0); // closes more on the forward swing
+          rot(Q, 'forearm_left', -1.35 - 0.3 * Math.max(0, -al) ** 2, 0, 0);
+          // Head stays level: lifts against the lean, small nod on each landing.
+          rot(Q, 'head', -0.16 + 0.03 * Math.cos(2 * TAU * uR), 0.05 * c, 0);
+          // Face: effort. Panting mouth once per stride pair (1.8 per second), frown, squint, brows bob with the steps.
+          Q.f.open = 0.3 + 0.3 * (0.5 + 0.5 * Math.sin(TAU * uR - 0.6));
+          Q.f.wide = 0.2;
+          Q.f.frown = 0.6;
+          Q.f.browUp = -0.15 + 0.08 * Math.cos(2 * TAU * uR);
+          Q.f.squint = 0.35;
+          Q.f.glance = 0.25 * Math.sin(TAU * t / 1.125);
+        }
+      }
+    };
+    const ANIM_ORDER = ['idle', 'idle2', 'walk', 'dance', 'attack', 'attack2', 'run'];
+
+    /* ───────── Springs (loose parts) ─────────
+       A pendulum per loose part: it hangs along gravity minus the anchor's acceleration,
+       plus a tiny breeze so it always moves. Values are offsets from the v2 rest angle,
+       clamped so nothing swings into the head or body. bias = small lean so the rest sits inside the range. */
+    const SPRINGS = [
+      // Back hair only swings backward (forward it would reach the head and back).
+      { bone: 'hair_back', k: 70, d: 7, accel: 0.5, x: [-0.03, 0.45], z: [-0.1, 0.1], bx: 0.03, breeze: 0.03, f: 0.9 },
+      // Side hair only swings outward on Z (inward it would enter the head and the bandana).
+      { bone: 'hair_right', k: 90, d: 8, accel: 0.5, x: [-0.1, 0.1], z: [-0.3, 0], bz: -0.03, breeze: 0.03, f: 1.3 },
+      { bone: 'hair_left', k: 90, d: 8, accel: 0.5, x: [-0.1, 0.1], z: [0, 0.3], bz: 0.03, breeze: 0.03, f: 1.1 }
+      // The bandana is one fitted object on the head (user wish): no spring.
+    ];
+    const GRAVITY = 9.8;
+
+    /* ───────── Simulation state ───────── */
+    function mulberry32(seed) {
+      return function () {
+        seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function makeSim(seed) {
+      return {
+        anim: 'idle', t: 0, time: 0, blend: 1,
+        snap: makePose(), cur: makePose(), out: makePose(),
+        face: { browUp: 0, frown: 0, open: 0, wide: 0, glance: 0, squint: 0 },
+        yawLimit: 0.5,
+        // Talking (set each frame by the voice player): level 0-1 = loudness, shape 0-1 = dull 'o' .. bright 'ee'.
+        talk: { active: false, level: 0, shape: 0.5 }, talkW: 0,
+        rng: mulberry32(seed),
+        blink: { wait: 1.2, t: -1, again: false },
+        follow: { on: true, w: 1, yaw: 0, pitch: 0, eye: 0, mx: 0, my: 0, has: false },
+        springs: SPRINGS.map((s) => ({ ...s, ax: 0, az: 0, vx: 0, vz: 0, prev: new THREE.Vector3(), vel: new THREE.Vector3(), velPrev: new THREE.Vector3(), acc: new THREE.Vector3(), init: false })),
+        crown: { lift: 0, liftV: 0, tx: 0, tz: 0, vx: 0, vz: 0, prev: new THREE.Vector3(), vel: new THREE.Vector3(), velPrev: new THREE.Vector3(), acc: new THREE.Vector3(), init: false }
+      };
+    }
+
+    function switchAnim(S, name) {
+      if (name === S.anim) return;
+      copyPose(S.out, S.snap); // crossfade from whatever is on screen now
+      S.anim = name; S.t = 0; S.blend = 0;
+    }
+
+    // Reusable temporaries (no allocation inside the per-frame update).
+    const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3();
+    const qA = new THREE.Quaternion();
+    const ray = new THREE.Raycaster();
+    const plane = new THREE.Plane();
+    const ndc = new THREE.Vector2();
+
+    function filt(dt, rate) { return 1 - Math.exp(-dt * rate); }
+    const PITCH_UP = -0.08, PITCH_DOWN = 0.03; // head pitch range (rad); + = chin down
+
+    // Track an anchor's smoothed velocity and acceleration (world space).
+    function trackMotion(st, world, dt) {
+      if (!st.init) { st.prev.copy(world); st.vel.set(0, 0, 0); st.velPrev.set(0, 0, 0); st.acc.set(0, 0, 0); st.init = true; return; }
+      vC.copy(world).sub(st.prev).divideScalar(dt);
+      st.prev.copy(world);
+      st.vel.lerp(vC, filt(dt, 25));
+      vC.copy(st.vel).sub(st.velPrev).divideScalar(dt);
+      st.velPrev.copy(st.vel);
+      st.acc.lerp(vC, filt(dt, 18));
+    }
+
+    // Every box with its half sizes (world units), for the ground check in step() (lying poses touch the ground with anything).
+    const SOLES = cubeList.map((c) => ({ mesh: c.mesh, h: c.size.map((s) => (Math.abs(s) / 2 + c.inflate) * TEXEL) }));
+
+    /* ───────── One simulation step ───────── */
+    function step(S, dt) {
+      const A = ANIMS[S.anim];
+      S.time += dt;
+      // loopFade: an anim whose end pose differs from its start pose crossfades on the loop wrap (no snap).
+      if (A.loopFade && S.t + dt >= A.T) { copyPose(S.out, S.snap); S.blend = 0; S.loops = (S.loops || 0) + 1; }
+      S.t = (S.t + dt) % A.T;
+      S.blend = Math.min(1, S.blend + dt / 0.35);
+
+      // 1. Animation pose, crossfaded from the snapshot after a switch, added to the v2 rest pose.
+      clearPose(S.cur);
+      S.cur.yawLimit = A.yawLimit;
+      S.cur.follow = A.follow ?? 1;                     // an anim may lower this per frame (arms near the head)
+      A.fn(S.t, S.cur);
+      const w = smooth01(S.blend);
+      const o = S.out;
+      for (let i = 0; i < NB * 3; i++) {
+        o.r[i] = S.snap.r[i] + (S.cur.r[i] - S.snap.r[i]) * w;
+        o.p[i] = S.snap.p[i] + (S.cur.p[i] - S.snap.p[i]) * w;
+      }
+      for (const k of FACE_KEYS) o.f[k] = S.snap.f[k] + (S.cur.f[k] - S.snap.f[k]) * w;
+      o.yawLimit = S.snap.yawLimit + (S.cur.yawLimit - S.snap.yawLimit) * w;
+      o.follow = S.snap.follow + (S.cur.follow - S.snap.follow) * w;
+
+      for (let b = 0; b < NB; b++) {
+        const g = boneList[b], r = g.userData.rest, rr = g.userData.restRot;
+        g.rotation.set(rr.x + o.r[b * 3], rr.y + o.r[b * 3 + 1], rr.z + o.r[b * 3 + 2]);
+        g.position.set(r.x + o.p[b * 3] * TEXEL, r.y + o.p[b * 3 + 1] * TEXEL, r.z + o.p[b * 3 + 2] * TEXEL);
+        g.scale.set(1, 1, 1);
+      }
+      // Arms only rotate outward on Z (right arm sits on -x, so outward is negative).
+      bones.arm_right.rotation.z = Math.min(bones.arm_right.userData.restRot.z, bones.arm_right.rotation.z);
+      bones.arm_left.rotation.z = Math.max(bones.arm_left.userData.restRot.z, bones.arm_left.rotation.z);
+
+      // 2. Head + eyes follow the mouse. Yaw limit per animation (0.25-0.35: the bandana fold stays off the sleeves);
+      //    pitch only 0.03 down (the bandana front would sink into the collar) and 0.08 up.
+      // While talking the chin lifts on loud syllables (pitch is clamped below).
+      head.rotation.x -= 0.06 * S.talk.level * S.talkW;
+      const F = S.follow;
+      S.yawLimit += (o.yawLimit - S.yawLimit) * filt(dt, 4);
+      F.w += ((F.on && F.has ? o.follow : 0) - F.w) * filt(dt, 5);
+      let wantYaw = 0, wantPitch = 0, wantEye = 0;
+      if (F.on && F.has && F.inject) {
+        // Look angles given directly (the mod: where the mob looks; the trace test): same limits as the mouse.
+        wantYaw = clamp(F.inject.yaw, -S.yawLimit, S.yawLimit);
+        wantPitch = clamp(F.inject.pitch, PITCH_UP, PITCH_DOWN);
+        wantEye = clamp((F.inject.yaw - wantYaw) * 2.2, -1, 1);
+      } else if (F.on && F.has) {
+        mobRoot.updateMatrixWorld(true);
+        head.getWorldPosition(vA);
+        camera.getWorldDirection(vB);
+        plane.setFromNormalAndCoplanarPoint(vB, vA);
+        ndc.set(F.mx, F.my);
+        ray.setFromCamera(ndc, camera);
+        if (ray.ray.intersectPlane(plane, vC)) {
+          head.parent.worldToLocal(vC);          // into the head's parent space
+          vC.sub(head.position);
+          const rawYaw = Math.atan2(vC.x, vC.z);
+          wantYaw = clamp(rawYaw, -S.yawLimit, S.yawLimit);
+          wantPitch = clamp(Math.atan2(-vC.y, Math.hypot(vC.x, vC.z)), PITCH_UP, PITCH_DOWN);
+          wantEye = clamp((rawYaw - wantYaw) * 2.2, -1, 1); // eyes go further when the head hits its limit
+        }
+      }
+      const k5 = filt(dt, 6);
+      F.yaw += (wantYaw - F.yaw) * k5;
+      F.pitch += (wantPitch - F.pitch) * k5;
+      F.eye += (wantEye - F.eye) * filt(dt, 10);
+      head.rotation.y = clamp(head.rotation.y + F.yaw * F.w, -S.yawLimit, S.yawLimit);
+      head.rotation.x = clamp(head.rotation.x + F.pitch * F.w, PITCH_UP, PITCH_DOWN);
+
+      // 3. Face: smoothing filter on every channel, random (double) blinks as a sine bump.
+      // Talking overrides the animation's mouth (and makes him grumpy): open = loudness, shape = brightness.
+      const T = S.talk;
+      S.talkW += ((T.active ? 1 : 0) - S.talkW) * filt(dt, 10);
+      const tw = S.talkW;
+      if (tw > 0.001) {
+        o.f.open += (T.level - o.f.open) * tw;
+        o.f.wide += ((T.shape - 0.5) * 1.4 - o.f.wide) * tw;
+        o.f.frown = Math.max(o.f.frown, 0.55 * tw);
+        o.f.browUp += (-0.15 - o.f.browUp) * tw * 0.6;
+        o.f.squint = Math.max(o.f.squint, 0.25 * tw);
+      }
+      const kf16 = filt(dt, 16);
+      for (const k of FACE_KEYS) S.face[k] += (o.f[k] - S.face[k]) * kf16;
+      const fc = S.face;
+      const bl = S.blink;
+      let blinkV = 0;
+      if (bl.t < 0) {
+        bl.wait -= dt;
+        if (bl.wait <= 0) { bl.t = 0; bl.again = S.rng() < 0.18; }
+      }
+      if (bl.t >= 0) {
+        bl.t += dt;
+        if (bl.t >= 0.18) {
+          bl.t = -1;
+          bl.wait = bl.again ? 0.12 : 1.8 + S.rng() * 3.4;
+          bl.again = false;
+        } else blinkV = Math.sin(Math.PI * bl.t / 0.18);
+      }
+      const closed = clamp(Math.max(blinkV, fc.squint * 0.5), 0.001, 1);
+      bones.lid_right.scale.y = bones.lid_left.scale.y = closed;
+      // Step out in front of the eye only while the lid is a sliver (scale ~0), so the jump is never visible.
+      const lidZ = closed > 0.002 ? 0.08 * TEXEL : 0;
+      bones.lid_right.position.z = bones.lid_right.userData.rest.z + lidZ;
+      bones.lid_left.position.z = bones.lid_left.userData.rest.z + lidZ;
+      // Glance: + = toward his left (+x). Both pupils slide the same way, half a texel at most.
+      const glance = clamp(fc.glance + F.eye * F.w, -1, 1);
+      bones.pupil_right.position.x = bones.pupil_right.userData.rest.x + glance * 0.5 * TEXEL;
+      bones.pupil_left.position.x = bones.pupil_left.userData.rest.x + glance * 0.5 * TEXEL;
+      // Brows: raise / frown; capped so they stay under the crown band.
+      const browY = clamp(fc.browUp * 0.3 - fc.frown * 0.15 - blinkV * 0.08, -0.25, 0.25) * TEXEL;
+      bones.brow_right.position.y = bones.brow_right.userData.rest.y + browY;
+      bones.brow_left.position.y = bones.brow_left.userData.rest.y + browY;
+      bones.brow_right.rotation.z = -fc.frown * 0.3;  // inner ends down
+      bones.brow_left.rotation.z = fc.frown * 0.3;
+      // Mouth: rest scale 1 = v2's lip line. Opens downward, grins wider, "o" narrower; the jaw (bandana) drops with it.
+      const wide = clamp(fc.wide, -1, 1), open = clamp(fc.open, 0, 1);
+      // The top lip rises a little too, so the open mouth shows above the bandana.
+      bones.mouth.scale.set(1 + wide * 0.3, clamp(1 + open * 1.1 + Math.max(0, -wide) * 0.3, 1, 2), 1);
+      bones.mouth.position.y = bones.mouth.userData.rest.y + open * 0.35 * TEXEL;
+      jaw.rotation.x += open * 0.06;
+      // The bandana's bottom sits only 0.05 above the shirt (v2 model). Pitching the head (back edge drops
+      // ~3 texels x angle, front ~4.6 x angle), turning it or dropping the jaw would sink it into the collar, so the head
+      // rises on its neck by the same amount. Smooth, at most ~0.4 texel.
+      const hp = head.rotation.x;
+      head.position.y += (Math.max(0, -hp) * 3 + Math.max(0, hp) * 4.6 + open * 0.06 * 4.2 + head.rotation.y ** 2 * 1.4) * TEXEL;
+
+      // 4. Springs on loose parts (need world matrices of this frame's pose).
+      mobRoot.updateMatrixWorld(true);
+      for (const sp of S.springs) {
+        const g = bones[sp.bone], rr = g.userData.restRot;
+        g.getWorldPosition(vA);
+        trackMotion(sp, vA, dt);
+        // Effective gravity in the parent's space -> the angle the part wants to hang at.
+        vB.set(0, -GRAVITY, 0).addScaledVector(sp.acc, -sp.accel);
+        g.parent.getWorldQuaternion(qA).invert();
+        vB.applyQuaternion(qA).normalize();
+        const tx = Math.atan2(-vB.z, -vB.y) + (sp.bx || 0) + sp.breeze * Math.sin(S.time * sp.f * TAU * 0.5);
+        const tz = Math.atan2(vB.x, -vB.y) + (sp.bz || 0) + sp.breeze * 0.6 * Math.sin(S.time * sp.f * TAU * 0.37 + 1);
+        sp.vx += (sp.k * (tx - sp.ax) - sp.d * sp.vx) * dt;
+        sp.vz += (sp.k * (tz - sp.az) - sp.d * sp.vz) * dt;
+        sp.ax += sp.vx * dt; sp.az += sp.vz * dt;
+        if (sp.ax < sp.x[0] || sp.ax > sp.x[1]) { sp.ax = clamp(sp.ax, sp.x[0], sp.x[1]); sp.vx = 0; }
+        if (sp.az < sp.z[0] || sp.az > sp.z[1]) { sp.az = clamp(sp.az, sp.z[0], sp.z[1]); sp.vz = 0; }
+        g.rotation.x = rr.x + sp.ax;
+        g.rotation.z = rr.z + sp.az;
+      }
+
+      // Crown: lifts a little when the head drops fast, tilts against side motion. Never sinks below rest.
+      const C = S.crown, cr = crown;
+      cr.getWorldPosition(vA);
+      trackMotion(C, vA, dt);
+      vB.copy(C.acc);
+      cr.parent.getWorldQuaternion(qA).invert();
+      vB.applyQuaternion(qA);
+      const liftT = clamp(-vB.y * 0.05, 0, 0.3) + 0.02 * (0.5 + 0.5 * Math.sin(S.time * 2.1));
+      C.liftV += (220 * (liftT - C.lift) - 14 * C.liftV) * dt;
+      C.lift = clamp(C.lift + C.liftV * dt, 0, 0.3);
+      const tiltX = clamp(-vB.z * 0.004, -0.01, 0.03) /* tipping back more would bring the back wall onto the head */, tiltZ = clamp(vB.x * 0.004, -0.03, 0.03);
+      C.vx += (160 * (tiltX - C.tx) - 10 * C.vx) * dt;
+      C.vz += (160 * (tiltZ - C.tz) - 10 * C.vz) * dt;
+      C.tx = clamp(C.tx + C.vx * dt, -0.01, 0.03);
+      C.tz = clamp(C.tz + C.vz * dt, -0.03, 0.03);
+      cr.position.y = cr.userData.rest.y + C.lift * TEXEL;
+      cr.rotation.x = cr.userData.restRot.x + C.tx;
+      cr.rotation.z = cr.userData.restRot.z + C.tz;
+
+      // 5. Nothing sinks into the ground (done last, so swinging hair counts too). A crossfade between a crouch and standing blends angles and heights
+      // in a straight line, which puts the hips a little too low halfway: lift the whole body by the lowest corner of any box.
+      mobRoot.updateMatrixWorld(true);
+      let low = 0;
+      for (const c of SOLES) for (let k = 0; k < 8; k++) {
+        vA.set(k & 1 ? c.h[0] : -c.h[0], k & 2 ? c.h[1] : -c.h[1], k & 4 ? c.h[2] : -c.h[2]).applyMatrix4(c.mesh.matrixWorld);
+        if (vA.y < low) low = vA.y;
+      }
+      if (low < 0) root.position.y -= low;
+      S.groundLift = -low / TEXEL; // texels lifted this frame (the clip test reports the biggest)
+    }
+
+    /* ───────── Blockbench export (.bbmodel) ─────────
+       "Generic Model" (free) format with per-face UV, like v2: v2 has non-whole cube sizes
+       (2.5, 7.6, ...), which Modded Entity / box UV would round and so change the model.
+       Blockbench space = three.js turned 180° around Y: x -> -x, z -> -z.
+       Bones keep their v2 rest rotation; animation keyframes are offsets from it,
+       baked from the live simulation (springs + face included). */
+    const R2D = 180 / Math.PI;
+    const r4 = (n) => Math.round(n * 10000) / 10000 || 0;
+    function uuid() {
+      if (crypto.randomUUID) return crypto.randomUUID();
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0; return (c === 'x' ? r : (r & 3) | 8).toString(16);
+      });
+    }
+    const bbVec = (v) => [r4(-v[0]), r4(v[1]), r4(-v[2])];
+    const bbRot = (x, y, z) => [r4(-x * R2D), r4(y * R2D), r4(-z * R2D)];
+
+    function bakeAnimation(name) {
+      const A = ANIMS[name];
+      const S = makeSim(1234);
+      S.anim = name; S.follow.on = false;
+      const dt = 1 / 120, fps = 12;
+      const warm = A.T * 2; // let the springs settle into their loop
+      for (let t = 0; t < warm; t += dt) step(S, dt);
+      const frames = Math.round(A.T * fps);
+      const tracks = boneList.map(() => ({ rot: [], pos: [], scl: [] }));
+      for (let f = 0; f <= frames; f++) {
+        boneList.forEach((g, b) => {
+          const r = g.userData.rest, rr = g.userData.restRot, tr = tracks[b];
+          tr.rot.push(bbRot(g.rotation.x - rr.x, g.rotation.y - rr.y, g.rotation.z - rr.z));
+          tr.pos.push([r4(-(g.position.x - r.x) / TEXEL), r4((g.position.y - r.y) / TEXEL), r4(-(g.position.z - r.z) / TEXEL)]);
+          tr.scl.push([r4(g.scale.x), r4(g.scale.y), r4(g.scale.z)]);
+        });
+        let acc = 0;
+        while (acc < 1 / fps - 1e-9) { step(S, dt); acc += dt; }
+      }
+      const animators = {};
+      const isRest = (arr, rest) => arr.every((v) => Math.abs(v[0] - rest) < 0.01 && Math.abs(v[1] - rest) < 0.01 && Math.abs(v[2] - rest) < 0.01);
+      boneList.forEach((g, b) => {
+        const tr = tracks[b], keyframes = [];
+        const add = (channel, list) => list.forEach((v, f) => keyframes.push({
+          channel, data_points: [{ x: v[0], y: v[1], z: v[2] }], uuid: uuid(), time: r4(f / fps), color: -1, interpolation: 'catmullrom'
+        }));
+        if (!isRest(tr.rot, 0)) add('rotation', tr.rot);
+        if (!isRest(tr.pos, 0)) add('position', tr.pos);
+        if (!isRest(tr.scl, 1)) add('scale', tr.scl);
+        if (keyframes.length) animators[g.userData.uuid] = { name: g.name, type: 'bone', keyframes };
+      });
+      return {
+        uuid: uuid(), name: `animation.crowned_traveler.${name}`, loop: 'loop', override: false,
+        length: A.T, snapping: 24, selected: name === 'idle', anim_time_update: '', blend_weight: '',
+        start_delay: '', loop_delay: '', animators
+      };
+    }
+
+    function buildBBModel() {
+      // Absolute rest pivots (texels): each bone's offset added up the chain. Blockbench stores
+      // children in unrotated model space and rotates them around the parent pivot, like three.js does.
+      const abs = new Map();
+      boneList.forEach((g) => {
+        g.userData.uuid = uuid();
+        const p = g.parent.isGroup && abs.has(g.parent) ? abs.get(g.parent) : [0, 0, 0];
+        const r = g.userData.rest;
+        abs.set(g, [p[0] + r.x / TEXEL, p[1] + r.y / TEXEL, p[2] + r.z / TEXEL]);
+      });
+      const elements = [];
+      const groupOf = {};
+      for (const c of cubeList) {
+        const id = uuid();
+        const bp = abs.get(bones[c.bone]);
+        const ctr = bbVec([bp[0] + c.center[0], bp[1] + c.center[1], bp[2] + c.center[2]]);
+        const [w, h, d] = c.size;
+        const R = (f) => { const r = c.rects[f]; return [r.x, r.y, r.x + r.w, r.y + r.h]; };
+        const Rf = (f) => { const r = c.rects[f]; return [r.x + r.w, r.y + r.h, r.x, r.y]; }; // up/down turned 180°
+        const rotated = c.rot.some((v) => v !== 0);
+        elements.push({
+          name: c.name, box_uv: false, rescale: false, locked: false, render_order: 'default', allow_mirror_modeling: true,
+          from: [r4(ctr[0] - w / 2), r4(ctr[1] - h / 2), r4(ctr[2] - d / 2)],
+          to: [r4(ctr[0] + w / 2), r4(ctr[1] + h / 2), r4(ctr[2] + d / 2)],
+          autouv: 0, color: 0, inflate: c.inflate,
+          origin: rotated ? ctr : bbVec(bp),
+          ...(rotated ? { rotation: bbRot(c.rot[0], c.rot[1], c.rot[2]) } : {}),
+          faces: {
+            north: { uv: R(4), texture: 0 }, south: { uv: R(5), texture: 0 },
+            east: { uv: R(1), texture: 0 }, west: { uv: R(0), texture: 0 },
+            up: { uv: Rf(2), texture: 0 }, down: { uv: Rf(3), texture: 0 }
+          },
+          type: 'cube', uuid: id
+        });
+        (groupOf[c.bone] = groupOf[c.bone] || []).push(id);
+      }
+      const outlinerNode = (g) => ({
+        name: g.name, origin: bbVec(abs.get(g)), rotation: bbRot(g.userData.restRot.x, g.userData.restRot.y, g.userData.restRot.z),
+        color: 0, uuid: g.userData.uuid, export: true, mirror_uv: false, isOpen: true, locked: false, visibility: true, autouv: 0,
+        children: [...(groupOf[g.name] || []), ...g.children.filter((ch) => ch.isGroup).map(outlinerNode)]
+      });
+      const animations = ANIM_ORDER.map(bakeAnimation); // own sims; the live view is re-posed on its next frame
+      return {
+        meta: { format_version: '4.5', model_format: 'free', box_uv: false },
+        name: 'crowned_traveler', model_identifier: 'crowned_traveler',
+        visible_box: [2, 2.5, 1], variable_placeholders: '', variable_placeholder_buttons: [],
+        resolution: { width: ATLAS_W, height: ATLAS_H },
+        elements, outliner: [outlinerNode(root)],
+        textures: [{
+          path: '', name: 'crowned_traveler.png', folder: 'entity', namespace: '', id: '0', particle: false,
+          render_mode: 'default', render_sides: 'auto', frame_time: 1, frame_order_type: 'loop', frame_order: '',
+          frame_interpolate: false, visible: true, internal: true, saved: false, uuid: uuid(),
+          source: atlas.toDataURL('image/png')
+        }],
+        animations
+      };
+    }
+
+    /* ───────── UI ───────── */
+    let sim = makeSim((Math.random() * 1e9) | 0);
+    const toast = document.getElementById('toast');
+    let toastTimer = 0;
+
+    const dotsEl = document.getElementById('dots');
+    VARIANTS.forEach((v, i) => {
+      const d = document.createElement('button');
+      d.className = 'dot';
+      d.title = `${v.name} colors`;
+      d.style.background = (v.pal.shirtBase || BASE.shirtBase);
+      d.addEventListener('click', () => setVariant(i));
+      dotsEl.appendChild(d);
+    });
+
+    const animBtns = document.querySelectorAll('.anim-btn');
+    const markAnim = (name) => animBtns.forEach((b) => b.classList.toggle('active', b.dataset.anim === name));
+    let chosenAnim = 'idle';                       // what the user picked (the random dance returns to it)
+    function selectAnim(name) {
+      chosenAnim = name; autoDance.on = false;
+      switchAnim(sim, name);
+      markAnim(name);
+    }
+    animBtns.forEach((b) => b.addEventListener('click', () => selectAnim(b.dataset.anim)));
+
+    /* ───────── Random dance ─────────
+       From Idle / Idle 2 he sometimes does the dance once by himself, then goes back. */
+    const autoDance = { on: false, t: 0, wait: 15 + Math.random() * 20 };
+    function updateAutoDance(dt) {
+      if (autoDance.on) {
+        autoDance.t += dt;
+        // Leave 0.35 s before the end: the crossfade back runs while he stands up.
+        if (autoDance.t >= ANIMS.dance.T - 0.35) { autoDance.on = false; autoDance.wait = 25 + Math.random() * 35; switchAnim(sim, chosenAnim); markAnim(chosenAnim); }
+      } else if ((chosenAnim === 'idle' || chosenAnim === 'idle2') && !voice.playing) {
+        autoDance.wait -= dt;
+        if (autoDance.wait <= 0) { autoDance.on = true; autoDance.t = 0; switchAnim(sim, 'dance'); markAnim('dance'); }
+      }
+    }
+
+    /* ───────── Voice lines + lip sync ─────────
+       Sounds live in /sounds/the_king/. The mouth follows a loudness curve made from each file beforehand
+       (30 values per second, made with tools/lipsync.html): live audio analysis does not work on file:// pages.
+       env: loudness 0-35 (base 36 digit), zcr: brightness 0-9 (low = round "o", high = wide "ee"). */
+    const VOICE_LINES = [
+      { id: 'cussing_short', src: '../../sounds/the_king/cussingshort',
+        env: '77ajtwpkrzzzxvspjb4332222222', zcr: '5507868951345432105555555555' },
+      { id: 'cussing_long', src: '../../sounds/the_king/cussing_long_final',
+        env: '3323bowqc7hvxl89krmhnpg9htwpd6fuzrd8ef838ityzzzsjc7433211000', zcr: '555593331543234354343322343445911001412522222220345555555555' },
+      { id: 'take_your_stuff', src: '../../sounds/the_king/take_ur_stuff_and_get_out_of_my_seat_please_final',
+        env: '2466cnrne9ciigea66izzzzvf78abbdgfhotutojifekle878ckttnga7545bhkoqqolhedcbcghe843', zcr: '55557123244337975573333215340024333533221222318555356542555530356753422211122555' }
+    ];
+    // vol: 0.35 by default (user wish: 65% quieter than the raw files); the dock slider changes it.
+    const voice = { on: true, unlocked: false, playing: null, last: -1, wait: 4 + Math.random() * 6, vol: 0.35 };
+    try { const s = localStorage.getItem('theking.voiceVol'); if (s !== null && isFinite(+s)) voice.vol = clamp(+s, 0, 1); } catch (e) { /* storage blocked: keep the default */ }
+    // Every sound exists as .ogg (also used by the mod) and .mp3 (for browsers without Ogg Vorbis).
+    const AUDIO_EXT = new Audio().canPlayType('audio/ogg; codecs="vorbis"') ? '.ogg' : '.mp3';
+    VOICE_LINES.forEach((v) => { v.audio = new Audio(v.src + AUDIO_EXT); v.audio.preload = 'auto'; v.audio.volume = voice.vol; v.audio.addEventListener('ended', () => endLine(v)); });
+    function endLine(v) { if (voice.playing === v) { voice.playing = null; voice.wait = 9 + Math.random() * 14; } }
+    function sayLine() {
+      if (voice.playing) return;
+      let i = Math.floor(Math.random() * VOICE_LINES.length);
+      if (i === voice.last) i = (i + 1) % VOICE_LINES.length;           // never the same line twice in a row
+      const v = VOICE_LINES[i];
+      voice.last = i;
+      v.audio.currentTime = 0;
+      v.audio.play().then(() => { voice.playing = v; }).catch(() => {}); // blocked until the first click / key
+    }
+    function stopLine() { if (voice.playing) { voice.playing.audio.pause(); endLine(voice.playing); } }
+    // Feed the mouth from the playing line; random lines when voice is on (browsers allow sound only after a click).
+    function updateVoice(dt) {
+      const v = voice.playing, T = sim.talk;
+      if (v) {
+        const i = Math.min(v.env.length - 1, Math.floor(v.audio.currentTime * 30));
+        T.active = true;
+        T.level = Math.min(1, parseInt(v.env[i], 36) / 35 * 1.1);
+        T.shape = +v.zcr[i] / 9;
+      } else T.active = false;
+      if (voice.on && voice.unlocked && !v && !autoDance.on && sim.anim !== 'dance') {
+        voice.wait -= dt;
+        if (voice.wait <= 0) sayLine();
+      }
+    }
+    const unlock = () => { voice.unlocked = true; };
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+
+    /* ───────── Dance music ─────────
+       sounds/the_king/backgroundmusic = the reference video's sound from 14.0 to 19.0 s, the same 5 s the
+       dance copies. It plays while the dance runs, kept on the dance clock (sim.t): it starts with the dance,
+       jumps back on each loop and leads the dance clock (small drift is eased away). It fades out when the dance ends.
+       The speaker button mutes it too; like all sound it waits for the first click / key. */
+    const MUSIC_VOL = 0.45;
+    const music = { audio: new Audio(), w: 0 };
+    music.audio.src = '../../sounds/the_king/backgroundmusic' + AUDIO_EXT;
+    music.audio.preload = 'auto';
+    music.audio.volume = 0;
+    function updateMusic(dt) {
+      const A = music.audio;
+      const on = sim.anim === 'dance' && voice.on && voice.unlocked;
+      if (on) {
+        const len = Math.min(A.duration || 99, ANIMS.dance.T); // Chrome can misread the .ogg length (6.5 s instead of 5.0)
+        if (A.paused && sim.t < len - 0.1) { A.currentTime = sim.t; A.play().catch(() => {}); }
+        else if (!A.paused) {
+          // The music is the master clock: small drift -> the dance clock eases onto it; big jump (loop) -> seek.
+          const d = A.currentTime - sim.t;
+          if (Math.abs(d) > 0.15) { if (sim.t < len - 0.1) A.currentTime = sim.t; }
+          else sim.t = clamp(sim.t + d * filt(dt, 3), 0, ANIMS.dance.T - 1e-3);
+        }
+      }
+      music.w += ((on ? 1 : 0) - music.w) * filt(dt, on ? 25 : 6); // quick fade in, softer fade out
+      A.volume = clamp(music.w * MUSIC_VOL, 0, 1);
+      if (!on && music.w < 0.01 && !A.paused) A.pause();
+    }
+
+    const voiceBtn = document.getElementById('voiceBtn');
+    const voiceVol = document.getElementById('voiceVol');
+    voiceBtn.addEventListener('click', () => {
+      voice.on = !voice.on;
+      if (!voice.on) stopLine();
+      voiceBtn.classList.toggle('on', voice.on);
+      voiceBtn.setAttribute('aria-pressed', String(voice.on));
+      voiceVol.disabled = !voice.on;
+    });
+    // Voice volume slider: sets all lines at once and remembers it in this browser.
+    function setVoiceVol(v) {
+      voice.vol = clamp(v, 0, 1);
+      VOICE_LINES.forEach((l) => { l.audio.volume = voice.vol; });
+      voiceVol.value = String(Math.round(voice.vol * 100));
+      voiceVol.title = `Voice lines volume: ${voiceVol.value}%`;
+    }
+    setVoiceVol(voice.vol);
+    voiceVol.addEventListener('input', () => {
+      setVoiceVol(+voiceVol.value / 100);
+      try { localStorage.setItem('theking.voiceVol', String(voice.vol)); } catch (e) { /* storage blocked: fine */ }
+    });
+
+    const followBtn = document.getElementById('followBtn');
+    followBtn.addEventListener('click', () => {
+      sim.follow.on = !sim.follow.on;
+      followBtn.classList.toggle('on', sim.follow.on);
+      followBtn.setAttribute('aria-pressed', String(sim.follow.on));
+    });
+
+    let resetting = false;
+    document.getElementById('resetBtn').addEventListener('click', () => { resetting = true; });
+
+    document.getElementById('dlBtn').addEventListener('click', () => {
+      const data = buildBBModel();
+      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'crowned_traveler.bbmodel';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return; // the volume slider keeps the number keys
+      const i = ['1', '2', '3', '4', '5', '6', '7'].indexOf(e.key);
+      if (i >= 0) selectAnim(ANIM_ORDER[i]);
+      if (e.key === 'v' || e.key === 'V') { voice.unlocked = true; sayLine(); }
+      if (e.key === 'r' || e.key === 'R') resetting = true;
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      sim.follow.mx = (e.clientX / window.innerWidth) * 2 - 1;
+      sim.follow.my = -(e.clientY / window.innerHeight) * 2 + 1;
+      sim.follow.has = true;
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Camera follow for animations that move the whole mob (root motion, e.g. the dropkick leap):
+    // camera, orbit target and shadow light glide along with the root on x/z. k = 1: jump there at once.
+    const camOff = new THREE.Vector3(), camWant = new THREE.Vector3();
+    function followRoot(k) {
+      if (ANIMS[sim.anim].rootMotion) camWant.set(root.position.x, 0, root.position.z); else camWant.set(0, 0, 0);
+      vA.copy(camWant).sub(camOff).multiplyScalar(k);
+      camOff.add(vA);
+      camera.position.add(vA); controls.target.add(vA);
+      keyLight.position.add(vA); keyLight.target.position.add(vA);
+    }
+
+    /* ───────── Loop: 120 FPS when the screen can, else 60 ─────────       The first ~30 frames measure the screen refresh; >= 110 Hz -> lock to 120, else 60.
+       All motion uses delta time, so speed is the same at both rates. */
+    let targetHz = 60, measuring = true, lastNow = 0, lastRender = 0;
+    const intervals = [];
+
+    function frame(now) {
+      requestAnimationFrame(frame);
+      if (measuring) {
+        if (lastNow) intervals.push(now - lastNow);
+        lastNow = now;
+        if (intervals.length >= 30) {
+          const sorted = intervals.slice().sort((a, b) => a - b);
+          targetHz = 1000 / sorted[15] >= 110 ? 120 : 60;
+          measuring = false;
+        }
+      } else {
+        const interval = 1000 / targetHz;
+        if (now < lastRender + interval - 1) return;           // skip frames above the lock rate
+      }
+      const dt = lastRender ? Math.min((now - lastRender) / 1000, 0.1) : 1 / 60;
+      lastRender = measuring ? now : Math.max(lastRender + 1000 / targetHz, now - 1000 / targetHz);
+
+      updateAutoDance(dt);
+      updateVoice(dt);
+      updateMusic(dt);
+      step(sim, dt);
+
+      followRoot(filt(dt, 3));
+      if (resetting) {
+        const k = filt(dt, 8);
+        vB.copy(CAM_POS).add(camOff); vC.copy(CAM_TARGET).add(camOff); // reset relative to the followed root
+        camera.position.lerp(vB, k);
+        controls.target.lerp(vC, k);
+        if (camera.position.distanceTo(vB) < 0.005 && controls.target.distanceTo(vC) < 0.005) resetting = false;
+      }
+      controls.dampingFactor = filt(dt, 4.5); // same feel at 60 and 120 FPS
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    setVariant(0);
+
+    /* ───────── Self-tests ─────────
+       #cliptest  clipping, ground and export check (results in <pre id="cliptest">)
+       #shot-<anim>-<variant>-<sec>  one rendered frame as a PNG data URL in <pre id="shot">
+       #rest      the rest pose, to compare pixel by pixel with archive/the_king/thekingv2.html */
+    function restPose() {
+      boneList.forEach((g) => { g.rotation.copy(new THREE.Euler(g.userData.restRot.x, g.userData.restRot.y, g.userData.restRot.z, 'ZYX')); g.position.copy(g.userData.rest); g.scale.set(1, 1, 1); });
+    }
+
+    /* Clipping check from the rules: per frame, a 5x5 grid on every face of part A is moved into
+       part B's space; points deeper than 0.06 texel inside B count. Every animation is tested with the
+       mouse at the center, the edges and the corners. v2 parts that already overlap at rest (hair on the
+       shoulders, bandana around the chin, ...) only count when they go 0.15 texel deeper than at rest.
+       Joints (hip, knee, ankle, elbow, shoulder, neck) are reported apart: the thinner part bends inside the thicker one. */
+    function clipTest() {
+      const meshes = cubeList.map((c) => c.mesh);
+      const inv = meshes.map(() => new THREE.Matrix4());
+      const half = cubeList.map((c) => c.size.map((s) => (Math.abs(s) / 2 + c.inflate) * TEXEL));
+      const pts = cubeList.map((c, i) => {
+        const [hx, hy, hz] = half[i], list = [];
+        for (let a = 0; a < 5; a++) for (let b = 0; b < 5; b++) {
+          const u = -1 + a * 0.5, v = -1 + b * 0.5;
+          list.push([hx, u * hy, v * hz], [-hx, u * hy, v * hz], [u * hx, hy, v * hz], [u * hx, -hy, v * hz], [u * hx, v * hy, hz], [u * hx, v * hy, -hz]);
+        }
+        return list.map((p) => new THREE.Vector3(...p));
+      });
+      const radius = half.map((h) => Math.hypot(h[0], h[1], h[2]) * 2.2); // 2.2: room for mouth/lid scale
+      const centers = meshes.map(() => new THREE.Vector3());
+      const EPS = 0.06, LAYER = 0.15;
+      const wp = new THREE.Vector3(), lp = new THREE.Vector3();
+      function depthInside(j, p) {
+        const [hx, hy, hz] = half[j];
+        const dx = hx - Math.abs(p.x), dy = hy - Math.abs(p.y), dz = hz - Math.abs(p.z);
+        if (dx <= 0 || dy <= 0 || dz <= 0) return 0;
+        const sh = cubeList[j].shell;
+        if (!sh) return Math.min(dx, dy, dz);
+        const d = Math.min(dx, dz); // shells are hollow: only the side walls count, within their band
+        return d < sh.band * TEXEL ? d : 0;
+      }
+      function measure() {
+        mobRoot.updateMatrixWorld(true);
+        meshes.forEach((m, i) => { inv[i].copy(m.matrixWorld).invert(); centers[i].setFromMatrixPosition(m.matrixWorld); });
+        const res = new Map();
+        for (let i = 0; i < meshes.length; i++) for (let j = 0; j < meshes.length; j++) {
+          if (i === j || cubeList[i].bone === cubeList[j].bone) continue;
+          if (centers[i].distanceTo(centers[j]) > radius[i] + radius[j]) continue; // too far apart to touch
+          let worst = 0;
+          for (const p of pts[i]) {
+            wp.copy(p).applyMatrix4(meshes[i].matrixWorld);
+            lp.copy(wp).applyMatrix4(inv[j]);
+            const d = depthInside(j, lp);
+            if (d > worst) worst = d;
+          }
+          if (worst > 0) res.set(i + ':' + j, worst / TEXEL);
+        }
+        return res;
+      }
+      const JOINTS = [[/^thigh_/, /^torso_shirt$/], [/^calf_/, /^thigh_/], [/^shoe_/, /^calf_/], [/^lower_arm_/, /^(upper_arm_|sleeve_cuff_)/],
+        [/^(upper_arm_|sleeve_cuff_)/, /^torso_shirt$/], [/^neck_column$/, /^(torso_shirt|head_cranium)$/]];
+      const isJoint = (a, b) => JOINTS.some(([x, y]) => (x.test(a) && y.test(b)) || (x.test(b) && y.test(a)));
+      // v2 hair already sits inside the head, crown and shoulders at rest (see layeredAtRest). The parts that
+      // move stay inside the hair volume, so this is reported apart as "modelContact", not hidden.
+      const HAIR = /^hair_/, HAIR_ON = /^(head_cranium|paper_crown|hair_|sleeve_cuff_|upper_arm_)/;
+      const isModelContact = (a, b) => (HAIR.test(a) && HAIR_ON.test(b)) || (HAIR.test(b) && HAIR_ON.test(a));
+
+      restPose();
+      const baseline = measure();
+      const report = {
+        cubes: cubeList.length, bones: NB, atlas: [ATLAS_W, ATLAS_H],
+        clips: {}, joints: {}, modelContact: {}, ground: {},
+        layeredAtRest: [...baseline].filter(([, d]) => d > EPS).map(([k, d]) => k.split(':').map((i) => cubeList[i].name).join(' / ') + ' ' + d.toFixed(2))
+      };
+      const shoes = cubeList; // every box: lying poses touch the ground with anything
+      const corner = new THREE.Vector3();
+      const mice = [[0, 0], [-0.95, 0], [0.95, 0], [0, 0.95], [0, -0.95], [-0.95, 0.95], [0.95, 0.95], [-0.95, -0.95], [0.95, -0.95]];
+      for (const name of ANIM_ORDER) {
+        let low = 99, lowT = 0, lowPart = '', lift = 0, liftT = 0;
+        for (const [mi, [mx, my]] of mice.entries()) {
+          const S = makeSim(99);
+          // Every second run talks, mouth over its full range (open + jaw drop + shapes).
+          const talk = (t) => { if (mi % 2) Object.assign(S.talk, { active: true, level: 0.5 + 0.5 * Math.sin(TAU * 3.7 * t), shape: 0.5 + 0.5 * Math.sin(TAU * 1.3 * t) }); };
+          S.anim = name;
+          Object.assign(S.follow, { on: true, has: true, mx, my });
+          const dt = 1 / 120;
+          for (let t = 0; t < ANIMS[name].T; t += dt) { talk(t); step(S, dt); } // warm up
+          let since = 0;
+          for (let t = 0; t < ANIMS[name].T * 2; t += dt) {
+            talk(t); step(S, dt);
+            since += dt;
+            if (S.groundLift > lift) { lift = S.groundLift; liftT = S.t; }
+            if (since < 1 / 20) continue;
+            since = 0;
+            for (const [key, d] of measure()) {
+              const base = baseline.get(key) || 0;
+              const [i, j] = key.split(':').map(Number);
+              const a = cubeList[i].name, b = cubeList[j].name;
+              const joint = isJoint(a, b), contact = !joint && isModelContact(a, b);
+              if (!joint && d <= (base > EPS ? base + LAYER : EPS)) continue;
+              if (joint && d <= base + EPS) continue;
+              const bucket = joint ? report.joints : contact ? report.modelContact : report.clips;
+              const id = `${a} in ${b}`;
+              if (!bucket[id] || bucket[id].depth < d) bucket[id] = { depth: +d.toFixed(3), rest: +base.toFixed(3), anim: name, mouse: [mx, my], t: +S.t.toFixed(2) };
+            }
+            // Lowest corner of any box (texels above the ground; below 0 = in the ground).
+            for (const c of shoes) {
+              const [hx, hy, hz] = half[cubeList.indexOf(c)];
+              for (let k = 0; k < 8; k++) {
+                corner.set(k & 1 ? hx : -hx, k & 2 ? hy : -hy, k & 4 ? hz : -hz).applyMatrix4(c.mesh.matrixWorld);
+                if (corner.y / TEXEL < low) { low = corner.y / TEXEL; lowT = S.t; lowPart = c.name; }
+              }
+            }
+          }
+        }
+        report.ground[name] = +low.toFixed(3);
+        report.groundAt = report.groundAt || {}; report.groundAt[name] = [+lowT.toFixed(2), lowPart]; // when + which part was lowest
+        // Biggest automatic lift (texels) by the ground clamp in step(): big = the pose itself sinks, fix the keys.
+        report.groundLift = report.groundLift || {}; report.groundLift[name] = [+lift.toFixed(2), +liftT.toFixed(2)];
+      }
+      // Export sanity: every face UV inside the atlas, cube count, keyframe count.
+      const bb = buildBBModel();
+      const badUV = bb.elements.filter((e) => Object.values(e.faces).some((f) => f.uv.some((v, k) => v < 0 || v > (k % 2 ? ATLAS_H : ATLAS_W)))).map((e) => e.name);
+      report.export = {
+        elements: bb.elements.length, badUV,
+        animations: bb.animations.map((a) => ({ name: a.name, bones: Object.keys(a.animators).length, keyframes: Object.values(a.animators).reduce((n, x) => n + x.keyframes.length, 0) })),
+        bytes: JSON.stringify(bb).length
+      };
+      const out = document.createElement('pre');
+      out.id = 'cliptest';
+      out.textContent = JSON.stringify(report, null, 1);
+      document.body.appendChild(out);
+      const bbOut = document.createElement('textarea');
+      bbOut.id = 'bbout';
+      bbOut.textContent = JSON.stringify(bb);
+      document.body.appendChild(bbOut);
+    }
+
+    function dumpFrame() {
+      controls.update();
+      renderer.render(scene, camera);
+      const out = document.createElement('pre');
+      out.id = 'shot';
+      out.textContent = canvas.toDataURL('image/png');
+      document.body.appendChild(out);
+    }
+
+    // One frame of an animation (mouse a bit up-right), for checking renders.
+    // Optional 5th part: talk loudness 0-1 (#shot-idle-0-2-0.9), to check the lip-sync mouth.
+    function shot(anim, variant, secs, talk) {
+      setVariant(variant);
+      sim.anim = anim;
+      Object.assign(sim.follow, { has: true, mx: 0.35, my: 0.25 });
+      if (talk) Object.assign(sim.talk, { active: true, level: talk, shape: 0.5 });
+      for (let t = 0; t < secs; t += 1 / 60) step(sim, 1 / 60);
+      dumpFrame();
+    }
+
+    // Filmstrip: #strip-<anim>-<variant>-<from>-<to>-<step> renders frames (seconds) side by side as one JPEG
+    // data URL in <pre id="shot">, to compare an animation with the reference video frame by frame.
+    // Optional 7th part: camera turn in degrees around the model (90 = from his left side).
+    function strip(anim, variant, from, to, stepS, camDeg) {
+      setVariant(variant);
+      if (camDeg) { const a = camDeg * Math.PI / 180, r = Math.hypot(CAM_POS.x - CAM_TARGET.x, CAM_POS.z - CAM_TARGET.z); camera.position.set(CAM_TARGET.x + r * Math.sin(a), CAM_POS.y, CAM_TARGET.z + r * Math.cos(a)); }
+      sim.anim = anim;
+      Object.assign(sim.follow, { on: false, has: false });
+      const n = Math.round((to - from) / stepS) + 1, W = 160, H = 240;
+      const sheet = document.createElement('canvas');
+      sheet.width = W * n; sheet.height = H;
+      const g = sheet.getContext('2d');
+      let t = 0;
+      for (let k = 0; k < n; k++) {
+        const want = from + k * stepS;
+        while (t < want - 1e-6) { const d = Math.min(1 / 120, want - t); step(sim, d); t += d; }
+        followRoot(1);
+        controls.update();
+        renderer.render(scene, camera);
+        const s = Math.min(canvas.width / W, canvas.height / H); // crop the middle of the view
+        g.drawImage(canvas, (canvas.width - W * s) / 2, (canvas.height - H * s) / 2, W * s, H * s, k * W, 0, W, H);
+        g.fillStyle = '#ff0'; g.font = '14px monospace'; g.fillText(want.toFixed(1), k * W + 4, 16);
+      }
+      const out = document.createElement('pre');
+      out.id = 'shot';
+      out.textContent = sheet.toDataURL('image/jpeg', 0.8);
+      document.body.appendChild(out);
+    }
+
+    /* ───────── Mod export (#modexport) ─────────
+       Everything the NeoForge mod needs to show the King 1:1, read by tools/export_mod_assets.ps1:
+       bones (rest pose), cubes as finished quads (exact UVs of this atlas), ground-check boxes, springs,
+       textures per color variant, voice-line lip-sync curves and every animation baked at 60 fps.
+       Units: texels, radians. Axes like here: +x = his left, +y = up, +z = his front. UV v goes down (Minecraft). */
+    const BAKE_FPS = 120; // 120 fps: the fast attack curves come back within 0.002 rad
+    function modExport() {
+      const r6 = (n) => Math.round(n * 1e6) / 1e6 || 0;
+      const bonesOut = boneList.map((g) => ({
+        name: g.name, parent: g.parent.isGroup && B[g.parent.name] !== undefined ? B[g.parent.name] : -1,
+        pos: [g.userData.rest.x, g.userData.rest.y, g.userData.rest.z].map((v) => r6(v / TEXEL)),
+        rot: [g.userData.restRot.x, g.userData.restRot.y, g.userData.restRot.z].map(r6)
+      }));
+      const v3 = new THREE.Vector3(), n3 = new THREE.Vector3(), nm = new THREE.Matrix3();
+      const cubesOut = cubeList.map((c) => {
+        const m = c.mesh;
+        m.updateMatrix();
+        nm.getNormalMatrix(m.matrix);
+        const geo = m.geometry, P = geo.attributes.position, U = geo.attributes.uv, N = geo.attributes.normal, I = geo.index.array;
+        const quads = [];
+        for (let f = 0; f < 6; f++) {
+          const ids = [I[f * 6], I[f * 6 + 1], I[f * 6 + 4], I[f * 6 + 2]]; // BoxGeometry quad a, b, c, d (counter-clockwise from outside)
+          const vs = ids.map((i) => v3.fromBufferAttribute(P, i).applyMatrix4(m.matrix).divideScalar(TEXEL).toArray().map(r6));
+          const e1 = new THREE.Vector3(...vs[1]).sub(new THREE.Vector3(...vs[0])), e2 = new THREE.Vector3(...vs[3]).sub(new THREE.Vector3(...vs[0]));
+          if (e1.cross(e2).length() < 1e-6) continue; // the zero-width sides of a face plane
+          n3.fromBufferAttribute(N, ids[0]).applyMatrix3(nm).normalize();
+          quads.push({ v: vs, uv: ids.map((i) => [r6(U.getX(i)), r6(1 - U.getY(i))]), n: n3.toArray().map(r6) });
+        }
+        const h = c.size.map((s) => r6(Math.abs(s) / 2 + c.inflate));
+        return { name: c.name, bone: B[c.bone], twoSided: m.material.alphaTest > 0, quads,
+          box: { c: m.position.toArray().map((v) => r6(v / TEXEL)), r: [m.rotation.x, m.rotation.y, m.rotation.z].map(r6), h } };
+      });
+      // Animations: the raw anim pose (before crossfade, follow, face filter, springs) sampled at 60 fps, T included.
+      const anims = {}, chunks = [];
+      let offset = 0;
+      for (const name of ANIM_ORDER) {
+        const A = ANIMS[name], frames = Math.round(A.T * BAKE_FPS) + 1;
+        // The mod samples frame f at f / BAKE_FPS: a length that is not a whole number of frames loses its last bit.
+        if (Math.abs(A.T * BAKE_FPS - Math.round(A.T * BAKE_FPS)) > 1e-6) throw new Error(`${name}: T ${A.T} s is not a whole number of 1/${BAKE_FPS} s frames`);
+        const Q = makePose(), cols = new Map();
+        const put = (key, f, v) => { if (!cols.has(key)) cols.set(key, new Float64Array(frames)); cols.get(key)[f] = v; };
+        for (let f = 0; f < frames; f++) {
+          const t = Math.min(f / BAKE_FPS, A.T);
+          clearPose(Q); Q.yawLimit = A.yawLimit; Q.follow = A.follow ?? 1;
+          A.fn(t, Q);
+          for (let b = 0; b < NB; b++) for (let k = 0; k < 3; k++) {
+            put(`r:${b}:${k}`, f, Q.r[b * 3 + k]);
+            put(`p:${b}:${k}`, f, Q.p[b * 3 + k]);
+          }
+          for (const k of FACE_KEYS) put(`f:${k}`, f, Q.f[k]);
+          put('follow', f, Q.follow);
+          if (A.rootMotion) { put('rm:z', f, mc(t, A.rootMotion.z)); put('rm:y', f, mc(t, A.rootMotion.y)); }
+        }
+        const channels = [];
+        for (const [key, arr] of cols) {
+          let lo = Infinity, hi = -Infinity;
+          for (const v of arr) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+          const keep = key.startsWith('f:') || key === 'follow' || key.startsWith('rm:') || hi - lo > 1e-7 || Math.abs(lo) > 1e-7;
+          if (!keep) continue;
+          // 16-bit steps between lo and hi, stored as differences from the previous frame (small numbers pack well).
+          const q = new Int16Array(frames), span = hi - lo;
+          let prev = 0;
+          for (let f = 0; f < frames; f++) {
+            const level = span > 0 ? Math.round((arr[f] - lo) / span * 65535) - 32768 : -32768;
+            q[f] = level - prev; prev = level;
+          }
+          chunks.push(q);
+          channels.push({ key, lo, hi, at: offset }); // exact lo/hi: the 16-bit levels map back without drift
+          offset += frames;
+        }
+        anims[name] = { T: A.T, frames, yawLimit: A.yawLimit, loopFade: !!A.loopFade, events: A.events || {}, rootMotion: !!A.rootMotion, channels };
+      }
+      const all = new Int16Array(offset);
+      let at = 0;
+      for (const q of chunks) { all.set(q, at); at += q.length; }
+      const bytes = new Uint8Array(all.length * 2), dv = new DataView(bytes.buffer);
+      all.forEach((v, i) => dv.setInt16(i * 2, v, false)); // big-endian (Java DataInputStream)
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      const textures = {};
+      const keep = variantIndex;
+      VARIANTS.forEach((v, i) => { setVariant(i); textures[v.id] = atlas.toDataURL('image/png'); });
+      setVariant(keep);
+      return {
+        rig: {
+          format: 1, fps: BAKE_FPS, atlas: [ATLAS_W, ATLAS_H], variants: VARIANTS.map((v) => v.id), animOrder: ANIM_ORDER,
+          bones: bonesOut, cubes: cubesOut,
+          springs: SPRINGS.map((s) => ({ ...s, bone: B[s.bone] })),
+          consts: { pitchUp: PITCH_UP, pitchDown: PITCH_DOWN, gravity: GRAVITY },
+          voice: VOICE_LINES.map((v) => ({ id: v.id, env: v.env, zcr: v.zcr })),
+          anims
+        },
+        bin: btoa(bin), textures
+      };
+    }
+
+    /* Reference recording for the mod's Java test (#modtrace): a fixed scene (seed 7, 1/120 s steps) with
+       animation switches, talking and look angles; every bone's rotation, position (texels) and scale every 1/30 s. */
+    function modTrace() {
+      const S = makeSim(7), dt = 1 / 120, out = [];
+      const plan = [[0, 'idle'], [3, 'idle2'], [6, 'walk'], [8, 'dance'], [11, 'attack'], [14.6, 'attack2'], [15.8, 'run'], [18.2, 'idle']];
+      const end = 19.7; // seconds recorded (the Java test reads it)
+      S.follow.on = true; S.follow.has = true; S.follow.inject = { yaw: 0, pitch: 0 };
+      let p = 0, next = 0;
+      for (let i = 0; i <= end * 120; i++) {
+        const t = i * dt;
+        while (p < plan.length && t >= plan[p][0] - 1e-9) { switchAnim(S, plan[p][1]); p++; }
+        S.follow.inject.yaw = 0.6 * Math.sin(0.7 * t); S.follow.inject.pitch = 0.1 * Math.sin(0.5 * t);
+        const talking = t >= 1 && t < 2.5;
+        Object.assign(S.talk, { active: talking, level: talking ? 0.5 + 0.5 * Math.sin(TAU * 3 * t) : 0, shape: 0.5 + 0.5 * Math.sin(TAU * t) });
+        step(S, dt);
+        if (t >= next - 1e-9) {
+          next += 1 / 30;
+          out.push(boneList.map((g) => [g.rotation.x, g.rotation.y, g.rotation.z, g.position.x / TEXEL, g.position.y / TEXEL, g.position.z / TEXEL, g.scale.x, g.scale.y, g.scale.z].map((v) => Math.round(v * 1e5) / 1e5)));
+        }
+      }
+      return { dt, every: 1 / 30, end, plan, frames: out };
+    }
+
+    window.kingDebug = { cubeList, bones, boneList, atlas, voice, VOICE_LINES, music, ANIMS, makeSim, step, get sim() { return sim; } }; // for the self-tests (DevTools)
+    const dumpJson = (id, obj) => { const pre = document.createElement('pre'); pre.id = id; pre.textContent = JSON.stringify(obj); document.body.appendChild(pre); };
+    if (location.hash === '#cliptest') clipTest();
+    else if (location.hash === '#modexport') dumpJson('modexport', modExport());
+    else if (location.hash === '#modtrace') dumpJson('modtrace', modTrace());
+    else if (location.hash.startsWith('#strip')) { const [, a, v, f, to, st, cd] = location.hash.split('-'); strip(a, +v, +f, +to, +st, +(cd || 0)); }
+    else if (location.hash === '#rest') { restPose(); dumpFrame(); }
+    else if (location.hash.startsWith('#shot')) { const [, a, v, s, tk] = location.hash.split('-'); shot(a, +v, +s, +(tk || 0)); }
+    else requestAnimationFrame(frame);
+  </script>
+</body>
+</html>

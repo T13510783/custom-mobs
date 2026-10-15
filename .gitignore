@@ -1,0 +1,28 @@
+# ───────── Build output (rebuilt by Gradle, never commit) ─────────
+mod/build/
+mod/.gradle/
+mod/run/
+mod/bin/
+mod/out/
+# Built jars (gradlew build keeps the newest 5 here; GitHub Releases are the place for jars)
+builds/
+
+# ───────── Local settings and secrets ─────────
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+
+# ───────── Test output and temp files (rule: never in the project) ─────────
+scratch/
+shot_*.txt
+shot_*.png
+*.tmp
+*.log
+
+# ───────── OS / editor junk ─────────
+Thumbs.db
+desktop.ini
+.DS_Store
+.idea/
+*.iml

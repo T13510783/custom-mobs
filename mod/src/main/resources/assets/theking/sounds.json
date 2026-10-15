@@ -1,0 +1,6 @@
+{
+  "voice_cussing_short": { "sounds": [ "theking:voice_cussing_short" ], "subtitle": "subtitles.theking.voice" },
+  "voice_cussing_long": { "sounds": [ "theking:voice_cussing_long" ], "subtitle": "subtitles.theking.voice" },
+  "voice_take_your_stuff": { "sounds": [ "theking:voice_take_your_stuff" ], "subtitle": "subtitles.theking.voice" },
+  "dance_music": { "sounds": [ { "name": "theking:dance_music", "stream": true } ], "subtitle": "subtitles.theking.dance" }
+}

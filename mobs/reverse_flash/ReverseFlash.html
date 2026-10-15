@@ -1,0 +1,1976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>The Reverse-Flash — Vanilla+ 16x16 3D Model Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap');
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0f1115;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      display: block;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    /* Sleek floating bottom pill bar */
+    .pill-bar {
+      background: rgba(20, 23, 30, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.4);
+    }
+
+    .anim-btn {
+      position: relative;
+      color: #94a3b8;
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .anim-btn:hover {
+      color: #f8fafc;
+    }
+
+    .anim-btn.active {
+      color: #0f1115;
+      background: linear-gradient(135deg, #facc15 0%, #eab308 100%);
+      box-shadow: 0 2px 12px rgba(234, 179, 8, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      font-weight: 600;
+    }
+
+    .anim-btn.active.special-active {
+      color: #ffffff;
+      background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+      box-shadow: 0 2px 14px rgba(239, 68, 68, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    }
+
+    .reset-btn {
+      color: #94a3b8;
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .reset-btn:hover {
+      color: #f8fafc;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .reset-btn:active {
+      transform: scale(0.92);
+    }
+  </style>
+</head>
+<body class="bg-[#0f1115] text-slate-100 antialiased">
+
+  <div id="canvas-container"></div>
+
+  <!-- Ultra-minimal floating bottom pill bar + small camera reset button -->
+  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+    <nav class="pill-bar rounded-full p-1.5 flex items-center gap-1" aria-label="Animation Controls">
+      <button data-anim="idle" class="anim-btn active px-4 py-1.5 rounded-full text-xs tracking-wide">
+        Idle
+      </button>
+      <button data-anim="walk" class="anim-btn px-4 py-1.5 rounded-full text-xs tracking-wide">
+        Walk
+      </button>
+      <button data-anim="attack" class="anim-btn px-4 py-1.5 rounded-full text-xs tracking-wide">
+        Attack
+      </button>
+      <button data-anim="special" class="anim-btn px-4 py-1.5 rounded-full text-xs tracking-wide">
+        Special
+      </button>
+    </nav>
+
+    <button
+      id="reset-camera-btn"
+      title="Reset Camera"
+      aria-label="Reset Camera"
+      class="pill-bar reset-btn w-9 h-9 rounded-full flex items-center justify-center"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+    </button>
+  </div>
+
+  <script>
+    // Strict 16x16 texel-per-block scale: 1 texel = 1/16 block = 0.0625 world units
+    const TEXEL = 1 / 16;
+
+    // Color Palette inspired by the CW Reverse-Flash (Harrison Wells / Eobard Thawne) reference images
+    const PALETTE = {
+      // Skin tones (Tom Cavanagh likeness: warm skin, angry glare, stoic poker face)
+      skinBase: '#dba685',
+      skinLight: '#e8b99b',
+      skinMid: '#c98f6d',
+      skinDark: '#ad7252',
+      skinShadow: '#8e573b',
+      lipLine: '#844b39',
+      lipDark: '#6b3628',
+      eyeWhite: '#e6eaed',
+      eyeIris: '#2e7d32',
+      eyeIrisLight: '#4ade80',
+      eyePupil: '#181c22',
+
+      // Hair (PURE BLACK hair & eyebrows — all #000000)
+      hairDark: '#000000',
+      hairBase: '#000000',
+      hairMid: '#000000',
+      hairLight: '#000000',
+      hairHighlight: '#000000',
+
+      // Reverse-Flash CW Suit Yellow (vibrant crown/chest fading to weathered olive-gold & soot)
+      suitBright: '#e5cf38',
+      suitGold: '#cbb32b',
+      suitMid: '#ad9624',
+      suitWeathered: '#877520',
+      suitOlive: '#5c521b',
+      suitSoot: '#383419',
+
+      // Charcoal / Black Leather (lower torso, gauntlets, pants, boots, zipper)
+      leatherBlack: '#141619',
+      leatherDark: '#1c1f24',
+      leatherMid: '#272b33',
+      leatherHighlight: '#383e4a',
+      zipperMetal: '#49505e',
+
+      // Reverse-Flash Crimson Red Emblem, Lightning & Boot Soles
+      crimsonBright: '#ff1f2d',
+      crimsonBase: '#dc1424',
+      crimsonDark: '#8c0d17',
+      crimsonDeep: '#4d0a10',
+
+      // Gold Tachyon Ring
+      ringGold: '#fbbf24',
+      ringShine: '#fef08a'
+    };
+
+    let scene, camera, renderer, controls;
+    let characterRoot, bodyGroup, torsoGroup, headGroup, leftArmGroup, rightArmGroup, leftLegGroup, rightLegGroup;
+    let cowlGroup, chestEmblemMesh, chestBoltMat, chestBoltSpineMat, glowingEyesMesh, rightHandSubGroup, leftHandSubGroup;
+    let lightningGroup, lightningSegments = [], lightningSparks = [], lightningPointLight;
+    let mirageClones = [];
+    let groundDustParticles = [];
+
+    // Procedural Web Audio API engine for authentic Reverse-Flash phasing hum & lightning crackles
+    const SpeedForceAudio = {
+      ctx: null,
+      humOsc: null,
+      humGain: null,
+      lfoOsc: null,
+      lastCrackleTime: 0,
+      nextCrackleDelay: 3.5,
+
+      calcNextDelay(intensity) {
+        if (intensity > 1.0) {
+          // Special surge mode: sporadic random discharges every 1.2s to 2.4s
+          return 1.2 + Math.random() * 1.2;
+        } else if (intensity > 0.7) {
+          // Attack strike mode: sporadic random discharges every 1.6s to 3.2s
+          return 1.6 + Math.random() * 1.6;
+        } else if (intensity > 0.25) {
+          // Walk mode: sporadic random discharges every 2.8s to 5.5s
+          return 2.8 + Math.random() * 2.7;
+        } else {
+          // Idle mode: very spread out, sporadic crackles every 4.0s to 8.5s
+          return 4.0 + Math.random() * 4.5;
+        }
+      },
+
+      init() {
+        if (this.ctx) {
+          if (this.ctx.state === 'suspended') this.ctx.resume();
+          return;
+        }
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        this.ctx = new AudioCtx();
+        this.nextCrackleDelay = 2.0 + Math.random() * 2.5;
+
+        // Iconic Reverse-Flash "helicopter" vibrating phasing bass hum
+        this.humOsc = this.ctx.createOscillator();
+        this.humOsc.type = 'sawtooth';
+        this.humOsc.frequency.value = 58;
+
+        const humFilter = this.ctx.createBiquadFilter();
+        humFilter.type = 'lowpass';
+        humFilter.frequency.value = 190;
+
+        this.lfoOsc = this.ctx.createOscillator();
+        this.lfoOsc.type = 'sine';
+        this.lfoOsc.frequency.value = 15; // Rapid phasing pulse rate
+
+        const lfoGain = this.ctx.createGain();
+        lfoGain.gain.value = 45;
+        this.lfoOsc.connect(humFilter.frequency);
+
+        this.humGain = this.ctx.createGain();
+        this.humGain.gain.value = 0.0001;
+
+        this.humOsc.connect(humFilter);
+        humFilter.connect(this.humGain);
+        this.humGain.connect(this.ctx.destination);
+
+        this.humOsc.start();
+        this.lfoOsc.start();
+      },
+
+      playArcSound(now, volume, duration = 0.055) {
+        if (!this.ctx) return;
+        const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+        const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
+        }
+
+        const whiteNoise = this.ctx.createBufferSource();
+        whiteNoise.buffer = noiseBuffer;
+
+        const bandpass = this.ctx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.setValueAtTime(1400 + Math.random() * 2600, now);
+        bandpass.Q.setValueAtTime(2.4, now);
+
+        const crackleGain = this.ctx.createGain();
+        crackleGain.gain.setValueAtTime(volume, now);
+        crackleGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        whiteNoise.connect(bandpass);
+        bandpass.connect(crackleGain);
+        crackleGain.connect(this.ctx.destination);
+        whiteNoise.start(now);
+      },
+
+      triggerCrackle(intensity = 1) {
+        if (!this.ctx || this.ctx.state !== 'running') return;
+        const now = this.ctx.currentTime;
+        const mainVol = Math.min(0.18, 0.09 * (0.8 + Math.random() * 0.4) * intensity);
+        const dur = 0.045 + Math.random() * 0.03;
+        this.playArcSound(now, mainVol, dur);
+
+        // 35% chance of a realistic quick secondary electric micro-arc 40-75ms later
+        if (Math.random() < 0.35) {
+          const subVol = mainVol * (0.45 + Math.random() * 0.35);
+          const subDelay = 0.04 + Math.random() * 0.035;
+          this.playArcSound(now + subDelay, subVol, 0.035);
+        }
+      },
+
+      update(intensity, time) {
+        if (!this.ctx || this.ctx.state !== 'running' || !this.humGain) return;
+        const now = this.ctx.currentTime;
+        const targetGain = intensity > 0.05 ? Math.min(0.11, intensity * 0.085) : 0.0001;
+        this.humGain.gain.setTargetAtTime(targetGain, now, 0.05);
+
+        // Less frequent, unpredictable random lightning discharges
+        if (time - this.lastCrackleTime > this.nextCrackleDelay) {
+          this.triggerCrackle(intensity);
+          this.lastCrackleTime = time;
+          this.nextCrackleDelay = this.calcNextDelay(intensity);
+        }
+      }
+    };
+
+    // Animation state
+    let currentAnim = 'idle';
+    let animTime = 0;
+    const pointerNDC = new THREE.Vector2(0, 0);
+    const defaultCamPos = new THREE.Vector3(1.65, 1.55, 2.85);
+    const defaultTarget = new THREE.Vector3(0, 1.02, 0);
+
+    /**
+     * Creates a crisp pixel-art THREE.CanvasTexture of exact pixel dimensions (pw x ph).
+     * Uses THREE.NearestFilter so every single texel has razor-sharp Blockbench/Minecraft edges.
+     */
+    function makePixelTexture(pw, ph, drawCallback) {
+      const canvas = document.createElement('canvas');
+      canvas.width = pw;
+      canvas.height = ph;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+
+      // Helper utilities passed to drawCallback
+      const helpers = {
+        ctx,
+        w: pw,
+        h: ph,
+        fill(color) {
+          ctx.fillStyle = color;
+          ctx.fillRect(0, 0, pw, ph);
+        },
+        px(x, y, color) {
+          if (x < 0 || y < 0 || x >= pw || y >= ph) return;
+          ctx.fillStyle = color;
+          ctx.fillRect(x, y, 1, 1);
+        },
+        rect(x, y, w, h, color) {
+          ctx.fillStyle = color;
+          ctx.fillRect(x, y, w, h);
+        },
+        // Subtle Vanilla+ edge shading for depth
+        shadeEdges(alpha = 0.14) {
+          ctx.fillStyle = `rgba(255,255,255,${alpha * 0.65})`;
+          ctx.fillRect(0, 0, pw, 1);
+          ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+          ctx.fillRect(0, ph - 1, pw, 1);
+          ctx.fillStyle = `rgba(0,0,0,${alpha * 0.5})`;
+          ctx.fillRect(0, 0, 1, ph);
+          ctx.fillRect(pw - 1, 0, 1, ph);
+        }
+      };
+
+      drawCallback(helpers);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.magFilter = THREE.NearestFilter;
+      texture.minFilter = THREE.NearestFilter;
+      texture.generateMipmaps = false;
+      texture.needsUpdate = true;
+      return texture;
+    }
+
+    /**
+     * Builds a Blockbench-style articulated box aligned to the 16x16 texel grid.
+     * w, h, d are measured in integer texels.
+     * inflate adds subtle 3D Vanilla+ layer offset (in texels) without distorting the pixel UV map.
+     */
+    function createVoxelBox(w, h, d, facePainters, options = {}) {
+      const inflate = options.inflate || 0;
+      const geom = new THREE.BoxGeometry(
+        (w + inflate * 2) * TEXEL,
+        (h + inflate * 2) * TEXEL,
+        (d + inflate * 2) * TEXEL
+      );
+
+      // Three.js BoxGeometry material order: [right(+x), left(-x), top(+y), bottom(-y), front(+z), back(-z)]
+      const faces = [
+        { name: 'right', pw: d, ph: h },
+        { name: 'left', pw: d, ph: h },
+        { name: 'top', pw: w, ph: d },
+        { name: 'bottom', pw: w, ph: d },
+        { name: 'front', pw: w, ph: h },
+        { name: 'back', pw: w, ph: h }
+      ];
+
+      const materials = faces.map((face) => {
+        const painter = facePainters[face.name] || facePainters.all || ((p) => p.fill('#ff00ff'));
+        const tex = makePixelTexture(face.pw, face.ph, painter);
+        return new THREE.MeshStandardMaterial({
+          map: tex,
+          roughness: options.roughness !== undefined ? options.roughness : 0.62,
+          metalness: options.metalness !== undefined ? options.metalness : 0.08,
+          transparent: Boolean(options.transparent),
+          alphaTest: options.alphaTest || 0
+        });
+      });
+
+      const mesh = new THREE.Mesh(geom, materials);
+      mesh.castShadow = options.castShadow !== false;
+      mesh.receiveShadow = options.receiveShadow !== false;
+      return mesh;
+    }
+
+    function buildHeadRig() {
+      const group = new THREE.Group();
+      // Pivot at bottom of head (neck joint: y = 24 texels from floor, which is +12 texels from torso root)
+      group.position.set(0, 12 * TEXEL, 0);
+
+      // 1. Base 8x8x8 Head (Clean side profile without sideburns + textured brown hair + angry poker face)
+      const headMesh = createVoxelBox(8, 8, 8, {
+        front(p) {
+          // Base skin
+          p.fill(PALETTE.skinBase);
+
+          // Textured slightly spiky black hairline across top forehead (no sideburns)
+          p.px(0, 0, PALETTE.hairDark);
+          p.px(1, 0, PALETTE.hairMid);
+          p.px(2, 0, PALETTE.hairBase);
+          p.px(3, 0, PALETTE.hairLight);
+          p.px(4, 0, PALETTE.hairBase);
+          p.px(5, 0, PALETTE.hairHighlight);
+          p.px(6, 0, PALETTE.hairMid);
+          p.px(7, 0, PALETTE.hairDark);
+
+          // Forehead with angry eyebrow arch & furrowed glabella wrinkles (y = 1)
+          // Forehead with angry eyebrow arch & furrowed glabella wrinkles (y = 1)
+          p.rect(0, 1, 8, 1, PALETTE.skinBase);
+          p.px(0, 1, PALETTE.skinMid);
+          p.px(1, 1, PALETTE.hairDark);   // High outer eyebrow arch
+          p.px(2, 1, PALETTE.hairMid);    // Upper eyebrow arch contour
+          p.px(3, 1, PALETTE.skinShadow); // Furrowed brow scowl crease
+          p.px(4, 1, PALETTE.skinShadow); // Furrowed brow scowl crease
+          p.px(5, 1, PALETTE.hairMid);    // Upper eyebrow arch contour
+          p.px(6, 1, PALETTE.hairDark);   // High outer eyebrow arch
+          p.px(7, 1, PALETTE.skinMid);
+
+          // Angry menacing eyebrows slanting sharply down toward center (y = 2)
+          p.px(0, 2, PALETTE.skinMid);
+          p.px(1, 2, PALETTE.skinLight);  // Highlight under the raised outer brow
+          p.px(2, 2, PALETTE.hairDark);   // Angry brow sloping down over eye
+          p.px(3, 2, PALETTE.skinDark);   // Glabella nose bridge shadow
+          p.px(4, 2, PALETTE.skinDark);   // Glabella nose bridge shadow
+          p.px(5, 2, PALETTE.hairDark);   // Angry brow sloping down over eye
+          p.px(6, 2, PALETTE.skinLight);  // Highlight under the raised outer brow
+          p.px(7, 2, PALETTE.skinMid);
+
+          // Green eyes (y = 3)
+          p.px(0, 3, PALETTE.skinMid);
+          p.px(1, 3, PALETTE.eyeWhite);
+          p.px(2, 3, PALETTE.eyeIris);
+          p.px(3, 3, PALETTE.skinBase);
+          p.px(4, 3, PALETTE.skinMid);
+          p.px(5, 3, PALETTE.eyeIris);
+          p.px(6, 3, PALETTE.eyeWhite);
+          p.px(7, 3, PALETTE.skinMid);
+
+          // Subtle eye creases & cheekbones (y = 4)
+          p.px(0, 4, PALETTE.skinMid);
+          p.px(1, 4, PALETTE.skinMid);
+          p.px(2, 4, PALETTE.skinLight);
+          p.px(3, 4, PALETTE.skinMid);
+          p.px(4, 4, PALETTE.skinDark);
+          p.px(5, 4, PALETTE.skinLight);
+          p.px(6, 4, PALETTE.skinMid);
+          p.px(7, 4, PALETTE.skinMid);
+
+          // Nose bridge & neutral cheeks - smile lines removed (y = 5)
+          p.px(0, 5, PALETTE.skinBase);
+          p.px(1, 5, PALETTE.skinBase);
+          p.px(2, 5, PALETTE.skinLight);
+          p.px(3, 5, PALETTE.skinDark);
+          p.px(4, 5, PALETTE.skinShadow);
+          p.px(5, 5, PALETTE.skinLight);
+          p.px(6, 5, PALETTE.skinBase);
+          p.px(7, 5, PALETTE.skinBase);
+
+          // Stern, stoic poker face mouth - smile and teeth removed (y = 6)
+          p.px(0, 6, PALETTE.skinMid);
+          p.px(1, 6, PALETTE.skinBase);
+          p.px(2, 6, PALETTE.lipLine);
+          p.px(3, 6, PALETTE.lipDark);
+          p.px(4, 6, PALETTE.lipDark);
+          p.px(5, 6, PALETTE.lipLine);
+          p.px(6, 6, PALETTE.skinBase);
+          p.px(7, 6, PALETTE.skinMid);
+
+          // Chin & jawline (y = 7)
+          p.rect(1, 7, 6, 1, PALETTE.skinMid);
+          p.rect(2, 7, 4, 1, PALETTE.skinBase);
+          p.px(0, 7, PALETTE.skinDark);
+          p.px(3, 7, PALETTE.skinShadow);
+          p.px(7, 7, PALETTE.skinDark);
+        },
+        back(p) {
+          p.fill(PALETTE.hairBase);
+          // Rich multi-tone brown hair strand texture on the back
+          for (let y = 0; y < 7; y++) {
+            for (let x = 0; x < 8; x++) {
+              const pat = (x * 3 + y * 5) % 5;
+              const col = pat === 0 ? PALETTE.hairDark
+                : pat === 1 ? PALETTE.hairBase
+                : pat === 2 ? PALETTE.hairMid
+                : pat === 3 ? PALETTE.hairLight
+                : PALETTE.hairHighlight;
+              p.px(x, y, col);
+            }
+          }
+          // Lower neck skin
+          p.rect(0, 7, 8, 1, PALETTE.skinDark);
+          p.shadeEdges(0.08);
+        },
+        // Three.js 'right' (+X) face: x=0 is FRONT (+Z), x=7 is BACK (-Z)
+        right(p) {
+          p.fill(PALETTE.skinBase);
+          // Clean face cheek & jawline on front side (x = 0..4), zero sideburns
+          p.rect(0, 1, 5, 7, PALETTE.skinBase);
+          p.rect(0, 6, 4, 2, PALETTE.skinMid);
+          // Ear (x = 3..4, y = 3..5)
+          p.rect(3, 3, 2, 3, PALETTE.skinMid);
+          p.px(4, 4, PALETTE.skinDark);
+          // Top brown hair & back of head hair only (x = 5..7)
+          for (let x = 0; x < 8; x++) {
+            p.px(x, 0, x % 2 === 0 ? PALETTE.hairBase : PALETTE.hairMid);
+          }
+          for (let y = 1; y < 7; y++) {
+            for (let x = 5; x < 8; x++) {
+              const c = (x + y) % 3 === 0 ? PALETTE.hairDark : (x + y) % 2 === 0 ? PALETTE.hairMid : PALETTE.hairBase;
+              p.px(x, y, c);
+            }
+          }
+          p.px(4, 1, PALETTE.hairMid);
+          p.px(5, 7, PALETTE.skinDark);
+        },
+        // Three.js 'left' (-X) face: x=0 is BACK (-Z), x=7 is FRONT (+Z)
+        left(p) {
+          p.fill(PALETTE.skinBase);
+          // Clean face cheek & jawline on front side (x = 3..7), zero sideburns
+          p.rect(3, 1, 5, 7, PALETTE.skinBase);
+          p.rect(4, 6, 4, 2, PALETTE.skinMid);
+          // Ear (x = 3..4, y = 3..5)
+          p.rect(3, 3, 2, 3, PALETTE.skinMid);
+          p.px(3, 4, PALETTE.skinDark);
+          // Top brown hair & back of head hair only (x = 0..2)
+          for (let x = 0; x < 8; x++) {
+            p.px(x, 0, x % 2 === 0 ? PALETTE.hairMid : PALETTE.hairBase);
+          }
+          for (let y = 1; y < 7; y++) {
+            for (let x = 0; x < 3; x++) {
+              const c = (x + y) % 3 === 0 ? PALETTE.hairDark : (x + y) % 2 === 0 ? PALETTE.hairMid : PALETTE.hairBase;
+              p.px(x, y, c);
+            }
+          }
+          p.px(3, 1, PALETTE.hairMid);
+          p.px(2, 7, PALETTE.skinDark);
+        },
+        top(p) {
+          // High-texture multi-tone brown hair top
+          for (let y = 0; y < 8; y++) {
+            for (let x = 0; x < 8; x++) {
+              const v = (x * 7 + y * 3) % 5;
+              const col = v === 0 ? PALETTE.hairDark
+                : v === 1 ? PALETTE.hairBase
+                : v === 2 ? PALETTE.hairMid
+                : v === 3 ? PALETTE.hairLight
+                : PALETTE.hairHighlight;
+              p.px(x, y, col);
+            }
+          }
+        },
+        bottom(p) {
+          p.fill(PALETTE.skinShadow);
+          p.rect(1, 1, 6, 6, PALETTE.skinDark);
+        }
+      });
+      headMesh.position.set(0, 4 * TEXEL, 0);
+      group.add(headMesh);
+
+      // 2. Textured brown top hair layer + subtle spiky 3D tufts
+      const hairPainter = (p) => {
+        for (let y = 0; y < p.h; y++) {
+          for (let x = 0; x < p.w; x++) {
+            const v = (x * 5 + y * 3) % 5;
+            const col = v === 0 ? PALETTE.hairDark
+              : v === 1 ? PALETTE.hairBase
+              : v === 2 ? PALETTE.hairMid
+              : v === 3 ? PALETTE.hairLight
+              : PALETTE.hairHighlight;
+            p.px(x, y, col);
+          }
+        }
+      };
+
+      const hairCrown = createVoxelBox(8, 1, 8, {
+        top: hairPainter,
+        all: hairPainter
+      }, { inflate: 0.14 });
+      hairCrown.position.set(0, 7.65 * TEXEL, 0);
+      group.add(hairCrown);
+
+      // Subtle spiky brown hair locks on top/front for dynamic texture & volume
+      const spikeConfigs = [
+        { w: 2, h: 1, d: 3, x: -2.0, y: 8.35, z: 2.2, rx: -0.22, ry: 0.12, rz: 0.15 },
+        { w: 2, h: 1, d: 3, x: 0.1,  y: 8.50, z: 2.4, rx: -0.28, ry: -0.05, rz: -0.05 },
+        { w: 2, h: 1, d: 3, x: 2.1,  y: 8.35, z: 2.1, rx: -0.20, ry: -0.14, rz: -0.16 },
+        { w: 3, h: 1, d: 3, x: -1.4, y: 8.40, z: -0.4, rx: -0.12, ry: 0.08, rz: 0.08 },
+        { w: 3, h: 1, d: 3, x: 1.5,  y: 8.42, z: -0.3, rx: -0.14, ry: -0.08, rz: -0.08 },
+        { w: 4, h: 1, d: 3, x: 0.0,  y: 8.30, z: -2.3, rx: 0.16, ry: 0.0, rz: 0.0 }
+      ];
+
+      spikeConfigs.forEach((sc) => {
+        const spike = createVoxelBox(sc.w, sc.h, sc.d, {
+          top: hairPainter,
+          all: hairPainter
+        }, { inflate: 0.05 });
+        spike.position.set(sc.x * TEXEL, sc.y * TEXEL, sc.z * TEXEL);
+        spike.rotation.set(sc.rx, sc.ry, sc.rz);
+        group.add(spike);
+      });
+
+      // 3. Glowing Green Speed Force Eyes Overlay (only used in Special, never in Attack)
+      const eyeGlowGeom = new THREE.BoxGeometry(6.1 * TEXEL, 1.05 * TEXEL, 0.25 * TEXEL);
+      const eyeGlowTex = makePixelTexture(6, 1, (p) => {
+        p.px(0, 0, '#16a34a');
+        p.px(1, 0, '#86efac');
+        p.px(4, 0, '#86efac');
+        p.px(5, 0, '#16a34a');
+      });
+      const eyeGlowMat = new THREE.MeshBasicMaterial({
+        map: eyeGlowTex,
+        transparent: true,
+        opacity: 0
+      });
+      glowingEyesMesh = new THREE.Mesh(eyeGlowGeom, eyeGlowMat);
+      glowingEyesMesh.position.set(0, 4.5 * TEXEL, 4.05 * TEXEL);
+      group.add(glowingEyesMesh);
+
+      // 4. Pulled-Back Cowl/Hood (Snug against neck and wrapping around the sides of his face)
+      cowlGroup = new THREE.Group();
+      cowlGroup.position.set(0, 0, 0);
+
+      // A. Back Nape Fold: rests snug against the back of his neck and lower head
+      const hoodBack = createVoxelBox(8, 4, 2, {
+        back(p) {
+          p.fill(PALETTE.suitGold);
+          p.rect(0, 0, 8, 2, PALETTE.suitBright);
+          p.rect(0, 2, 8, 1, PALETTE.suitMid);
+          p.rect(1, 3, 6, 1, PALETTE.suitWeathered);
+          p.shadeEdges(0.14);
+        },
+        front(p) {
+          p.fill(PALETTE.leatherDark); // Dark inner lining facing the neck
+        },
+        top(p) {
+          p.fill(PALETTE.suitBright);
+          p.rect(1, 0, 6, 1, PALETTE.suitGold);
+        },
+        bottom(p) {
+          p.fill(PALETTE.suitWeathered);
+        },
+        left(p) { p.fill(PALETTE.suitGold); },
+        right(p) { p.fill(PALETTE.suitGold); }
+      }, { inflate: 0.10 });
+      hoodBack.position.set(0, 1.4 * TEXEL, -5.15 * TEXEL);
+      hoodBack.rotation.x = -0.08;
+      cowlGroup.add(hoodBack);
+
+      // B. Left Face / Jaw / Ear Flap: covers the left side of his face with the red lightning ear badge
+      const hoodLeftFlap = createVoxelBox(1, 4, 5, {
+        right(p) {
+          // Outer left side visible from profile: CW Reverse-Flash ear piece badge
+          p.fill(PALETTE.suitGold);
+          p.rect(0, 0, 5, 1, PALETTE.suitBright);
+          p.rect(1, 1, 3, 2, PALETTE.crimsonDark);
+          p.rect(2, 1, 2, 2, PALETTE.crimsonBase);
+          p.px(2, 1, PALETTE.crimsonBright);
+          p.px(3, 2, PALETTE.crimsonBright);
+          p.shadeEdges(0.12);
+        },
+        left(p) {
+          p.fill(PALETTE.leatherDark); // Inner lining hugging left cheek
+        },
+        front(p) {
+          p.fill(PALETTE.suitBright);
+          p.rect(0, 2, 1, 2, PALETTE.suitGold);
+        },
+        back(p) {
+          p.fill(PALETTE.suitGold);
+        },
+        top(p) {
+          p.fill(PALETTE.suitBright);
+        },
+        bottom(p) {
+          p.fill(PALETTE.suitWeathered);
+        }
+      }, { inflate: 0.08 });
+      hoodLeftFlap.position.set(4.65 * TEXEL, 1.4 * TEXEL, -1.65 * TEXEL);
+      hoodLeftFlap.rotation.y = 0.06;
+      cowlGroup.add(hoodLeftFlap);
+
+      // C. Right Face / Jaw / Ear Flap: covers the right side of his face with matching ear badge
+      const hoodRightFlap = createVoxelBox(1, 4, 5, {
+        left(p) {
+          // Outer right side visible from profile
+          p.fill(PALETTE.suitGold);
+          p.rect(0, 0, 5, 1, PALETTE.suitBright);
+          p.rect(1, 1, 3, 2, PALETTE.crimsonDark);
+          p.rect(1, 1, 2, 2, PALETTE.crimsonBase);
+          p.px(2, 1, PALETTE.crimsonBright);
+          p.px(1, 2, PALETTE.crimsonBright);
+          p.shadeEdges(0.12);
+        },
+        right(p) {
+          p.fill(PALETTE.leatherDark); // Inner lining hugging right cheek
+        },
+        front(p) {
+          p.fill(PALETTE.suitBright);
+          p.rect(0, 2, 1, 2, PALETTE.suitGold);
+        },
+        back(p) {
+          p.fill(PALETTE.suitGold);
+        },
+        top(p) {
+          p.fill(PALETTE.suitBright);
+        },
+        bottom(p) {
+          p.fill(PALETTE.suitWeathered);
+        }
+      }, { inflate: 0.08 });
+      hoodRightFlap.position.set(-4.65 * TEXEL, 1.4 * TEXEL, -1.65 * TEXEL);
+      hoodRightFlap.rotation.y = -0.06;
+      cowlGroup.add(hoodRightFlap);
+
+      // D. Lower Back Fold: continues the drape down to rest on the upper back and neck base
+      const hoodLowerBunch = createVoxelBox(6, 2, 2, {
+        all(p) {
+          p.fill(PALETTE.suitMid);
+          p.rect(0, 0, p.w, 1, PALETTE.suitGold);
+          p.shadeEdges(0.14);
+        }
+      }, { inflate: 0.10 });
+      hoodLowerBunch.position.set(0, -0.7 * TEXEL, -4.85 * TEXEL);
+      hoodLowerBunch.rotation.x = -0.12;
+      cowlGroup.add(hoodLowerBunch);
+
+      group.add(cowlGroup);
+
+      return group;
+    }
+
+    function buildTorsoAndCowlRig() {
+      const group = new THREE.Group();
+      // Torso center is from y = 12 to y = 24 texels above ground
+      // We place torsoGroup pivot at hip/waist level (y = 12 texels)
+      group.position.set(0, 12 * TEXEL, 0);
+
+      // 1. Core Torso (8x12x4 texels) with authentic CW yellow-to-black soot gradient & center zipper
+      const torsoMesh = createVoxelBox(8, 12, 4, {
+        front(p) {
+          // Row-by-row vertical gradient from bright yellow upper chest to charred black waist
+          const rowColors = [
+            PALETTE.suitGold,      // y=0 collar base
+            PALETTE.suitBright,    // y=1 upper chest
+            PALETTE.suitBright,    // y=2 pecs
+            PALETTE.suitGold,      // y=3 pecs
+            PALETTE.suitGold,      // y=4 lower pecs
+            PALETTE.suitMid,       // y=5 upper abs
+            PALETTE.suitWeathered, // y=6 mid abs
+            PALETTE.suitOlive,     // y=7 lower abs
+            PALETTE.suitSoot,      // y=8 transition to black leather
+            PALETTE.leatherDark,   // y=9 waist
+            PALETTE.leatherBlack,  // y=10 belt line
+            PALETTE.leatherDark    // y=11 lower waist
+          ];
+          for (let y = 0; y < 12; y++) {
+            p.rect(0, y, 8, 1, rowColors[y]);
+          }
+
+          // Darkened side ribs (athletic V-taper black panels like photo 1 & 2)
+          for (let y = 4; y < 10; y++) {
+            const sideColor = y < 6 ? PALETTE.suitOlive : PALETTE.leatherDark;
+            p.px(0, y, sideColor);
+            p.px(7, y, sideColor);
+            if (y >= 7) {
+              p.px(1, y, PALETTE.leatherDark);
+              p.px(6, y, PALETTE.leatherDark);
+            }
+          }
+
+          // Subtle pectoral & ab seam shading
+          p.rect(1, 4, 2, 1, PALETTE.suitWeathered);
+          p.rect(5, 4, 2, 1, PALETTE.suitWeathered);
+
+          // Center black zipper seam down the entire chest
+          for (let y = 0; y < 11; y++) {
+            p.px(3, y, y % 2 === 0 ? PALETTE.leatherBlack : PALETTE.leatherMid);
+            p.px(4, y, y % 2 === 0 ? PALETTE.leatherDark : PALETTE.leatherBlack);
+          }
+          p.px(3, 0, PALETTE.zipperMetal); // Zipper pull at collar
+
+          // Subtle red lightning scarring texture on upper chest (seen in photo 1 & 3)
+          p.px(1, 2, PALETTE.suitGold);
+          p.px(2, 1, PALETTE.suitMid);
+          p.px(6, 2, PALETTE.suitMid);
+          p.shadeEdges(0.12);
+        },
+        back(p) {
+          const rowColors = [
+            PALETTE.suitGold,
+            PALETTE.suitGold,
+            PALETTE.suitMid,
+            PALETTE.suitMid,
+            PALETTE.suitWeathered,
+            PALETTE.suitWeathered,
+            PALETTE.suitOlive,
+            PALETTE.suitSoot,
+            PALETTE.leatherDark,
+            PALETTE.leatherBlack,
+            PALETTE.leatherBlack,
+            PALETTE.leatherDark
+          ];
+          for (let y = 0; y < 12; y++) {
+            p.rect(0, y, 8, 1, rowColors[y]);
+          }
+          p.shadeEdges(0.14);
+        },
+        left(p) {
+          p.fill(PALETTE.leatherDark);
+          p.rect(0, 0, 4, 4, PALETTE.suitMid);
+          p.rect(0, 4, 4, 3, PALETTE.suitOlive);
+          p.rect(0, 7, 4, 2, PALETTE.suitSoot);
+          p.shadeEdges(0.15);
+        },
+        right(p) {
+          p.fill(PALETTE.leatherDark);
+          p.rect(0, 0, 4, 4, PALETTE.suitMid);
+          p.rect(0, 4, 4, 3, PALETTE.suitOlive);
+          p.rect(0, 7, 4, 2, PALETTE.suitSoot);
+          p.shadeEdges(0.15);
+        },
+        top(p) {
+          p.fill(PALETTE.suitGold);
+          p.rect(1, 1, 6, 2, PALETTE.skinDark);
+        },
+        bottom(p) {
+          p.fill(PALETTE.leatherBlack);
+        }
+      });
+      torsoMesh.position.set(0, 6 * TEXEL, 0);
+      group.add(torsoMesh);
+
+      // 2. Authentic Reverse-Flash Chest Emblem (Black Medallion + Red Outer Ring + 3-Segment Red Zig-Zag Lightning Bolt)
+      chestEmblemMesh = new THREE.Group();
+      chestEmblemMesh.position.set(0, 8.1 * TEXEL, 2.02 * TEXEL);
+
+      // High-resolution crisp pixel-art medallion disc (black inner circle with crimson red outer ring)
+      const emblemDisc = createVoxelBox(4, 4, 0.4, {
+        front(p) {
+          // 4x4 texel base with circular ring illusion
+          p.fill(PALETTE.leatherBlack);
+        },
+        all(p) {
+          p.fill(PALETTE.crimsonDark);
+        }
+      }, { roughness: 0.35, metalness: 0.2 });
+
+      // Detailed 32x32 crisp pixel canvas texture on the front of the 4x4 texel medallion for a true circle & red ring
+      const hiResEmblemTex = makePixelTexture(32, 32, (p) => {
+        const cx = 15.5;
+        const cy = 15.5;
+        for (let y = 0; y < 32; y++) {
+          for (let x = 0; x < 32; x++) {
+            const dist = Math.hypot(x - cx, y - cy);
+            if (dist <= 15.2) {
+              if (dist >= 13.4) {
+                p.px(x, y, PALETTE.leatherBlack); // Outer dark rim border
+              } else if (dist >= 11.2) {
+                p.px(x, y, (x + y < 30) ? PALETTE.crimsonBright : PALETTE.crimsonBase); // Iconic Red Circle Ring
+              } else {
+                p.px(x, y, '#0b0c0e'); // Deep black interior
+              }
+            }
+          }
+        }
+      });
+      emblemDisc.material[4] = new THREE.MeshStandardMaterial({
+        map: hiResEmblemTex,
+        roughness: 0.35,
+        metalness: 0.2,
+        transparent: true,
+        alphaTest: 0.5
+      });
+      chestEmblemMesh.add(emblemDisc);
+
+      // Authentic 3-Segment Sculpted 3D Reverse-Flash Red Lightning Bolt
+      // Slices diagonally from top-left to bottom-right across the chest medallion with beveled metallic facets and raised crest
+      const rawBoltCoords = [
+        [-1.45,  1.75],  // 0: Top-left sharp chisel tip (slicing past outer circle rim)
+        [ 0.45,  0.70],  // 1: Upper segment outer right corner
+        [-0.25,  0.70],  // 2: Zag 1 cutback step to the left
+        [ 1.15, -0.40],  // 3: Middle segment outer right corner
+        [ 0.45, -0.40],  // 4: Zag 2 cutback step to the left
+        [ 1.45, -1.75],  // 5: Bottom-right sharp spearhead tip (slicing past outer circle rim)
+        [-0.45, -0.70],  // 6: Lower segment inner left corner
+        [ 0.25, -0.70],  // 7: Zag 2 step to the right
+        [-1.15,  0.40],  // 8: Middle segment inner left corner
+        [-0.45,  0.40]   // 9: Zag 1 step to the right
+      ];
+
+      function createScaledBoltShape(scale) {
+        const shape = new THREE.Shape();
+        shape.moveTo(rawBoltCoords[0][0] * scale * TEXEL, rawBoltCoords[0][1] * scale * TEXEL);
+        for (let i = 1; i < rawBoltCoords.length; i++) {
+          shape.lineTo(rawBoltCoords[i][0] * scale * TEXEL, rawBoltCoords[i][1] * scale * TEXEL);
+        }
+        shape.closePath();
+        return shape;
+      }
+
+      // Tier 1: Dark obsidian-crimson metallic bevel rim/backing that gives crisp definition against the black disc
+      const trimShape = createScaledBoltShape(1.08);
+      const trimGeom = new THREE.ExtrudeGeometry(trimShape, {
+        depth: 0.08 * TEXEL,
+        bevelEnabled: true,
+        bevelThickness: 0.03 * TEXEL,
+        bevelSize: 0.03 * TEXEL,
+        bevelSegments: 2,
+        steps: 1
+      });
+      trimGeom.computeVertexNormals();
+      const trimMat = new THREE.MeshStandardMaterial({
+        color: 0x480208,
+        roughness: 0.32,
+        metalness: 0.55
+      });
+      const trimMesh = new THREE.Mesh(trimGeom, trimMat);
+      trimMesh.position.set(0, 0, 0.205 * TEXEL);
+      chestEmblemMesh.add(trimMesh);
+
+      // Tier 2: Main sculpted crimson ruby speedster lightning blade with sharp beveled chamfers
+      const mainBoltShape = createScaledBoltShape(1.0);
+      const mainBoltGeom = new THREE.ExtrudeGeometry(mainBoltShape, {
+        depth: 0.14 * TEXEL,
+        bevelEnabled: true,
+        bevelThickness: 0.045 * TEXEL,
+        bevelSize: 0.035 * TEXEL,
+        bevelSegments: 2,
+        steps: 1
+      });
+      mainBoltGeom.computeVertexNormals();
+      chestBoltMat = new THREE.MeshStandardMaterial({
+        color: 0xdc1428,
+        emissive: 0x480208,
+        roughness: 0.20,
+        metalness: 0.58
+      });
+      const mainBoltMesh = new THREE.Mesh(mainBoltGeom, chestBoltMat);
+      mainBoltMesh.position.set(0, 0, 0.24 * TEXEL);
+      chestEmblemMesh.add(mainBoltMesh);
+
+      // Tier 3: Raised center spine / crest catching specular highlights and channeling Negative Speed Force
+      const spineShape = createScaledBoltShape(0.66);
+      const spineGeom = new THREE.ExtrudeGeometry(spineShape, {
+        depth: 0.10 * TEXEL,
+        bevelEnabled: true,
+        bevelThickness: 0.03 * TEXEL,
+        bevelSize: 0.02 * TEXEL,
+        bevelSegments: 2,
+        steps: 1
+      });
+      spineGeom.computeVertexNormals();
+      chestBoltSpineMat = new THREE.MeshStandardMaterial({
+        color: 0xff3b44,
+        emissive: 0x750812,
+        roughness: 0.16,
+        metalness: 0.65
+      });
+      const spineMesh = new THREE.Mesh(spineGeom, chestBoltSpineMat);
+      spineMesh.position.set(0, 0, 0.38 * TEXEL);
+      chestEmblemMesh.add(spineMesh);
+
+      group.add(chestEmblemMesh);
+
+      // 3. Extruded 3D Tactical Belt (Clean black/charcoal leather with zero random red pixels)
+      const beltLayer = createVoxelBox(8, 2, 4, {
+        front(p) {
+          p.fill(PALETTE.leatherBlack);
+          p.rect(0, 0, 8, 1, PALETTE.leatherMid);
+          p.rect(2, 0, 4, 2, PALETTE.leatherDark);
+          // Subtle metallic dark buckle frame
+          p.px(2, 0, PALETTE.leatherHighlight);
+          p.px(5, 0, PALETTE.leatherHighlight);
+          p.shadeEdges(0.15);
+        },
+        back(p) {
+          p.fill(PALETTE.leatherBlack);
+          p.rect(1, 0, 6, 1, PALETTE.leatherMid);
+          p.shadeEdges(0.15);
+        },
+        left(p) {
+          p.fill(PALETTE.leatherDark);
+          p.rect(0, 0, 4, 1, PALETTE.leatherMid);
+        },
+        right(p) {
+          p.fill(PALETTE.leatherDark);
+          p.rect(0, 0, 4, 1, PALETTE.leatherMid);
+        },
+        top(p) { p.fill(PALETTE.leatherMid); },
+        bottom(p) { p.fill(PALETTE.leatherBlack); }
+      }, { inflate: 0.28, roughness: 0.45 });
+      beltLayer.position.set(0, 1.3 * TEXEL, 0);
+      group.add(beltLayer);
+
+      // 4. Ribbed Yellow Leather Collar wrapping around base of neck
+      const neckCollar = createVoxelBox(6, 2, 5, {
+        front(p) {
+          p.fill(PALETTE.suitBright);
+          p.rect(0, 1, 6, 1, PALETTE.suitGold);
+          // Center zipper notch
+          p.px(2, 0, PALETTE.leatherBlack);
+          p.px(3, 0, PALETTE.leatherDark);
+          p.px(2, 1, PALETTE.leatherDark);
+          p.px(3, 1, PALETTE.leatherBlack);
+        },
+        all(p) {
+          p.fill(PALETTE.suitGold);
+          p.rect(0, 0, p.w, 1, PALETTE.suitBright);
+          p.shadeEdges(0.14);
+        }
+      }, { inflate: 0.35 });
+      neckCollar.position.set(0, 12.35 * TEXEL, 0.1 * TEXEL);
+      group.add(neckCollar);
+
+      return group;
+    }
+
+    function buildArmRig(isLeft) {
+      const armGroup = new THREE.Group();
+      // Shoulder pivot at y = 22 texels (10 texels above torso waist pivot), x = ±6.2 texels
+      const sideSign = isLeft ? 1 : -1;
+      armGroup.position.set(sideSign * 6.2 * TEXEL, 10 * TEXEL, 0);
+
+      // 1. Base Arm (4x12x4 texels)
+      const armMesh = createVoxelBox(4, 12, 4, {
+        all(p) {
+          // Upper arm: bright yellow shoulder -> olive carbon texture -> black leather gauntlet & glove
+          const rowColors = [
+            PALETTE.suitBright,    // 0 shoulder top
+            PALETTE.suitGold,      // 1 shoulder
+            PALETTE.suitGold,      // 2 upper bicep
+            PALETTE.suitMid,       // 3 bicep
+            PALETTE.suitWeathered, // 4 lower bicep
+            PALETTE.suitOlive,     // 5 elbow
+            PALETTE.suitSoot,      // 6 upper forearm
+            PALETTE.leatherDark,   // 7 forearm gauntlet
+            PALETTE.leatherBlack,  // 8 forearm gauntlet
+            PALETTE.leatherMid,    // 9 wrist strap
+            PALETTE.leatherBlack,  // 10 glove back
+            PALETTE.leatherDark    // 11 glove fingers
+          ];
+          for (let y = 0; y < 12; y++) {
+            p.rect(0, y, p.w, 1, rowColors[y]);
+          }
+          // Textured carbon-weave pixels on mid-arm (rows 3..6)
+          p.px(1, 3, PALETTE.suitWeathered);
+          p.px(2, 4, PALETTE.suitOlive);
+          p.px(0, 5, PALETTE.suitSoot);
+          p.px(3, 5, PALETTE.suitWeathered);
+          p.shadeEdges(0.14);
+        },
+        top(p) {
+          p.fill(PALETTE.suitBright);
+          p.shadeEdges(0.12);
+        },
+        bottom(p) {
+          p.fill(PALETTE.leatherBlack);
+          p.px(1, 1, PALETTE.leatherMid);
+        }
+      });
+      // Offset so pivot is at the shoulder joint (2 texels down from top of 12-texel arm)
+      armMesh.position.set(0, -4 * TEXEL, 0);
+      armGroup.add(armMesh);
+
+      // 2. Extruded 3D Yellow Leather Shoulder Pauldron (with corner rivets seen in Photo 1 & 3!)
+      const pauldron = createVoxelBox(4, 5, 4, {
+        all(p) {
+          p.fill(PALETTE.suitBright);
+          p.rect(0, 3, p.w, 1, PALETTE.suitGold);
+          p.rect(0, 4, p.w, 1, PALETTE.suitMid);
+          // Corner rivets (photo 1 detail)
+          p.px(0, 0, PALETTE.suitWeathered);
+          p.px(p.w - 1, 0, PALETTE.suitWeathered);
+          p.px(0, 3, PALETTE.suitOlive);
+          p.px(p.w - 1, 3, PALETTE.suitOlive);
+          p.shadeEdges(0.16);
+        },
+        top(p) {
+          p.fill(PALETTE.suitBright);
+          p.shadeEdges(0.12);
+        }
+      }, { inflate: 0.34, roughness: 0.5 });
+      pauldron.position.set(0, -0.3 * TEXEL, 0);
+      armGroup.add(pauldron);
+
+      // 3. Extruded 3D Black Leather Forearm Gauntlet Bracer (seen in Photo 1 & 2!)
+      const gauntlet = createVoxelBox(4, 4, 4, {
+        all(p) {
+          p.fill(PALETTE.leatherBlack);
+          p.rect(0, 0, p.w, 1, PALETTE.leatherMid);
+          p.px(1, 2, PALETTE.leatherHighlight);
+          p.px(2, 3, PALETTE.leatherDark);
+          p.shadeEdges(0.18);
+        }
+      }, { inflate: 0.28, roughness: 0.4, metalness: 0.2 });
+      gauntlet.position.set(0, -6.5 * TEXEL, 0);
+      armGroup.add(gauntlet);
+
+      // Sub-group reference for vibrating hand phasing effect
+      if (isLeft) {
+        leftHandSubGroup = armMesh;
+      } else {
+        rightHandSubGroup = armMesh;
+      }
+
+      return armGroup;
+    }
+
+    function buildLegRig(isLeft) {
+      const legGroup = new THREE.Group();
+      const sideSign = isLeft ? 1 : -1;
+      // Hip pivot at y = 12 texels, x = ±2.3 texels
+      legGroup.position.set(sideSign * 2.3 * TEXEL, 12 * TEXEL, 0);
+
+      // 1. Base Leg (4x12x4 texels)
+      const legMesh = createVoxelBox(4, 12, 4, {
+        all(p) {
+          p.fill(PALETTE.leatherDark);
+          // Upper thigh leather panels
+          p.rect(0, 0, p.w, 3, PALETTE.leatherBlack);
+          p.px(1, 1, PALETTE.leatherMid);
+          p.px(2, 2, PALETTE.leatherMid);
+
+          // Ribbed olive-gold knee stripes (rows 3..6, matching Photo 2 sitting pose!)
+          p.rect(0, 3, p.w, 1, PALETTE.suitOlive);
+          p.rect(0, 4, p.w, 1, PALETTE.leatherBlack);
+          p.rect(0, 5, p.w, 1, PALETTE.suitWeathered);
+          p.rect(0, 6, p.w, 1, PALETTE.suitOlive);
+
+          // Tall black speedster boot (rows 7..11) with subtle dark crimson speed-burn tint at bottom
+          p.rect(0, 7, p.w, 3, PALETTE.leatherBlack);
+          p.rect(0, 10, p.w, 1, PALETTE.crimsonDeep);
+          p.rect(0, 11, p.w, 1, PALETTE.leatherBlack);
+          p.px(1, 10, PALETTE.crimsonDark);
+          p.px(2, 11, PALETTE.crimsonDeep);
+          p.shadeEdges(0.16);
+        },
+        top(p) { p.fill(PALETTE.leatherBlack); },
+        bottom(p) {
+          p.fill(PALETTE.leatherBlack);
+          p.rect(1, 1, 2, 2, PALETTE.crimsonDeep);
+        }
+      });
+      legMesh.position.set(0, -6 * TEXEL, 0);
+      legGroup.add(legMesh);
+
+      // 2. Extruded 3D Ribbed Knee Pad Armor (prominently visible in Photo 2!)
+      const kneePad = createVoxelBox(4, 3, 4, {
+        front(p) {
+          p.fill(PALETTE.leatherBlack);
+          p.rect(0, 0, 4, 1, PALETTE.suitWeathered);
+          p.rect(0, 1, 4, 1, PALETTE.leatherDark);
+          p.rect(0, 2, 4, 1, PALETTE.suitOlive);
+          p.shadeEdges(0.16);
+        },
+        all(p) {
+          p.fill(PALETTE.leatherDark);
+          p.rect(0, 0, p.w, 1, PALETTE.suitOlive);
+          p.rect(0, 2, p.w, 1, PALETTE.suitSoot);
+        }
+      }, { inflate: 0.25, roughness: 0.48 });
+      kneePad.position.set(0, -4.8 * TEXEL, 0);
+      legGroup.add(kneePad);
+
+      // 3. Extruded 3D Boot Cuff & Crimson-Burned Boot Toe
+      const bootCuff = createVoxelBox(4, 4, 4, {
+        front(p) {
+          p.fill(PALETTE.leatherBlack);
+          p.rect(0, 0, 4, 1, PALETTE.leatherMid);
+          p.rect(1, 2, 2, 2, PALETTE.crimsonDeep);
+          p.px(1, 3, PALETTE.crimsonDark);
+          p.shadeEdges(0.18);
+        },
+        all(p) {
+          p.fill(PALETTE.leatherBlack);
+          p.rect(0, 0, p.w, 1, PALETTE.leatherMid);
+          p.rect(0, 3, p.w, 1, PALETTE.crimsonDeep);
+          p.shadeEdges(0.18);
+        }
+      }, { inflate: 0.28, roughness: 0.42 });
+      bootCuff.position.set(0, -9.8 * TEXEL, 0);
+      legGroup.add(bootCuff);
+
+      return legGroup;
+    }
+
+    const UP_AXIS = new THREE.Vector3(0, 1, 0);
+
+    /**
+     * Maps normalized perimeter coordinate u (0..4 around Front, Right, Back, Left faces)
+     * and vertical coordinate yNorm (0..1) directly onto the surface of a body part box.
+     */
+    function getBodySurfacePoint(bounds, u, yNorm, outVec) {
+      const wrappedU = ((u % 4) + 4) % 4;
+      const clampedY = Math.max(0.02, Math.min(0.98, yNorm));
+      const y = bounds.cy - bounds.hy + clampedY * (bounds.hy * 2);
+
+      let x = 0;
+      let z = 0;
+
+      if (wrappedU < 1) {
+        // Front face (+Z)
+        const t = wrappedU;
+        x = (t * 2 - 1) * bounds.hx;
+        z = bounds.hz;
+      } else if (wrappedU < 2) {
+        // Right face (+X)
+        const t = wrappedU - 1;
+        x = bounds.hx;
+        z = (1 - t * 2) * bounds.hz;
+      } else if (wrappedU < 3) {
+        // Back face (-Z)
+        const t = wrappedU - 2;
+        x = (1 - t * 2) * bounds.hx;
+        z = -bounds.hz;
+      } else {
+        // Left face (-X)
+        const t = wrappedU - 3;
+        x = -bounds.hx;
+        z = (t * 2 - 1) * bounds.hz;
+      }
+
+      // Slight corner push-out so segments wrapping around edges never clip into the mesh
+      const cornerProximity = Math.abs((wrappedU % 1) - 0.5) * 2; // 0 at face center, 1 at corner
+      const cornerPush = 1 + Math.pow(cornerProximity, 2) * 0.14;
+
+      outVec.set(
+        (bounds.cx + x * cornerPush) * TEXEL,
+        y * TEXEL,
+        (bounds.cz + z * cornerPush) * TEXEL
+      );
+      return outVec;
+    }
+
+    function createBoltSegmentMesh(coreMat, midMat, auraMat, isFork = false) {
+      const segGroup = new THREE.Group();
+      const tScale = isFork ? 0.68 : 1.0;
+
+      // Bright white-crimson hot core
+      const coreMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.16 * tScale * TEXEL, 1, 0.16 * tScale * TEXEL),
+        coreMat
+      );
+      // Vibrant red electric body
+      const midMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.32 * tScale * TEXEL, 1, 0.32 * tScale * TEXEL),
+        midMat
+      );
+      // Soft additive crimson glow shell
+      const auraMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.58 * tScale * TEXEL, 1, 0.58 * tScale * TEXEL),
+        auraMat
+      );
+
+      segGroup.add(coreMesh, midMesh, auraMesh);
+      return segGroup;
+    }
+
+    function orientBoltSegment(segGroup, pA, pB, thicknessMult = 1.0) {
+      const dx = pB.x - pA.x;
+      const dy = pB.y - pA.y;
+      const dz = pB.z - pA.z;
+      const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (len < 0.0001) return;
+
+      segGroup.position.set(
+        (pA.x + pB.x) * 0.5,
+        (pA.y + pB.y) * 0.5,
+        (pA.z + pB.z) * 0.5
+      );
+
+      const dir = new THREE.Vector3(dx / len, dy / len, dz / len);
+      segGroup.quaternion.setFromUnitVectors(UP_AXIS, dir);
+      // Slight length overlap so angled joints meet cleanly with zero gaps
+      segGroup.scale.set(thicknessMult, len + 0.18 * TEXEL, thicknessMult);
+    }
+
+    function buildNegativeSpeedForceEffects() {
+      lightningGroup = new THREE.Group();
+      lightningSegments = [];
+      lightningSparks = [];
+
+      // Dynamic crimson point light that illuminates the suit & floor
+      lightningPointLight = new THREE.PointLight(0xff1e2d, 1.35, 3.8, 2);
+      lightningPointLight.position.set(0, 16 * TEXEL, 2.5 * TEXEL);
+      characterRoot.add(lightningPointLight);
+
+      // Shared base materials using AdditiveBlending for authentic glowing Speed Force energy
+      const baseCoreMat = new THREE.MeshBasicMaterial({
+        color: 0xffeef0,
+        transparent: true,
+        opacity: 0.96
+      });
+      const baseMidMat = new THREE.MeshBasicMaterial({
+        color: 0xff1e2b,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const baseAuraMat = new THREE.MeshBasicMaterial({
+        color: 0xd90b1c,
+        transparent: true,
+        opacity: 0.44,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+
+      // Dynamic surface bounding boxes strictly hugging body parts (TORSO, ARMS, LEGS - NEVER HEAD OR COWL!)
+      const BODY_ZONES = [
+        // Torso: chest, emblem, ribs, waist, and back (full 360 wrap)
+        { name: 'torso', parent: torsoGroup, bounds: { cx: 0, cy: 6.0, cz: 0, hx: 4.28, hy: 5.7, hz: 2.32 }, weight: 0.36 },
+        // Right Arm: pauldron, bicep, gauntlet & hand
+        { name: 'rightArm', parent: rightArmGroup, bounds: { cx: 0, cy: -4.0, cz: 0, hx: 2.36, hy: 5.7, hz: 2.36 }, weight: 0.16 },
+        // Left Arm: pauldron, bicep, gauntlet & hand
+        { name: 'leftArm', parent: leftArmGroup, bounds: { cx: 0, cy: -4.0, cz: 0, hx: 2.36, hy: 5.7, hz: 2.36 }, weight: 0.16 },
+        // Right Leg: thigh, ribbed knee pad & boot
+        { name: 'rightLeg', parent: rightLegGroup, bounds: { cx: 0, cy: -6.0, cz: 0, hx: 2.32, hy: 5.7, hz: 2.32 }, weight: 0.16 },
+        // Left Leg: thigh, ribbed knee pad & boot
+        { name: 'leftLeg', parent: leftLegGroup, bounds: { cx: 0, cy: -6.0, cz: 0, hx: 2.32, hy: 5.7, hz: 2.32 }, weight: 0.16 }
+      ];
+
+      function pickRandomZone() {
+        const r = Math.random();
+        let accum = 0;
+        for (let i = 0; i < BODY_ZONES.length; i++) {
+          accum += BODY_ZONES[i].weight;
+          if (r <= accum) return BODY_ZONES[i];
+        }
+        return BODY_ZONES[0];
+      }
+
+      function randomizeChainSpawn(chain, isInitial = false) {
+        const zone = pickRandomZone();
+        if (chain.currentParent !== zone.parent) {
+          zone.parent.add(chain.chainHolder);
+          chain.chainHolder.position.set(0, 0, 0);
+          chain.chainHolder.rotation.set(0, 0, 0);
+          chain.chainHolder.scale.set(1, 1, 1);
+          chain.currentParent = zone.parent;
+        }
+        chain.bounds = zone.bounds;
+
+        // Fully randomized perimeter spawn angle around the limb/torso (0..4 gives full 360 wrap around all 4 sides)
+        chain.uStart = Math.random() * 4.0;
+        // Fully randomized vertical spawn position along the limb/torso (stays cleanly on suit, never off neck/head)
+        chain.yStart = 0.08 + Math.random() * 0.84;
+
+        // Randomized arc directions and lengths
+        const uDir = Math.random() < 0.5 ? -1 : 1;
+        chain.uSpan = uDir * (0.45 + Math.random() * 0.85);
+
+        const yDir = Math.random() < 0.5 ? -1 : 1;
+        const availY = yDir > 0 ? (0.94 - chain.yStart) : (chain.yStart - 0.06);
+        const maxSpan = Math.max(0.2, Math.min(0.75, availY));
+        chain.ySpan = yDir * (0.18 + Math.random() * (maxSpan - 0.15));
+
+        // Randomized crawling speed & noise seed
+        chain.speed = 1.6 + Math.random() * 1.8;
+        chain.seed = Math.random() * 200.0;
+
+        // Dynamic strike lifetime (each strike lasts 0.22s to 0.62s before discharging and re-spawning elsewhere on the body)
+        chain.lifespan = 0.22 + Math.random() * 0.40;
+        chain.age = isInitial ? Math.random() * chain.lifespan : 0;
+      }
+
+      const STEPS_PER_CHAIN = 5;
+      const TOTAL_CHAINS = 18;
+
+      for (let idx = 0; idx < TOTAL_CHAINS; idx++) {
+        const chainHolder = new THREE.Group();
+
+        const coreMat = baseCoreMat.clone();
+        const midMat = baseMidMat.clone();
+        const auraMat = baseAuraMat.clone();
+
+        const mainMeshes = [];
+        for (let s = 0; s < STEPS_PER_CHAIN; s++) {
+          const seg = createBoltSegmentMesh(coreMat, midMat, auraMat, false);
+          chainHolder.add(seg);
+          mainMeshes.push(seg);
+        }
+
+        // Two branching side-forks per chain that hug the surface
+        const forkMeshes = [
+          createBoltSegmentMesh(coreMat, midMat, auraMat, true),
+          createBoltSegmentMesh(coreMat, midMat, auraMat, true)
+        ];
+        chainHolder.add(forkMeshes[0], forkMeshes[1]);
+
+        // Surface contact node spark at the chain head
+        const nodeSpark = new THREE.Mesh(
+          new THREE.BoxGeometry(0.38 * TEXEL, 0.38 * TEXEL, 0.38 * TEXEL),
+          coreMat
+        );
+        chainHolder.add(nodeSpark);
+        lightningSparks.push({ mesh: nodeSpark, mat: coreMat });
+
+        const points = [];
+        for (let p = 0; p <= STEPS_PER_CHAIN; p++) {
+          points.push(new THREE.Vector3());
+        }
+
+        const chain = {
+          chainHolder,
+          currentParent: null,
+          bounds: null,
+          uStart: 0,
+          yStart: 0,
+          uSpan: 0,
+          ySpan: 0,
+          speed: 2.0,
+          lifespan: 0.4,
+          age: 0,
+          mainMeshes,
+          forkMeshes,
+          nodeSpark,
+          points,
+          forkEndA: new THREE.Vector3(),
+          forkEndB: new THREE.Vector3(),
+          mats: [coreMat, midMat, auraMat],
+          seed: idx * 3.71,
+          randomize: function (isInitial) {
+            randomizeChainSpawn(this, isInitial);
+          }
+        };
+
+        chain.randomize(true);
+        lightningSegments.push(chain);
+      }
+
+      characterRoot.add(lightningGroup);
+
+      // Build 2 translucent voxel "Speed Mirage" silhouettes for the Special animation
+      for (let m = 0; m < 2; m++) {
+        const mirageGroup = new THREE.Group();
+        const mirageMat = new THREE.MeshBasicMaterial({
+          color: m === 0 ? 0xdc1424 : 0xeab308,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false
+        });
+
+        const mHead = new THREE.Mesh(new THREE.BoxGeometry(8 * TEXEL, 8 * TEXEL, 8 * TEXEL), mirageMat);
+        mHead.position.set(0, 28 * TEXEL, 0);
+        const mTorso = new THREE.Mesh(new THREE.BoxGeometry(8 * TEXEL, 12 * TEXEL, 4 * TEXEL), mirageMat);
+        mTorso.position.set(0, 18 * TEXEL, 0);
+        const mArms = new THREE.Mesh(new THREE.BoxGeometry(16 * TEXEL, 12 * TEXEL, 4 * TEXEL), mirageMat);
+        mArms.position.set(0, 18 * TEXEL, 0);
+        const mLegs = new THREE.Mesh(new THREE.BoxGeometry(8 * TEXEL, 12 * TEXEL, 4 * TEXEL), mirageMat);
+        mLegs.position.set(0, 6 * TEXEL, 0);
+
+        mirageGroup.add(mHead, mTorso, mArms, mLegs);
+        scene.add(mirageGroup);
+        mirageClones.push({ group: mirageGroup, mat: mirageMat, side: m === 0 ? -1 : 1 });
+      }
+    }
+
+    function updateLightningAndEffects(intensity, time, allowRedEyes = false, dt = 1 / 60) {
+      // Glowing crimson eyes are only enabled when allowRedEyes is true (Special)
+      const targetEyeOpacity = allowRedEyes && intensity > 0.15 ? Math.min(1, intensity * 0.95) : 0;
+      glowingEyesMesh.material.opacity = THREE.MathUtils.lerp(
+        glowingEyesMesh.material.opacity,
+        targetEyeOpacity,
+        0.25
+      );
+
+      // Keep audio hum subtle during Idle/Walk and intense during Attack/Special
+      const audioLevel = currentAnim === 'idle' ? 0.18 : currentAnim === 'walk' ? 0.32 : intensity;
+      SpeedForceAudio.update(audioLevel, time);
+
+      // Constant crimson point-light illumination with high-frequency electric shimmer
+      if (lightningPointLight) {
+        const pulse = 0.85 + 0.15 * Math.sin(time * 42) * Math.cos(time * 29);
+        lightningPointLight.intensity = Math.max(0.75, intensity) * 1.65 * pulse;
+        lightningPointLight.position.set(
+          Math.sin(time * 18) * 1.8 * TEXEL,
+          (15 + Math.cos(time * 14) * 3) * TEXEL,
+          (2.2 + Math.sin(time * 16) * 1.2) * TEXEL
+        );
+      }
+
+      // Negative Speed Force energy pulse through the sculpted chest emblem lightning bolt
+      if (chestBoltMat && chestBoltSpineMat) {
+        const boltPulse = 0.88 + 0.12 * Math.sin(time * 5.5) * Math.cos(time * 3.2);
+        chestBoltMat.emissiveIntensity = boltPulse;
+        chestBoltSpineMat.emissiveIntensity = boltPulse * 1.25;
+      }
+
+      // Update every surface-hugging lightning chain so it crackles dynamically across randomized body locations
+      const activeIntensity = Math.max(0.82, intensity);
+      const cycleSpeed = currentAnim === 'special' ? 1.55 : currentAnim === 'attack' ? 1.35 : 1.0;
+      const safeDt = (typeof dt === 'number' && dt > 0) ? Math.min(dt, 0.1) : (1 / 60);
+
+      lightningSegments.forEach((chain, idx) => {
+        const { mainMeshes, forkMeshes, nodeSpark, points, forkEndA, forkEndB, mats } = chain;
+        const steps = mainMeshes.length;
+
+        // Advance chain lifecycle and respawn at a newly randomized body location when lifespan finishes
+        chain.age += safeDt * cycleSpeed;
+        if (chain.age >= chain.lifespan) {
+          chain.randomize(false);
+        }
+
+        const progress = Math.max(0, Math.min(1, chain.age / chain.lifespan));
+        // Envelope: quick attack spike, sustained crackle, clean discharge fade
+        let envelope = 1.0;
+        if (progress < 0.14) {
+          envelope = progress / 0.14;
+        } else if (progress > 0.80) {
+          envelope = (1.0 - progress) / 0.20;
+        }
+        envelope = Math.max(0.0, Math.min(1.0, envelope));
+
+        // High-frequency electric shimmer
+        const shimmer = 0.82 + 0.18 * Math.sin(time * 38 + chain.seed) * Math.cos(time * 23 - chain.seed);
+        const power = Math.min(1.15, activeIntensity * shimmer) * envelope;
+
+        mats[0].opacity = Math.min(1.0, 0.92 * power); // Bright white-red core
+        mats[1].opacity = Math.min(1.0, 0.88 * power); // Crimson plasma body
+        mats[2].opacity = Math.min(0.75, 0.46 * power); // Additive red glow shell
+
+        // Quantized step time so lightning vertices snap like real electricity while crawling along the suit
+        const snapTime = Math.floor(time * 24 + chain.seed) / 24;
+        const crawlShiftU = (chain.age * chain.speed * 0.4) * (chain.uSpan > 0 ? 0.35 : -0.35);
+        const crawlShiftY = (chain.age * chain.speed * 0.25) * (chain.ySpan > 0 ? 0.20 : -0.20);
+
+        for (let p = 0; p <= steps; p++) {
+          const frac = p / steps;
+          // Sharp electric zig-zag perpendicular to the bolt path
+          const jagEnvelope = p === 0 || p === steps ? 0.25 : 1.0;
+          const jagU = Math.sin(snapTime * 34 + p * 2.35 + chain.seed) * 0.16 * jagEnvelope;
+          const jagY = Math.cos(snapTime * 29 - p * 3.1 + chain.seed) * 0.07 * jagEnvelope;
+
+          const u = chain.uStart + crawlShiftU + chain.uSpan * frac + jagU;
+          const yNorm = chain.yStart + crawlShiftY + chain.ySpan * frac + jagY;
+
+          getBodySurfacePoint(chain.bounds, u, yNorm, points[p]);
+        }
+
+        const thicknessMult = (0.88 + 0.22 * (activeIntensity - 0.8)) * Math.max(0.15, envelope);
+        for (let s = 0; s < steps; s++) {
+          orientBoltSegment(mainMeshes[s], points[s], points[s + 1], thicknessMult);
+        }
+
+        // Branching fork 1 off vertex 2 hugging the surface
+        const forkU1 = chain.uStart + crawlShiftU + chain.uSpan * (2 / steps) + (idx % 2 === 0 ? 0.26 : -0.26);
+        const forkY1 = chain.yStart + crawlShiftY + chain.ySpan * (2.65 / steps);
+        getBodySurfacePoint(chain.bounds, forkU1, forkY1, forkEndA);
+        orientBoltSegment(forkMeshes[0], points[2], forkEndA, thicknessMult * 0.85);
+
+        // Branching fork 2 off vertex 3 hugging the surface
+        const forkU2 = chain.uStart + crawlShiftU + chain.uSpan * (3 / steps) + (idx % 2 === 0 ? -0.24 : 0.24);
+        const forkY2 = chain.yStart + crawlShiftY + chain.ySpan * (3.7 / steps);
+        getBodySurfacePoint(chain.bounds, forkU2, forkY2, forkEndB);
+        orientBoltSegment(forkMeshes[1], points[3], forkEndB, thicknessMult * 0.8);
+
+        // Place glowing surface contact spark along the active bolt
+        const sparkIdx = Math.floor((time * 16 + idx) % (steps + 1));
+        nodeSpark.position.copy(points[sparkIdx]);
+        nodeSpark.rotation.set(time * 18, time * 14, idx);
+        nodeSpark.scale.setScalar(envelope);
+      });
+    }
+
+    function animateModel(dt) {
+      animTime += dt;
+      const t = animTime;
+
+      // Reset baseline transforms smoothly
+      characterRoot.position.set(0, 0, 0);
+      characterRoot.rotation.set(0, 0, 0);
+      bodyGroup.position.set(0, 0, 0);
+      bodyGroup.rotation.set(0, 0, 0);
+      torsoGroup.position.set(0, 12 * TEXEL, 0);
+      torsoGroup.rotation.set(0, 0, 0);
+      torsoGroup.scale.set(1, 1, 1);
+      cowlGroup.rotation.set(0, 0, 0);
+
+      // Default hand positions inside arms
+      rightHandSubGroup.position.set(0, -4 * TEXEL, 0);
+      leftHandSubGroup.position.set(0, -4 * TEXEL, 0);
+
+      // Hide speed mirages by default
+      mirageClones.forEach((mc) => {
+        mc.mat.opacity = THREE.MathUtils.lerp(mc.mat.opacity, 0, 0.18);
+      });
+
+      if (currentAnim === 'idle') {
+        // IDLE: Clean, natural standing posture with subtle relaxed breathing
+        const breath = Math.sin(t * 2.0);
+
+        // Subtle chest breathing (vertical displacement only, upright posture with zero unnatural warping or twist)
+        torsoGroup.position.y = (12 + breath * 0.12) * TEXEL;
+        torsoGroup.rotation.set(0, 0, 0);
+        torsoGroup.scale.set(1, 1, 1);
+
+        // Head looks forward with subtle pointer tracking
+        headGroup.rotation.set(
+          -0.02 - pointerNDC.y * 0.12,
+          pointerNDC.x * 0.18,
+          0
+        );
+
+        // Cowl rests naturally
+        cowlGroup.rotation.set(0, 0, 0);
+
+        // Arms hang naturally at sides with a slight outward flare so they never clip into the torso or belt
+        leftArmGroup.rotation.set(0, 0, 0.065 + breath * 0.01);
+        rightArmGroup.rotation.set(0, 0, -0.065 - breath * 0.01);
+
+        // Legs stand straight, parallel, and firmly planted on the ground (no crossing or clipping)
+        leftLegGroup.rotation.set(0, 0, 0);
+        rightLegGroup.rotation.set(0, 0, 0);
+
+        updateLightningAndEffects(0.85, t, false, dt);
+
+      } else if (currentAnim === 'walk') {
+        // WALK: Confident, menacing speedster prowl with full limb articulation & secondary motion
+        const speed = 5.4;
+        const phase = t * speed;
+        const stride = Math.sin(phase);
+        const bounce = Math.abs(Math.cos(phase));
+
+        // Vertical bob & forward prowl lean
+        bodyGroup.position.y = bounce * 0.65 * TEXEL;
+        torsoGroup.rotation.x = 0.08 + Math.cos(phase * 2) * 0.03;
+        torsoGroup.rotation.y = -stride * 0.14;
+        torsoGroup.rotation.z = Math.cos(phase) * 0.035;
+
+        // Head stabilizes forward with subtle menace
+        headGroup.rotation.y = stride * 0.1 + pointerNDC.x * 0.15;
+        headGroup.rotation.x = -0.04 + Math.sin(phase * 2) * 0.03;
+        headGroup.rotation.z = -stride * 0.03;
+
+        // Articulated leg swing
+        leftLegGroup.rotation.set(stride * 0.62, 0, 0);
+        rightLegGroup.rotation.set(-stride * 0.62, 0, 0);
+
+        // Counter-swinging arms with dynamic follow-through and outward clearance
+        leftArmGroup.rotation.set(-stride * 0.52, 0, 0.065);
+        rightArmGroup.rotation.set(stride * 0.52, 0, -0.065);
+
+        // Constant surface-hugging Negative Speed Force lightning while walking
+        updateLightningAndEffects(0.92, t, false, dt);
+
+      } else if (currentAnim === 'attack') {
+        // ATTACK: Iconic "Vibrating Phasing Hand Strike" (Wind-up -> High-Speed Lunge Thrust -> Follow-through)
+        const cycle = (t * 0.95) % 1.0;
+
+        let torsoTwist = 0;
+        let torsoLean = 0;
+        let lungeZ = 0;
+        let crouchY = 0;
+        let rightArmPitch = 0;
+        let rightArmYaw = 0;
+        let leftArmPitch = 0;
+        let handVib = 0;
+
+        if (cycle < 0.32) {
+          // Phase 1: Coiling wind-up, charging vibrating hand
+          const p = cycle / 0.32;
+          const ease = p * p * (3 - 2 * p);
+          torsoTwist = -0.58 * ease;
+          torsoLean = 0.14 * ease;
+          lungeZ = -1.4 * ease;
+          crouchY = -0.8 * ease;
+          rightArmPitch = 0.55 * ease;
+          rightArmYaw = -0.35 * ease;
+          leftArmPitch = -0.45 * ease;
+          handVib = 0.6 + 0.4 * ease;
+        } else if (cycle < 0.52) {
+          // Phase 2: Explosive forward Phasing Hand Thrust!
+          const p = (cycle - 0.32) / 0.20;
+          const ease = 1 - Math.pow(1 - p, 3);
+          torsoTwist = THREE.MathUtils.lerp(-0.58, 0.68, ease);
+          torsoLean = THREE.MathUtils.lerp(0.14, 0.32, ease);
+          lungeZ = THREE.MathUtils.lerp(-1.4, 3.2, ease);
+          crouchY = THREE.MathUtils.lerp(-0.8, -1.2, ease);
+          rightArmPitch = THREE.MathUtils.lerp(0.55, -1.52, ease); // Straight horizontal lethal phasing hand
+          rightArmYaw = THREE.MathUtils.lerp(-0.35, 0.18, ease);
+          leftArmPitch = THREE.MathUtils.lerp(-0.45, 0.52, ease);
+          handVib = 1.35;
+        } else if (cycle < 0.78) {
+          // Phase 3: Hold vibrating hand at full extension (helicopter sound phasing moment!)
+          const p = (cycle - 0.52) / 0.26;
+          torsoTwist = 0.68 - p * 0.08;
+          torsoLean = 0.32;
+          lungeZ = 3.2;
+          crouchY = -1.2;
+          rightArmPitch = -1.52;
+          rightArmYaw = 0.18;
+          leftArmPitch = 0.52;
+          handVib = 1.5;
+        } else {
+          // Phase 4: Smooth recovery back to stance
+          const p = (cycle - 0.78) / 0.22;
+          const ease = p * p * (3 - 2 * p);
+          torsoTwist = THREE.MathUtils.lerp(0.60, 0, ease);
+          torsoLean = THREE.MathUtils.lerp(0.32, 0, ease);
+          lungeZ = THREE.MathUtils.lerp(3.2, 0, ease);
+          crouchY = THREE.MathUtils.lerp(-1.2, 0, ease);
+          rightArmPitch = THREE.MathUtils.lerp(-1.52, 0, ease);
+          rightArmYaw = THREE.MathUtils.lerp(0.18, 0, ease);
+          leftArmPitch = THREE.MathUtils.lerp(0.52, 0, ease);
+          handVib = 1.0 * (1 - ease);
+        }
+
+        bodyGroup.position.set(0, crouchY * TEXEL, lungeZ * TEXEL);
+        torsoGroup.rotation.set(torsoLean, torsoTwist, 0);
+
+        // Keep head locked onto target while torso twists
+        headGroup.rotation.set(-torsoLean * 0.65, -torsoTwist * 0.75, 0);
+
+        rightArmGroup.rotation.set(rightArmPitch, rightArmYaw, 0.08);
+        leftArmGroup.rotation.set(leftArmPitch, 0, -0.18);
+
+        // High-frequency phasing vibration on right arm & hand
+        rightHandSubGroup.position.x = Math.sin(t * 140) * 0.42 * TEXEL * handVib;
+        rightHandSubGroup.position.y = (-4 + Math.cos(t * 130) * 0.25 * handVib) * TEXEL;
+        rightHandSubGroup.position.z = Math.sin(t * 155) * 0.38 * TEXEL * handVib;
+
+        // Dynamic combat leg split
+        leftLegGroup.rotation.set(-0.28 * (lungeZ / 3.2), 0, -0.05);
+        rightLegGroup.rotation.set(0.35 * (lungeZ / 3.2), 0, 0.05);
+
+        // Constant lightning surging across his body and vibrating right hand during the strike, with red eyes off
+        updateLightningAndEffects(0.95 + handVib * 0.15, t, false, dt);
+
+      } else if (currentAnim === 'special') {
+        // SPECIAL: "Negative Speed Force Surge & Speed Mirage"
+        // Full-body hyper-frequency phasing, blazing red eyes, crackling red lightning storm, and dual Speed Mirages!
+        const pulse = Math.sin(t * 3.2);
+        const hoverY = (1.1 + Math.sin(t * 4.5) * 0.55) * TEXEL;
+
+        // High-frequency full-body phasing vibration (Reverse-Flash identity blur!)
+        const phaseJitterX = Math.sin(t * 125) * 0.22 * TEXEL;
+        const phaseJitterZ = Math.cos(t * 115) * 0.16 * TEXEL;
+
+        characterRoot.position.set(phaseJitterX, hoverY, phaseJitterZ);
+
+        // Power-surge chest arch & breathing
+        torsoGroup.rotation.x = -0.14 + Math.sin(t * 5.0) * 0.05;
+        torsoGroup.rotation.y = Math.sin(t * 2.4) * 0.12;
+        headGroup.rotation.x = -0.08 + Math.cos(t * 4.0) * 0.04;
+        headGroup.rotation.y = -torsoGroup.rotation.y * 0.6 + Math.sin(t * 90) * 0.025;
+
+        // Both arms raised at sides channeling Negative Speed Force lightning
+        leftArmGroup.rotation.set(-0.55 + Math.sin(t * 7) * 0.08, 0.25, -0.48 - pulse * 0.08);
+        rightArmGroup.rotation.set(-0.55 + Math.cos(t * 7) * 0.08, -0.25, 0.48 + pulse * 0.08);
+
+        // Both hands vibrating intensely
+        leftHandSubGroup.position.x = Math.sin(t * 150) * 0.38 * TEXEL;
+        rightHandSubGroup.position.x = Math.cos(t * 150) * 0.38 * TEXEL;
+
+        // Hovering speedster leg pose
+        leftLegGroup.rotation.set(0.18 + Math.sin(t * 4.5) * 0.05, 0, -0.06);
+        rightLegGroup.rotation.set(-0.12 + Math.cos(t * 4.5) * 0.05, 0, 0.06);
+
+        // Activate Speed Mirage afterimages phasing out to left and right
+        mirageClones.forEach((mc, idx) => {
+          const mirageWave = Math.sin(t * 6.5 + idx * Math.PI);
+          const spread = (6.5 + Math.abs(mirageWave) * 5.5) * TEXEL * mc.side;
+          mc.group.position.set(
+            spread + Math.sin(t * 95 + idx) * 0.35 * TEXEL,
+            hoverY * 0.85,
+            (-2.2 - Math.abs(mirageWave) * 1.5) * TEXEL
+          );
+          mc.group.rotation.y = -mc.side * 0.18;
+          mc.mat.opacity = 0.18 + Math.max(0, mirageWave) * 0.22;
+        });
+
+        updateLightningAndEffects(1.15, t, true, dt);
+      }
+    }
+
+    function initScene() {
+      const container = document.getElementById('canvas-container');
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f1115);
+      scene.fog = new THREE.FogExp2(0x0f1115, 0.08);
+
+      camera = new THREE.PerspectiveCamera(
+        42,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        100
+      );
+      camera.position.copy(defaultCamPos);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.copy(defaultTarget);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.07;
+      controls.minDistance = 1.2;
+      controls.maxDistance = 7.5;
+      controls.maxPolarAngle = Math.PI / 2 + 0.06;
+      controls.update();
+
+      // Balanced studio lighting + dramatic rim lighting for the yellow & black leather suit
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1e2430, 0.78);
+      hemiLight.position.set(0, 10, 0);
+      scene.add(hemiLight);
+
+      const dirLight = new THREE.DirectionalLight(0xfff7e8, 1.15);
+      dirLight.position.set(3.2, 5.5, 4.0);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.near = 0.5;
+      dirLight.shadow.camera.far = 15;
+      const d = 2.2;
+      dirLight.shadow.camera.left = -d;
+      dirLight.shadow.camera.right = d;
+      dirLight.shadow.camera.top = d;
+      dirLight.shadow.camera.bottom = -d;
+      dirLight.shadow.bias = -0.0005;
+      scene.add(dirLight);
+
+      const rimLight = new THREE.DirectionalLight(0xef4444, 0.55);
+      rimLight.position.set(-3.0, 2.8, -3.2);
+      scene.add(rimLight);
+
+      // Soft ground shadow catcher plane
+      const groundGeo = new THREE.PlaneGeometry(24, 24);
+      const groundMat = new THREE.ShadowMaterial({ opacity: 0.42 });
+      const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+      groundMesh.rotation.x = -Math.PI / 2;
+      groundMesh.position.y = 0;
+      groundMesh.receiveShadow = true;
+      scene.add(groundMesh);
+
+      // Assemble hierarchical 16x16 Blockbench-style character rig
+      characterRoot = new THREE.Group();
+      scene.add(characterRoot);
+
+      bodyGroup = new THREE.Group();
+      characterRoot.add(bodyGroup);
+
+      torsoGroup = buildTorsoAndCowlRig();
+      bodyGroup.add(torsoGroup);
+
+      headGroup = buildHeadRig();
+      torsoGroup.add(headGroup);
+
+      leftArmGroup = buildArmRig(true);
+      rightArmGroup = buildArmRig(false);
+      torsoGroup.add(leftArmGroup, rightArmGroup);
+
+      leftLegGroup = buildLegRig(true);
+      rightLegGroup = buildLegRig(false);
+      bodyGroup.add(leftLegGroup, rightLegGroup);
+
+      // Build surface-hugging Negative Speed Force lightning & Speed Mirage clones
+      buildNegativeSpeedForceEffects();
+    }
+
+    function setupUIAndEvents() {
+      const animButtons = document.querySelectorAll('.anim-btn');
+      animButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          SpeedForceAudio.init();
+          const selected = btn.getAttribute('data-anim');
+          currentAnim = selected;
+          animTime = 0;
+          if (selected === 'attack' || selected === 'special') {
+            SpeedForceAudio.triggerCrackle(1.0);
+            SpeedForceAudio.lastCrackleTime = animTime;
+            SpeedForceAudio.nextCrackleDelay = SpeedForceAudio.calcNextDelay(selected === 'special' ? 1.15 : 0.95);
+          }
+
+          animButtons.forEach((b) => {
+            b.classList.remove('active', 'special-active');
+          });
+          btn.classList.add('active');
+          if (selected === 'special' || selected === 'attack') {
+            btn.classList.add('special-active');
+          }
+        });
+      });
+
+      // Camera reset button with smooth transition trigger
+      let resettingCamera = false;
+      const resetBtn = document.getElementById('reset-camera-btn');
+      resetBtn.addEventListener('click', () => {
+        resettingCamera = true;
+      });
+
+      // Track subtle pointer coordinates for Idle head tracking
+      window.addEventListener('pointermove', (e) => {
+        pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+        pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      });
+
+      // Cancel auto-reset if user grabs OrbitControls
+      controls.addEventListener('start', () => {
+        resettingCamera = false;
+      });
+
+      window.addEventListener('resize', () => {
+        if (!camera || !renderer) return;
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Locked 60 FPS delta-time accumulator loop
+      const STEP = 1 / 60;
+      let accumulator = 0;
+      let lastTime = performance.now();
+
+      function renderLoop(now) {
+        requestAnimationFrame(renderLoop);
+
+        const frameDelta = Math.min((now - lastTime) / 1000, 0.1);
+        lastTime = now;
+        accumulator += frameDelta;
+
+        while (accumulator >= STEP) {
+          animateModel(STEP);
+
+          if (resettingCamera) {
+            camera.position.lerp(defaultCamPos, 0.12);
+            controls.target.lerp(defaultTarget, 0.12);
+            if (
+              camera.position.distanceTo(defaultCamPos) < 0.01 &&
+              controls.target.distanceTo(defaultTarget) < 0.01
+            ) {
+              camera.position.copy(defaultCamPos);
+              controls.target.copy(defaultTarget);
+              resettingCamera = false;
+            }
+          }
+
+          accumulator -= STEP;
+        }
+
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      requestAnimationFrame(renderLoop);
+    }
+
+    window.onload = function () {
+      initScene();
+      setupUIAndEvents();
+    };
+  </script>
+</body>
+</html>

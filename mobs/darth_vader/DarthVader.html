@@ -1,0 +1,2333 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Darth Vader — Vanilla+ 3D Minecraft Model</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #08080b;
+            font-family: 'Inter', sans-serif;
+            color: #e4e4e7;
+        }
+        #canvas-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+        .glass-panel {
+            background: rgba(14, 14, 18, 0.82);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+        }
+        .btn-pill {
+            transition: all 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            background: rgba(24, 24, 30, 0.75);
+            color: #a1a1aa;
+        }
+        .btn-pill:hover {
+            background: rgba(39, 39, 48, 0.9);
+            color: #f4f4f5;
+            border-color: rgba(255, 255, 255, 0.16);
+        }
+        .btn-pill.active {
+            background: rgba(220, 38, 38, 0.18);
+            color: #fecaca;
+            border-color: rgba(239, 68, 68, 0.55);
+            box-shadow: 0 0 16px rgba(220, 38, 38, 0.25);
+        }
+        .btn-variant.active-pristine {
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+            border-color: rgba(255, 255, 255, 0.35);
+        }
+        .btn-variant.active-burned {
+            background: rgba(234, 88, 12, 0.22);
+            color: #fed7aa;
+            border-color: rgba(249, 115, 22, 0.65);
+            box-shadow: 0 0 18px rgba(234, 88, 12, 0.35);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Viewport Container -->
+    <div id="canvas-container"></div>
+
+    <!-- Top Minimal Bar: Variant Switcher & Performance Indicator -->
+    <div class="fixed top-4 left-4 right-4 flex items-center justify-between pointer-events-none z-10">
+        <!-- Variant Selector -->
+        <div class="glass-panel rounded-xl p-1.5 flex items-center gap-1.5 pointer-events-auto">
+            <button id="btn-pristine" onclick="setModelVariant('pristine')" class="btn-pill btn-variant active-pristine px-3.5 py-2 rounded-lg text-xs font-semibold tracking-wide flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-zinc-300"></span>
+                Pristine Sith Lord
+            </button>
+            <button id="btn-burned" onclick="setModelVariant('burned')" class="btn-pill btn-variant px-3.5 py-2 rounded-lg text-xs font-semibold tracking-wide flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+                Half-Burned Mask &amp; Flames
+            </button>
+        </div>
+
+        <!-- Minimal Status & FPS -->
+        <div class="glass-panel rounded-xl px-3 py-1.5 pointer-events-auto hidden sm:flex items-center gap-3 text-[11px] font-mono text-zinc-400">
+            <span>VANILLA+ 16x</span>
+            <span class="text-zinc-700">|</span>
+            <span id="fps-counter" class="text-emerald-400 font-semibold">60 FPS</span>
+        </div>
+    </div>
+
+    <!-- Subtle Interaction Hint -->
+    <div class="fixed top-16 left-4 pointer-events-none z-10 opacity-50 text-[11px] text-zinc-400 hidden md:block">
+        Drag to orbit &bull; Scroll to zoom &bull; Right-drag to pan
+    </div>
+
+    <!-- Bottom Minimal Control Bar: Animations & Utility Toggles -->
+    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-10 w-[95%] max-w-3xl pointer-events-none flex flex-col items-center gap-2">
+        <div class="glass-panel rounded-2xl p-2 pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 w-full">
+            <!-- Animation Buttons -->
+            <button onclick="setAnimation('idle')" data-anim="idle" class="anim-btn btn-pill active px-3 py-2 rounded-xl text-xs font-medium">
+                Idle Breath
+            </button>
+            <button onclick="setAnimation('walk')" data-anim="walk" class="anim-btn btn-pill px-3 py-2 rounded-xl text-xs font-medium">
+                Imperial March
+            </button>
+            <button onclick="setAnimation('choke')" data-anim="choke" class="anim-btn btn-pill px-3 py-2 rounded-xl text-xs font-medium">
+                Force Choke
+            </button>
+            <button onclick="setAnimation('slash')" data-anim="slash" class="anim-btn btn-pill px-3 py-2 rounded-xl text-xs font-medium">
+                Saber Combo
+            </button>
+            <button onclick="setAnimation('unleashed')" data-anim="unleashed" class="anim-btn btn-pill px-3 py-2 rounded-xl text-xs font-medium">
+                Dark Unleashed
+            </button>
+            <button onclick="setAnimation('deflect')" data-anim="deflect" class="anim-btn btn-pill px-3 py-2 rounded-xl text-xs font-medium">
+                Saber Deflect
+            </button>
+
+            <div class="h-5 w-[1px] bg-zinc-800 mx-1 hidden sm:block"></div>
+
+            <!-- Saber & Turntable Toggles -->
+            <button id="btn-saber" onclick="toggleSaber()" class="btn-pill active px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5" title="Toggle Lightsaber Blade">
+                <span id="saber-dot" class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
+                Saber
+            </button>
+            <button id="btn-rotate" onclick="toggleAutoRotate()" class="btn-pill px-3 py-2 rounded-xl text-xs font-medium" title="Toggle Turntable Rotation">
+                Turntable
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer;
+        let vaderRoot, skeleton = {};
+        let currentVariant = 'pristine'; // 'pristine' | 'burned'
+        let currentAnim = 'idle';
+        let saberActive = true;
+        let saberLengthScale = 1.0;
+        let autoRotate = false;
+
+        // Lighting references for dynamic pulse
+        let saberLight, eyeLight, fireLight, rimLightRed;
+
+        // Particle pools for 60fps performance
+        const flameParticles = [];
+        const emberParticles = [];
+        const sparkParticles = [];
+        const saberTrailMeshes = [];
+
+        // Camera Orbit Controls state (custom smooth implementation, zero external dependency issues)
+        const camState = {
+            theta: 0.35,
+            phi: 1.38,
+            radius: 44,
+            targetTheta: 0.35,
+            targetPhi: 1.38,
+            targetRadius: 44,
+            panX: 0,
+            panY: 16.5,
+            targetPanX: 0,
+            targetPanY: 16.5,
+            isDragging: false,
+            isRightDrag: false,
+            prevX: 0,
+            prevY: 0
+        };
+
+        // Generates crisp NearestFilter CanvasTextures so every block has authentic Vanilla+ pixel detail
+        function createPixelTexture(width, height, drawFn) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = false;
+            drawFn(ctx, width, height);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestFilter;
+            tex.generateMipmaps = false;
+            tex.needsUpdate = true;
+            return tex;
+        }
+
+        // Helper for deterministic pseudo-random pixel noise
+        function hash2D(x, y, seed = 1) {
+            const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123;
+            return n - Math.floor(n);
+        }
+
+        const Materials = {};
+
+        function initMaterials() {
+            // 1. High-Gloss Obsidian Black Helmet & Armor Material
+            const helmetTex = createPixelTexture(32, 32, (ctx, w, h) => {
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const n = hash2D(x, y, 10);
+                        const v = Math.floor(10 + n * 6);
+                        ctx.fillStyle = `rgb(${v},${v},${v + 2})`;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+                ctx.fillStyle = 'rgba(255,255,255,0.06)';
+                ctx.fillRect(0, 0, w, 1);
+            });
+            Materials.obsidianArmor = new THREE.MeshStandardMaterial({
+                map: helmetTex,
+                roughness: 0.14,
+                metalness: 0.78
+            });
+
+            // 1B. Brushed Gunmetal Titanium (For authentic 2-tone Faceplate facets & Plastron strips)
+            const gunmetalTex = createPixelTexture(32, 32, (ctx, w, h) => {
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const n = hash2D(x, y, 14);
+                        const streak = Math.sin(y * 0.6) * 3;
+                        const v = Math.floor(44 + streak + n * 7);
+                        ctx.fillStyle = `rgb(${v},${v + 2},${v + 6})`;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+                ctx.fillStyle = 'rgba(255,255,255,0.09)';
+                ctx.fillRect(0, 0, w, 1);
+            });
+            Materials.gunmetalArmor = new THREE.MeshStandardMaterial({
+                map: gunmetalTex,
+                roughness: 0.22,
+                metalness: 0.82
+            });
+
+            // 1C. Lower Chin Scalloped Diamond Wire Mesh Vent Texture (Matches Front Reference 1:1)
+            const chinMeshTex = createPixelTexture(32, 16, (ctx, w, h) => {
+                ctx.fillStyle = '#070709';
+                ctx.fillRect(0, 0, w, h);
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const dx = Math.abs((x % 6) - 3);
+                        const dy = Math.abs((y % 4) - 2);
+                        if (dx + dy === 2 || (y % 4 === 0 && x % 6 === 3)) {
+                            ctx.fillStyle = '#d4d4d8';
+                            ctx.fillRect(x, y, 1, 1);
+                        } else if (dx + dy === 3) {
+                            ctx.fillStyle = '#52525b';
+                            ctx.fillRect(x, y, 1, 1);
+                        }
+                    }
+                }
+            });
+            Materials.chinMesh = new THREE.MeshStandardMaterial({
+                map: chinMeshTex,
+                roughness: 0.3,
+                metalness: 0.88
+            });
+
+            // 2. Plastron Alternating Gunmetal & Black Stripes (Chest/Shoulder Armor)
+            const plastronTex = createPixelTexture(32, 32, (ctx, w, h) => {
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const isGunmetal = (x >= 4 && x <= 10) || (x >= 21 && x <= 27);
+                        const n = hash2D(x, y, 22);
+                        const base = isGunmetal ? 52 : 12;
+                        const v = Math.floor(base + n * 6);
+                        ctx.fillStyle = `rgb(${v},${v + 2},${v + 5})`;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+                ctx.fillStyle = '#09090b';
+                ctx.fillRect(0, h - 1, w, 1);
+            });
+            Materials.plastron = new THREE.MeshStandardMaterial({
+                map: plastronTex,
+                roughness: 0.2,
+                metalness: 0.8
+            });
+
+            // 3. Burned / Scorched Plastron with Glowing Magma Cracks
+            const burnedPlastronTex = createPixelTexture(32, 32, (ctx, w, h) => {
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const n = hash2D(x, y, 99);
+                        const v = Math.floor(14 + n * 14);
+                        ctx.fillStyle = `rgb(${v + 4},${v},${v - 2})`;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+                const cracks = [[6,4],[7,5],[8,7],[9,9],[10,11],[11,13],[22,6],[23,8],[24,10],[22,12],[20,14],[19,16]];
+                cracks.forEach(([cx, cy]) => {
+                    ctx.fillStyle = '#ea580c';
+                    ctx.fillRect(cx, cy, 2, 2);
+                });
+                ctx.fillStyle = '#fde047';
+                ctx.fillRect(7, 5, 1, 1);
+                ctx.fillRect(23, 8, 1, 1);
+            });
+            Materials.burnedPlastron = new THREE.MeshStandardMaterial({
+                map: burnedPlastronTex,
+                emissiveMap: burnedPlastronTex,
+                emissive: new THREE.Color(0xff4500),
+                emissiveIntensity: 0.45,
+                roughness: 0.55,
+                metalness: 0.45
+            });
+
+            // 4. Quilted Ribbed Black Leather Suit (Arms, Torso, Legs)
+            const quiltedTex = createPixelTexture(32, 32, (ctx, w, h) => {
+                for (let y = 0; y < h; y++) {
+                    const rib = (y % 3 === 0) ? 7 : 20;
+                    for (let x = 0; x < w; x++) {
+                        const vSeam = (x % 8 === 0) ? -5 : 0;
+                        const n = hash2D(x, y, 31);
+                        const v = Math.max(5, Math.floor(rib + vSeam + n * 4));
+                        ctx.fillStyle = `rgb(${v},${v},${v + 2})`;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            });
+            Materials.quiltedLeather = new THREE.MeshStandardMaterial({
+                map: quiltedTex,
+                roughness: 0.38,
+                metalness: 0.32
+            });
+
+            // 5. Scorched / Damaged Leather Suit
+            const burnedLeatherTex = createPixelTexture(32, 32, (ctx, w, h) => {
+                for (let y = 0; y < h; y++) {
+                    const rib = (y % 3 === 0) ? 8 : 18;
+                    for (let x = 0; x < w; x++) {
+                        const n = hash2D(x, y, 77);
+                        if (n > 0.88) {
+                            ctx.fillStyle = '#c2410c';
+                        } else if (n > 0.70) {
+                            ctx.fillStyle = '#271c19';
+                        } else {
+                            const v = Math.floor(rib + n * 5);
+                            ctx.fillStyle = `rgb(${v},${v},${v})`;
+                        }
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            });
+            Materials.burnedLeather = new THREE.MeshStandardMaterial({
+                map: burnedLeatherTex,
+                roughness: 0.68,
+                metalness: 0.18
+            });
+
+            // 6. Matte Dark Sith Cloth (Cape & Pleated Inner Tunic Robes)
+            const clothTex = createPixelTexture(32, 32, (ctx, w, h) => {
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const n = hash2D(x, y, 45);
+                        const pleat = Math.sin((x / w) * Math.PI * 4) * 3.5;
+                        const v = Math.max(6, Math.floor(12 + pleat + n * 3));
+                        ctx.fillStyle = `rgb(${v},${v},${v + 2})`;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            });
+            Materials.cloth = new THREE.MeshStandardMaterial({
+                map: clothTex,
+                roughness: 0.86,
+                metalness: 0.06
+            });
+
+            // 7. Singed / Ember-lined Cape Cloth (for Burned version)
+            const burnedClothTex = createPixelTexture(32, 32, (ctx, w, h) => {
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const n = hash2D(x, y, 52);
+                        if (y >= h - 3 && n > 0.35) {
+                            ctx.fillStyle = (n > 0.7) ? '#f97316' : '#7c2d12';
+                        } else if (n > 0.92) {
+                            ctx.fillStyle = '#9a3412';
+                        } else {
+                            const v = Math.floor(11 + n * 5);
+                            ctx.fillStyle = `rgb(${v + 2},${v},${v})`;
+                        }
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            });
+            Materials.burnedCloth = new THREE.MeshStandardMaterial({
+                map: burnedClothTex,
+                emissiveMap: burnedClothTex,
+                emissive: new THREE.Color(0xea580c),
+                emissiveIntensity: 0.35,
+                roughness: 0.9,
+                metalness: 0.05
+            });
+
+            // 8. 1:1 Chest Control Box Front Texture (Matches Reference Image 1!)
+            const chestBoxTex = createPixelTexture(32, 36, (ctx, w, h) => {
+                ctx.fillStyle = '#0e0e11';
+                ctx.fillRect(0, 0, w, h);
+                // Metallic outer frame & bottom red trim
+                ctx.strokeStyle = '#52525b';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+                ctx.fillStyle = '#991b1b';
+                ctx.fillRect(1, h - 2, w - 2, 1);
+
+                // Side vertical silver tracks with horizontal tick slots
+                ctx.fillStyle = '#d4d4d8';
+                ctx.fillRect(3, 3, 2, 30);
+                ctx.fillRect(27, 3, 2, 30);
+                ctx.fillStyle = '#18181b';
+                for (let ty = 5; ty < 31; ty += 3) {
+                    ctx.fillRect(3, ty, 2, 1);
+                    ctx.fillRect(27, ty, 2, 1);
+                }
+
+                // Upper Left telemetry plaques & silver switches
+                ctx.fillStyle = '#a1a1aa';
+                ctx.fillRect(7, 4, 7, 1);
+                ctx.fillRect(7, 7, 5, 1);
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(8, 10, 5, 2);
+                ctx.fillStyle = '#71717a';
+                ctx.fillRect(7, 14, 7, 2);
+
+                // Upper Right Glowing Blue & Red Status Buttons (Iconic!)
+                ctx.fillStyle = '#3b82f6';
+                ctx.fillRect(18, 5, 6, 4);
+                ctx.fillStyle = '#93c5fd';
+                ctx.fillRect(19, 6, 4, 2);
+
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(18, 11, 6, 4);
+                ctx.fillStyle = '#fca5a5';
+                ctx.fillRect(19, 12, 4, 2);
+
+                // Lower 3 Large Rocker Switches (2 Silver/Grey on left/mid, 1 Red on right)
+                ctx.fillStyle = '#d4d4d8';
+                ctx.fillRect(7, 21, 4, 8);
+                ctx.fillRect(13, 21, 4, 8);
+                ctx.fillStyle = '#dc2626';
+                ctx.fillRect(19, 21, 5, 8);
+            });
+            Materials.chestBox = new THREE.MeshStandardMaterial({
+                map: chestBoxTex,
+                emissiveMap: chestBoxTex,
+                emissive: new THREE.Color(0xffffff),
+                emissiveIntensity: 0.65,
+                roughness: 0.25,
+                metalness: 0.65
+            });
+
+            // 9. Belt Side Box (2 Bright Green Squares + 6 Silver Studs like Reference Image 1)
+            const beltBoxTex = createPixelTexture(24, 16, (ctx, w, h) => {
+                ctx.fillStyle = '#141417';
+                ctx.fillRect(0, 0, w, h);
+                ctx.strokeStyle = '#3f3f46';
+                ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+
+                // Two bright glowing green rectangular lights
+                ctx.fillStyle = '#22c55e';
+                ctx.fillRect(3, 3, 5, 5);
+                ctx.fillRect(10, 3, 5, 5);
+                ctx.fillStyle = '#86efac';
+                ctx.fillRect(4, 4, 3, 3);
+                ctx.fillRect(11, 4, 3, 3);
+
+                // 6 Silver metallic studs on the side
+                ctx.fillStyle = '#e4e4e7';
+                for (let sy = 3; sy <= 11; sy += 4) {
+                    ctx.fillRect(17, sy, 2, 2);
+                    ctx.fillRect(20, sy, 2, 2);
+                }
+            });
+            Materials.beltBox = new THREE.MeshStandardMaterial({
+                map: beltBoxTex,
+                emissiveMap: beltBoxTex,
+                emissive: new THREE.Color(0xffffff),
+                emissiveIntensity: 0.75,
+                roughness: 0.28,
+                metalness: 0.72
+            });
+
+            // 10. Scarred & Burned Anakin Skin (for the Half-Burned Mask reveal!)
+            const scarredSkinTex = createPixelTexture(32, 32, (ctx, w, h) => {
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const n = hash2D(x, y, 108);
+                        if (n > 0.78) {
+                            ctx.fillStyle = '#3b1316';
+                        } else if (n > 0.45) {
+                            ctx.fillStyle = '#734442';
+                        } else {
+                            ctx.fillStyle = '#522b2a';
+                        }
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+                ctx.fillStyle = '#240b0e';
+                ctx.fillRect(4, 5, 20, 2);
+                ctx.fillRect(8, 10, 16, 2);
+                ctx.fillRect(6, 20, 14, 2);
+            });
+            Materials.scarredSkin = new THREE.MeshStandardMaterial({
+                map: scarredSkinTex,
+                roughness: 0.75,
+                metalness: 0.08
+            });
+
+            // 11. Glowing Sith Eye (Fierce Yellow-Orange)
+            const sithEyeTex = createPixelTexture(16, 8, (ctx, w, h) => {
+                ctx.fillStyle = '#140603';
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = '#b91c1c';
+                ctx.fillRect(2, 2, 12, 4);
+                ctx.fillStyle = '#f59e0b';
+                ctx.fillRect(4, 2, 8, 4);
+                ctx.fillStyle = '#fef08a';
+                ctx.fillRect(6, 2, 4, 4);
+                ctx.fillStyle = '#09090b';
+                ctx.fillRect(7, 3, 2, 2);
+            });
+            Materials.sithEye = new THREE.MeshBasicMaterial({
+                map: sithEyeTex
+            });
+
+            // 12. Deep Glossy Ocular Lens (Dark Obsidian with Subtle Amber-Red Subsurface Glint)
+            Materials.redLens = new THREE.MeshStandardMaterial({
+                color: 0x160505,
+                emissive: 0x3b0808,
+                emissiveIntensity: 0.35,
+                roughness: 0.06,
+                metalness: 0.92
+            });
+
+            // 13. Brushed Chrome / Silver Metal (Buckle, Hilt, Grille Bars, Tusks)
+            Materials.silverMetal = new THREE.MeshStandardMaterial({
+                color: 0xe4e4e7,
+                roughness: 0.18,
+                metalness: 0.94
+            });
+
+            // 13B. Brass / Gold Clasp Pin
+            Materials.goldMetal = new THREE.MeshStandardMaterial({
+                color: 0xd97706,
+                roughness: 0.25,
+                metalness: 0.9
+            });
+
+            // 14. Glowing Molten Fracture Edge (Broken Mask Border)
+            Materials.moltenEdge = new THREE.MeshBasicMaterial({
+                color: 0xff5500
+            });
+
+            // 15. Lightsaber Blade Core & Outer Crimson Glow Layers
+            Materials.saberCore = new THREE.MeshBasicMaterial({
+                color: 0xffffff
+            });
+            Materials.saberInnerGlow = new THREE.MeshBasicMaterial({
+                color: 0xff1e1e,
+                transparent: true,
+                opacity: 0.88,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            Materials.saberOuterGlow = new THREE.MeshBasicMaterial({
+                color: 0xdc2626,
+                transparent: true,
+                opacity: 0.36,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+        }
+
+        function createBox(w, h, d, material, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) {
+            const geom = new THREE.BoxGeometry(w, h, d);
+            const mesh = new THREE.Mesh(geom, material);
+            mesh.position.set(x, y, z);
+            mesh.rotation.set(rx, ry, rz);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            return mesh;
+        }
+
+        // Builds a custom 3D mesh from an array of [v0, v1, v2, v3] quads or [v0, v1, v2] triangles with planar/box UVs
+        function createFacetedMesh(faces, material, doubleSided = false) {
+            const positions = [];
+            const uvs = [];
+
+            function pushTri(a, b, c, uvA, uvB, uvC) {
+                positions.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+                uvs.push(uvA[0], uvA[1], uvB[0], uvB[1], uvC[0], uvC[1]);
+            }
+
+            faces.forEach((f) => {
+                if (f.length === 4) {
+                    pushTri(f[0], f[1], f[2], [0, 0], [1, 0], [1, 1]);
+                    pushTri(f[0], f[2], f[3], [0, 0], [1, 1], [0, 1]);
+                    if (doubleSided) {
+                        pushTri(f[0], f[2], f[1], [0, 0], [1, 1], [1, 0]);
+                        pushTri(f[0], f[3], f[2], [0, 0], [0, 1], [1, 1]);
+                    }
+                } else if (f.length === 3) {
+                    pushTri(f[0], f[1], f[2], [0, 0], [1, 0], [0.5, 1]);
+                    if (doubleSided) {
+                        pushTri(f[0], f[2], f[1], [0, 0], [0.5, 1], [1, 0]);
+                    }
+                }
+            });
+
+            const geom = new THREE.BufferGeometry();
+            geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+            geom.computeVertexNormals();
+
+            const mesh = new THREE.Mesh(geom, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            return mesh;
+        }
+
+        // Helper to mirror a list of faces across the X axis (reversing winding order so outward normals stay correct)
+        function mirrorFacesX(faces) {
+            return faces.map((f) =>
+                f.map((v) => [-v[0], v[1], v[2]]).reverse()
+            );
+        }
+
+        function buildAccurateVaderHead(headBone, isBurned) {
+            const armorMat = Materials.obsidianArmor;
+            const gunmetalMat = isBurned ? Materials.burnedPlastron : Materials.gunmetalArmor;
+
+            // Pitch-black matte interior liner material so the recessed space inside the bell skirt is deep shadow
+            const innerBlackMat = new THREE.MeshStandardMaterial({
+                color: 0x040406,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+
+            // =========================================================================
+            // A. SCULPTED FLARED NECK COLLAR / NECK BRACE (Matches Front & Side Profile)
+            // =========================================================================
+            const neckGroup = new THREE.Group();
+            headBone.add(neckGroup);
+
+            const neckRings = [
+                { y: -0.25, rx: 3.15, rzFront: 2.95, rzBack: 2.85, zOff: 0.10 },
+                { y: 0.25,  rx: 2.72, rzFront: 2.55, rzBack: 2.65, zOff: 0.05 },
+                { y: 0.95,  rx: 2.52, rzFront: 2.42, rzBack: 2.55, zOff: -0.05 },
+                { y: 1.85,  rx: 2.48, rzFront: 2.35, rzBack: 2.50, zOff: -0.15 }
+            ];
+            const neckSegs = 20;
+            const neckQuads = [];
+            const neckAccentQuads = [];
+
+            for (let r = 0; r < neckRings.length - 1; r++) {
+                const r0 = neckRings[r];
+                const r1 = neckRings[r + 1];
+                for (let s = 0; s < neckSegs; s++) {
+                    const a0 = (s / neckSegs) * Math.PI * 2;
+                    const a1 = ((s + 1) / neckSegs) * Math.PI * 2;
+
+                    const pt = (ring, ang) => {
+                        const sinA = Math.sin(ang);
+                        const cosA = Math.cos(ang);
+                        const rz = cosA >= 0 ? ring.rzFront : ring.rzBack;
+                        return [sinA * ring.rx, ring.y, cosA * rz + ring.zOff];
+                    };
+
+                    const quad = [pt(r0, a0), pt(r0, a1), pt(r1, a1), pt(r1, a0)];
+                    // Subtle gunmetal sheen panel on lower front-left neck collar (as seen in Reference Image 1)
+                    if (a0 > 0.15 && a0 < 1.05 && r === 0) {
+                        neckAccentQuads.push(quad);
+                    } else {
+                        neckQuads.push(quad);
+                    }
+                }
+            }
+            neckGroup.add(createFacetedMesh(neckQuads, armorMat));
+            if (neckAccentQuads.length > 0) {
+                neckGroup.add(createFacetedMesh(neckAccentQuads, gunmetalMat));
+            }
+
+            // Inner dark skull core blocking any light leaks behind the eye sockets or grille
+            headBone.add(createBox(5.1, 5.2, 5.2, innerBlackMat, 0, 4.1, 0.2));
+
+            // =========================================================================
+            // B. 1:1 SCULPTED FACEPLATE / MASK (Polygonal Cheekbones, Snout, Lenses & Grille)
+            // =========================================================================
+            const maskGroup = new THREE.Group();
+            headBone.add(maskGroup);
+
+            // Helper that builds one side of the faceplate (side = -1 for Viewer-Left / Vader's Right, +1 for Viewer-Right / Vader's Left)
+            function buildMaskHalf(side, burnedSide) {
+                const wrap = (faces) => (side < 0 ? faces : mirrorFacesX(faces));
+
+                if (!burnedSide) {
+                    // 1. UPPER CHEEKBONE FACET (Flat polygonal plane directly under the eye lens - catches bright studio light!)
+                    // Defined for side = -1 (X < 0) with outward (+Z/-X) counter-clockwise winding
+                    const upperCheekFaces = [
+                        // Main trapezoidal upper cheekbone shelf right below the eye socket
+                        [
+                            [-0.58, 3.62, 4.22], // inner top near nasal bridge
+                            [-0.95, 2.98, 4.12], // inner bottom crease near snout flank
+                            [-2.58, 3.02, 3.22], // outer bottom cheekbone corner
+                            [-2.68, 3.88, 3.15]  // outer top corner under outer eye rim
+                        ],
+                        // Transition bevel under inner eye corner
+                        [
+                            [-0.44, 3.78, 4.24],
+                            [-0.58, 3.62, 4.22],
+                            [-1.55, 3.68, 3.85],
+                            [-1.55, 3.84, 3.92]
+                        ]
+                    ];
+                    // In the studio reference photo, Vader's left cheekbone (side > 0) & snout flank catch the bright gunmetal highlight
+                    const upperCheekMat = (side > 0) ? gunmetalMat : armorMat;
+                    maskGroup.add(createFacetedMesh(wrap(upperCheekFaces), upperCheekMat));
+
+                    // 2. DEEPLY SCOOPED LOWER CHEEK HOLLOW (Concave/angled black planes between snout and outer cheek ridge)
+                    const cheekHollowFaces = [
+                        // Upper-inner hollow triangle/quad sloping inward from upper cheekbone shelf to jaw
+                        [
+                            [-0.95, 2.98, 4.12],
+                            [-1.68, 1.56, 4.65], // meets bottom corner tusk
+                            [-2.28, 1.65, 3.55], // lower jaw ridge corner
+                            [-2.58, 3.02, 3.22]  // outer cheekbone corner
+                        ],
+                        // Lower jaw return under the cheek hollow
+                        [
+                            [-1.68, 1.56, 4.65],
+                            [-1.02, 0.85, 4.35],
+                            [-2.15, 1.05, 3.15],
+                            [-2.28, 1.65, 3.55]
+                        ]
+                    ];
+                    maskGroup.add(createFacetedMesh(wrap(cheekHollowFaces), armorMat));
+
+                    // 3. SNOUT SIDE-FLANK WALL (Sleek angled wall sloping back from the raised triangle rail to the cheek)
+                    const snoutFlankFaces = [
+                        [
+                            [-0.38, 3.48, 4.62], // top nose apex rail edge
+                            [-1.68, 1.56, 4.92], // bottom corner tusk rail edge
+                            [-1.68, 1.56, 4.65], // inner cheek hollow bottom
+                            [-0.95, 2.98, 4.12]  // inner cheek crease
+                        ],
+                        [
+                            [-0.38, 3.48, 4.62],
+                            [-0.95, 2.98, 4.12],
+                            [-0.58, 3.62, 4.22],
+                            [-0.38, 3.62, 4.48]
+                        ]
+                    ];
+                    maskGroup.add(createFacetedMesh(wrap(snoutFlankFaces), gunmetalMat));
+
+                    // 4. OUTER CHEEK FLANGE & SIDE MASK WALL (Sweeps back from the sharp cheek ridge into the helmet skirt shadow)
+                    const sideWallFaces = [
+                        [
+                            [-2.68, 3.88, 3.15],
+                            [-2.58, 3.02, 3.22],
+                            [-3.05, 2.85, 1.45],
+                            [-3.12, 4.15, 1.45]
+                        ],
+                        [
+                            [-2.58, 3.02, 3.22],
+                            [-2.28, 1.65, 3.55],
+                            [-2.85, 1.45, 1.55],
+                            [-3.05, 2.85, 1.45]
+                        ],
+                        [
+                            [-2.28, 1.65, 3.55],
+                            [-2.15, 1.05, 3.15],
+                            [-2.65, 0.95, 1.55],
+                            [-2.85, 1.45, 1.55]
+                        ]
+                    ];
+                    maskGroup.add(createFacetedMesh(wrap(sideWallFaces), armorMat));
+
+                    // 5. CONVEX DOMED OCULAR LENS & SCULPTED ORBITAL SOCKET RIM
+                    // Custom 3D domed lens (SphereGeometry cap tilted & scaled to match Vader's rounded bubble eye lenses)
+                    const lensGeom = new THREE.SphereGeometry(1.18, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.42);
+                    lensGeom.scale(1.06, 0.78, 0.58);
+                    const lensMesh = new THREE.Mesh(lensGeom, Materials.redLens);
+                    lensMesh.position.set(side * 1.52, 4.46, 3.55);
+                    lensMesh.rotation.set(Math.PI * 0.48, side * 0.22, -side * 0.08);
+                    maskGroup.add(lensMesh);
+
+                    // Sculpted Orbital Frame Segments around the lens (creates the crisp rounded socket border)
+                    const rimPts = [
+                        [-0.44, 4.82, 4.22],
+                        [-0.95, 5.24, 4.16],
+                        [-1.68, 5.28, 3.92],
+                        [-2.35, 5.02, 3.55],
+                        [-2.68, 4.45, 3.22],
+                        [-2.68, 3.88, 3.15],
+                        [-1.85, 3.70, 3.72],
+                        [-0.95, 3.68, 4.12],
+                        [-0.44, 3.85, 4.24]
+                    ];
+                    const rimFaces = [];
+                    for (let i = 0; i < rimPts.length - 1; i++) {
+                        const p0 = rimPts[i];
+                        const p1 = rimPts[i + 1];
+                        // Extrude a thick orbital bezel rim inward toward the lens and outward to the mask
+                        const p0In = [p0[0] * 0.94 + (-1.52) * 0.06, p0[1] * 0.92 + 4.46 * 0.08, p0[2] - 0.32];
+                        const p1In = [p1[0] * 0.94 + (-1.52) * 0.06, p1[1] * 0.92 + 4.46 * 0.08, p1[2] - 0.32];
+                        rimFaces.push([p0, p1, p1In, p0In]);
+                    }
+                    maskGroup.add(createFacetedMesh(wrap(rimFaces), armorMat, true));
+                }
+            }
+
+            // Build Viewer-Left (Vader's Right, side = -1) -> Always intact!
+            buildMaskHalf(-1, false);
+            // Build Viewer-Right (Vader's Left, side = +1) -> Intact in Pristine, shattered open in Burned!
+            buildMaskHalf(1, isBurned);
+
+            // =========================================================================
+            // C. RIBBED NASAL BRIDGE & FOREHEAD GLABELLA V-PROTRUSION (Center Between Eyes)
+            // =========================================================================
+            const bridgeFaces = [
+                // Central nasal bridge column between the eye sockets
+                [[-0.42, 4.98, 4.26], [0.42, 4.98, 4.26], [0.40, 3.62, 4.48], [-0.40, 3.62, 4.48]],
+                // Left & right chamfers of the nasal bridge
+                [[-0.52, 4.92, 4.02], [-0.42, 4.98, 4.26], [-0.40, 3.62, 4.48], [-0.52, 3.62, 4.18]],
+                [[0.42, 4.98, 4.26], [0.52, 4.92, 4.02], [0.52, 3.62, 4.18], [0.40, 3.62, 4.48]],
+                // Upper Glabella V-Protrusion meeting the center dip of the helmet brow
+                [[-0.75, 5.45, 4.15], [0.0, 5.02, 4.42], [0.0, 4.88, 4.30], [-0.44, 4.98, 4.24]],
+                [[0.0, 5.02, 4.42], [0.75, 5.45, 4.15], [0.44, 4.98, 4.24], [0.0, 4.88, 4.30]]
+            ];
+            maskGroup.add(createFacetedMesh(bridgeFaces, gunmetalMat));
+
+            // 4 Sculpted Horizontal Nasal Bridge Ribs (Matches Front & 3/4 Reference Images 1:1!)
+            const ribHeights = [3.98, 4.22, 4.46, 4.70];
+            ribHeights.forEach((ry, idx) => {
+                const zPos = 4.44 - idx * 0.045;
+                maskGroup.add(createBox(0.84, 0.13, 0.24, Materials.silverMetal, 0, ry, zPos, -0.15, 0, 0));
+                maskGroup.add(createBox(0.86, 0.07, 0.20, innerBlackMat, 0, ry - 0.10, zPos - 0.02, -0.15, 0, 0));
+            });
+
+            // =========================================================================
+            // D. 1:1 TRIANGULAR RESPIRATOR SNOUT, SILVER NOSE APEX, 5 GRILLE BARS & TUSKS
+            // =========================================================================
+            // 1. Rounded Silver Nose Apex Button (Nestled at the top apex of the mouth triangle)
+            const noseApexGeom = new THREE.SphereGeometry(0.39, 14, 12);
+            noseApexGeom.scale(0.95, 1.08, 0.78);
+            const noseApexMesh = new THREE.Mesh(noseApexGeom, Materials.silverMetal);
+            noseApexMesh.position.set(0, 3.34, 4.62);
+            noseApexMesh.rotation.x = -0.22;
+            maskGroup.add(noseApexMesh);
+
+            // Curved Black Hood Rim framing the top of the silver nose button
+            const noseHoodFaces = [
+                [[-0.40, 3.62, 4.48], [0.40, 3.62, 4.48], [0.38, 3.45, 4.72], [-0.38, 3.45, 4.72]],
+                [[-0.40, 3.62, 4.48], [-0.38, 3.45, 4.72], [-0.46, 3.22, 4.68], [-0.48, 3.42, 4.42]],
+                [[0.40, 3.62, 4.48], [0.48, 3.42, 4.42], [0.46, 3.22, 4.68], [0.38, 3.45, 4.72]]
+            ];
+            maskGroup.add(createFacetedMesh(noseHoodFaces, armorMat, true));
+
+            // 2. Recessed Dark Triangular Mouth Cavity (with subtle diamond mesh breather backing behind the silver bars)
+            const mouthBackFaces = [
+                [[-0.32, 3.25, 4.48], [-1.52, 1.62, 4.76], [1.52, 1.62, 4.76], [0.32, 3.25, 4.48]]
+            ];
+            maskGroup.add(createFacetedMesh(mouthBackFaces, Materials.chinMesh));
+
+            // 3. Thick Raised Glossy-Black Triangular Frame Rails (Left diagonal rail, Right diagonal rail, Bottom horizontal bar)
+            // Left Diagonal Frame Rail (Viewer-Left, X < 0)
+            const leftRailFaces = [
+                // Front face of rail
+                [[-0.36, 3.45, 4.72], [-1.72, 1.56, 5.02], [-1.46, 1.56, 5.02], [-0.22, 3.32, 4.72]],
+                // Inner bevel toward grille cavity
+                [[-0.22, 3.32, 4.72], [-1.46, 1.56, 5.02], [-1.42, 1.62, 4.76], [-0.26, 3.25, 4.48]],
+                // Outer bevel toward snout flank
+                [[-0.38, 3.48, 4.62], [-1.68, 1.56, 4.92], [-1.72, 1.56, 5.02], [-0.36, 3.45, 4.72]]
+            ];
+            maskGroup.add(createFacetedMesh(leftRailFaces, armorMat));
+
+            if (!isBurned) {
+                // Right Diagonal Frame Rail (Viewer-Right, X > 0)
+                maskGroup.add(createFacetedMesh(mirrorFacesX(leftRailFaces), armorMat));
+
+                // Horizontal Bottom Bar of the Mouth Triangle
+                const bottomBarFaces = [
+                    [[-1.68, 1.70, 5.02], [-1.68, 1.46, 5.00], [1.68, 1.46, 5.00], [1.68, 1.70, 5.02]],
+                    [[-1.52, 1.70, 4.76], [-1.68, 1.70, 5.02], [1.68, 1.70, 5.02], [1.52, 1.70, 4.76]]
+                ];
+                maskGroup.add(createFacetedMesh(bottomBarFaces, armorMat));
+            } else {
+                // Half-broken bottom bar & exposed cybernetic jaw wiring on Burned side
+                const brokenBarFaces = [
+                    [[-1.68, 1.70, 5.02], [-1.68, 1.46, 5.00], [0.45, 1.46, 5.00], [0.35, 1.70, 5.02]]
+                ];
+                maskGroup.add(createFacetedMesh(brokenBarFaces, armorMat));
+                maskGroup.add(createBox(1.15, 0.35, 0.45, Materials.moltenEdge, 0.85, 2.35, 4.55, 0, 0, -0.62));
+            }
+
+            // 4. 5 Graduated Vertical Polished Chrome Grille Bars with Flared Bottom Feet (Matches Reference Image 1!)
+            const grilleBars = [
+                { x: 0.00, yTop: 3.06, zTop: 4.58 },
+                { x: -0.38, yTop: 2.76, zTop: 4.64 },
+                { x: 0.38,  yTop: 2.76, zTop: 4.64 },
+                { x: -0.76, yTop: 2.32, zTop: 4.71 },
+                { x: 0.76,  yTop: 2.32, zTop: 4.71 },
+                { x: -1.12, yTop: 1.92, zTop: 4.78 },
+                { x: 1.12,  yTop: 1.92, zTop: 4.78 }
+            ];
+            grilleBars.forEach((gb) => {
+                if (isBurned && gb.x > 0.5) return;
+                const yBot = 1.68;
+                const zBot = 4.86;
+                const h = gb.yTop - yBot;
+                const cy = (gb.yTop + yBot) * 0.5;
+                const cz = (gb.zTop + zBot) * 0.5;
+                const tiltX = -Math.atan2(zBot - gb.zTop, h);
+                // Vertical Triangular-Prism/Blade Chrome Bar
+                maskGroup.add(createBox(0.11, h, 0.22, Materials.silverMetal, gb.x, cy, cz, tiltX, 0, 0));
+                // Small flared chrome foot at the bottom of each bar (seen clearly in Front Reference!)
+                maskGroup.add(createBox(0.24, 0.12, 0.24, Materials.silverMetal, gb.x, yBot + 0.04, zBot + 0.02));
+            });
+
+            // 5. Iconic Chrome Corner Mouth Tusks (Cylindrical silver studs with rounded tips at bottom triangle corners)
+            function addMouthTusk(tx) {
+                const tuskGroup = new THREE.Group();
+                tuskGroup.position.set(tx, 1.56, 4.96);
+                tuskGroup.rotation.x = Math.PI / 2 + 0.12;
+                tuskGroup.rotation.z = tx < 0 ? 0.12 : -0.12;
+                const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.23, 0.42, 12), Materials.silverMetal);
+                tuskGroup.add(cyl);
+                const tip = new THREE.Mesh(new THREE.SphereGeometry(0.21, 12, 10), Materials.silverMetal);
+                tip.position.y = 0.20;
+                tuskGroup.add(tip);
+                maskGroup.add(tuskGroup);
+            }
+            addMouthTusk(-1.66);
+            if (!isBurned) addMouthTusk(1.66);
+
+            // =========================================================================
+            // E. LOWER INVERTED-TRIANGLE WOVEN DIAMOND-MESH CHIN VENT & SCULPTED CHIN
+            // =========================================================================
+            // Recessed Inverted Triangle with Silver Scalloped Diamond Wire Mesh (Matches Front Reference 1:1!)
+            const chinVentFaces = [
+                [[-1.28, 1.44, 4.92], [0.0, 0.86, 4.66], [1.28, 1.44, 4.92]]
+            ];
+            maskGroup.add(createFacetedMesh(chinVentFaces, Materials.chinMesh));
+
+            // Glossy Black V-Shaped Chin Borders & Under-Jaw Slope (Matches Side Profile Reference 3!)
+            const chinFrameFaces = [
+                // Left V-border of chin vent
+                [[-1.68, 1.46, 5.00], [-1.02, 0.72, 4.48], [0.0, 0.62, 4.58], [0.0, 0.86, 4.66], [-1.28, 1.44, 4.92]],
+                // Right V-border of chin vent
+                [[1.28, 1.44, 4.92], [0.0, 0.86, 4.66], [0.0, 0.62, 4.58], [1.02, 0.72, 4.48], [1.68, 1.46, 5.00]],
+                // Under-chin slope sweeping backward to the neck collar (key for Side Profile silhouette!)
+                [[-1.02, 0.72, 4.48], [-1.35, 0.65, 2.55], [0.0, 0.55, 2.55], [0.0, 0.62, 4.58]],
+                [[0.0, 0.62, 4.58], [0.0, 0.55, 2.55], [1.35, 0.65, 2.55], [1.02, 0.72, 4.48]]
+            ];
+            // Convert pentagons to quads/tris cleanly
+            const chinCleanFaces = [
+                [[-1.68, 1.46, 5.00], [-1.02, 0.72, 4.48], [0.0, 0.62, 4.58], [-1.28, 1.44, 4.92]],
+                [[-1.28, 1.44, 4.92], [0.0, 0.62, 4.58], [0.0, 0.86, 4.66]],
+                [[1.28, 1.44, 4.92], [0.0, 0.62, 4.58], [1.02, 0.72, 4.48], [1.68, 1.46, 5.00]],
+                [[1.28, 1.44, 4.92], [0.0, 0.86, 4.66], [0.0, 0.62, 4.58]],
+                [[-1.02, 0.72, 4.48], [-1.35, 0.65, 2.55], [0.0, 0.55, 2.55], [0.0, 0.62, 4.58]],
+                [[0.0, 0.62, 4.58], [0.0, 0.55, 2.55], [1.35, 0.65, 2.55], [1.02, 0.72, 4.48]]
+            ];
+            maskGroup.add(createFacetedMesh(chinCleanFaces, armorMat));
+
+            // =========================================================================
+            // F. 1:1 OUTER HELMET (ROUNDED DOME, STEPPED CREASE, GULL-WING BROW & BELL SKIRT)
+            // =========================================================================
+            const domeGroup = new THREE.Group();
+            headBone.add(domeGroup);
+
+            // Parametric functions defining the exact 3D shape of Vader's helmet at azimuth angle `phi`
+            // phi = 0 is Front Center (+Z), phi = +PI/2 is Viewer-Right (+X), phi = -PI/2 is Viewer-Left (-X), phi = +-PI is Back (-Z)
+            function getStepRingPoint(phi) {
+                const absP = Math.abs(phi);
+                const sinP = Math.sin(phi);
+                const cosP = Math.cos(phi);
+
+                // Horizontal cross-section of helmet at the temple/brow crease
+                const rx = 3.72;
+                const rz = cosP >= 0 ? 4.35 : 4.45;
+                const x = sinP * rx;
+                const z = cosP * rz + 0.12;
+
+                // Gull-Wing Step Line Height Y(phi): dips at center (0), arches over eyes (0.42), dips at temple (0.85), slopes down to back (PI)
+                let y = 5.45;
+                if (absP < 0.42) {
+                    const t = absP / 0.42;
+                    const s = t * t * (3 - 2 * t);
+                    y = 5.42 + s * 0.66; // rises from 5.42 at center to 6.08 over eyes
+                } else if (absP < 0.88) {
+                    const t = (absP - 0.42) / 0.46;
+                    const s = t * t * (3 - 2 * t);
+                    y = 6.08 - s * 0.56; // curves down to 5.52 at outer temple
+                } else {
+                    const t = (absP - 0.88) / (Math.PI - 0.88);
+                    const s = t * t * (3 - 2 * t);
+                    y = 5.52 - s * 0.72; // slopes down to 4.80 at back center
+                }
+                return [x, y, z];
+            }
+
+            // Outer shelf of the stepped crease (steps outward around the brow and temples like Reference 1, 2 & 3!)
+            function getStepShelfPoint(phi) {
+                const base = getStepRingPoint(phi);
+                const sinP = Math.sin(phi);
+                const cosP = Math.cos(phi);
+                const stepOut = 0.24;
+                return [
+                    base[0] + sinP * stepOut,
+                    base[1] - 0.08,
+                    base[2] + cosP * stepOut
+                ];
+            }
+
+            // Lower Rim of the Brow Window (for |phi| <= 0.78) OR Bottom Flared Rim of the Bell Skirt (for |phi| > 0.78)
+            function getLowerSkirtOrBrowPoint(phi, skirtFraction = 1.0) {
+                const shelf = getStepShelfPoint(phi);
+                const absP = Math.abs(phi);
+                const sign = phi < 0 ? -1 : 1;
+
+                if (absP <= 0.76) {
+                    // Front Gull-Wing Brow Arch Lip overhanging the eyes!
+                    let browDrop = 0.40;
+                    if (absP < 0.15) {
+                        // Sharp V-dip right over the nasal bridge
+                        browDrop = 0.44 - (absP / 0.15) * 0.06;
+                    }
+                    return [
+                        shelf[0] * 1.02,
+                        shelf[1] - browDrop,
+                        shelf[2] + 0.16
+                    ];
+                } else {
+                    // Continuous Bell-Shaped Flared Skirt (From front cheek corner absP=0.76 around sides to back absP=PI)
+                    const u = (absP - 0.76) / (Math.PI - 0.76); // 0 at front skirt edge, 1 at center back
+
+                    // Target bottom rim coordinates of the flared skirt (matches Front Reference 1 & Side Profile Reference 3!)
+                    // At u = 0 (front corner of skirt): X = +-4.85, Y = 0.92, Z = +2.10
+                    // At u = 0.35 (mid-side of skirt): X = +-5.08, Y = 1.25, Z = -0.75
+                    // At u = 1.0 (center back of skirt): X = 0.0, Y = 2.38, Z = -5.32
+                    const skirtAngle = 0.64 + u * (Math.PI - 0.64);
+                    const sinS = Math.sin(skirtAngle) * sign;
+                    const cosS = Math.cos(skirtAngle);
+
+                    const botRx = 5.08 - 0.15 * Math.pow(1 - u, 2);
+                    const botRz = cosS >= 0 ? 4.95 : 5.42;
+
+                    const targetX = sinS * botRx;
+                    const targetZ = cosS * botRz + 0.10;
+                    // Smooth upward sweep of the bottom edge toward the back (Side Profile Reference 3!)
+                    const targetY = 0.88 + 1.52 * Math.pow(u, 1.35);
+
+                    // Interpolate from the temple step shelf (skirtFraction=0) down to the flared bottom rim (skirtFraction=1)
+                    // Slight outward bell curvature in the lower half
+                    const bellCurve = Math.pow(skirtFraction, 1.12);
+                    return [
+                        shelf[0] + (targetX - shelf[0]) * bellCurve,
+                        shelf[1] + (targetY - shelf[1]) * skirtFraction,
+                        shelf[2] + (targetZ - shelf[2]) * bellCurve
+                    ];
+                }
+            }
+
+            // Helper to check if a dome/brow cell is shattered open in the "Half-Burned" variant
+            function isCellBurnedOut(phiMid, vMid, isSkirt = false) {
+                if (!isBurned) return false;
+                if (isSkirt) {
+                    // Only the very top-front corner of the left brow/skirt temple is chipped; the flared left wing remains intact!
+                    return (phiMid > 0.05 && phiMid < 0.82 && vMid < 0.25);
+                }
+                // Upper-left front quadrant of the dome & brow (phi > -0.04 to +1.35) is shattered open!
+                const fractureBoundary = 1.28 - vMid * 0.55 + Math.sin(vMid * 12.0) * 0.08;
+                const innerBoundary = -0.04 + vMid * 0.12;
+                return (phiMid > innerBoundary && phiMid < fractureBoundary && vMid < 0.86);
+            }
+
+            // 1. BUILD THE ROUNDED UPPER KABUTO CROWN DOME
+            const azSegs = 48;
+            const elSegs = 12;
+            const domeOuterFaces = [];
+            const domeInnerFaces = [];
+            const moltenRimFaces = [];
+
+            const crownApex = [0.0, 9.88, -0.18];
+
+            function getDomePoint(phi, v, inset = 0) {
+                const base = getStepRingPoint(phi);
+                // Smooth ellipsoid meridian profile from step line (v=0) to crown apex (v=1)
+                const cosV = Math.cos(v * Math.PI * 0.5);
+                const sinV = Math.sin(v * Math.PI * 0.5);
+                // Fuller shoulder profile (pow 0.88) so the dome has Vader's iconic rounded helm volume
+                const horizScale = Math.pow(cosV, 0.88);
+                const vertScale = Math.pow(sinV, 0.92);
+
+                const x = base[0] * horizScale;
+                const z = crownApex[2] + (base[2] - crownApex[2]) * horizScale;
+                const y = base[1] + (crownApex[1] - base[1]) * vertScale;
+
+                if (inset === 0) return [x, y, z];
+                const nx = Math.sin(phi) * cosV;
+                const ny = sinV;
+                const nz = Math.cos(phi) * cosV;
+                return [x - nx * inset, y - ny * inset, z - nz * inset];
+            }
+
+            for (let i = 0; i < azSegs; i++) {
+                // Sweep phi from -PI to +PI, making sure +-0.76 (brow-to-skirt transition) aligns cleanly
+                const phi0 = -Math.PI + (i / azSegs) * Math.PI * 2;
+                const phi1 = -Math.PI + ((i + 1) / azSegs) * Math.PI * 2;
+                const phiMid = (phi0 + phi1) * 0.5;
+
+                for (let j = 0; j < elSegs; j++) {
+                    const v0 = j / elSegs;
+                    const v1 = (j + 1) / elSegs;
+                    const vMid = (v0 + v1) * 0.5;
+
+                    if (isCellBurnedOut(phiMid, vMid, false)) continue;
+
+                    const p00 = getDomePoint(phi0, v0, 0);
+                    const p10 = getDomePoint(phi1, v0, 0);
+                    const p11 = getDomePoint(phi1, v1, 0);
+                    const p01 = getDomePoint(phi0, v1, 0);
+                    domeOuterFaces.push([p00, p10, p11, p01]);
+
+                    const q00 = getDomePoint(phi0, v0, 0.28);
+                    const q10 = getDomePoint(phi1, v0, 0.28);
+                    const q11 = getDomePoint(phi1, v1, 0.28);
+                    const q01 = getDomePoint(phi0, v1, 0.28);
+                    domeInnerFaces.push([q00, q01, q11, q10]);
+
+                    // If adjacent cell is burned out, add a glowing molten fracture wall along the broken helmet edge!
+                    if (isBurned) {
+                        const rightBurned = isCellBurnedOut(phiMid + (Math.PI * 2) / azSegs, vMid, false);
+                        const leftBurned = isCellBurnedOut(phiMid - (Math.PI * 2) / azSegs, vMid, false);
+                        const downBurned = (j > 0) && isCellBurnedOut(phiMid, vMid - 1 / elSegs, false);
+                        if (rightBurned) moltenRimFaces.push([p10, q10, q11, p11]);
+                        if (leftBurned) moltenRimFaces.push([p01, q01, q00, p00]);
+                        if (downBurned) moltenRimFaces.push([p00, q00, q10, p10]);
+                    }
+                }
+            }
+
+            // 2. BUILD THE STEPPED TEMPLE/BROW CREASE, GULL-WING BROW ARCH & CONTINUOUS FLARED BELL SKIRT
+            const skirtRows = 8;
+            for (let i = 0; i < azSegs; i++) {
+                const phi0 = -Math.PI + (i / azSegs) * Math.PI * 2;
+                const phi1 = -Math.PI + ((i + 1) / azSegs) * Math.PI * 2;
+                const phiMid = (phi0 + phi1) * 0.5;
+
+                // Top Step Shelf (connects base of upper dome outward to the top of the brow/skirt)
+                if (!isCellBurnedOut(phiMid, 0.02, false)) {
+                    const b0 = getStepRingPoint(phi0);
+                    const b1 = getStepRingPoint(phi1);
+                    const s0 = getStepShelfPoint(phi0);
+                    const s1 = getStepShelfPoint(phi1);
+                    domeOuterFaces.push([s0, s1, b1, b0]);
+                }
+
+                if (Math.abs(phiMid) <= 0.76) {
+                    // Front Gull-Wing Brow Band overhanging the eyes
+                    if (!isCellBurnedOut(phiMid, 0.05, true)) {
+                        const s0 = getStepShelfPoint(phi0);
+                        const s1 = getStepShelfPoint(phi1);
+                        const l0 = getLowerSkirtOrBrowPoint(phi0, 1.0);
+                        const l1 = getLowerSkirtOrBrowPoint(phi1, 1.0);
+                        domeOuterFaces.push([l0, l1, s1, s0]);
+
+                        // Thick rolled underside of the Gull-Wing Brow Rim (catches dramatic specular light!)
+                        const l0In = [l0[0] * 0.92, l0[1] + 0.06, l0[2] - 0.36];
+                        const l1In = [l1[0] * 0.92, l1[1] + 0.06, l1[2] - 0.36];
+                        domeOuterFaces.push([l0In, l1In, l1, l0]);
+                    }
+                } else {
+                    // Continuous Bell-Shaped Flared Skirt (Left wing, Back neck guard, Right wing)
+                    for (let r = 0; r < skirtRows; r++) {
+                        const f0 = r / skirtRows;
+                        const f1 = (r + 1) / skirtRows;
+                        const fMid = (f0 + f1) * 0.5;
+
+                        if (isCellBurnedOut(phiMid, fMid, true)) continue;
+
+                        const p00 = getLowerSkirtOrBrowPoint(phi0, f0);
+                        const p10 = getLowerSkirtOrBrowPoint(phi1, f0);
+                        const p11 = getLowerSkirtOrBrowPoint(phi1, f1);
+                        const p01 = getLowerSkirtOrBrowPoint(phi0, f1);
+                        domeOuterFaces.push([p01, p11, p10, p00]);
+
+                        // Pitch-black inner wall of the flared skirt (inset by 0.28 units)
+                        const insetVec = (pt, phi) => [
+                            pt[0] - Math.sin(phi) * 0.28,
+                            pt[1] + 0.04,
+                            pt[2] - Math.cos(phi) * 0.28
+                        ];
+                        const q00 = insetVec(p00, phi0);
+                        const q10 = insetVec(p10, phi1);
+                        const q11 = insetVec(p11, phi1);
+                        const q01 = insetVec(p01, phi0);
+                        domeInnerFaces.push([q00, q10, q11, q01]);
+
+                        // Rolled bottom lip along the bottom edge of the skirt (r === skirtRows - 1)
+                        if (r === skirtRows - 1) {
+                            domeOuterFaces.push([q01, q11, p11, p01]);
+                        }
+
+                        // Thickened rolled front edge of the skirt framing the cheeks!
+                        const isLeftFrontEdge = (phi0 < -0.76 && phi1 >= -0.76 - (Math.PI * 2) / azSegs);
+                        const isRightFrontEdge = (phi1 > 0.76 && phi0 <= 0.76 + (Math.PI * 2) / azSegs);
+                        if (isLeftFrontEdge) {
+                            domeOuterFaces.push([p10, p11, q11, q10]);
+                        }
+                        if (isRightFrontEdge) {
+                            domeOuterFaces.push([q00, q01, p01, p00]);
+                        }
+                    }
+                }
+            }
+
+            // 3. CENTRAL SAGITTAL DOME RIDGE (Iconic Mohawk Spine running from front brow V-dip over crown to back)
+            const ridgeSegs = 28;
+            const ridgeFaces = [];
+            const ridgeHalfW = 0.48;
+            const ridgeTopHalfW = 0.36;
+            const ridgeHeight = 0.30;
+
+            for (let s = 0; s < ridgeSegs; s++) {
+                // Parameter t goes from -1 (front brow tip) through 0 (crown apex) to +1 (rear dome base)
+                const t0 = -1.0 + (s / ridgeSegs) * 2.0;
+                const t1 = -1.0 + ((s + 1) / ridgeSegs) * 2.0;
+
+                const sampleRidge = (t) => {
+                    const phi = t < 0 ? 0 : Math.PI;
+                    const v = 1.0 - Math.abs(t);
+                    let basePt;
+                    if (t < -0.92) {
+                        // Extend ridge down the front Gull-Wing Brow V-dip!
+                        const browPt = getLowerSkirtOrBrowPoint(0, 1.0);
+                        const stepPt = getStepRingPoint(0);
+                        const k = (t + 1.0) / 0.08;
+                        basePt = [
+                            0,
+                            browPt[1] + (stepPt[1] - browPt[1]) * k,
+                            browPt[2] + (stepPt[2] - browPt[2]) * k
+                        ];
+                    } else {
+                        basePt = getDomePoint(phi, Math.max(0, (v - 0.08) / 0.92), 0);
+                    }
+                    const ang = t * Math.PI * 0.48;
+                    const ny = Math.cos(ang);
+                    const nz = -Math.sin(ang);
+                    return {
+                        y: basePt[1],
+                        z: basePt[2],
+                        topY: basePt[1] + ny * ridgeHeight,
+                        topZ: basePt[2] + nz * ridgeHeight
+                    };
+                };
+
+                const r0 = sampleRidge(t0);
+                const r1 = sampleRidge(t1);
+
+                // Top face of central ridge
+                ridgeFaces.push([
+                    [-ridgeTopHalfW, r0.topY, r0.topZ],
+                    [ridgeTopHalfW, r0.topY, r0.topZ],
+                    [ridgeTopHalfW, r1.topY, r1.topZ],
+                    [-ridgeTopHalfW, r1.topY, r1.topZ]
+                ]);
+                // Left chamfered side of central ridge
+                ridgeFaces.push([
+                    [-ridgeHalfW, r0.y, r0.z],
+                    [-ridgeTopHalfW, r0.topY, r0.topZ],
+                    [-ridgeTopHalfW, r1.topY, r1.topZ],
+                    [-ridgeHalfW, r1.y, r1.z]
+                ]);
+                // Right chamfered side of central ridge
+                ridgeFaces.push([
+                    [ridgeTopHalfW, r0.topY, r0.topZ],
+                    [ridgeHalfW, r0.y, r0.z],
+                    [ridgeHalfW, r1.y, r1.z],
+                    [ridgeTopHalfW, r1.topY, r1.topZ]
+                ]);
+            }
+            // Front tip cap of the brow ridge
+            const rf = (function () {
+                const b = getLowerSkirtOrBrowPoint(0, 1.0);
+                return [
+                    [-ridgeHalfW, b[1], b[2]],
+                    [ridgeHalfW, b[1], b[2]],
+                    [ridgeTopHalfW, b[1] + 0.15, b[2] + 0.24],
+                    [-ridgeTopHalfW, b[1] + 0.15, b[2] + 0.24]
+                ];
+            })();
+            ridgeFaces.push(rf);
+
+            domeGroup.add(createFacetedMesh(domeOuterFaces, armorMat));
+            domeGroup.add(createFacetedMesh(domeInnerFaces, innerBlackMat));
+            domeGroup.add(createFacetedMesh(ridgeFaces, armorMat));
+
+            // =========================================================================
+            // G. HALF-BURNED VARIANT: EXPOSED SCARRED ANAKIN HEAD, SITH EYE & MOLTEN RIM
+            // =========================================================================
+            if (isBurned) {
+                if (moltenRimFaces.length > 0) {
+                    domeGroup.add(createFacetedMesh(moltenRimFaces, Materials.moltenEdge, true));
+                }
+                // Exposed Scarred & Burned Anakin Head inside the shattered left dome opening
+                const anakinHead = new THREE.Mesh(
+                    new THREE.SphereGeometry(3.25, 18, 16),
+                    Materials.scarredSkin
+                );
+                anakinHead.scale.set(0.92, 1.12, 0.98);
+                anakinHead.position.set(0.25, 5.15, 0.65);
+                headBone.add(anakinHead);
+
+                // Heavy Scarred Brow & Cheek Burn Tissue Ridges around the exposed left Sith eye
+                headBone.add(createBox(2.05, 0.48, 0.65, Materials.scarredSkin, 1.55, 5.02, 3.38, 0.1, -0.18, 0.14));
+                headBone.add(createBox(1.95, 0.55, 0.60, Materials.scarredSkin, 1.58, 3.68, 3.35, -0.1, -0.18, -0.08));
+
+                // Fierce Glowing Yellow-Orange Sith Eye recessed at anatomical eye depth
+                headBone.add(createBox(1.55, 0.72, 0.42, Materials.sithEye, 1.48, 4.42, 3.32, 0, -0.16, 0.04));
+            }
+        }
+
+        function buildVaderModel() {
+            if (vaderRoot) {
+                scene.remove(vaderRoot);
+            }
+
+            const isBurned = (currentVariant === 'burned');
+            const armorMat = Materials.obsidianArmor;
+            const gunmetalMat = isBurned ? Materials.burnedPlastron : Materials.gunmetalArmor;
+            const suitMat = isBurned ? Materials.burnedLeather : Materials.quiltedLeather;
+            const plastronMat = isBurned ? Materials.burnedPlastron : Materials.plastron;
+            const clothMat = isBurned ? Materials.burnedCloth : Materials.cloth;
+
+            vaderRoot = new THREE.Group();
+            scene.add(vaderRoot);
+
+            // Root Pelvis / Center of Gravity (at Y = 12.5 units above pedestal)
+            const rootBone = new THREE.Group();
+            rootBone.position.set(0, 12.5, 0);
+            vaderRoot.add(rootBone);
+            skeleton.root = rootBone;
+
+            // =========================================================================
+            // 1. TORSO, V-TAPERED CHEST PLASTRON, CHEST CONTROL BOX & PLEATED ROBES
+            // =========================================================================
+            const torsoBone = new THREE.Group();
+            torsoBone.position.set(0, 0, 0);
+            rootBone.add(torsoBone);
+            skeleton.torso = torsoBone;
+
+            // Core Quilted Leather Upper & Lower Torso
+            torsoBone.add(createBox(8.6, 12.2, 4.6, suitMat, 0, 6.1, 0));
+
+            // Pleated Inner Surcoat / Sith Tunic Robes draping down either side of the chest box
+            torsoBone.add(createBox(2.4, 11.4, 5.1, clothMat, -3.25, 5.8, 0.05, 0, 0, 0.04));
+            torsoBone.add(createBox(2.4, 11.4, 5.1, clothMat, 3.25, 5.8, 0.05, 0, 0, -0.04));
+
+            // 1:1 Contoured V-Tapered Chest Plastron Armor (Alternating Obsidian & Brushed Gunmetal Strips)
+            const plastronGroup = new THREE.Group();
+            plastronGroup.position.set(0, 10.2, 0.15);
+            torsoBone.add(plastronGroup);
+
+            // Base contoured upper chest plate
+            plastronGroup.add(createBox(9.6, 3.8, 5.2, plastronMat, 0, 0.4, 0, 0.08, 0, 0));
+            // Center vertical obsidian spine strip
+            plastronGroup.add(createBox(1.5, 4.3, 5.35, armorMat, 0, 0.25, 0.06, 0.08, 0, 0));
+            // Inner Left & Right Brushed Gunmetal-Silver vertical strips
+            plastronGroup.add(createBox(1.55, 4.1, 5.32, gunmetalMat, -1.65, 0.35, 0.04, 0.08, 0, 0.03));
+            plastronGroup.add(createBox(1.55, 4.1, 5.32, gunmetalMat, 1.65, 0.35, 0.04, 0.08, 0, -0.03));
+            // Mid Left & Right Obsidian strips
+            plastronGroup.add(createBox(1.35, 3.8, 5.28, armorMat, -3.15, 0.48, 0.02, 0.08, 0, 0.06));
+            plastronGroup.add(createBox(1.35, 3.8, 5.28, armorMat, 3.15, 0.48, 0.02, 0.08, 0, -0.06));
+            // Outer Shoulder-Edge Gunmetal strips
+            plastronGroup.add(createBox(1.2, 3.4, 5.22, gunmetalMat, -4.35, 0.65, 0, 0.08, 0, 0.1));
+            plastronGroup.add(createBox(1.2, 3.4, 5.22, gunmetalMat, 4.35, 0.65, 0, 0.08, 0, -0.1));
+            // Sculpted V-Tapered Lower Plastron Border Rim
+            plastronGroup.add(createBox(4.8, 0.42, 0.45, armorMat, -2.2, -1.55, 2.65, 0, 0, -0.14));
+            plastronGroup.add(createBox(4.8, 0.42, 0.45, armorMat, 2.2, -1.55, 2.65, 0, 0, 0.14));
+
+            // Iconic Rectangular-Link Metallic Neck Chain & Center Gold Clasp Pin (Matches Reference Image 3!)
+            const chainGroup = new THREE.Group();
+            chainGroup.position.set(0, 12.05, 2.68);
+            torsoBone.add(chainGroup);
+            for (let i = -3; i <= 3; i++) {
+                const absI = Math.abs(i);
+                const linkX = i * 0.88;
+                const linkY = absI * 0.11;
+                const linkZ = -absI * 0.08;
+                const linkRotZ = i * -0.11;
+                chainGroup.add(createBox(0.72, 0.24, 0.18, armorMat, linkX, linkY, linkZ, 0, 0, linkRotZ));
+            }
+            // Center vertical gold/brass pin clasp below center chain link
+            chainGroup.add(createBox(0.18, 0.65, 0.2, Materials.goldMetal, 0, -0.32, 0.05));
+
+            // 1:1 Chest Control Box & Physical 3D Rocker Switches / Coin Slots
+            const chestBoxGroup = new THREE.Group();
+            chestBoxGroup.position.set(0, 5.95, 2.55);
+            torsoBone.add(chestBoxGroup);
+            chestBoxGroup.add(createBox(3.7, 4.1, 0.85, Materials.chestBox, 0, 0, 0));
+            // Physical 3D protruding bottom rocker switches (2 silver, 1 red)
+            chestBoxGroup.add(createBox(0.48, 0.85, 0.28, Materials.silverMetal, -0.95, -1.05, 0.48, 0.15, 0, 0));
+            chestBoxGroup.add(createBox(0.48, 0.85, 0.28, Materials.silverMetal, -0.15, -1.05, 0.48, 0.15, 0, 0));
+            chestBoxGroup.add(createBox(0.55, 0.85, 0.28, Materials.saberInnerGlow, 0.72, -1.05, 0.48, 0.15, 0, 0));
+            // Side vertical silver rods with horizontal ribs
+            chestBoxGroup.add(createBox(0.24, 3.6, 0.24, Materials.silverMetal, -1.52, 0, 0.44));
+            chestBoxGroup.add(createBox(0.24, 3.6, 0.24, Materials.silverMetal, 1.52, 0, 0.44));
+
+            // =========================================================================
+            // 2. BELT ASSEMBLY, BUCKLE, GREEN-LIT BELT BOXES & CONTOURED CODPIECE
+            // =========================================================================
+            const beltGroup = new THREE.Group();
+            beltGroup.position.set(0, 1.45, 0);
+            torsoBone.add(beltGroup);
+
+            // Heavy Black Leather Belt Strap
+            beltGroup.add(createBox(9.1, 1.45, 5.15, armorMat, 0, 0, 0));
+            // Center Brushed Silver Buckle Plate with Circular Recessed Port
+            beltGroup.add(createBox(2.35, 1.55, 0.42, Materials.silverMetal, 0, 0, 2.58));
+            beltGroup.add(createBox(0.85, 0.85, 0.48, armorMat, 0.35, 0, 2.62));
+            const buckleDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.52, 12), Materials.silverMetal);
+            buckleDisc.rotation.x = Math.PI / 2;
+            buckleDisc.position.set(0.35, 0, 2.63);
+            beltGroup.add(buckleDisc);
+
+            // Left & Right Electronic Belt Boxes (Green twin squares + 6 silver studs)
+            beltGroup.add(createBox(2.45, 1.65, 1.05, Materials.beltBox, -3.15, 0, 2.52, 0, 0.18, 0));
+            beltGroup.add(createBox(2.45, 1.65, 1.05, Materials.beltBox, 3.15, 0, 2.52, 0, -0.18, 0));
+
+            // Contoured U-Shaped Padded Leather Codpiece (Matches Reference Image 1!)
+            torsoBone.add(createBox(4.3, 2.2, 4.95, suitMat, 0, -0.25, 0.12));
+            torsoBone.add(createBox(2.9, 1.6, 4.85, suitMat, 0, -1.65, 0.18));
+            torsoBone.add(createBox(1.3, 3.2, 0.35, armorMat, 0, -0.75, 2.52)); // Central vertical seam ridge
+
+            // =========================================================================
+            // 3. 1:1 SCULPTED DARTH VADER HELMET & MASK (Matches Reference Images 1, 2 & 3!)
+            // =========================================================================
+            const headBone = new THREE.Group();
+            headBone.position.set(0, 12.3, 0);
+            torsoBone.add(headBone);
+            skeleton.head = headBone;
+
+            buildAccurateVaderHead(headBone, isBurned);
+
+            // =========================================================================
+            // 4. RIGHT ARM, ANGLED SHOULDER BELL, GAUNTLET & RED LIGHTSABER
+            // =========================================================================
+            const rightArmBone = new THREE.Group();
+            rightArmBone.position.set(-6.2, 11.1, 0);
+            torsoBone.add(rightArmBone);
+            skeleton.rightArm = rightArmBone;
+
+            // Upper & Lower Quilted Ribbed Leather Arm
+            rightArmBone.add(createBox(3.9, 12.0, 3.9, suitMat, 0, -5.0, 0));
+
+            // 1:1 Hinged Curved Shoulder Bell Armor (Drapes at a menacing outward angle over upper arm)
+            const rPauldron = new THREE.Group();
+            rPauldron.position.set(0.3, 0.6, 0);
+            rPauldron.rotation.z = 0.16;
+            rightArmBone.add(rPauldron);
+            rPauldron.add(createBox(4.6, 5.2, 5.2, armorMat, -0.4, -2.2, 0));
+            rPauldron.add(createBox(4.75, 4.6, 3.2, gunmetalMat, -0.42, -2.1, 0)); // Gunmetal center panel
+            rPauldron.add(createBox(1.2, 5.0, 4.8, armorMat, -2.35, -2.2, 0, 0, 0, 0.12)); // Outer curved lip
+
+            // Flared Ribbed Leather Gauntlet Glove
+            rightArmBone.add(createBox(4.45, 1.4, 4.45, armorMat, 0, -5.6, 0, 0.05, 0, 0)); // Flared cuff
+            rightArmBone.add(createBox(4.25, 4.6, 4.25, suitMat, 0, -8.3, 0));
+            rightArmBone.add(createBox(4.35, 2.2, 4.35, armorMat, 0, -9.8, 0)); // Armored hand grip
+
+            // --- DARTH VADER'S MPP MICROFLASH RED LIGHTSABER ---
+            const saberPivot = new THREE.Group();
+            saberPivot.position.set(0, -9.8, 1.2);
+            saberPivot.rotation.x = Math.PI / 2; // Pointing forward from hand
+            rightArmBone.add(saberPivot);
+            skeleton.saber = saberPivot;
+
+            // Lightsaber Hilt (MPP Microflash style: silver cylinder tube, black emitter shroud & T-track grips)
+            saberPivot.add(createBox(1.12, 5.6, 1.12, Materials.silverMetal, 0, 0, 0));
+            saberPivot.add(createBox(1.32, 2.4, 1.32, armorMat, 0, -1.4, 0));
+            saberPivot.add(createBox(1.38, 0.95, 1.55, armorMat, 0, 0.3, 0.12));
+            saberPivot.add(createBox(0.4, 0.5, 0.3, Materials.saberInnerGlow, 0, 0.3, 0.85));
+            // Angled Black Emitter Shroud at top of hilt
+            saberPivot.add(createBox(1.34, 1.5, 1.34, armorMat, 0, 2.25, 0));
+            saberPivot.add(createBox(1.22, 0.6, 1.0, armorMat, 0, 3.05, -0.15));
+
+            // Lightsaber Blade Group
+            const bladeGroup = new THREE.Group();
+            bladeGroup.position.set(0, 3.0, 0);
+            saberPivot.add(bladeGroup);
+            skeleton.blade = bladeGroup;
+
+            const bladeLen = 22.0;
+            bladeGroup.add(createBox(0.62, bladeLen, 0.62, Materials.saberCore, 0, bladeLen / 2, 0));
+            bladeGroup.add(createBox(0.45, 0.5, 0.45, Materials.saberCore, 0, bladeLen + 0.25, 0));
+            bladeGroup.add(createBox(1.18, bladeLen + 0.4, 1.18, Materials.saberInnerGlow, 0, bladeLen / 2, 0));
+            bladeGroup.add(createBox(2.15, bladeLen + 0.9, 2.15, Materials.saberOuterGlow, 0, bladeLen / 2, 0));
+
+            saberLight = new THREE.PointLight(0xff1a1a, 2.8, 38, 1.5);
+            saberLight.position.set(0, bladeLen * 0.45, 0);
+            bladeGroup.add(saberLight);
+
+            // =========================================================================
+            // 5. LEFT ARM, ANGLED SHOULDER BELL & GAUNTLET GLOVE
+            // =========================================================================
+            const leftArmBone = new THREE.Group();
+            leftArmBone.position.set(6.2, 11.1, 0);
+            torsoBone.add(leftArmBone);
+            skeleton.leftArm = leftArmBone;
+
+            leftArmBone.add(createBox(3.9, 12.0, 3.9, suitMat, 0, -5.0, 0));
+
+            // Left Hinged Curved Shoulder Bell
+            const lPauldron = new THREE.Group();
+            lPauldron.position.set(-0.3, 0.6, 0);
+            lPauldron.rotation.z = -0.16;
+            leftArmBone.add(lPauldron);
+            lPauldron.add(createBox(4.6, 5.2, 5.2, armorMat, 0.4, -2.2, 0));
+            lPauldron.add(createBox(4.75, 4.6, 3.2, gunmetalMat, 0.42, -2.1, 0));
+            lPauldron.add(createBox(1.2, 5.0, 4.8, armorMat, 2.35, -2.2, 0, 0, 0, -0.12));
+
+            // Left Flared Gauntlet Glove
+            leftArmBone.add(createBox(4.45, 1.4, 4.45, armorMat, 0, -5.6, 0, 0.05, 0, 0));
+            leftArmBone.add(createBox(4.25, 4.6, 4.25, suitMat, 0, -8.3, 0));
+            leftArmBone.add(createBox(4.35, 2.2, 4.35, armorMat, 0, -9.8, 0));
+
+            // =========================================================================
+            // 6. RIGHT & LEFT LEGS, CONTOURED SHIN GREAVES & ARMORED BOOTS
+            // =========================================================================
+            function buildLeg(isRight) {
+                const legBone = new THREE.Group();
+                legBone.position.set(isRight ? -2.2 : 2.2, 0, 0);
+                rootBone.add(legBone);
+
+                // Quilted Ribbed Leather Thigh
+                legBone.add(createBox(4.1, 11.8, 4.1, suitMat, 0, -5.9, 0));
+
+                // Sculpted Glossy Obsidian Shin Greave Armor (Matches Reference Image 1!)
+                legBone.add(createBox(4.35, 6.8, 4.4, armorMat, 0, -8.2, 0.12));
+                // Central vertical angled spine ridge down the front of the shin guard
+                legBone.add(createBox(1.15, 7.2, 0.65, armorMat, 0, -8.0, 2.25, 0.04, 0, 0));
+                // Upper diamond knee-pad extension
+                legBone.add(createBox(2.5, 1.65, 0.75, armorMat, 0, -4.4, 2.18, -0.12, 0, 0));
+                // Silver metallic ankle actuator strip (visible near bottom of shin in Reference 1)
+                legBone.add(createBox(0.35, 2.2, 0.4, Materials.silverMetal, isRight ? -1.4 : 1.4, -10.2, 2.18));
+
+                // Heavy Armored Sith Boot with projecting toe-box
+                legBone.add(createBox(4.45, 2.1, 5.6, armorMat, 0, -11.45, 0.65));
+                legBone.add(createBox(4.2, 1.3, 1.4, armorMat, 0, -11.85, 3.6, 0.18, 0, 0));
+                return legBone;
+            }
+
+            skeleton.rightLeg = buildLeg(true);
+            skeleton.leftLeg = buildLeg(false);
+
+            // Flowing Lower Surcoat / Kama Robe Panels (Continuation of chest tunic below belt!)
+            const leftKama = new THREE.Group();
+            leftKama.position.set(3.35, 0.5, 0);
+            torsoBone.add(leftKama);
+            leftKama.add(createBox(2.5, 10.8, 5.0, clothMat, 0, -5.4, 0, 0, 0, -0.07));
+            skeleton.leftKama = leftKama;
+
+            const rightKama = new THREE.Group();
+            rightKama.position.set(-3.35, 0.5, 0);
+            torsoBone.add(rightKama);
+            rightKama.add(createBox(2.5, 10.8, 5.0, clothMat, 0, -5.4, 0, 0, 0, 0.07));
+            skeleton.rightKama = rightKama;
+
+            // =========================================================================
+            // 7. MULTI-SEGMENT ARTICULATED SITH CAPE (Full-Width Flowing Drape)
+            // =========================================================================
+            const capeBones = [];
+            let parentCape = torsoBone;
+            const segHeights = [6.0, 6.2, 6.2, 6.4];
+            const segWidths = [13.2, 14.4, 15.6, 16.8];
+
+            for (let i = 0; i < 4; i++) {
+                const cBone = new THREE.Group();
+                if (i === 0) {
+                    cBone.position.set(0, 11.9, -2.55);
+                } else {
+                    cBone.position.set(0, -segHeights[i - 1] + 0.2, 0);
+                }
+                const h = segHeights[i];
+                const w = segWidths[i];
+                const segMesh = createBox(w, h, 0.85, clothMat, 0, -h / 2, 0);
+                cBone.add(segMesh);
+
+                // Side cape folds wrapping forward slightly around the shoulders
+                if (i < 2) {
+                    cBone.add(createBox(0.9, h, 2.4, clothMat, -w / 2 + 0.3, -h / 2, 1.1, 0, 0.2, 0));
+                    cBone.add(createBox(0.9, h, 2.4, clothMat, w / 2 - 0.3, -h / 2, 1.1, 0, -0.2, 0));
+                }
+
+                // In Burned mode, add tattered voxel cutouts at the bottom of the cape
+                if (isBurned && i === 3) {
+                    cBone.add(createBox(2.4, 1.2, 0.9, Materials.moltenEdge, -4.2, -h + 0.2, 0));
+                    cBone.add(createBox(3.1, 0.9, 0.9, Materials.moltenEdge, 3.1, -h + 0.1, 0));
+                }
+
+                parentCape.add(cBone);
+                capeBones.push(cBone);
+                parentCape = cBone;
+            }
+            skeleton.cape = capeBones;
+
+            // =========================================================================
+            // 8. BURNED VARIANT: DYNAMIC 3D VOXEL FLAMES & SITH EYE GLOW
+            // =========================================================================
+            flameParticles.length = 0;
+
+            if (isBurned) {
+                eyeLight = new THREE.PointLight(0xff7700, 1.8, 12, 1.8);
+                eyeLight.position.set(2.2, 4.5, 5.2);
+                headBone.add(eyeLight);
+
+                fireLight = new THREE.PointLight(0xff5500, 2.2, 28, 1.5);
+                fireLight.position.set(3.5, 6.0, 2.0);
+                torsoBone.add(fireLight);
+
+                const flameMatCore = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+                const flameMatMid = new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.9 });
+                const flameMatTip = new THREE.MeshBasicMaterial({ color: 0xdc2626, transparent: true, opacity: 0.78 });
+
+                const attachPoints = [
+                    { bone: leftArmBone, x: 0.8, y: 1.4, z: 0.4, scale: 1.0 },
+                    { bone: leftArmBone, x: 1.6, y: -3.2, z: 1.2, scale: 0.75 },
+                    { bone: torsoBone, x: 2.6, y: 11.4, z: 1.4, scale: 0.85 },
+                    { bone: torsoBone, x: -2.2, y: 8.5, z: -2.2, scale: 0.9 },
+                    { bone: skeleton.leftLeg, x: 1.2, y: -5.5, z: 1.8, scale: 0.8 },
+                    { bone: capeBones[2], x: 4.2, y: -3.0, z: 0.5, scale: 0.95 },
+                    { bone: capeBones[3], x: -3.8, y: -4.5, z: 0.4, scale: 1.05 }
+                ];
+
+                attachPoints.forEach((pt, idx) => {
+                    const fGroup = new THREE.Group();
+                    fGroup.position.set(pt.x, pt.y, pt.z);
+                    pt.bone.add(fGroup);
+
+                    const c1 = new THREE.Mesh(new THREE.BoxGeometry(1.4 * pt.scale, 1.8 * pt.scale, 1.4 * pt.scale), flameMatCore);
+                    const c2 = new THREE.Mesh(new THREE.BoxGeometry(2.0 * pt.scale, 2.8 * pt.scale, 2.0 * pt.scale), flameMatMid);
+                    const c3 = new THREE.Mesh(new THREE.BoxGeometry(1.1 * pt.scale, 3.6 * pt.scale, 1.1 * pt.scale), flameMatTip);
+                    c1.position.y = 0.7 * pt.scale;
+                    c2.position.y = 1.2 * pt.scale;
+                    c3.position.y = 2.1 * pt.scale;
+                    fGroup.add(c1, c2, c3);
+
+                    flameParticles.push({
+                        group: fGroup,
+                        c1, c2, c3,
+                        seed: idx * 3.17,
+                        baseScale: pt.scale
+                    });
+                });
+            }
+        }
+
+        let pedestalGroup, pedestalStripMat;
+
+        function buildEnvironment() {
+            pedestalGroup = new THREE.Group();
+            scene.add(pedestalGroup);
+
+            // Sleek Octagonal Minecraft-style Obsidian & Basalt Display Plinth
+            const baseTex = createPixelTexture(32, 32, (ctx, w, h) => {
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const n = hash2D(x, y, 201);
+                        const edge = (x < 2 || x >= w - 2 || y < 2 || y >= h - 2);
+                        const v = edge ? 34 : Math.floor(15 + n * 7);
+                        ctx.fillStyle = `rgb(${v},${v},${v + 3})`;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            });
+            const baseMat = new THREE.MeshStandardMaterial({
+                map: baseTex,
+                roughness: 0.4,
+                metalness: 0.5
+            });
+
+            pedestalStripMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
+
+            // Top platform block
+            const topSlab = createBox(22, 1.5, 22, baseMat, 0, -0.75, 0);
+            pedestalGroup.add(topSlab);
+
+            // Glowing Imperial/Sith rim strip
+            const glowSlab = createBox(22.3, 0.35, 22.3, pedestalStripMat, 0, -1.65, 0);
+            pedestalGroup.add(glowSlab);
+
+            // Lower stepped base
+            const bottomSlab = createBox(25, 1.6, 25, baseMat, 0, -2.6, 0);
+            pedestalGroup.add(bottomSlab);
+
+            // Floating Rising Ember / Dark-Side Particle Pool
+            const emberGeo = new THREE.BoxGeometry(0.45, 0.45, 0.45);
+            for (let i = 0; i < 42; i++) {
+                const mat = new THREE.MeshBasicMaterial({
+                    color: (i % 2 === 0) ? 0xf97316 : 0xef4444,
+                    transparent: true,
+                    opacity: 0.75
+                });
+                const mesh = new THREE.Mesh(emberGeo, mat);
+                resetEmber(mesh, true);
+                scene.add(mesh);
+                emberParticles.push({
+                    mesh,
+                    speedY: 4 + Math.random() * 7,
+                    driftSeed: Math.random() * 100
+                });
+            }
+
+            // Deflection Spark Pool (for Lightsaber Deflect animation)
+            const sparkGeo = new THREE.BoxGeometry(0.35, 0.35, 1.8);
+            for (let i = 0; i < 12; i++) {
+                const mat = new THREE.MeshBasicMaterial({
+                    color: 0xfef08a,
+                    transparent: true,
+                    opacity: 0
+                });
+                const mesh = new THREE.Mesh(sparkGeo, mat);
+                scene.add(mesh);
+                sparkParticles.push({
+                    mesh,
+                    vx: 0, vy: 0, vz: 0,
+                    life: 0
+                });
+            }
+        }
+
+        function resetEmber(mesh, randomY = false) {
+            const radius = 3 + Math.random() * 11;
+            const angle = Math.random() * Math.PI * 2;
+            mesh.position.set(
+                Math.cos(angle) * radius,
+                randomY ? Math.random() * 34 : 0.2,
+                Math.sin(angle) * radius
+            );
+            const s = 0.5 + Math.random() * 0.9;
+            mesh.scale.set(s, s, s);
+        }
+
+        // Smooth damped lerp helper for frame-rate independent 60fps transitions
+        function damp(current, target, lambda, dt) {
+            return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-lambda * dt));
+        }
+
+        let deflTimer = 0;
+
+        function updateAnimations(time, dt) {
+            if (!skeleton.root) return;
+
+            // Default target transforms
+            const target = {
+                rootY: 12.5,
+                rootRotY: 0,
+                rootRotX: 0,
+                torsoX: 0, torsoY: 0, torsoZ: 0,
+                headX: 0, headY: 0, headZ: 0,
+                rArmX: 0, rArmY: 0, rArmZ: 0,
+                lArmX: 0, lArmY: 0, lArmZ: 0,
+                rLegX: 0, rLegY: 0, rLegZ: 0,
+                lLegX: 0, lLegY: 0, lLegZ: 0,
+                saberX: Math.PI / 2, saberY: 0, saberZ: 0,
+                capeWaveAmp: 0.06,
+                capeBaseLift: 0.14
+            };
+
+            // =====================================================================
+            // 1. IDLE BREATHING (Matches Reference Image 1: Commanding Sith Stance)
+            // =====================================================================
+            if (currentAnim === 'idle') {
+                const breath = Math.sin(time * 1.9);
+                target.rootY = 12.5 + breath * 0.14;
+                target.torsoX = breath * 0.03;
+                target.torsoY = -0.15;
+
+                // Menacing downward chin tilt so the flared brow shadows the eyes like Ref 2!
+                target.headY = 0.14 + Math.sin(time * 0.65) * 0.12;
+                target.headX = 0.09 - breath * 0.025;
+
+                // Right arm holding lightsaber angled down & beside leg (like Reference Image 1!)
+                target.rArmX = -0.22 + breath * 0.03;
+                target.rArmZ = 0.14;
+                target.rArmY = -0.12;
+                target.saberX = Math.PI / 2 + 0.82;
+                target.saberZ = -0.08;
+
+                // Left arm resting powerfully near belt / thigh
+                target.lArmX = -0.16 - breath * 0.03;
+                target.lArmZ = -0.15;
+
+                target.rLegZ = 0.04;
+                target.lLegZ = -0.04;
+                target.capeWaveAmp = 0.06;
+                target.capeBaseLift = 0.15;
+            }
+
+            // =====================================================================
+            // 2. IMPERIAL MARCH (Heavy, deliberate, unstoppable stride)
+            // =====================================================================
+            else if (currentAnim === 'walk') {
+                const wSpeed = 3.6;
+                const cycle = time * wSpeed;
+                const stride = Math.sin(cycle);
+                const bounce = Math.abs(Math.cos(cycle));
+
+                target.rootY = 12.5 - bounce * 0.45;
+                target.torsoX = 0.07; // Slight forward commanding lean
+                target.torsoY = -stride * 0.14;
+                target.torsoZ = Math.cos(cycle) * 0.035;
+
+                target.headY = stride * 0.1;
+                target.headX = 0.08;
+
+                // Heavy Leg Stride
+                target.rLegX = stride * 0.58;
+                target.lLegX = -stride * 0.58;
+
+                // Arms swinging with purposeful weight
+                target.rArmX = -0.35 - stride * 0.28;
+                target.rArmZ = 0.18;
+                target.saberX = Math.PI / 2 + 0.45;
+
+                target.lArmX = stride * 0.42;
+                target.lArmZ = -0.14;
+
+                target.capeWaveAmp = 0.16;
+                target.capeBaseLift = 0.38;
+            }
+
+            // =====================================================================
+            // 3. FORCE CHOKE (Left hand raised & clenched)
+            // =====================================================================
+            else if (currentAnim === 'choke') {
+                const pulse = Math.sin(time * 3.2);
+                const tremor = Math.sin(time * 18.0) * 0.015;
+
+                target.rootY = 12.5 + Math.sin(time * 1.5) * 0.12;
+                target.torsoY = -0.32;
+                target.torsoX = -0.04;
+
+                // Head turned toward victim with menacing tilt
+                target.headY = 0.28;
+                target.headX = -0.08 + pulse * 0.03;
+                target.headZ = -0.08;
+
+                // Left Arm raised forward in iconic Force Choke grip
+                target.lArmX = -1.38 + pulse * 0.05 + tremor;
+                target.lArmY = -0.22;
+                target.lArmZ = -0.18 + tremor;
+
+                // Right Arm holding crimson blade low across the body (just like Ref 2!)
+                target.rArmX = -0.28;
+                target.rArmY = 0.35;
+                target.rArmZ = 0.24;
+                target.saberX = Math.PI / 2 + 0.38;
+                target.saberZ = -0.45;
+
+                target.capeWaveAmp = 0.12;
+                target.capeBaseLift = 0.26;
+            }
+
+            // =====================================================================
+            // 4. LIGHTSABER FORM V (Djem So) SLASH COMBO
+            // =====================================================================
+            else if (currentAnim === 'slash') {
+                const phase = (time * 0.85) % 1.0;
+
+                if (phase < 0.33) {
+                    // Phase 1: Heavy overhead Djem So windup & vertical strike
+                    const p = phase / 0.33;
+                    const swing = Math.sin(p * Math.PI * 1.3);
+                    target.torsoY = -0.45 + p * 0.9;
+                    target.torsoX = -0.15 + p * 0.38;
+                    target.rArmX = -2.4 + p * 2.1;
+                    target.rArmZ = 0.15;
+                    target.saberX = Math.PI / 2 - 0.3 + p * 0.8;
+                    target.lArmX = -1.4 + p * 1.0;
+                    target.lArmY = -0.4;
+                    target.rLegX = -0.35;
+                    target.lLegX = 0.35;
+                    target.rootY = 11.4;
+                } else if (phase < 0.66) {
+                    // Phase 2: Sweeping backhand horizontal arc
+                    const p = (phase - 0.33) / 0.33;
+                    const arc = Math.sin(p * Math.PI);
+                    target.torsoY = 0.55 - p * 1.15;
+                    target.torsoX = 0.12;
+                    target.rArmX = -1.45;
+                    target.rArmY = 0.85 - p * 1.9;
+                    target.rArmZ = 0.65;
+                    target.saberX = Math.PI / 2 + 0.25;
+                    target.saberZ = -0.5 + arc * 0.8;
+                    target.lArmX = -0.55;
+                    target.lArmZ = -0.45;
+                    target.rLegX = 0.3;
+                    target.lLegX = -0.3;
+                    target.rootY = 11.3;
+                } else {
+                    // Phase 3: Intimidating forward thrust & recovery guard
+                    const p = (phase - 0.66) / 0.34;
+                    const thrust = Math.sin(p * Math.PI);
+                    target.torsoY = -0.6 + thrust * 0.3;
+                    target.torsoX = 0.18 * thrust;
+                    target.rArmX = -1.55 - thrust * 0.25;
+                    target.rArmY = -0.15;
+                    target.saberX = Math.PI / 2 + 0.55 * thrust;
+                    target.lArmX = -0.45;
+                    target.lArmZ = -0.3;
+                    target.rootY = 11.6;
+                }
+                target.capeWaveAmp = 0.25;
+                target.capeBaseLift = 0.52;
+            }
+
+            // =====================================================================
+            // 5. DARK SIDE UNLEASHED (Reference Image 1: Arms spread wide!)
+            // =====================================================================
+            else if (currentAnim === 'unleashed') {
+                const surge = Math.sin(time * 2.4);
+                target.rootY = 12.2 + surge * 0.25;
+                target.torsoX = -0.18 + surge * 0.04; // Chest puffed out powerfully
+                target.headX = -0.22 + surge * 0.05; // Looking slightly up/commanding
+                target.headY = Math.sin(time * 1.1) * 0.12;
+
+                // Both arms spread wide open (Iconic Pose from Reference Image 1)
+                target.rArmX = -0.35;
+                target.rArmZ = 1.18 + surge * 0.08;
+                target.rArmY = 0.25;
+                target.saberX = Math.PI / 2 + 0.15;
+
+                target.lArmX = -0.35;
+                target.lArmZ = -1.18 - surge * 0.08;
+                target.lArmY = -0.25;
+
+                target.rLegZ = 0.08;
+                target.lLegZ = -0.08;
+
+                // Dramatic billowing cape
+                target.capeWaveAmp = 0.28;
+                target.capeBaseLift = 0.58;
+            }
+
+            // =====================================================================
+            // 6. LIGHTSABER DEFLECT / BLASTER PARRY
+            // =====================================================================
+            else if (currentAnim === 'deflect') {
+                const slot = Math.floor(time * 2.8) % 4;
+                const sub = (time * 2.8) % 1.0;
+                const snap = Math.sin(sub * Math.PI);
+
+                target.torsoX = 0.06;
+                target.rootY = 11.7;
+                target.rLegX = -0.18;
+                target.lLegX = 0.18;
+
+                if (slot === 0) {
+                    // High Left Guard Parry
+                    target.torsoY = 0.22;
+                    target.rArmX = -1.65;
+                    target.rArmY = 0.55;
+                    target.saberZ = -0.65;
+                    target.saberX = Math.PI / 2 - 0.35;
+                } else if (slot === 1) {
+                    // Low Right Guard Parry
+                    target.torsoY = -0.25;
+                    target.rArmX = -1.15;
+                    target.rArmY = -0.45;
+                    target.saberZ = 0.55;
+                    target.saberX = Math.PI / 2 + 0.35;
+                } else if (slot === 2) {
+                    // Overhead Cross Block
+                    target.torsoY = 0.1;
+                    target.rArmX = -2.05;
+                    target.rArmZ = 0.35;
+                    target.saberZ = -1.15;
+                    target.saberX = Math.PI / 2;
+                } else {
+                    // Center Vertical Deflect
+                    target.torsoY = -0.15;
+                    target.rArmX = -1.45 - snap * 0.2;
+                    target.rArmY = 0.25;
+                    target.saberZ = -0.1;
+                    target.saberX = Math.PI / 2 - 0.5;
+                }
+
+                target.lArmX = -0.55;
+                target.lArmZ = -0.28;
+                target.capeWaveAmp = 0.18;
+                target.capeBaseLift = 0.34;
+
+                // Trigger deflection spark bursts periodically
+                deflTimer += dt;
+                if (deflTimer > 0.35 && saberActive) {
+                    deflTimer = 0;
+                    spawnDeflectSparks();
+                }
+            }
+
+            const speed = 11.0;
+            skeleton.root.position.y = damp(skeleton.root.position.y, target.rootY, speed, dt);
+            skeleton.torso.rotation.x = damp(skeleton.torso.rotation.x, target.torsoX, speed, dt);
+            skeleton.torso.rotation.y = damp(skeleton.torso.rotation.y, target.torsoY, speed, dt);
+            skeleton.torso.rotation.z = damp(skeleton.torso.rotation.z, target.torsoZ, speed, dt);
+
+            skeleton.head.rotation.x = damp(skeleton.head.rotation.x, target.headX, speed, dt);
+            skeleton.head.rotation.y = damp(skeleton.head.rotation.y, target.headY, speed, dt);
+            skeleton.head.rotation.z = damp(skeleton.head.rotation.z, target.headZ, speed, dt);
+
+            skeleton.rightArm.rotation.x = damp(skeleton.rightArm.rotation.x, target.rArmX, speed, dt);
+            skeleton.rightArm.rotation.y = damp(skeleton.rightArm.rotation.y, target.rArmY, speed, dt);
+            skeleton.rightArm.rotation.z = damp(skeleton.rightArm.rotation.z, target.rArmZ, speed, dt);
+
+            skeleton.leftArm.rotation.x = damp(skeleton.leftArm.rotation.x, target.lArmX, speed, dt);
+            skeleton.leftArm.rotation.y = damp(skeleton.leftArm.rotation.y, target.lArmY, speed, dt);
+            skeleton.leftArm.rotation.z = damp(skeleton.leftArm.rotation.z, target.lArmZ, speed, dt);
+
+            skeleton.rightLeg.rotation.x = damp(skeleton.rightLeg.rotation.x, target.rLegX, speed, dt);
+            skeleton.rightLeg.rotation.z = damp(skeleton.rightLeg.rotation.z, target.rLegZ, speed, dt);
+            skeleton.leftLeg.rotation.x = damp(skeleton.leftLeg.rotation.x, target.lLegX, speed, dt);
+            skeleton.leftLeg.rotation.z = damp(skeleton.leftLeg.rotation.z, target.lLegZ, speed, dt);
+
+            // Kama cloth skirts follow leg motion naturally
+            if (skeleton.rightKama && skeleton.leftKama) {
+                skeleton.rightKama.rotation.x = skeleton.rightLeg.rotation.x * 0.65;
+                skeleton.leftKama.rotation.x = skeleton.leftLeg.rotation.x * 0.65;
+            }
+
+            // Lightsaber orientation
+            skeleton.saber.rotation.x = damp(skeleton.saber.rotation.x, target.saberX, speed * 1.2, dt);
+            skeleton.saber.rotation.y = damp(skeleton.saber.rotation.y, target.saberY, speed * 1.2, dt);
+            skeleton.saber.rotation.z = damp(skeleton.saber.rotation.z, target.saberZ, speed * 1.2, dt);
+
+            // Smooth Lightsaber Blade Ignite / Retract Animation
+            const targetBladeScale = saberActive ? 1.0 : 0.001;
+            saberLengthScale = damp(saberLengthScale, targetBladeScale, 16.0, dt);
+            if (skeleton.blade) {
+                skeleton.blade.visible = saberLengthScale > 0.01;
+                skeleton.blade.scale.set(
+                    0.96 + Math.sin(time * 42) * 0.04,
+                    saberLengthScale,
+                    0.96 + Math.cos(time * 42) * 0.04
+                );
+            }
+            if (saberLight) {
+                saberLight.intensity = (2.5 + Math.sin(time * 35) * 0.3) * saberLengthScale;
+            }
+
+            // Multi-Segment Cape Traveling Sine Wave Physics
+            if (skeleton.cape) {
+                skeleton.cape.forEach((cBone, idx) => {
+                    const wave = Math.sin(time * 3.4 - idx * 0.85) * target.capeWaveAmp;
+                    const sideSway = Math.cos(time * 2.1 - idx * 0.6) * (target.capeWaveAmp * 0.35);
+                    const baseAngle = (idx === 0) ? target.capeBaseLift : 0.05;
+                    cBone.rotation.x = damp(cBone.rotation.x, baseAngle + wave, 10, dt);
+                    cBone.rotation.z = damp(cBone.rotation.z, sideSway, 10, dt);
+                });
+            }
+
+            // Animate 3D Voxel Flames on Vader's suit (when in Burned variant)
+            if (currentVariant === 'burned') {
+                flameParticles.forEach((fp) => {
+                    const t = time * 10.0 + fp.seed;
+                    fp.c1.scale.y = 0.85 + Math.sin(t * 1.7) * 0.25;
+                    fp.c2.scale.y = 0.85 + Math.cos(t * 1.3) * 0.3;
+                    fp.c2.rotation.y = Math.sin(t * 0.5) * 0.4;
+                    fp.c3.position.y = (1.9 + Math.sin(t * 2.1) * 0.45) * fp.baseScale;
+                    fp.c3.position.x = Math.cos(t * 1.9) * 0.22;
+                });
+                if (fireLight) {
+                    fireLight.intensity = 2.0 + Math.sin(time * 23.0) * 0.55;
+                }
+                if (eyeLight) {
+                    eyeLight.intensity = 1.6 + Math.sin(time * 8.0) * 0.35;
+                }
+            }
+
+            // Update floating ember / dark-side aura particles
+            const activeEmberCount = (currentVariant === 'burned') ? emberParticles.length : 16;
+            emberParticles.forEach((ep, idx) => {
+                if (idx >= activeEmberCount) {
+                    ep.mesh.visible = false;
+                    return;
+                }
+                ep.mesh.visible = true;
+                ep.mesh.position.y += ep.speedY * dt;
+                ep.mesh.position.x += Math.sin(time * 2.0 + ep.driftSeed) * 1.5 * dt;
+                ep.mesh.rotation.x += 2.0 * dt;
+                ep.mesh.rotation.y += 2.5 * dt;
+
+                if (ep.mesh.position.y > 35) {
+                    resetEmber(ep.mesh, false);
+                }
+            });
+
+            // Update blaster deflection sparks
+            sparkParticles.forEach((sp) => {
+                if (sp.life > 0) {
+                    sp.life -= dt * 2.8;
+                    sp.mesh.position.x += sp.vx * dt;
+                    sp.mesh.position.y += sp.vy * dt;
+                    sp.mesh.position.z += sp.vz * dt;
+                    sp.mesh.material.opacity = Math.max(0, sp.life);
+                } else {
+                    sp.mesh.material.opacity = 0;
+                }
+            });
+        }
+
+        function spawnDeflectSparks() {
+            if (!skeleton.blade) return;
+            const worldPos = new THREE.Vector3(0, 11, 0);
+            skeleton.blade.localToWorld(worldPos);
+
+            sparkParticles.forEach((sp) => {
+                sp.life = 1.0;
+                sp.mesh.position.copy(worldPos);
+                sp.vx = (Math.random() - 0.5) * 42;
+                sp.vy = (Math.random() - 0.3) * 38;
+                sp.vz = 15 + Math.random() * 35;
+                sp.mesh.lookAt(
+                    sp.mesh.position.x + sp.vx,
+                    sp.mesh.position.y + sp.vy,
+                    sp.mesh.position.z + sp.vz
+                );
+            });
+        }
+
+        function setupControls(domElement) {
+            domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            domElement.addEventListener('pointerdown', (e) => {
+                camState.isDragging = true;
+                camState.isRightDrag = (e.button === 2);
+                camState.prevX = e.clientX;
+                camState.prevY = e.clientY;
+                domElement.setPointerCapture(e.pointerId);
+            });
+
+            domElement.addEventListener('pointermove', (e) => {
+                if (!camState.isDragging) return;
+                const dx = e.clientX - camState.prevX;
+                const dy = e.clientY - camState.prevY;
+                camState.prevX = e.clientX;
+                camState.prevY = e.clientY;
+
+                if (camState.isRightDrag) {
+                    camState.targetPanX -= dx * 0.04;
+                    camState.targetPanY += dy * 0.04;
+                    camState.targetPanY = Math.max(4, Math.min(30, camState.targetPanY));
+                } else {
+                    camState.targetTheta -= dx * 0.0075;
+                    camState.targetPhi = Math.max(0.25, Math.min(Math.PI - 0.25, camState.targetPhi - dy * 0.0065));
+                }
+            });
+
+            domElement.addEventListener('pointerup', (e) => {
+                camState.isDragging = false;
+                try { domElement.releasePointerCapture(e.pointerId); } catch (_) {}
+            });
+
+            domElement.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                camState.targetRadius = Math.max(18, Math.min(80, camState.targetRadius + e.deltaY * 0.032));
+            }, { passive: false });
+        }
+
+        function updateCamera(dt) {
+            if (autoRotate && !camState.isDragging) {
+                camState.targetTheta += 0.45 * dt;
+            }
+            const smooth = 12.0;
+            camState.theta = damp(camState.theta, camState.targetTheta, smooth, dt);
+            camState.phi = damp(camState.phi, camState.targetPhi, smooth, dt);
+            camState.radius = damp(camState.radius, camState.targetRadius, smooth, dt);
+            camState.panX = damp(camState.panX, camState.targetPanX, smooth, dt);
+            camState.panY = damp(camState.panY, camState.targetPanY, smooth, dt);
+
+            const x = camState.panX + camState.radius * Math.sin(camState.phi) * Math.sin(camState.theta);
+            const y = camState.panY + camState.radius * Math.cos(camState.phi);
+            const z = camState.radius * Math.sin(camState.phi) * Math.cos(camState.theta);
+
+            camera.position.set(x, Math.max(1.5, y), z);
+            camera.lookAt(camState.panX, camState.panY, 0);
+        }
+
+        function setModelVariant(variant) {
+            if (currentVariant === variant) return;
+            currentVariant = variant;
+
+            const btnPristine = document.getElementById('btn-pristine');
+            const btnBurned = document.getElementById('btn-burned');
+
+            if (variant === 'pristine') {
+                btnPristine.classList.add('active-pristine');
+                btnBurned.classList.remove('active-burned');
+                if (pedestalStripMat) pedestalStripMat.color.setHex(0xdc2626);
+                if (rimLightRed) rimLightRed.color.setHex(0xdc2626);
+                scene.fog.color.setHex(0x08080b);
+            } else {
+                btnPristine.classList.remove('active-pristine');
+                btnBurned.classList.add('active-burned');
+                if (pedestalStripMat) pedestalStripMat.color.setHex(0xf97316);
+                if (rimLightRed) rimLightRed.color.setHex(0xea580c);
+                scene.fog.color.setHex(0x110906);
+            }
+
+            buildVaderModel();
+        }
+
+        function setAnimation(animName) {
+            currentAnim = animName;
+            document.querySelectorAll('.anim-btn').forEach((btn) => {
+                btn.classList.toggle('active', btn.dataset.anim === animName);
+            });
+        }
+
+        function toggleSaber() {
+            saberActive = !saberActive;
+            const btn = document.getElementById('btn-saber');
+            const dot = document.getElementById('saber-dot');
+            btn.classList.toggle('active', saberActive);
+            dot.className = saberActive
+                ? 'w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]'
+                : 'w-2 h-2 rounded-full bg-zinc-600';
+        }
+
+        function toggleAutoRotate() {
+            autoRotate = !autoRotate;
+            document.getElementById('btn-rotate').classList.toggle('active', autoRotate);
+        }
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x08080b);
+            scene.fog = new THREE.FogExp2(0x08080b, 0.0085);
+
+            camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.5, 250);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.15;
+            container.appendChild(renderer.domElement);
+
+            // Studio 3-Point Lighting tailored for Dark Glossy Obsidian Armor
+            const ambient = new THREE.AmbientLight(0xd4d4d8, 0.55);
+            scene.add(ambient);
+
+            // Cool Top-Left Key Light to bring out crisp voxel armor planes & helmet highlights
+            const keyLight = new THREE.DirectionalLight(0xe4e4f0, 1.45);
+            keyLight.position.set(-22, 42, 28);
+            keyLight.castShadow = true;
+            keyLight.shadow.mapSize.width = 1024;
+            keyLight.shadow.mapSize.height = 1024;
+            keyLight.shadow.camera.near = 10;
+            keyLight.shadow.camera.far = 90;
+            const d = 22;
+            keyLight.shadow.camera.left = -d;
+            keyLight.shadow.camera.right = d;
+            keyLight.shadow.camera.top = d;
+            keyLight.shadow.camera.bottom = -d;
+            scene.add(keyLight);
+
+            // Dramatic Crimson/Mustafar Back Rim Light
+            rimLightRed = new THREE.DirectionalLight(0xdc2626, 1.35);
+            rimLightRed.position.set(18, 25, -26);
+            scene.add(rimLightRed);
+
+            // Subtle Cool Fill Light from Right
+            const fillLight = new THREE.DirectionalLight(0x71717a, 0.65);
+            fillLight.position.set(26, 14, 15);
+            scene.add(fillLight);
+
+            initMaterials();
+            buildEnvironment();
+            buildVaderModel();
+            setupControls(renderer.domElement);
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        // High-precision 60fps loop with live FPS counter
+        let lastTime = performance.now();
+        let frames = 0;
+        let fpsLastUpdate = performance.now();
+
+        function animate(now) {
+            requestAnimationFrame(animate);
+
+            const dt = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
+            const elapsedTime = now * 0.001;
+
+            frames++;
+            if (now - fpsLastUpdate >= 500) {
+                const fps = Math.min(60, Math.round((frames * 1000) / (now - fpsLastUpdate)));
+                const el = document.getElementById('fps-counter');
+                if (el) el.textContent = `${fps} FPS`;
+                frames = 0;
+                fpsLastUpdate = now;
+            }
+
+            updateAnimations(elapsedTime, dt);
+            updateCamera(dt);
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            init();
+            requestAnimationFrame(animate);
+        };
+    </script>
+</body>
+</html>

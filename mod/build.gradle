@@ -1,0 +1,112 @@
+/* ───────── The King: NeoForge 1.21.1 mod build ─────────
+   gradlew runClient = start Minecraft with the mod · gradlew build = make the .jar (+ copy to ../builds, keep 5)
+   gradlew test = check the Java animation against the HTML viewer's recording (1:1 test)
+   VS Code: after changing neo_version, run "gradlew build" first (it makes the Minecraft jar), then the Java extension reloads. */
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+// Mojang ships Java 21 with Minecraft 1.21.1.
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    mavenCentral() // JUnit for the 1:1 test
+}
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        // Test: opens the world run/saves/kingtest directly. Its datapack (source: testworld/kingtest) builds a stage,
+        // lets the King fight a zombie (5 s) and then the player (30 s). Copy testworld/kingtest into its datapacks/ after edits.
+        testWorld {
+            client()
+            programArguments.addAll '--quickPlaySingleplayer', 'kingtest'
+        }
+        configureEach {
+            logLevel = org.slf4j.event.Level.INFO
+            systemProperty 'theking.debug', 'true' // dev runs: King actions in the log (not in the released jar)
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+dependencies {
+    // The animation code is plain Java, so it is tested without starting Minecraft.
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testImplementation 'com.google.code.gson:gson:2.11.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging { events 'passed', 'failed'; showStandardStreams = true; exceptionFormat = 'full' }
+}
+
+// Fills ${...} in src/main/templates (neoforge.mods.toml) from gradle.properties.
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+/* ───────── Keep the newest 5 builds ─────────
+   Every build copies the jar to ../builds as theking-<version>-<date-time>.jar and deletes older ones beyond 5. */
+tasks.register('copyToBuilds') {
+    dependsOn tasks.named('jar')
+    doLast {
+        def outDir = file("${rootDir}/../builds")
+        outDir.mkdirs()
+        def jarFile = tasks.named('jar').get().archiveFile.get().asFile
+        def stamp = new Date().format('yyyyMMdd-HHmmss')
+        def target = new File(outDir, "${mod_id}-${mod_version}-${stamp}.jar")
+        target.bytes = jarFile.bytes
+        def jars = outDir.listFiles().findAll { it.name.startsWith("${mod_id}-") && it.name.endsWith('.jar') }.sort { -it.lastModified() }
+        jars.drop(5).each { it.delete() }
+        println "Saved ${target.name} (kept ${Math.min(jars.size(), 5)} builds in builds/)"
+    }
+}
+tasks.named('build') { finalizedBy 'copyToBuilds' }

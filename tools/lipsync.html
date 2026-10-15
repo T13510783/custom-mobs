@@ -1,0 +1,31 @@
+<!DOCTYPE html><html><body><pre id="out"></pre><script>
+// Lip-sync curves for a mob's voice lines: per 1/30 s, loudness (0-35, base36 char) and brightness (zero crossings, 0-9).
+// Run: tools\cdp.ps1 -url file:///C:/custom%20mobs/tools/lipsync.html -expr "document.getElementById('out').textContent" -out x.json -extra '--allow-file-access-from-files'
+// Then paste env/zcr into the viewer's VOICE_LINES.
+const R = 'file:///C:/custom%20mobs/sounds/the_king/'; // edit LINES below for another mob
+const LINES = { cussing_short: 'cussingshort.ogg', cussing_long: 'cussing_long_final.ogg', take_your_stuff: 'take_ur_stuff_and_get_out_of_my_seat_please_final.ogg' };
+function bytes(src) { return new Promise((ok, no) => { const x = new XMLHttpRequest(); x.open('GET', src); x.responseType = 'arraybuffer'; x.onload = () => ok(x.response); x.onerror = no; x.send(); }); }
+(async () => {
+  const out = {};
+  try {
+    const ac = new AudioContext();
+    for (const [id, file] of Object.entries(LINES)) {
+      const buf = await ac.decodeAudioData(await bytes(R + file));
+      const a = buf.getChannelData(0), b = buf.numberOfChannels > 1 ? buf.getChannelData(1) : a;
+      const hop = buf.sampleRate / 30, rms = [], zc = [];
+      for (let f = 0; f * hop < a.length; f++) {
+        let s = 0, z = 0, prev = 0; const i0 = Math.floor(f * hop), i1 = Math.min(a.length, Math.floor((f + 1) * hop));
+        for (let i = i0; i < i1; i++) { const v = (a[i] + b[i]) * 0.5; s += v * v; if ((v >= 0) !== (prev >= 0)) z++; prev = v; }
+        rms.push(Math.sqrt(s / Math.max(1, i1 - i0))); zc.push(z / Math.max(1, i1 - i0));
+      }
+      const sm = rms.map((v, i) => (rms[Math.max(0, i - 1)] + 2 * v + rms[Math.min(rms.length - 1, i + 1)]) / 4); // ~100 ms low-pass
+      const ref = sm.slice().sort((x, y) => x - y)[Math.floor(sm.length * 0.95)] || 1;
+      const env = sm.map((v) => Math.round(35 * Math.min(1, Math.pow(v / ref, 0.8)))).map((n) => n.toString(36)).join('');
+      const loud = zc.filter((_, i) => sm[i] > ref * 0.15), zmax = Math.max(...loud, 1e-6), zmin = Math.min(...loud, zmax);
+      const zcr = zc.map((v, i) => sm[i] > ref * 0.15 ? Math.round(9 * (v - zmin) / Math.max(1e-6, zmax - zmin)) : 5).join('');
+      out[id] = { file, d: +buf.duration.toFixed(3), env, zcr };
+    }
+  } catch (e) { out.error = String(e && e.message || e); }
+  document.getElementById('out').textContent = JSON.stringify(out);
+})();
+</script></body></html>
