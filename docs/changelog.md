@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-15 21:38
+- Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
+  - Adjusted Glock pistol position forward along barrel axis and slightly outward (`y = -2.2 * PX`, `x = -0.35 * PX` in prop group): completely resolved the issue where the slide was sunken/no-clipped inside the black glove box; the rear sight and beavertail now sit cleanly at the knuckles, with the entire slide, ejection port, and sights clearly visible outside the glove.
+  - Held Paul Allen axe normally at the bottom of the handle: updated `buildPaulAllenAxe()` so the origin grip point is at the lower fawn-foot knob (`y = 0`), with the long hickory handle rising upwards (`15.5 * PX`) and the mirror-chrome axe head held high at chest level (`y = 13.6 * PX`).
+  - Movie lore-accurate "It's Hip to Be Square" dance for Raincoat Special: choreographed an authentic 2-phase dance routine alternating smoothly between both movie stills:
+    - Phase 1 (Pic 4): Sassy lean-back moonwalk glide with tight 80s power-fist pump, left hand behind back, head tilted back singing along, and axe held over shoulder.
+    - Phase 2 (Pic 3): Iconic two-handed axe presentation diagonally across chest (right hand at bottom of handle, left hand gripping upper shaft) with beaming manic grin!
+  - Updated raincoat face texture: gave Bateman a wide ecstatic open-mouthed grin showing white teeth matching both movie stills.
+  - Placed reference photos in root and backed up to `references/patrick_bateman/`.
+  - Synchronized `PatrickBateman.html` directly to `mobs/patrick_bateman/PatrickBateman.html` (verified identical SHA256 hashes).
+
 ## 2026-10-15 21:11
 - Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
   - Fixed Glock pistol hold angle so it points correctly and never points upwards: re-anchored gun pivot to the hand grip and oriented with `rotation.x = Math.PI / 2`, so in Special (`rArmX = -Math.PI / 2`) the barrel aims dead level horizontally forward (`0.00 rad` elevation) directly at the target, and in Idle (`rArmX = -0.08`) the barrel points safely downward towards the ground at his side.
