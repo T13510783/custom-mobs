@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-15 22:25
+- References sorted and renamed (lowercase, no spaces): `references/_unsorted/Drop kick - Extreme Slow Motion.mp4` -> `references/the_king/drop_kick_slow_motion.mp4` (used by The King's Attack; comment in `mobs/the_king/thekingv3.html` updated), `The Burger King Plane Guy Original MEME.mp4` -> `plane_guy_meme.mp4`, `VID_20261014_065424_395.mp4` -> `the_king_clip_20261014.mp4`, `references/homelander/homelander 1.png` -> `homelander_1.png`.
+- New rules: always clean up git after a merge / at session end (`CLAUDE.md` teamwork section, `AGENTS.md` section 7); root holds only docs/config + folders, clear file names (`CLAUDE.md` rule 15).
+
+## 2026-10-15 22:22
+- Repo cleanup (branch `tivek87/repo-cleanup`):
+  - Root: removed `test.txt`, the root copy `PatrickBateman.html` (same bytes as `mobs/patrick_bateman/PatrickBateman.html`), 9 `media_*.png` and 5 `reference_bateman_*.png` (all exact duplicates of files in `references/patrick_bateman/`).
+  - `references/patrick_bateman/`: removed `reference_bateman_gun_aim.png` (same bytes as `reference_bateman_gun.png`); moved the 6 hash-named film stills from the root in as `bateman_film_*.jpg`.
+  - `run.txt` + `CLAUDE.md` (rules 21, 24): no hardcoded `C:\custom mobs` path, the command now works from any clone folder.
+
 ## 2026-10-15 22:06
 - Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
   - Removed teeth from raincoat skin face: restored the standard deadpan serious face (`px(ctx, 3, 6, 2, 1, skinDeep)`) matching all other skins.

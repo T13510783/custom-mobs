@@ -21,6 +21,10 @@ Full commands in `AGENTS.md`. Short version, always:
 - **Claim your work** in `docs/working_on.md` (who, branch, mob/files). One person per mob page at a time. Remove your line when the PR is merged.
 - **Session start:** `git fetch --all --prune` -> switch to your branch -> `git pull --rebase` -> `git rebase origin/main` -> `gh pr list`.
 - **After EVERY change:** `git status` (own files only) -> commit `<area>: <what>` -> `git fetch` + `gh pr list` -> `git pull --rebase` + `git rebase origin/main` -> `git push`. Done + tested -> `gh pr create --fill --base main`; green + no conflicts -> `gh pr merge --squash --delete-branch`.
+- **Always clean up git (user rule, 2026-10-15):** after every merge and at the end of every turn, no leftovers in GitHub Desktop's branch/worktree lists. Full steps: `AGENTS.md` section 7.
+  - Merged PR -> `git worktree remove` its worktree, `git branch -d` its local branch, `git fetch --all --prune`, remove your `docs/working_on.md` line.
+  - Delete `backup/*` branches once the rebase/merge is verified and pushed. Never leave an unpushed worktree or branch behind.
+  - Only your own branches/worktrees; someone else's stale branch -> tell the user, never delete it.
 - **Merge conflicts:** never leave or push them.
   - First a safety copy: `git branch backup/<github-name>-<yyyyMMdd-HHmm>`.
   - Keep both sides' intent, never blindly "mine" or "theirs".
@@ -133,7 +137,9 @@ When the user says "model from A, animations from B":
     - `mobs/<mob>/` viewer pages (only there, no copy in the root) · `archive/<mob>/` old versions (old sounds in `archive/<mob>/sounds/`)
     - `references/<mob>/` only material the user gave (photos, videos); not yet tied to a mob -> `references/_unsorted/`
     - `sounds/<mob>/` every sound as `.ogg` (the mod) + `.mp3` (browser backup); pages pick with `canPlayType` · `tools/` test and helper scripts · `docs/` changelog + session log
+    - Root holds only `README.md`, `CLAUDE.md`, `AGENTS.md`, `run.txt`, `.gitignore`, `.gitattributes`, `.env.example`, `.vscode/`, `.claude/` and the folders. Never a copy of a viewer or reference in the root, even if asked for "in the root": sort it in. (2026-10-15)
     - New files from the user in the root -> sort them in; exact duplicates (same hash) -> delete.
+    - File names: lowercase, `_` instead of spaces, say what it is (`drop_kick_slow_motion.mp4`, not `VID_2026....mp4` or a hash). Fix every path that points to a renamed file. (2026-10-15)
     - Test output (renders, clip reports, `shot_*.txt/.png`) goes to the session scratchpad / `%TEMP%`, never into the project. (2026-10-14)
     - Deleting project files can be blocked by the permission check: then list them for the user to delete; never work around it.
 16. **Max 2500 lines per file.** Bigger -> split it into a folder with parts by section (e.g. `style.css`, `painters.js`, `rig.js`, `anims.js`, `ui.js`). A split viewer page loads its parts with classic `<script src>` (no ES modules: they break when the page is opened as a local file).
@@ -144,7 +150,7 @@ When the user says "model from A, animations from B":
 ## Mods (.jar)
 
 20. **Keep the last 5 builds** (user rule, 2026-10-14). `gradlew build` copies the jar to `builds/<modid>-<version>-<yyyyMMdd-HHmmss>.jar` and deletes all but the newest 5 (Gradle task `copyToBuilds`, in `build.gradle`).
-21. **Always a `run.txt`** in the project root with one command the user can copy, paste and run to test the mod (now: `cd "C:\custom mobs\mod"; .\gradlew.bat runClient`, for PowerShell). Keep it correct after every change.
+21. **Always a `run.txt`** in the project root with one command the user can copy, paste and run to test the mod (now: `cd .\mod; .\gradlew.bat runClient`, for PowerShell in the project folder). Keep it correct after every change. No absolute paths: each teammate clones to another folder (`C:\custom mobs`, `C:\custom-mobs`, ...). (2026-10-15)
 22. Test the mod before saying it is done. Not tested -> say so. Claude may start Minecraft to test, without asking (user rule, 2026-10-14): `gradlew runClient` (dev client, mod already loaded) or the user's own Minecraft.
 23. **Mod = the viewer, 1:1** (2026-10-14). The HTML stays the source of truth; the mod never gets its own model or animation edits.
     - Setup: NeoForge 21.1.x + ModDevGradle 2.0.x (`mod/`). JDK 21: `C:\Program Files\Microsoft\jdk-21.0.12.101-hotspot` (machine `JAVA_HOME`).
@@ -162,7 +168,7 @@ When the user says "model from A, animations from B":
     - Sounds: mono `.ogg` (stereo does not get a position in Minecraft). Actions start on the server and reach the client as entity events (`broadcastEntityEvent`, ids 100+).
     - Server-side root motion (leaps): the server moves the entity along the root curve; the client renderer subtracts it from the root bone.
     - Every mod: own creative tab + egg also in the vanilla Spawn Eggs tab, common/client config with a config screen, `en_us` + `nl_nl`, subtitles, loot table, biome modifier.
-24. **Test in game, fast** (2026-10-14): `gradlew runTestWorld` opens `mod/run/saves/kingtest`; its datapack (source `mod/testworld/`, copy it into the save after edits) builds a stage and scripts fights. Dev runs log actions with `-Dtheking.debug=true` -> check `mod/run/logs/latest.log` for `[TheKing]`. Screenshots: `tools\winshot.ps1`. The dev world has cheats off: chat commands fail, script tests in the datapack instead. Stop the client by matching `custom mobs\mod` in the java command line (the client's own command line also contains "gradle": never filter on `*Gradle*`, only on `*GradleDaemon*` / `*GradleWrapperMain*`). The server ticks a bit behind the wall clock: wait for a scripted step to show (screenshot/log) before simulating input.
+24. **Test in game, fast** (2026-10-14): `gradlew runTestWorld` opens `mod/run/saves/kingtest`; its datapack (source `mod/testworld/`, copy it into the save after edits) builds a stage and scripts fights. Dev runs log actions with `-Dtheking.debug=true` -> check `mod/run/logs/latest.log` for `[TheKing]`. Screenshots: `tools\winshot.ps1`. The dev world has cheats off: chat commands fail, script tests in the datapack instead. Stop the client by matching the project's `mod` folder path (e.g. `custom-mobs\mod`) in the java command line (the client's own command line also contains "gradle": never filter on `*Gradle*`, only on `*GradleDaemon*` / `*GradleWrapperMain*`). The server ticks a bit behind the wall clock: wait for a scripted step to show (screenshot/log) before simulating input.
     - A dark mob in a screenshot: check F3 light and the player's own hand first (the player may stand in shadow) before blaming normals.
     - Scripted tests: place mob and player with absolute `tp` spots inside the walled stage, never relative to a mob (they fall off and the test lies).
 
