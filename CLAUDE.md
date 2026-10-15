@@ -11,6 +11,10 @@ These rules count for every mob and every mod, unless the user clearly says othe
 
 Full commands in `AGENTS.md`. Short version, always:
 
+- **HARD RULE (user rule, 2026-10-15): after EVERY prompt and EVERY change: pull, commit, push. No exceptions.**
+  `git fetch` -> commit own files -> `git pull --rebase` + `git rebase origin/main` -> fix any conflict (see below) -> `git push`.
+  Make/switch branches and open/merge PRs whenever needed. A turn never ends with unpushed work or an open conflict.
+
 - **Repo:** `https://github.com/T13510783/custom-mobs`, private, owner `T13510783`. Squash merge only; GitHub deletes merged branches.
 - **`main` is not locked** (free private repo, no branch protection). Never commit or push straight to `main`; it changes only through pull requests (PRs).
 - **Own branch** per person/agent and topic: `<github-name>/<topic>`, lowercase (e.g. `t13510783/the-king-rig`). Start it from `origin/main`.
