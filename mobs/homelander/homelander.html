@@ -15,8 +15,9 @@
     - Layered 3D details: extruded blonde combed hair, golden eagle shoulder pauldrons,
       golden eagle belt buckle, red gauntlet bracers, tall red boots with eagle shin crests,
       and 3-segment articulated American flag cape (stars yoke + red/white vertical stripes).
-    - 4 selectable animations: Idle (arrogant hands-on-hips stance & breathing), Walk (authoritative stride),
-      Attack (superhuman snap punch), Special (levitation hover & heat-vision laser eyes).
+    - Animations: Idle, Idle 2, Walk + asked-for Attack (punch), Special (hover + heat vision), Throw,
+      Clap ("I AM GOD" voice line with lip sync, then the head clap), Throat Laser.
+    - Test dummy (key D): a plain humanoid that the attacks really hit (placed from the real hand / eye positions).
     - Ultra-minimal dark UI (#0f1115), OrbitControls, soft shadows, .bbmodel export.
   -->
 
@@ -81,8 +82,10 @@
     .anim-btn.active { color: var(--accent-text); background: var(--accent-bg); border-color: rgba(59, 130, 246, .45); box-shadow: 0 0 18px rgba(59, 130, 246, .24); }
     .anim-btn kbd { font: inherit; opacity: .45; margin-right: 6px; }
     .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
-    #followBtn, #bonesBtn { width: 32px; height: 32px; min-width: 32px; padding: 0; border-radius: 999px; }
-    #followBtn.on, #bonesBtn.on { color: var(--accent-text); background: var(--accent-bg); }
+    #followBtn, #voiceBtn, #bonesBtn, #dummyBtn { width: 32px; height: 32px; min-width: 32px; padding: 0; border-radius: 999px; }
+    #followBtn.on, #voiceBtn.on, #bonesBtn.on, #dummyBtn.on { color: var(--accent-text); background: var(--accent-bg); }
+    #voiceVol { width: 60px; margin: 0 4px 0 2px; accent-color: var(--accent); cursor: pointer; }
+    #voiceVol:disabled { opacity: .35; cursor: default; }
     .dot {
       width: 18px; height: 18px; border-radius: 999px; margin: 0 3px;
       border: 2px solid rgba(255, 255, 255, .18); transition: transform .2s, border-color .2s;
@@ -101,6 +104,7 @@
       .anim-btn { padding: 7px 10px; }
       .anim-btn kbd { display: none; }
       #dlBtn span { display: none; }
+      #voiceVol { width: 44px; }
     }
   </style>
 
@@ -135,14 +139,23 @@
     <button class="anim-btn" data-anim="attack"><kbd>4</kbd>Attack</button>
     <button class="anim-btn" data-anim="special"><kbd>5</kbd>Special</button>
     <button class="anim-btn" data-anim="throw"><kbd>6</kbd>Throw</button>
-    <button class="anim-btn" data-anim="clap"><kbd>7</kbd>Clap</button>
+    <button class="anim-btn" data-anim="clap" title="&quot;I AM GOD&quot; (voice line) + head clap"><kbd>7</kbd>Clap</button>
     <button class="anim-btn" data-anim="throatLaser"><kbd>8</kbd>Throat Laser</button>
     <span class="sep"></span>
     <button id="followBtn" class="icon-btn on" title="Head and eyes follow the mouse" aria-pressed="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
+    <!-- Sound on/off (voice line + hit sounds) and its volume (saved in this browser) -->
+    <button id="voiceBtn" class="icon-btn on" title="Sound on/off" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>
+    </button>
+    <input id="voiceVol" type="range" min="0" max="100" value="50" title="Volume: 50%" aria-label="Volume">
     <button id="bonesBtn" class="icon-btn" title="Show bones (B)" aria-pressed="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><circle cx="7" cy="12" r="1.6"/><circle cx="17" cy="12" r="1.6"/><circle cx="9" cy="20" r="1.6"/><circle cx="15" cy="20" r="1.6"/><path d="M12 6v8M12 8l-5 4M12 8l5 4M12 14l-3 6M12 14l3 6"/></svg>
+    </button>
+    <!-- Test dummy: a plain humanoid the attacks hit. Key D. -->
+    <button id="dummyBtn" class="icon-btn on" title="Test dummy (D)" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M7 10h10v6H7zM5 10v6M19 10v6M10 16v6M14 16v6"/></svg>
     </button>
     <span class="sep"></span>
     <span id="dots"></span>
