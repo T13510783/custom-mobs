@@ -303,11 +303,7 @@
         px(ctx, 3, 5, 2, 1, skinShadow);
 
         // Expression per variant
-        if (variant === 'raincoat') {
-          // Unhinged ecstatic open-mouthed grin showing teeth ("Do you like Huey Lewis and the News?!")
-          px(ctx, 2, 6, 4, 1, '#541c1c');
-          px(ctx, 3, 6, 2, 1, '#f1f5f9');
-        } else if (variant === 'executive') {
+        if (variant === 'executive') {
           // Subtle confident smirk
           px(ctx, 2, 6, 3, 1, skinDeep);
           px(ctx, 5, 6, 1, 1, skinMid);
@@ -1327,55 +1323,57 @@
         roughness: 0.02
       });
 
-      // Hand grip is at origin y = 0 (held normally at the bottom of the handle, near the fawn-foot knob).
-      // Total handle length is ~15.5 pixels extending UPWARDS to the mirror-chrome axe head.
-      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.75 * PX, 15.5 * PX, 1.05 * PX), woodMat);
-      handle.position.set(0, 6.75 * PX, 0);
+      // Hand grip is at origin y = 0 (held normally at the bottom of the handle).
+      // The handle hangs naturally DOWNWARD from the hand with the chrome axe head at the bottom (3.3 PX above ground).
+      // Zero clipping through the character except for the handle passing through the hand.
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.75 * PX, 11.5 * PX, 1.05 * PX), woodMat);
+      handle.position.set(0, -5.0 * PX, 0);
       axe.add(handle);
 
-      const grainStrip = new THREE.Mesh(new THREE.BoxGeometry(0.78 * PX, 15.1 * PX, 0.45 * PX), woodGrainMat);
-      grainStrip.position.set(0, 6.75 * PX, 0.12 * PX);
+      const grainStrip = new THREE.Mesh(new THREE.BoxGeometry(0.78 * PX, 11.1 * PX, 0.45 * PX), woodGrainMat);
+      grainStrip.position.set(0, -5.0 * PX, 0.12 * PX);
       axe.add(grainStrip);
 
-      // Bottom ergonomic fawn-foot swell / knob at lower end of handle (just below hand at y = 0)
+      // Ergonomic fawn-foot butt knob at upper end of handle (just above the hand at y = 0)
       const knob = new THREE.Mesh(new THREE.BoxGeometry(0.85 * PX, 1.4 * PX, 1.35 * PX), woodKnobMat);
-      knob.position.set(0, -1.0 * PX, 0.05 * PX);
+      knob.position.set(0, 0.9 * PX, 0.05 * PX);
       axe.add(knob);
 
-      // Top handle protrusion above the axe head
-      const topHandle = new THREE.Mesh(new THREE.BoxGeometry(0.72 * PX, 1.2 * PX, 0.98 * PX), woodKnobMat);
-      topHandle.position.set(0, 14.6 * PX, 0);
-      axe.add(topHandle);
-
-      // Axe head assembly (mounted near top of handle at y = 13.6 * PX)
+      // Axe head assembly (mounted near bottom of handle at y = -10.2 * PX)
       const headGroup = new THREE.Group();
-      headGroup.position.set(0, 13.6 * PX, 0);
+      headGroup.position.set(0, -10.2 * PX, 0);
 
       // Steel Eye collar wrapping around the handle
-      const collar = new THREE.Mesh(new THREE.BoxGeometry(1.22 * PX, 2.4 * PX, 1.65 * PX), steelMat);
+      const collar = new THREE.Mesh(new THREE.BoxGeometry(1.22 * PX, 2.2 * PX, 1.65 * PX), steelMat);
       headGroup.add(collar);
 
       // Rear striking poll (square counterweight hammer face pointing backward, -Z)
-      const poll = new THREE.Mesh(new THREE.BoxGeometry(1.05 * PX, 1.8 * PX, 1.35 * PX), steelMat);
+      const poll = new THREE.Mesh(new THREE.BoxGeometry(1.05 * PX, 1.6 * PX, 1.35 * PX), steelMat);
       poll.position.set(0, 0, -1.4 * PX);
       headGroup.add(poll);
 
       // Blade wedge extending forward (+Z)
-      const bladeWedge = new THREE.Mesh(new THREE.BoxGeometry(0.88 * PX, 2.1 * PX, 2.3 * PX), steelMat);
-      bladeWedge.position.set(0, 0, 1.85 * PX);
+      const bladeWedge = new THREE.Mesh(new THREE.BoxGeometry(0.88 * PX, 2.0 * PX, 2.2 * PX), steelMat);
+      bladeWedge.position.set(0, 0, 1.8 * PX);
       headGroup.add(bladeWedge);
 
       // Mirror-chrome flared bit (broad cutting flare facing forward, +Z)
-      const chromeBit = new THREE.Mesh(new THREE.BoxGeometry(0.55 * PX, 3.8 * PX, 1.9 * PX), chromeMat);
-      chromeBit.position.set(0, 0, 3.65 * PX);
+      const chromeBit = new THREE.Mesh(new THREE.BoxGeometry(0.55 * PX, 3.4 * PX, 1.9 * PX), chromeMat);
+      chromeBit.position.set(0, 0, 3.6 * PX);
       headGroup.add(chromeBit);
 
       // Ultra-sharp polished cutting edge
-      const cuttingEdge = new THREE.Mesh(new THREE.BoxGeometry(0.24 * PX, 4.4 * PX, 0.45 * PX), glintMat);
-      cuttingEdge.position.set(0, 0, 4.65 * PX);
+      const cuttingEdge = new THREE.Mesh(new THREE.BoxGeometry(0.24 * PX, 3.8 * PX, 0.45 * PX), glintMat);
+      cuttingEdge.position.set(0, 0, 4.6 * PX);
       headGroup.add(cuttingEdge);
 
       axe.add(headGroup);
+
+      // Small wooden handle protrusion below the axe head
+      const bottomTip = new THREE.Mesh(new THREE.BoxGeometry(0.72 * PX, 1.0 * PX, 0.98 * PX), woodKnobMat);
+      bottomTip.position.set(0, -11.5 * PX, 0);
+      axe.add(bottomTip);
+
       return axe;
     }
 
@@ -1479,10 +1477,10 @@
         propGroup.add(gun);
       } else if (variant === 'raincoat') {
         // Paul Allen felling axe held normally at the bottom of the handle (Pic 3 & 4)
-        // Hand grips at bottom knob, shaft rises upright with broad mirror-chrome cutting bit held high
+        // Hand grips near bottom knob, handle hangs downward at side, blade facing forward (+Z)
+        // Zero clipping through the character except for the handle held in the hand!
         const axe = buildPaulAllenAxe();
-        axe.position.set(-0.3 * PX, 0, 1.4 * PX);
-        axe.rotation.x = -0.18;
+        axe.position.set(0, 0, 0);
         propGroup.add(axe);
       } else if (variant === 'executive') {
         // Pic 5: Authentic 1980s Motorola DynaTAC brick mobile phone held in hand
@@ -1665,11 +1663,11 @@
           rArmY = -0.04;
           lArmX = 0.02;
         } else if (currentVariant === 'raincoat') {
-          // Raincoat: chrome axe held comfortably upright by bottom of handle, head gleaming at chest height
-          rArmX = -0.18 + breath * 0.02;
-          rArmZ = 0.14;
-          rArmY = 0.04;
-          lArmX = 0.04;
+          // Raincoat: chrome axe held comfortably by right side, blade facing forward
+          rArmX = -0.06 + breath * 0.02;
+          rArmZ = 0.10;
+          rArmY = 0.02;
+          lArmX = 0.02;
         } else if (currentVariant === 'executive') {
           // Suspenders: 1980s brick phone held in right hand at side, cool executive lean
           rArmX = -0.12 + breath * 0.02;
@@ -1712,8 +1710,8 @@
           lLegX = -swing * 0.28;
         } else if (currentVariant === 'raincoat') {
           // Axe swings naturally with right arm, clear of coat and legs
-          rArmX = -0.14 - swing * 0.30;
-          rArmZ = 0.14;
+          rArmX = -0.10 - swing * 0.28;
+          rArmZ = 0.10;
           // Clean stride tailored for raincoat
           rLegX = swing * 0.32;
           lLegX = -swing * 0.32;

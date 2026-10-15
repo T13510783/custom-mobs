@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-15 22:06
+- Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
+  - Removed teeth from raincoat skin face: restored the standard deadpan serious face (`px(ctx, 3, 6, 2, 1, skinDeep)`) matching all other skins.
+  - Re-anchored Paul Allen axe hold to the bottom of the handle hanging down:
+    - Updated `buildPaulAllenAxe()` so the origin grip point is at the hand hold near the top butt knob (`y = +0.9 * PX`).
+    - The handle hangs naturally downward at his side (`handle.position.y = -5.0 * PX`) with the mirror-chrome axe head mounted at the bottom (`y = -10.2 * PX`, 3.3 PX above the floor), blade facing forward (`+Z`).
+    - Eliminates all no-clipping through the arm, torso, and raincoat—the only point of contact is the handle held in his hand.
+  - Adjusted raincoat idle arm to `rArmX = -0.06, rArmZ = 0.10` and walk swing to `-0.10 - swing * 0.28, rArmZ = 0.10` so the axe hangs and swings freely in open air beside his leg.
+  - Synchronized `PatrickBateman.html` directly to `mobs/patrick_bateman/PatrickBateman.html` (verified identical SHA256 hashes).
+
 ## 2026-10-15 21:52
 - Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
   - Fixed legs clipping in Special: replaced rotated scissor stance (`rLegX = -0.12, lLegX = 0.12`) with an authentic upright planted shooting stance (`rLegX = 0, lLegX = 0, rLegZ = 0.03, lLegZ = -0.03`). Completely eliminates the disjointed coat protrusion at the back of the waist and front torso clipping shown in user screenshot.
