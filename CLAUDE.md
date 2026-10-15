@@ -21,6 +21,12 @@ Full commands in `AGENTS.md`. Short version, always:
 - **Claim your work** in `docs/working_on.md` (who, branch, mob/files). One person per mob page at a time. Remove your line when the PR is merged.
 - **Session start:** `git fetch --all --prune` -> switch to your branch -> `git pull --rebase` -> `git rebase origin/main` -> `gh pr list`.
 - **After EVERY change:** `git status` (own files only) -> commit `<area>: <what>` -> `git fetch` + `gh pr list` -> `git pull --rebase` + `git rebase origin/main` -> `git push`. Done + tested -> `gh pr create --fill --base main`; green + no conflicts -> `gh pr merge --squash --delete-branch`.
+- **Commit messages (user rule, 2026-10-15):** every commit and every squash-merge always has a good message: clear, short, clean.
+  - Subject: `<area>: <what changed>`, simple English, max ~72 chars, no "update"/"fix stuff"/"wip".
+  - Body (after a blank line): 1-4 short bullets: what changed, which files, why, how tested (or "not tested").
+  - Last line: the AI that did the work, the normal co-author trailer with its model, e.g. `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+  - Squash-merge: pass the same clean subject + body + trailer (`gh pr merge --squash --subject "..." --body "..."`), never GitHub's raw commit list.
+  - Project setting `.claude/settings.json` has `"includeCoAuthoredBy": true`.
 - **Merge conflicts:** never leave or push them.
   - First a safety copy: `git branch backup/<github-name>-<yyyyMMdd-HHmm>`.
   - Keep both sides' intent, never blindly "mine" or "theirs".
@@ -111,8 +117,8 @@ When the user says "model from A, animations from B":
 ## Look and UI
 
 10. **Same UI for every mob, always:** dark background (`#0f1115`), same font and color tokens, floating pill bar at the bottom center (animation buttons, follow toggle, color-variant dots), small camera-reset button top right, orbit camera controls, number keys + `R` for reset. No new layouts, no other libraries.
-    - **Always a "Download .bbmodel" button** (small, top right, next to the reset button, same style): it saves the current model with its textures and animations as a `.bbmodel` file.
-    - **Always a "Show bones" button** (bone icon in the dock, key `B`, user rule 2026-10-15): draws the rig on top of the model (a dot on every bone pivot, a line to its parent), updated live in every animation.
+    - **No "Download .bbmodel" button** (user rule, 2026-10-15). The page keeps its `.bbmodel` export code: Claude saves the file to `models/` with the page's headless export mode (workflow step 3).
+    - **Always a "Show bones" button, in every viewer page, every mob, no exceptions** (bone icon in the dock, key `B`, user rule 2026-10-15): draws the rig on top of the model (a dot on every bone pivot, a line to its parent), updated live in every animation.
 11. **Follow-mouse toggle in every mob:** head and eyes follow the mouse pointer; an eye-icon button in the dock turns it on/off. On by default. When off, head and eyes ease back to the animation's own pose, never snap.
 12. **Two humanoid body styles** (style unclear for a new mob -> ask):
     - **humanoid** = player model: head 8x8x8, body 8x12x4, arms + legs 4x12x4, no nose;

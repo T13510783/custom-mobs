@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-15 22:04
+- Rules: every commit and squash-merge needs a clear, short, clean message with the AI co-author trailer (`CLAUDE.md` GitHub section, `AGENTS.md` section 6).
+- New `.claude/settings.json` with `"includeCoAuthoredBy": true`.
+- Viewer UI rule 10 (`CLAUDE.md`): no Download .bbmodel button; Show bones button in every viewer, always.
+
 ## 2026-10-15 21:52
 - Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
   - Fixed legs clipping in Special: replaced rotated scissor stance (`rLegX = -0.12, lLegX = 0.12`) with an authentic upright planted shooting stance (`rLegX = 0, lLegX = 0, rLegZ = 0.03, lLegZ = -0.03`). Completely eliminates the disjointed coat protrusion at the back of the waist and front torso clipping shown in user screenshot.
@@ -28,7 +33,7 @@
 
 ## 2026-10-15 20:53
 - Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
-  - Fixed sunken / disconnected shoulder geometry: updated arm group pivots to `x = ±6.0 * PX, y = 12.0 * PX, z = 0` (was previously `y = 10.0 * PX`), making the top of the arms flush with the top of the torso and collar line, forming a seamless 16-pixel shoulder line without gaps.
+  - Fixed sunken / disconnected shoulder geometry: updated arm group pivots to `x = Â±6.0 * PX, y = 12.0 * PX, z = 0` (was previously `y = 10.0 * PX`), making the top of the arms flush with the top of the torso and collar line, forming a seamless 16-pixel shoulder line without gaps.
   - Made held Glock pistol, Paul Allen chrome axe, and 1980s brick mobile phone prominently visible in the hand in Idle:
     - Glock 19: refined tactical gunmetal slide (`0x2d323b`, metallic sheen), polished steel ejection port, bright white 3-dot aiming sights, recoil guide rod, and forward projection (`z = 1.6 * PX`, slide extending to `5.8 * PX` in +Z).
     - In Idle pose for tan overcoat: angled the right arm forward (`rArmX = -0.22, rArmZ = 0.09, rArmY = -0.06`) so the gun silhouette clearly projects in front of the coat and is immediately visible from all camera angles.
@@ -282,7 +287,7 @@
   - Tailored warm olive-khaki / field-tan wool palette across jacket, articulated lapel plates, and matching trousers.
   - Double-breasted jacket front with diagonal fold and two columns of 3 cream/ivory buttons (6 buttons total).
   - High-collar white dress shirt with champagne / golden-tan silk necktie.
-  - Left-chest historical military decorations (circular gold pin, Iron Cross cross-pattée, oval badge) with no political insignia or extremist symbols.
+  - Left-chest historical military decorations (circular gold pin, Iron Cross cross-pattÃ©e, oval badge) with no political insignia or extremist symbols.
   - Sleeve cuffs with matching cream buttons.
 - Preserved head meshes, hair, mustache, facial features, and all animations (Idle, Walk, Attack, Special) unchanged.
 
