@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15 17:12
+- GitHub repo `T13510783/custom-mobs` (private) created and pushed; squash merge only, merged branches auto-deleted.
+- New "GitHub repo and teamwork" section in `CLAUDE.md`; repo info, join steps and rules table in `README.md`; extra safety rules in `AGENTS.md` (binary conflicts, rejected push, 50 MB limit, no settings changes without OK).
+
 ## 2026-10-15 17:05
 - Git repo set up: `.gitignore`, `.gitattributes`, `.env.example`, `README.md`, `AGENTS.md` (team git rules, read by every AI), `docs/working_on.md` (who works on what). `claude.md` -> `CLAUDE.md` (imports `AGENTS.md`).
 - Files sorted: Reverse-Flash viewer -> `mobs/reverse_flash/ReverseFlash.html` (exact duplicate `the_reverse_flash_3d_viewer.html` deleted); its 5 photos -> `references/reverse_flash/reverse_flash_1..5.jpg`; `mobs/the_joker/the joker.html` -> `the_joker.html`.

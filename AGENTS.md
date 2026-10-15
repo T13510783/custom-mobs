@@ -46,6 +46,7 @@ Then check `docs/working_on.md` (who works on which mob/file) and add your own l
   - `docs/latest.md`: keep the newest one.
   - `docs/working_on.md`: keep everyone's lines.
   - Viewer pages (`mobs/<mob>/*.html`): only one person per mob at a time (see `docs/working_on.md`).
+  - Binary files (png, jpg, ogg, mp3, mp4, jar) can't be merged: keep both versions, ask your user which one wins.
 
 ## 5. Never
 
@@ -53,7 +54,10 @@ Then check `docs/working_on.md` (who works on which mob/file) and add your own l
 - Never rewrite or delete someone else's commits or branches.
 - Never commit secrets or local paths: `.env` is ignored; use `.env.example` for shared settings.
 - Never commit build output (`mod/build/`, `mod/run/`, `builds/*.jar`) or test renders: see `.gitignore`.
-- Never `git reset --hard` / `git clean -fd` with uncommitted work from someone else.
+- Never `git reset --hard` / `git clean -fd` / `git checkout -- .` with uncommitted work from someone else.
+- Never force a rejected push: `git pull --rebase` first. Uncommitted work before a pull or branch switch: commit or stash it.
+- Never commit a file over 50 MB (GitHub refuses 100 MB): shrink media with ffmpeg first, or ask.
+- Never without the repo owner's OK: change repo visibility, settings or collaborators, delete the repo, merge someone else's PR.
 
 ## 6. Commits and PR text
 

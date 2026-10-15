@@ -1,8 +1,8 @@
 # Latest session
 
-- **Date:** 2026-10-15 17:05
-- **Request:** Put the project on GitHub (repo, `.gitignore`, `.env.example`, README), team git rules for every AI, commit + push all audio and references, re-organise all files.
-- **Done:** Git + GitHub CLI installed; repo files made (`AGENTS.md`, `docs/working_on.md`, `README.md`, `.gitignore`, `.gitattributes`, `.env.example`); global git rule added. Root cleaned: Reverse-Flash viewer + photos sorted into `mobs/reverse_flash/` and `references/reverse_flash/`, duplicate viewer deleted, Joker page renamed. No duplicate files left (MD5 check).
-- **Before that:** 2-bone rig rule + Show bones button; Homelander and Black Noir reworked (see changelog 16:30).
-- **Files:** `README.md`, `AGENTS.md`, `CLAUDE.md`, `.gitignore`, `.gitattributes`, `.env.example`, `docs/*`, `mobs/reverse_flash/`, `references/reverse_flash/`, `mobs/the_joker/the_joker.html`.
-- **Next step:** User finishes the GitHub login -> first commit + push to a private repo `custom-mobs`. Then: The King rig rework (2-bone limbs, bones button) + mod re-export.
+- **Date:** 2026-10-15 17:12
+- **Request:** Make the GitHub repo, push everything, and write all repo / branch / conflict / safety rules into the rules, `CLAUDE.md` and `README.md`.
+- **Done:** Private repo `https://github.com/T13510783/custom-mobs` made, all files pushed (audio, references, archive, mod source). `CLAUDE.md` got a "GitHub repo and teamwork" section; `README.md` got repo info, join steps and a rules table; `AGENTS.md` got extra safety rules. Global rules updated too.
+- **Tested:** branch -> PR -> squash merge -> pull flow works (PR #1).
+- **Files:** `CLAUDE.md`, `AGENTS.md`, `README.md`, `docs/changelog.md`, `docs/latest.md`.
+- **Next step:** Nothing started. Later: The King 2-bone rig (branch `t13510783/the-king-rig`, only claims it so far).

@@ -7,6 +7,34 @@ Rule set for Claude. It works in any project, for anyone who makes custom mobs a
 Put this file in the root of your project and name it `CLAUDE.md` (or paste it into your existing `CLAUDE.md`).
 These rules count for every mob and every mod, unless the user clearly says otherwise for one mob or mod.
 
+## GitHub repo and teamwork (user rule, 2026-10-15)
+
+Full commands in `AGENTS.md`. Short version, always:
+
+- **Repo:** `https://github.com/T13510783/custom-mobs`, private, owner `T13510783`. Squash merge only; GitHub deletes merged branches.
+- **`main` is not locked** (free private repo, no branch protection). Never commit or push straight to `main`; it changes only through pull requests (PRs).
+- **Own branch** per person/agent and topic: `<github-name>/<topic>`, lowercase (e.g. `t13510783/the-king-rig`). Start it from `origin/main`.
+- **Claim your work** in `docs/working_on.md` (who, branch, mob/files). One person per mob page at a time. Remove your line when the PR is merged.
+- **Session start:** `git fetch --all --prune` -> switch to your branch -> `git pull --rebase` -> `git rebase origin/main` -> `gh pr list`.
+- **After EVERY change:** `git status` (own files only) -> commit `<area>: <what>` -> `git fetch` + `gh pr list` -> `git pull --rebase` + `git rebase origin/main` -> `git push`. Done + tested -> `gh pr create --fill --base main`; green + no conflicts -> `gh pr merge --squash --delete-branch`.
+- **Merge conflicts:** never leave or push them.
+  - First a safety copy: `git branch backup/<github-name>-<yyyyMMdd-HHmm>`.
+  - Keep both sides' intent, never blindly "mine" or "theirs".
+  - `docs/changelog.md`: keep all entries, newest on top. `docs/latest.md`: keep the newest. `docs/working_on.md`: keep all lines.
+  - Binary files (png, jpg, ogg, mp3, mp4, jar) can't be merged: keep both, ask the user which one wins.
+  - Re-test what you touched (`#cliptest`, `gradlew build`), then `git rebase --continue`.
+  - Not safely solvable -> stop, keep the backup branch, tell the user.
+- **Safety:**
+  - Push rejected -> `git pull --rebase`, never force. `--force-with-lease` only on your own branch, never on `main`.
+  - Uncommitted work before a pull or branch switch -> commit or stash it first.
+  - Never `git reset --hard`, `git clean -fd`, `git checkout -- .`, or delete someone else's branch or commits.
+  - Never commit `.env`, tokens, passwords, build output (`mod/build/`, `mod/run/`, `builds/`) or test renders. Shared settings go in `.env.example`.
+  - No file over 50 MB (GitHub refuses 100 MB). Bigger media -> shrink it with ffmpeg first, or ask.
+  - Never without the user's OK: change repo visibility, settings or collaborators, delete the repo, merge someone else's PR.
+- **What is in git:** viewer pages, references, sounds (`.ogg` + `.mp3`), archive, tools, docs, the mod's source + Gradle wrapper. Text files are LF (`.gitattributes`), `.bat`/`.ps1` CRLF.
+- **Login / tools:** git + GitHub CLI (`gh`) are installed. Login (only if `gh auth status` fails): the user runs `& "C:\Program Files\GitHub CLI\gh.exe" auth login --web` in a new PowerShell window. Claude may run any `git` / `gh` command without asking (user settings).
+- **New teammate:** owner invites them (GitHub repo -> Settings -> Collaborators). They run `gh repo clone T13510783/custom-mobs`; their AI reads `CLAUDE.md` + `AGENTS.md` first.
+
 ## How Claude talks to the user
 
 - Use very simple language. Short sentences. One idea per line. Lists and tables, not long paragraphs.
