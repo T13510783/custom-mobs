@@ -5,4 +5,3 @@ Only one person per mob viewer page at a time (prevents merge conflicts in big H
 
 | Who (GitHub name) | Branch | Working on (mob / files) | Since |
 |---|---|---|---|
-| t13510783 | t13510783/bateman-shoulder-prop-fix | patrick_bateman / PatrickBateman.html | 2026-10-15 20:48 |
