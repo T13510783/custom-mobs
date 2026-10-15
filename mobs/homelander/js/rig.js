@@ -145,10 +145,11 @@ const lasers = [-2, 2].map((x) => {
 });
 const LASER_LEN = 56; // default beam length in texels (3.5 blocks); anims may set `beam`
 
-// American flag cape: 10 bones of 2 texels each (was 5 x 4) so it bends in a smooth curve.
-// Same look as before: each segment paints its rows of the old 4-texel pattern
+// American flag cape: 20 bones of 1 texel each (was 10 x 2, before that 5 x 4) so it bends in a smooth curve.
+// Same look as before: each segment paints its row of the old 4-texel pattern
 // (rows 0-3 star yoke, 4-7 V transition, 8-19 stripes), with the same rest bend per 4 texels.
-const CAPE_N = 10, CAPE_SEG = 2;
+// CAPE_PER = bones per old 4-texel segment: pose and spring values per bone are 1/CAPE_PER of the old ones.
+const CAPE_N = 20, CAPE_SEG = 1, CAPE_PER = 4;
 const capeSub = document.createElement('canvas');            // reused: old 4-row segment is painted here
 capeSub.width = capeSub.height = 32;
 const capeSubCtx = capeSub.getContext('2d');
@@ -158,16 +159,16 @@ function capePainter(y0) {
     const tall = face !== 'top' && face !== 'bottom';         // side faces carry the 4 rows; top/bottom don't
     capeSubCtx.clearRect(0, 0, 32, 32);
     old(capeSubCtx, face, w, tall ? 4 : h);
-    ctx.drawImage(capeSub, 0, tall ? y0 % 4 : 0, w, h, 0, 0, w, h); // copy our 2 rows
+    ctx.drawImage(capeSub, 0, tall ? y0 % 4 : 0, w, h, 0, 0, w, h); // copy our row(s)
   };
 }
 const CAPE = [];
 let capeParent = chest;
 for (let i = 0; i < CAPE_N; i++) {
   const name = `cape_seg_${i + 1}`;
-  // rest bend: 0.04 at the shoulders, then 0.02 per 4 texels -> 0.01 per 2 texels
-  const b = i === 0 ? bone(name, chest, 0, 11.6, -2.65, 0.04, 0, 0) : bone(name, capeParent, 0, -CAPE_SEG, 0, i % 2 === 0 ? 0.02 : 0, 0, 0);
-  box(b, name, i < 2 ? 10.0 : 9.6, CAPE_SEG, 0.4, 0, -CAPE_SEG / 2, 0, capePainter(i * CAPE_SEG), { rough: 0.65 });
+  // rest bend: 0.04 at the shoulders, then 0.02 on every old 4-texel joint (same curve as before)
+  const b = i === 0 ? bone(name, chest, 0, 11.6, -2.65, 0.04, 0, 0) : bone(name, capeParent, 0, -CAPE_SEG, 0, i % CAPE_PER === 0 ? 0.02 : 0, 0, 0);
+  box(b, name, i < CAPE_PER ? 10.0 : 9.6, CAPE_SEG, 0.4, 0, -CAPE_SEG / 2, 0, capePainter(i * CAPE_SEG), { rough: 0.65 });
   CAPE.push(name);
   capeParent = b;
 }

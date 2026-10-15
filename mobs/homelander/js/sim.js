@@ -1,16 +1,17 @@
 /* Homelander viewer, part 'sim': Springs, simulation state, step().
    Classic script (loaded in order by homelander.html; THREE is global). */
 /* ───────── Dynamic Physics Springs (Fluent Cape Ripple) ───────── */
-// One spring per cape bone (u = old segment index 0..4.5). Values per bone are half of the old
-// per-4-texel values (2 bones now share each old bend). Lower bones are softer and also chase
-// their parent's spring angle (`chain`): body motion ripples down the cape with a delay.
+// One spring per cape bone (u = old segment index 0..4.75). Angle values per bone are 1/CAPE_PER of
+// the old per-4-texel values (4 bones now share each old bend; g = 2 / CAPE_PER = the old 10-bone
+// numbers scaled). Lower bones are softer and also chase their parent's spring angle (`chain`):
+// body motion ripples down the cape with a delay.
 const SPRINGS = CAPE.map((bone, i) => {
-  const u = i / 2;
+  const u = i / CAPE_PER, g = 2 / CAPE_PER;
   return {
     bone, chain: i === 0 ? 0 : 0.55,
-    k: 80 - 9 * u, d: 10 - 0.7 * u, accel: 0.125 + 0.025 * u,
-    x: [0.0, 0.075 + 0.012 * u], z: [-0.0075, 0.0075],
-    bx: 0.0075 + 0.0012 * u, breeze: 0.004 + 0.0009 * u, f: 1.1, lag: 0.09 * u // breeze wave travels down
+    k: 80 - 9 * u, d: 10 - 0.7 * u, accel: (0.125 + 0.025 * u) * g,
+    x: [0.0, (0.075 + 0.012 * u) * g], z: [-0.0075 * g, 0.0075 * g],
+    bx: (0.0075 + 0.0012 * u) * g, breeze: (0.004 + 0.0009 * u) * g, f: 1.1, lag: 0.09 * u // breeze wave travels down
   };
 });
 

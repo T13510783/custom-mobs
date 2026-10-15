@@ -67,13 +67,13 @@ function handsBehind(Q, side, w, fold = w) {
 }
 
 // Cape pose helper: `fn(u, i)` gives the bend for the old 4-texel segment scale at cape
-// position u (0 = shoulders, 4 = hem, continuous, so waves travel smoothly down 10 bones).
-// Each 2-texel bone gets half of it, so the total curve matches the old 5-bone values.
+// position u (0 = shoulders, 4.75 = hem, continuous, so waves travel smoothly down 20 bones).
+// Each 1-texel bone gets 1/CAPE_PER of it, so the total curve matches the old 5-bone values.
 function capePose(Q, fn) {
   for (let i = 0; i < CAPE_N; i++) {
-    const u = i / 2;                         // joint of bone i sits 2i texels down = old segment index i/2
+    const u = i / CAPE_PER;                  // joint of bone i sits i texels down = old segment index i/4
     const [x, z] = fn(u, i);
-    rot(Q, CAPE[i], 0.5 * x, 0, 0.5 * z);
+    rot(Q, CAPE[i], x / CAPE_PER, 0, z / CAPE_PER);
   }
 }
 
@@ -227,7 +227,9 @@ const ANIMS = {
       // Cape: pushed back over the hands behind the back (seg 1-3 out, 4-5 hang down again)
       // straight back-slant (~0.85 rad) over the fists for 12 texels, then the tail hangs down
       // (per bone, before capePose halves it: the bends sit on the old 4-texel joints)
-      const flare = [1.64, 0, 0, 0, 0, 0, -1.0, 0, -0.6, 0];
+      // 20 bones: the same bends sit on bone 0 (shoulders), 12 and 16 (texels down); x2 because capePose
+      // now gives each bone a quarter (was half): the angles stay the same.
+      const flare = [3.28, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2.0, 0, 0, 0, -1.2, 0, 0, 0];
       capePose(Q, (u, i) => {
         const phase = TAU * 3 * t / T - u * 0.5;
         return [0.015 + u * 0.008 + flare[i] * hands + (0.01 + u * 0.006) * Math.sin(phase), 0.003 * Math.cos(phase)];

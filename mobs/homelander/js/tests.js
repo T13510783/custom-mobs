@@ -58,8 +58,8 @@ function clipTest() {
     [/^(lower_arm_|gauntlet_)/, /^(upper_arm_|pauldron_)/],
     [/^(upper_arm_|pauldron_)/, /^(torso_suit|head_cranium)$/],
     [/^head_cranium$/, /^torso_suit$/],
-    [/^cape_seg_(1|2)$/, /^(torso_suit|head_cranium|pauldron_|upper_arm_)/],   // shoulders
-    [/^cape_seg_(3|4)$/, /^upper_arm_/],
+    [/^cape_seg_[1-4]$/, /^(torso_suit|head_cranium|pauldron_|upper_arm_)/],   // shoulders (top 4 texels)
+    [/^cape_seg_[5-8]$/, /^upper_arm_/],
     ...CAPE.slice(1).map((n, i) => [new RegExp(`^${n}$`), new RegExp(`^${CAPE[i]}$`)]) // each bone with the one above
   ];
   const isJoint = (a, b) => JOINTS.some(([x, y]) => (x.test(a) && y.test(b)) || (x.test(b) && y.test(a)));
