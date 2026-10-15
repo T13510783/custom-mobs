@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Patrick Bateman — 16x16 Vanilla+ 3D Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0d0f13;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #f3f4f6;
+    }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    /* Ultra-minimal floating pill UI */
+    .glass-pill {
+      background: rgba(18, 21, 28, 0.85);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+    }
+
+    .pill-btn {
+      transition: all 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .pill-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .pill-btn.active {
+      background: rgba(255, 255, 255, 0.14);
+      color: #ffffff;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    }
+
+    .skin-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 9999px;
+      display: inline-block;
+      margin-right: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <!-- Small Camera Reset Button (Top Right) -->
+    <button
+      id="reset-cam-btn"
+      title="Reset Camera"
+      class="glass-pill pill-btn fixed top-5 right-5 z-20 w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-white active:scale-95"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+    </button>
+
+    <!-- Sleek Floating Bottom Pill Bar -->
+    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2.5 w-max max-w-[95vw]">
+      <!-- Skin Selector Row -->
+      <div class="glass-pill rounded-full p-1 flex items-center gap-1 overflow-x-auto max-w-full">
+        <button data-skin="0" class="skin-btn pill-btn active px-3.5 py-1.5 rounded-full text-xs font-medium text-gray-300 flex items-center whitespace-nowrap">
+          <span class="skin-dot" style="background:#5c3a21;"></span>1. Trench &amp; Glock
+        </button>
+        <button data-skin="1" class="skin-btn pill-btn px-3.5 py-1.5 rounded-full text-xs font-medium text-gray-400 flex items-center whitespace-nowrap">
+          <span class="skin-dot" style="background:#991b1b;"></span>2. Suspenders &amp; Shades
+        </button>
+        <button data-skin="2" class="skin-btn pill-btn px-3.5 py-1.5 rounded-full text-xs font-medium text-gray-400 flex items-center whitespace-nowrap">
+          <span class="skin-dot" style="background:#2563eb;"></span>3. Walkman Suit
+        </button>
+        <button data-skin="3" class="skin-btn pill-btn px-3.5 py-1.5 rounded-full text-xs font-medium text-gray-400 flex items-center whitespace-nowrap">
+          <span class="skin-dot" style="background:#94a3b8;"></span>4. Clear Raincoat
+        </button>
+      </div>
+
+      <!-- Animation Selector Row -->
+      <div class="glass-pill rounded-full p-1 flex items-center gap-1">
+        <button data-anim="idle" class="anim-btn pill-btn active px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide text-gray-300">
+          Idle
+        </button>
+        <button data-anim="walk" class="anim-btn pill-btn px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide text-gray-400">
+          Walk
+        </button>
+        <button data-anim="attack" class="anim-btn pill-btn px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide text-gray-400">
+          Attack
+        </button>
+        <button data-anim="special" class="anim-btn pill-btn px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide text-gray-400">
+          Special
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. CONSTANTS & 16x16 VANILLA+ PIXEL UNIT SCALE
+    // ============================================================================
+    const PX = 1 / 16;
+
+    const state = {
+      skinIndex: 0,
+      animMode: 'idle',
+      animTime: 0,
+      mouseX: 0,
+      mouseY: 0
+    };
+
+    // Helper: Create crisp NearestFilter canvas texture
+    function createPixelCanvas(w, h, drawFn) {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(w));
+      canvas.height = Math.max(1, Math.round(h));
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      drawFn(ctx, canvas.width, canvas.height);
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.encoding = THREE.sRGBEncoding;
+      tex.generateMipmaps = false;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    function pRect(ctx, x, y, w, h, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, w, h);
+    }
+
+    function shadeHex(hex, delta) {
+      const num = parseInt(hex.replace('#', ''), 16);
+      const r = Math.min(255, Math.max(0, ((num >> 16) & 0xff) + delta));
+      const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + delta));
+      const b = Math.min(255, Math.max(0, (num & 0xff) + delta));
+      return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    }
+
+    function fillShaded(ctx, x, y, w, h, baseHex, variance = 4) {
+      for (let py = y; py < y + h; py++) {
+        for (let px = x; px < x + w; px++) {
+          const hash = ((px * 37 + py * 13) % 7) - 3;
+          const v = Math.round((hash / 3) * variance);
+          const grad = Math.round(((h / 2 - (py - y)) / Math.max(1, h)) * variance);
+          ctx.fillStyle = shadeHex(baseHex, v + grad);
+          ctx.fillRect(px, py, 1, 1);
+        }
+      }
+    }
+
+    function createTexturedBox(wPx, hPx, dPx, faceDrawers, opts = {}) {
+      const geo = new THREE.BoxGeometry(
+        wPx * PX + (opts.inflate || 0),
+        hPx * PX + (opts.inflate || 0),
+        dPx * PX + (opts.inflate || 0)
+      );
+
+      const dims = [
+        [dPx, hPx], [dPx, hPx],
+        [wPx, dPx], [wPx, dPx],
+        [wPx, hPx], [wPx, hPx]
+      ];
+
+      const names = ['left', 'right', 'top', 'bottom', 'front', 'back'];
+
+      const materials = names.map((faceName, idx) => {
+        const [tw, th] = dims[idx];
+        const tex = createPixelCanvas(tw, th, (ctx, w, h) => {
+          if (faceDrawers[faceName]) {
+            faceDrawers[faceName](ctx, w, h);
+          } else if (faceDrawers.default) {
+            faceDrawers.default(ctx, w, h, faceName);
+          }
+        });
+
+        return new THREE.MeshStandardMaterial({
+          map: tex,
+          transparent: Boolean(opts.transparent),
+          opacity: opts.opacity !== undefined ? opts.opacity : 1.0,
+          alphaTest: opts.alphaTest || 0,
+          roughness: opts.roughness !== undefined ? opts.roughness : 0.88,
+          metalness: opts.metalness !== undefined ? opts.metalness : 0.0,
+          side: opts.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+          depthWrite: opts.depthWrite !== undefined ? opts.depthWrite : true
+        });
+      });
+
+      const mesh = new THREE.Mesh(geo, materials);
+      mesh.castShadow = opts.castShadow !== undefined ? opts.castShadow : true;
+      mesh.receiveShadow = opts.receiveShadow !== undefined ? opts.receiveShadow : true;
+      return mesh;
+    }
+
+    // ============================================================================
+    // 2. TONED-DOWN, GROUNDED PALETTE & FACE/HAIR GENERATOR
+    // ============================================================================
+    const PALETTE = {
+      // Natural, darker warm skin tones matching the indoor film lighting
+      skinBase: '#d19e79',
+      skinWarm: '#c5926d',
+      skinShadow: '#ae7b58',
+      skinDeep: '#946443',
+      // Dark espresso brown hair
+      hairBase: '#211712',
+      hairMid: '#2d2018',
+      hairLight: '#38271e',
+      hairDark: '#160f0c',
+      // Deeper, grounded trench coat brown
+      trenchBase: '#6b4226',
+      trenchDark: '#52311a',
+      trenchDeep: '#3a2110',
+      trenchLight: '#7c4e2e',
+      // Deep charcoal/navy suits
+      suitDark: '#14171f',
+      suitCharcoal: '#1e222d',
+      suitPinstripe: '#2d3343',
+      // Muted dress shirts & ties (no blinding whites)
+      shirtBlue: '#6c96bd',
+      shirtWhite: '#d5dae2',
+      shirtStripe: '#7d8ca3',
+      tieNavy: '#162a60',
+      tieGold: '#caa22c',
+      tieRed: '#961b1e',
+      tieDot: '#d4d8e0',
+      suspenderNavy: '#182b49'
+    };
+
+    function buildHeadBase(styleIndex) {
+      return createTexturedBox(8, 8, 8, {
+        front: (ctx) => {
+          // Row 0: Hair hairline
+          pRect(ctx, 0, 0, 8, 1, PALETTE.hairBase);
+
+          // Row 1: Forehead & temple hair
+          pRect(ctx, 0, 1, 1, 1, PALETTE.hairBase);
+          pRect(ctx, 1, 1, 6, 1, '#d8a682');
+          pRect(ctx, 7, 1, 1, 1, PALETTE.hairBase);
+
+          // Row 2: Eyebrows & glabella shadow
+          pRect(ctx, 0, 2, 1, 1, PALETTE.hairBase);
+          pRect(ctx, 1, 2, 2, 1, '#211712');
+          pRect(ctx, 3, 2, 2, 1, '#b68360');
+          pRect(ctx, 5, 2, 2, 1, '#211712');
+          pRect(ctx, 7, 2, 1, 1, PALETTE.hairBase);
+
+          // Row 3: Eyes & nose bridge
+          pRect(ctx, 0, 3, 1, 1, PALETTE.skinWarm);
+          pRect(ctx, 1, 3, 1, 1, '#e2e8f0');
+          pRect(ctx, 2, 3, 1, 1, '#140f0c');
+          pRect(ctx, 3, 3, 1, 1, PALETTE.skinWarm);
+          pRect(ctx, 4, 3, 1, 1, '#b98663');
+          pRect(ctx, 5, 3, 1, 1, '#140f0c');
+          pRect(ctx, 6, 3, 1, 1, '#e2e8f0');
+          pRect(ctx, 7, 3, 1, 1, PALETTE.skinWarm);
+
+          // Row 4: Cheeks & nose
+          pRect(ctx, 0, 4, 1, 1, PALETTE.skinShadow);
+          pRect(ctx, 1, 4, 2, 1, PALETTE.skinBase);
+          pRect(ctx, 3, 4, 1, 1, PALETTE.skinWarm);
+          pRect(ctx, 4, 4, 1, 1, '#b5825f');
+          pRect(ctx, 5, 4, 2, 1, PALETTE.skinBase);
+          pRect(ctx, 7, 4, 1, 1, PALETTE.skinShadow);
+
+          // Row 5: Upper lip / smug smile crease
+          pRect(ctx, 0, 5, 1, 1, PALETTE.skinShadow);
+          pRect(ctx, 1, 5, 1, 1, PALETTE.skinWarm);
+          pRect(ctx, 2, 5, 1, 1, PALETTE.skinBase);
+          pRect(ctx, 3, 5, 2, 1, '#a67451');
+          pRect(ctx, 5, 5, 1, 1, PALETTE.skinBase);
+          pRect(ctx, 6, 5, 1, 1, PALETTE.skinWarm);
+          pRect(ctx, 7, 5, 1, 1, PALETTE.skinShadow);
+
+          // Row 6: Mouth / subtle smirk
+          pRect(ctx, 0, 6, 1, 1, PALETTE.skinShadow);
+          pRect(ctx, 1, 6, 1, 1, PALETTE.skinWarm);
+          pRect(ctx, 2, 6, 1, 1, PALETTE.skinBase);
+          pRect(ctx, 3, 6, 2, 1, '#8f5d3e');
+          pRect(ctx, 5, 6, 1, 1, '#b88562');
+          pRect(ctx, 6, 6, 1, 1, PALETTE.skinWarm);
+          pRect(ctx, 7, 6, 1, 1, PALETTE.skinShadow);
+
+          // Row 7: Jawline & chin
+          pRect(ctx, 0, 7, 2, 1, PALETTE.skinShadow);
+          pRect(ctx, 2, 7, 4, 1, '#ba8865');
+          pRect(ctx, 6, 7, 2, 1, PALETTE.skinShadow);
+        },
+        back: (ctx) => {
+          fillShaded(ctx, 0, 0, 8, 7, PALETTE.hairBase, 3);
+          for (let x = 1; x < 7; x += 2) {
+            pRect(ctx, x, 1, 1, 5, PALETTE.hairMid);
+          }
+          pRect(ctx, 0, 7, 8, 1, PALETTE.skinShadow);
+          pRect(ctx, 1, 7, 6, 1, PALETTE.hairDark);
+        },
+        left: (ctx) => {
+          pRect(ctx, 0, 0, 8, 8, '#be8c69');
+          pRect(ctx, 0, 5, 8, 3, PALETTE.skinShadow);
+          fillShaded(ctx, 0, 0, 8, 2, PALETTE.hairBase, 3);
+          fillShaded(ctx, 3, 2, 5, 5, PALETTE.hairBase, 3);
+        },
+        right: (ctx) => {
+          pRect(ctx, 0, 0, 8, 8, '#be8c69');
+          pRect(ctx, 0, 5, 8, 3, PALETTE.skinShadow);
+          fillShaded(ctx, 0, 0, 8, 2, PALETTE.hairBase, 3);
+          fillShaded(ctx, 0, 2, 5, 5, PALETTE.hairBase, 3);
+        },
+        top: (ctx) => {
+          fillShaded(ctx, 0, 0, 8, 8, PALETTE.hairBase, 3);
+          pRect(ctx, 1, 0, 2, 8, PALETTE.hairLight);
+          pRect(ctx, 5, 0, 2, 8, PALETTE.hairMid);
+        },
+        bottom: (ctx) => {
+          pRect(ctx, 0, 0, 8, 8, PALETTE.skinDeep);
+        }
+      });
+    }
+
+    function buildHairOuter(styleIndex) {
+      const group = new THREE.Group();
+      const outerBox = createTexturedBox(8, 8, 8, {
+        front: (ctx) => {
+          ctx.clearRect(0, 0, 8, 8);
+          pRect(ctx, 0, 0, 8, 1, PALETTE.hairBase);
+          pRect(ctx, 1, 0, 2, 1, PALETTE.hairLight);
+          pRect(ctx, 5, 0, 2, 1, PALETTE.hairMid);
+        },
+        back: (ctx) => {
+          ctx.clearRect(0, 0, 8, 8);
+          fillShaded(ctx, 0, 0, 8, 7, PALETTE.hairBase, 3);
+        },
+        left: (ctx) => {
+          ctx.clearRect(0, 0, 8, 8);
+          pRect(ctx, 0, 0, 8, 2, PALETTE.hairBase);
+          fillShaded(ctx, 4, 2, 4, 5, PALETTE.hairBase, 3);
+        },
+        right: (ctx) => {
+          ctx.clearRect(0, 0, 8, 8);
+          pRect(ctx, 0, 0, 8, 2, PALETTE.hairBase);
+          fillShaded(ctx, 0, 2, 4, 5, PALETTE.hairBase, 3);
+        },
+        top: (ctx) => {
+          pRect(ctx, 0, 0, 8, 8, PALETTE.hairBase);
+          pRect(ctx, 1, 0, 2, 8, PALETTE.hairLight);
+          pRect(ctx, 5, 0, 2, 8, PALETTE.hairMid);
+        },
+        bottom: (ctx) => ctx.clearRect(0, 0, 8, 8)
+      }, { inflate: 0.4 * PX, transparent: true, alphaTest: 0.1, doubleSided: true });
+      group.add(outerBox);
+      return group;
+    }
+
+    // ============================================================================
+    // 3. ACCESSORIES & PROPS (INCLUDING MOTOROLA DYNATAC 8000X BRICK PHONE)
+    // ============================================================================
+    function buildSunglasses() {
+      const shades = new THREE.Group();
+      const frameBar = createTexturedBox(8, 1, 1, {
+        default: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, '#141210', 2);
+        }
+      }, { inflate: 0.2 * PX, roughness: 0.35 });
+      frameBar.position.set(0, 1.3 * PX, 4.35 * PX);
+      shades.add(frameBar);
+
+      const lensMat = {
+        default: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, '#09090b', 2);
+        }
+      };
+      const rightLens = createTexturedBox(3, 2, 1, lensMat, { roughness: 0.2 });
+      rightLens.position.set(-2.2 * PX, 0.8 * PX, 4.3 * PX);
+      shades.add(rightLens);
+
+      const leftLens = createTexturedBox(3, 2, 1, lensMat, { roughness: 0.2 });
+      leftLens.position.set(2.2 * PX, 0.8 * PX, 4.3 * PX);
+      shades.add(leftLens);
+
+      const templeR = createTexturedBox(1, 1, 5, {
+        default: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, '#141210', 2)
+      });
+      templeR.position.set(-4.25 * PX, 1.2 * PX, 2.0 * PX);
+      shades.add(templeR);
+
+      const templeL = createTexturedBox(1, 1, 5, {
+        default: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, '#141210', 2)
+      });
+      templeL.position.set(4.25 * PX, 1.2 * PX, 2.0 * PX);
+      shades.add(templeL);
+
+      return shades;
+    }
+
+    function buildWalkmanHeadphones() {
+      const group = new THREE.Group();
+      const topArch = createTexturedBox(9, 1, 1, {
+        default: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, '#475569', 3)
+      }, { roughness: 0.4 });
+      topArch.position.set(0, 4.75 * PX, 0);
+      group.add(topArch);
+
+      const sideArmGeo = {
+        default: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, '#334155', 3)
+      };
+      const armR = createTexturedBox(1, 5, 1, sideArmGeo, { roughness: 0.4 });
+      armR.position.set(-4.55 * PX, 2.3 * PX, 0);
+      group.add(armR);
+
+      const armL = createTexturedBox(1, 5, 1, sideArmGeo, { roughness: 0.4 });
+      armL.position.set(4.55 * PX, 2.3 * PX, 0);
+      group.add(armL);
+
+      const padTex = {
+        default: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, '#18181b', 3);
+          pRect(ctx, 0, 0, 1, 1, '#27272a');
+        }
+      };
+      const earpadR = createTexturedBox(1.5, 2.5, 2.5, padTex, { roughness: 0.9 });
+      earpadR.position.set(-4.65 * PX, 0.1 * PX, 0.2 * PX);
+      group.add(earpadR);
+
+      const earpadL = createTexturedBox(1.5, 2.5, 2.5, padTex, { roughness: 0.9 });
+      earpadL.position.set(4.65 * PX, 0.1 * PX, 0.2 * PX);
+      group.add(earpadL);
+      return group;
+    }
+
+    function buildPistol() {
+      const gunHolder = new THREE.Group();
+      const gun = new THREE.Group();
+      gun.rotation.x = Math.PI / 2;
+      gunHolder.add(gun);
+
+      const slide = createTexturedBox(1.8, 1.8, 6.2, {
+        default: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, '#1e2228', 4);
+          pRect(ctx, 0, 0, w, 1, '#3b424f');
+        },
+        front: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, '#262b33', 3);
+          pRect(ctx, 0, 0, 1, 1, '#090a0d');
+        }
+      }, { roughness: 0.35 });
+      slide.position.set(0, 1.0 * PX, 2.0 * PX);
+      gun.add(slide);
+
+      const muzzleTip = createTexturedBox(0.9, 0.9, 0.4, {
+        default: (ctx, w, h) => pRect(ctx, 0, 0, w, h, '#090a0d')
+      });
+      muzzleTip.position.set(0, 0.95 * PX, 5.15 * PX);
+      gun.add(muzzleTip);
+
+      const grip = createTexturedBox(1.5, 3.8, 1.9, {
+        default: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, '#121417', 3)
+      }, { roughness: 0.85 });
+      grip.position.set(0, -1.1 * PX, -0.1 * PX);
+      grip.rotation.x = -0.18;
+      gun.add(grip);
+
+      const flashGroup = new THREE.Group();
+      const flashMat = new THREE.MeshBasicMaterial({ color: 0xfde047 });
+      const coreMat = new THREE.MeshBasicMaterial({ color: 0xea580c });
+      const f1 = new THREE.Mesh(new THREE.BoxGeometry(2.4 * PX, 2.4 * PX, 2.4 * PX), coreMat);
+      const f2 = new THREE.Mesh(new THREE.BoxGeometry(1.2 * PX, 4.2 * PX, 1.2 * PX), flashMat);
+      const f3 = new THREE.Mesh(new THREE.BoxGeometry(4.2 * PX, 1.2 * PX, 1.2 * PX), flashMat);
+      flashGroup.add(f1, f2, f3);
+      flashGroup.position.set(0, 1.0 * PX, 6.2 * PX);
+      flashGroup.visible = false;
+      gun.add(flashGroup);
+
+      gunHolder.userData.muzzleFlash = flashGroup;
+      gunHolder.userData.slide = slide;
+      return gunHolder;
+    }
+
+    // ============================================================================
+    // REFERENCE-ACCURATE 1980s MOTOROLA DynaTAC 8000X ("BRICK PHONE")
+    // ============================================================================
+    // Built to match the reference shot:
+    // - Chunky warm putty-beige/grey chassis with two-piece battery seam line
+    // - 3 dark side vent dots near the lower edge
+    // - Detailed bottom base with dark recessed battery clip slot + raised front-bottom mic lip
+    // - Sloped upper earpiece wedge + recessed dark keypad/LED face
+    // - Thin black rubber ducky antenna at the top with a wider bulbous cap tip
+    function buildBrickPhone() {
+      const phoneHolder = new THREE.Group();
+      const phone = new THREE.Group();
+      phoneHolder.add(phone);
+
+      const puttyMain = '#aba69b';
+      const puttyLight = '#bab5aa';
+      const puttyMid = '#969186';
+      const puttyDark = '#7d786e';
+      const seamDark = '#5c5850';
+
+      // 1. Main Brick Chassis (with high-res 6x16x6 pixel art for crisp seam, vents, keypad & bottom latch)
+      const mainBody = createTexturedBox(2.7, 8.2, 3.0, {
+        // Side facing outward/viewer when held to ear
+        left: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, puttyMain, 2);
+          // Vertical seam dividing front phone body and rear snap-on battery pack
+          pRect(ctx, 1, 0, 1, h, seamDark);
+          // Slight highlight along front edge
+          pRect(ctx, w - 1, 0, 1, h, puttyLight);
+          // 3 iconic small dark vent holes near the bottom side (exact match to reference photo)
+          pRect(ctx, 0, h - 2, 1, 1, '#2b2926');
+          pRect(ctx, 0, h - 4, 1, 1, '#2b2926');
+        },
+        right: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, puttyMid, 2);
+          pRect(ctx, 1, 0, 1, h, seamDark);
+          pRect(ctx, 0, h - 2, 1, 1, '#2b2926');
+          pRect(ctx, 0, h - 4, 1, 1, '#2b2926');
+        },
+        // Back spine (battery pack back)
+        back: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, puttyMid, 2);
+          pRect(ctx, 0, 0, w, 1, puttyLight);
+          pRect(ctx, 0, 3, w, 1, seamDark);
+          pRect(ctx, 0, h - 1, w, 1, puttyDark);
+        },
+        // Front face (facing cheek/ear: earpiece at top, dark LED window + keypad in middle, mic chin at bottom)
+        front: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, puttyLight, 2);
+          // Earpiece speaker slot at top
+          pRect(ctx, 1, 1, Math.max(1, w - 2), 1, '#27272a');
+          // Dark recessed LED display & keypad bezel
+          pRect(ctx, 0, 3, w, 4, '#27272a');
+          // Red LED readout glint
+          pRect(ctx, 1, 3, 1, 1, '#dc2626');
+          // Keypad button dots
+          pRect(ctx, 0, 4, 1, 2, '#d6d3cd');
+          pRect(ctx, w - 1, 4, 1, 2, '#d6d3cd');
+          pRect(ctx, 1, 6, 1, 1, '#ea580c');
+        },
+        top: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, puttyLight, 2);
+          pRect(ctx, 0, 1, w, 1, seamDark);
+        },
+        // Iconic Bottom Base clearly visible in foreground of the reference photo
+        bottom: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, puttyDark, 2);
+          // Seam across bottom
+          pRect(ctx, 0, 1, w, 1, seamDark);
+          // Dark recessed rectangular battery release latch in center of bottom face
+          pRect(ctx, 1, 1, Math.max(1, w - 2), 1, '#1f1e1b');
+        }
+      }, { roughness: 0.72 });
+      phone.add(mainBody);
+
+      // 2. Raised Bottom Front Lip / Microphone Chin Block (protruding block on bottom-right of phone in photo)
+      const bottomChinLip = createTexturedBox(2.55, 1.55, 0.75, {
+        default: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, puttyLight, 2),
+        bottom: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, puttyMid, 2);
+          // Recessed vertical microphone slot inside the raised chin block
+          pRect(ctx, 1, 0, 1, h, '#27272a');
+        },
+        front: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, puttyLight, 2);
+          pRect(ctx, 1, 0, 1, h, '#3f3d38');
+        }
+      }, { roughness: 0.72 });
+      bottomChinLip.position.set(0, -3.32 * PX, 1.72 * PX);
+      phone.add(bottomChinLip);
+
+      // 3. Upper Angled Earpiece Wedge (gives the DynaTAC its authentic stepped front profile)
+      const upperEarpieceWedge = createTexturedBox(2.55, 2.7, 0.65, {
+        default: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, puttyLight, 2),
+        front: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, puttyLight, 2);
+          pRect(ctx, 1, 1, Math.max(1, w - 2), 1, '#27272a');
+        }
+      }, { roughness: 0.72 });
+      upperEarpieceWedge.position.set(0, 2.65 * PX, 1.65 * PX);
+      upperEarpieceWedge.rotation.x = -0.08;
+      phone.add(upperEarpieceWedge);
+
+      // 4. Recessed Bottom Battery Latch Detail (adds 3D depth to the bottom of the brick)
+      const bottomLatchPocket = createTexturedBox(1.3, 0.3, 1.1, {
+        default: (ctx, w, h) => pRect(ctx, 0, 0, w, h, '#242320')
+      }, { roughness: 0.85 });
+      bottomLatchPocket.position.set(0, -4.02 * PX, -0.15 * PX);
+      phone.add(bottomLatchPocket);
+
+      // 5. Classic Black Rubber Ducky Antenna with Bulbous Tip (visible sticking out top-left in reference photo)
+      const antennaBaseCollar = createTexturedBox(0.7, 0.55, 0.7, {
+        default: (ctx, w, h) => pRect(ctx, 0, 0, w, h, '#1c1b18')
+      }, { roughness: 0.6 });
+      antennaBaseCollar.position.set(-0.45 * PX, 4.35 * PX, -0.55 * PX);
+      phone.add(antennaBaseCollar);
+
+      const antennaStem = createTexturedBox(0.42, 2.6, 0.42, {
+        default: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, '#18181b', 2)
+      }, { roughness: 0.55 });
+      antennaStem.position.set(-0.45 * PX, 5.75 * PX, -0.55 * PX);
+      phone.add(antennaStem);
+
+      // Bulbous rounded cap tip at the end of the antenna
+      const antennaBulbTip = createTexturedBox(0.72, 0.68, 0.72, {
+        default: (ctx, w, h) => pRect(ctx, 0, 0, w, h, '#0f1012')
+      }, { roughness: 0.45 });
+      antennaBulbTip.position.set(-0.45 * PX, 7.22 * PX, -0.55 * PX);
+      phone.add(antennaBulbTip);
+
+      return phoneHolder;
+    }
+
+    function buildWatch() {
+      const watchGroup = new THREE.Group();
+      const bracelet = createTexturedBox(4.28, 1.15, 4.28, {
+        default: (ctx, w, h) => {
+          pRect(ctx, 0, 0, w, h, '#94a3b8');
+          pRect(ctx, 1, 0, Math.max(1, w - 2), h, '#ca8a04');
+          pRect(ctx, 0, 0, 1, h, '#64748b');
+          pRect(ctx, w - 1, 0, 1, h, '#64748b');
+        }
+      });
+      watchGroup.add(bracelet);
+
+      const watchCase = createTexturedBox(0.45, 1.65, 1.75, {
+        default: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, '#ca8a04', 3)
+      });
+      watchCase.position.set(2.05 * PX, 0, 0);
+      watchGroup.add(watchCase);
+
+      const dialFace = createTexturedBox(0.54, 1.25, 1.35, {
+        default: (ctx, w, h) => {
+          pRect(ctx, 0, 0, w, h, '#fde68a');
+          pRect(ctx, 0, 0, 1, 1, '#1e293b');
+        }
+      });
+      dialFace.position.set(2.08 * PX, 0, 0);
+      watchGroup.add(dialFace);
+      return watchGroup;
+    }
+
+    function buildFireAxe() {
+      const axe = new THREE.Group();
+      const handle = createTexturedBox(1.2, 13.0, 1.4, {
+        default: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, '#713f12', 5);
+          pRect(ctx, 0, 0, w, 2, '#cbd5e1');
+        }
+      });
+      handle.position.set(0, 2.5 * PX, 0);
+      axe.add(handle);
+
+      const headBack = createTexturedBox(1.4, 2.5, 3.2, {
+        default: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, '#94a3b8', 4)
+      });
+      headBack.position.set(0, 7.2 * PX, 0.5 * PX);
+      axe.add(headBack);
+
+      const bladeEdge = createTexturedBox(0.9, 4.2, 2.4, {
+        default: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, h, '#cbd5e1', 3);
+          pRect(ctx, w - 1, 0, 1, h, '#e2e8f0');
+        }
+      });
+      bladeEdge.position.set(0, 7.1 * PX, 2.8 * PX);
+      axe.add(bladeEdge);
+      return axe;
+    }
+
+    // ============================================================================
+    // 4. TORSO, ARMS & LEGS BUILDERS
+    // ============================================================================
+    function buildTorso(styleIndex) {
+      const torsoGroup = new THREE.Group();
+
+      const baseTorso = createTexturedBox(8, 12, 4, {
+        front: (ctx) => {
+          if (styleIndex === 0) {
+            fillShaded(ctx, 0, 0, 8, 12, PALETTE.trenchBase, 4);
+            pRect(ctx, 2, 0, 4, 4, PALETTE.shirtBlue);
+            pRect(ctx, 3, 1, 2, 4, PALETTE.tieNavy);
+            pRect(ctx, 3, 2, 1, 1, PALETTE.tieGold);
+            fillShaded(ctx, 2, 5, 4, 7, PALETTE.trenchBase, 3);
+            pRect(ctx, 3, 5, 1, 7, PALETTE.trenchDark);
+            pRect(ctx, 3, 7, 1, 1, PALETTE.trenchDeep);
+            pRect(ctx, 3, 10, 1, 1, PALETTE.trenchDeep);
+          } else if (styleIndex === 1) {
+            // Toned-down off-white/grey-blue striped shirt & patterned red tie from the reference photo
+            fillShaded(ctx, 0, 0, 8, 12, PALETTE.shirtWhite, 2);
+            for (let x = 0; x < 8; x += 2) {
+              pRect(ctx, x, 1, 1, 11, PALETTE.shirtStripe);
+            }
+            // White spread collar with subtle stripe
+            pRect(ctx, 2, 0, 4, 1, '#e2e8f0');
+            // Navy suspenders with subtle diamond dots & gold/brass clips at the bottom
+            pRect(ctx, 1, 0, 1, 12, PALETTE.suspenderNavy);
+            pRect(ctx, 6, 0, 1, 12, PALETTE.suspenderNavy);
+            pRect(ctx, 1, 3, 1, 1, '#64748b');
+            pRect(ctx, 6, 3, 1, 1, '#64748b');
+            pRect(ctx, 1, 7, 1, 1, '#64748b');
+            pRect(ctx, 6, 7, 1, 1, '#64748b');
+            pRect(ctx, 1, 10, 1, 1, '#d4af37');
+            pRect(ctx, 6, 10, 1, 1, '#d4af37');
+            // Crimson tie with subtle white/silver dot pattern
+            pRect(ctx, 3, 1, 2, 10, PALETTE.tieRed);
+            pRect(ctx, 3, 2, 1, 1, PALETTE.tieDot);
+            pRect(ctx, 4, 4, 1, 1, PALETTE.tieDot);
+            pRect(ctx, 3, 6, 1, 1, PALETTE.tieDot);
+            pRect(ctx, 4, 8, 1, 1, PALETTE.tieDot);
+          } else {
+            fillShaded(ctx, 0, 0, 8, 12, PALETTE.suitDark, 3);
+            for (let x = 1; x < 8; x += 2) {
+              pRect(ctx, x, 0, 1, 12, PALETTE.suitCharcoal);
+            }
+            pRect(ctx, 2, 0, 4, 6, PALETTE.shirtBlue);
+            pRect(ctx, 2, 0, 4, 1, PALETTE.shirtWhite);
+            pRect(ctx, 3, 1, 2, 8, PALETTE.tieRed);
+          }
+        },
+        back: (ctx) => {
+          if (styleIndex === 0) {
+            fillShaded(ctx, 0, 0, 8, 12, PALETTE.trenchBase, 4);
+          } else if (styleIndex === 1) {
+            fillShaded(ctx, 0, 0, 8, 12, PALETTE.shirtWhite, 2);
+            for (let x = 0; x < 8; x += 2) {
+              pRect(ctx, x, 0, 1, 12, PALETTE.shirtStripe);
+            }
+            pRect(ctx, 1, 0, 1, 6, PALETTE.suspenderNavy);
+            pRect(ctx, 6, 0, 1, 6, PALETTE.suspenderNavy);
+            pRect(ctx, 2, 5, 4, 2, PALETTE.suspenderNavy);
+            pRect(ctx, 3, 7, 2, 5, PALETTE.suspenderNavy);
+          } else {
+            fillShaded(ctx, 0, 0, 8, 12, PALETTE.suitDark, 3);
+          }
+        },
+        left: (ctx) => fillShaded(ctx, 0, 0, 4, 12, styleIndex === 0 ? PALETTE.trenchBase : (styleIndex === 1 ? PALETTE.shirtWhite : PALETTE.suitDark), 3),
+        right: (ctx) => fillShaded(ctx, 0, 0, 4, 12, styleIndex === 0 ? PALETTE.trenchBase : (styleIndex === 1 ? PALETTE.shirtWhite : PALETTE.suitDark), 3),
+        top: (ctx) => fillShaded(ctx, 0, 0, 8, 4, styleIndex === 0 ? PALETTE.trenchBase : (styleIndex === 1 ? PALETTE.shirtWhite : PALETTE.suitDark), 3),
+        bottom: (ctx) => fillShaded(ctx, 0, 0, 8, 4, PALETTE.suitDark, 3)
+      });
+      torsoGroup.add(baseTorso);
+
+      if (styleIndex === 0) {
+        const coatOuter = createTexturedBox(8, 12, 4, {
+          front: (ctx) => {
+            ctx.clearRect(0, 0, 8, 12);
+            fillShaded(ctx, 0, 0, 2, 12, PALETTE.trenchBase, 4);
+            fillShaded(ctx, 6, 0, 2, 12, PALETTE.trenchBase, 4);
+            fillShaded(ctx, 2, 2, 1, 10, PALETTE.trenchLight, 3);
+            fillShaded(ctx, 5, 2, 1, 10, PALETTE.trenchLight, 3);
+            fillShaded(ctx, 3, 4, 2, 8, PALETTE.trenchBase, 3);
+            pRect(ctx, 3, 7, 1, 1, PALETTE.trenchDeep);
+            pRect(ctx, 3, 10, 1, 1, PALETTE.trenchDeep);
+            pRect(ctx, 0, 8, 2, 1, PALETTE.trenchLight);
+            pRect(ctx, 6, 8, 2, 1, PALETTE.trenchLight);
+          },
+          back: (ctx) => fillShaded(ctx, 0, 0, 8, 12, PALETTE.trenchBase, 4),
+          left: (ctx) => fillShaded(ctx, 0, 0, 4, 12, PALETTE.trenchBase, 4),
+          right: (ctx) => fillShaded(ctx, 0, 0, 4, 12, PALETTE.trenchBase, 4),
+          top: (ctx) => ctx.clearRect(0, 0, 8, 4),
+          bottom: (ctx) => ctx.clearRect(0, 0, 8, 4)
+        }, { inflate: 0.38 * PX, transparent: true, alphaTest: 0.1 });
+        torsoGroup.add(coatOuter);
+      }
+
+      if (styleIndex === 2) {
+        const walkman = createTexturedBox(2.0, 3.2, 1.4, {
+          default: (ctx, w, h) => {
+            fillShaded(ctx, 0, 0, w, h, '#1e293b', 3);
+            pRect(ctx, 0, 0, w, 1, '#94a3b8');
+          }
+        });
+        walkman.position.set(4.3 * PX, -4.4 * PX, 0.5 * PX);
+        torsoGroup.add(walkman);
+      }
+
+      if (styleIndex === 3) {
+        const raincoatTorso = createTexturedBox(8, 12, 4, {
+          front: (ctx) => {
+            fillShaded(ctx, 0, 0, 8, 12, '#cbd5e1', 2);
+            pRect(ctx, 3, 0, 2, 12, '#e2e8f0');
+          },
+          back: (ctx) => fillShaded(ctx, 0, 0, 8, 12, '#cbd5e1', 2),
+          left: (ctx) => fillShaded(ctx, 0, 0, 4, 12, '#cbd5e1', 2),
+          right: (ctx) => fillShaded(ctx, 0, 0, 4, 12, '#cbd5e1', 2),
+          top: (ctx) => fillShaded(ctx, 0, 0, 8, 4, '#cbd5e1', 2),
+          bottom: (ctx) => ctx.clearRect(0, 0, 8, 4)
+        }, { inflate: 0.55 * PX, transparent: true, opacity: 0.44, depthWrite: false });
+        torsoGroup.add(raincoatTorso);
+      }
+
+      return torsoGroup;
+    }
+
+    function buildArm(styleIndex, isRightArm) {
+      const armPivot = new THREE.Group();
+      armPivot.rotation.order = 'YXZ';
+
+      const baseArm = createTexturedBox(4, 12, 4, {
+        default: (ctx, w, h) => {
+          if (styleIndex === 0) {
+            fillShaded(ctx, 0, 0, w, 8, PALETTE.trenchBase, 4);
+            pRect(ctx, 0, 8, w, 1, PALETTE.shirtBlue);
+            fillShaded(ctx, 0, 9, w, 3, '#101214', 2);
+          } else if (styleIndex === 1) {
+            fillShaded(ctx, 0, 0, w, 7, PALETTE.shirtWhite, 2);
+            for (let x = 0; x < w; x += 2) {
+              pRect(ctx, x, 0, 1, 7, PALETTE.shirtStripe);
+            }
+            pRect(ctx, 0, 7, w, 1, '#e2e8f0');
+            fillShaded(ctx, 0, 8, w, 4, PALETTE.skinBase, 3);
+          } else {
+            fillShaded(ctx, 0, 0, w, 8, PALETTE.suitDark, 3);
+            pRect(ctx, 0, 8, w, 1, PALETTE.shirtWhite);
+            fillShaded(ctx, 0, 9, w, 3, PALETTE.skinBase, 3);
+          }
+        },
+        top: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, styleIndex === 0 ? PALETTE.trenchBase : (styleIndex === 1 ? PALETTE.shirtWhite : PALETTE.suitDark), 3),
+        bottom: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, styleIndex === 0 ? '#101214' : PALETTE.skinShadow, 3)
+      });
+      baseArm.position.set(0, -4 * PX, 0);
+      armPivot.add(baseArm);
+
+      if (styleIndex === 1 && !isRightArm) {
+        const watch = buildWatch();
+        watch.position.set(0, -6.65 * PX, 0);
+        armPivot.add(watch);
+      }
+
+      const handSocket = new THREE.Group();
+      handSocket.position.set(0, -9.2 * PX, 0.8 * PX);
+      armPivot.add(handSocket);
+      armPivot.userData.handSocket = handSocket;
+
+      return armPivot;
+    }
+
+    function buildLeg(styleIndex, isRightLeg) {
+      const legPivot = new THREE.Group();
+      const baseLeg = createTexturedBox(4, 12, 4, {
+        default: (ctx, w, h) => {
+          fillShaded(ctx, 0, 0, w, 10, PALETTE.suitDark, 3);
+          for (let x = 1; x < w; x += 2) {
+            pRect(ctx, x, 0, 1, 10, PALETTE.suitPinstripe);
+          }
+          fillShaded(ctx, 0, 10, w, 2, '#0c0d12', 2);
+        },
+        top: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, PALETTE.suitDark, 3),
+        bottom: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, '#8c694b', 3)
+      });
+      baseLeg.position.set(0, -6 * PX, 0);
+      legPivot.add(baseLeg);
+
+      if (styleIndex === 0) {
+        const trenchSkirt = createTexturedBox(4, 9.5, 4, {
+          front: (ctx, w, h) => {
+            fillShaded(ctx, 0, 0, w, h, PALETTE.trenchBase, 4);
+            if (isRightLeg) {
+              pRect(ctx, w - 1, 3, 1, h - 3, PALETTE.suitDark);
+            } else {
+              pRect(ctx, 0, 3, 1, h - 3, PALETTE.suitDark);
+            }
+          },
+          back: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, PALETTE.trenchBase, 4),
+          left: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, PALETTE.trenchBase, 4),
+          right: (ctx, w, h) => fillShaded(ctx, 0, 0, w, h, PALETTE.trenchBase, 4),
+          top: (ctx, w, h) => ctx.clearRect(0, 0, w, h),
+          bottom: (ctx, w, h) => ctx.clearRect(0, 0, w, h)
+        }, { inflate: 0.38 * PX, transparent: true, alphaTest: 0.1 });
+        trenchSkirt.position.set(0, -4.75 * PX, 0);
+        legPivot.add(trenchSkirt);
+      }
+
+      return legPivot;
+    }
+
+    function createBatemanRig(styleIndex) {
+      const root = new THREE.Group();
+      const waistPivot = new THREE.Group();
+      waistPivot.position.set(0, 12 * PX, 0);
+      root.add(waistPivot);
+
+      const upperBody = new THREE.Group();
+      waistPivot.add(upperBody);
+
+      const torso = buildTorso(styleIndex);
+      torso.position.set(0, 6 * PX, 0);
+      upperBody.add(torso);
+
+      const headPivot = new THREE.Group();
+      headPivot.position.set(0, 12 * PX, 0);
+      upperBody.add(headPivot);
+
+      const headMesh = buildHeadBase(styleIndex);
+      headMesh.position.set(0, 4 * PX, 0);
+      headPivot.add(headMesh);
+
+      const hairOuter = buildHairOuter(styleIndex);
+      hairOuter.position.set(0, 4 * PX, 0);
+      headPivot.add(hairOuter);
+
+      if (styleIndex === 1) {
+        const shades = buildSunglasses();
+        shades.position.set(0, 4 * PX, 0);
+        headPivot.add(shades);
+      } else if (styleIndex === 2) {
+        const headphones = buildWalkmanHeadphones();
+        headphones.position.set(0, 4 * PX, 0);
+        headPivot.add(headphones);
+      }
+
+      const rightArm = buildArm(styleIndex, true);
+      rightArm.position.set(-6 * PX, 10 * PX, 0);
+      upperBody.add(rightArm);
+
+      const leftArm = buildArm(styleIndex, false);
+      leftArm.position.set(6 * PX, 10 * PX, 0);
+      upperBody.add(leftArm);
+
+      let pistol = null;
+      let brickPhone = null;
+      let fireAxe = null;
+
+      if (styleIndex === 0) {
+        pistol = buildPistol();
+        rightArm.userData.handSocket.add(pistol);
+      } else if (styleIndex === 1) {
+        brickPhone = buildBrickPhone();
+        brickPhone.position.set(0, -1.35 * PX, 0.45 * PX);
+        rightArm.userData.handSocket.add(brickPhone);
+      } else if (styleIndex === 3) {
+        fireAxe = buildFireAxe();
+        fireAxe.visible = false;
+        rightArm.userData.handSocket.add(fireAxe);
+      }
+
+      const rightLeg = buildLeg(styleIndex, true);
+      rightLeg.position.set(-2 * PX, 12 * PX, 0);
+      root.add(rightLeg);
+
+      const leftLeg = buildLeg(styleIndex, false);
+      leftLeg.position.set(2 * PX, 12 * PX, 0);
+      root.add(leftLeg);
+
+      root.userData = {
+        waistPivot,
+        upperBody,
+        torso,
+        headPivot,
+        rightArm,
+        leftArm,
+        rightLeg,
+        leftLeg,
+        pistol,
+        brickPhone,
+        fireAxe
+      };
+
+      return root;
+    }
+
+    // ============================================================================
+    // 5. SCENE, TONED-DOWN LIGHTING & RENDERER
+    // ============================================================================
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#0d0f13');
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+    const DEFAULT_CAM_POS = new THREE.Vector3(0, 1.35, 3.65);
+    const DEFAULT_CAM_TARGET = new THREE.Vector3(0, 1.0, 0);
+    camera.position.copy(DEFAULT_CAM_POS);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.copy(DEFAULT_CAM_TARGET);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 1.6;
+    controls.maxDistance = 7.5;
+    controls.maxPolarAngle = Math.PI / 2 - 0.02;
+    controls.update();
+
+    // Toned-down lighting so none of the skins look washed out or overly bright
+    const ambientLight = new THREE.AmbientLight(0xf3ece4, 0.42);
+    scene.add(ambientLight);
+
+    const hemiLight = new THREE.HemisphereLight(0xf5efe8, 0x3b2d23, 0.32);
+    hemiLight.position.set(0, 6, 0);
+    scene.add(hemiLight);
+
+    const keyLight = new THREE.DirectionalLight(0xfff1e0, 0.78);
+    keyLight.position.set(2.8, 4.8, 3.6);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    keyLight.shadow.bias = -0.0005;
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xdce6f2, 0.25);
+    fillLight.position.set(-2.8, 2.4, 2.5);
+    scene.add(fillLight);
+
+    const shadowFloor = new THREE.Mesh(
+      new THREE.PlaneGeometry(24, 24),
+      new THREE.ShadowMaterial({ opacity: 0.45 })
+    );
+    shadowFloor.rotation.x = -Math.PI / 2;
+    shadowFloor.receiveShadow = true;
+    scene.add(shadowFloor);
+
+    const pedestalRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.52, 0.54, 48),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.05, side: THREE.DoubleSide })
+    );
+    pedestalRing.rotation.x = -Math.PI / 2;
+    pedestalRing.position.y = 0.002;
+    scene.add(pedestalRing);
+
+    const models = [
+      createBatemanRig(0),
+      createBatemanRig(1),
+      createBatemanRig(2),
+      createBatemanRig(3)
+    ];
+
+    models.forEach((m, idx) => {
+      m.visible = idx === state.skinIndex;
+      scene.add(m);
+    });
+
+    // ============================================================================
+    // 6. ANIMATION ENGINE
+    // ============================================================================
+    function resetPose(rig) {
+      const { waistPivot, upperBody, headPivot, rightArm, leftArm, rightLeg, leftLeg, pistol, brickPhone, fireAxe } = rig.userData;
+
+      rig.position.set(0, 0, 0);
+      rig.rotation.set(0, 0, 0);
+      waistPivot.position.set(0, 12 * PX, 0);
+      waistPivot.rotation.set(0, 0, 0);
+      upperBody.position.set(0, 0, 0);
+      upperBody.rotation.set(0, 0, 0);
+      headPivot.position.set(0, 12 * PX, 0);
+      headPivot.rotation.set(0, 0, 0);
+      rightArm.position.set(-6 * PX, 10 * PX, 0);
+      rightArm.rotation.set(0, 0, 0);
+      leftArm.position.set(6 * PX, 10 * PX, 0);
+      leftArm.rotation.set(0, 0, 0);
+      rightLeg.position.set(-2 * PX, 12 * PX, 0);
+      rightLeg.rotation.set(0, 0, 0);
+      leftLeg.position.set(2 * PX, 12 * PX, 0);
+      leftLeg.rotation.set(0, 0, 0);
+
+      if (pistol) {
+        pistol.rotation.set(0, 0, 0);
+        pistol.userData.muzzleFlash.visible = false;
+        pistol.userData.slide.position.z = 2.0 * PX;
+      }
+      if (brickPhone) {
+        brickPhone.position.set(0, -1.35 * PX, 0.45 * PX);
+        brickPhone.rotation.set(0, 0, 0);
+      }
+      if (fireAxe) {
+        fireAxe.visible = false;
+      }
+    }
+
+    function updateAnimation(dt) {
+      state.animTime += dt;
+      const t = state.animTime;
+      const rig = models[state.skinIndex];
+      resetPose(rig);
+
+      const { upperBody, headPivot, rightArm, leftArm, rightLeg, leftLeg, pistol, brickPhone, fireAxe } = rig.userData;
+      const targetHeadYaw = state.mouseX * 0.25;
+      const targetHeadPitch = state.mouseY * 0.15;
+
+      // ------------------------------------------------------------------------
+      // IDLE
+      // ------------------------------------------------------------------------
+      if (state.animMode === 'idle') {
+        const breath = Math.sin(t * 2.2);
+        upperBody.position.y = breath * 0.15 * PX;
+        headPivot.rotation.y = targetHeadYaw + Math.sin(t * 0.9) * 0.06;
+        headPivot.rotation.x = targetHeadPitch + Math.cos(t * 1.5) * 0.03;
+
+        if (state.skinIndex === 1) {
+          leftArm.rotation.x = 0;
+          leftArm.rotation.z = 0;
+        }
+      }
+
+      // ------------------------------------------------------------------------
+      // WALK
+      // ------------------------------------------------------------------------
+      else if (state.animMode === 'walk') {
+        const speed = 5.4;
+        const phase = t * speed;
+        const stride = Math.sin(phase);
+        const bounce = Math.abs(Math.cos(phase));
+
+        rig.position.y = bounce * 0.55 * PX;
+        upperBody.rotation.y = -stride * 0.12;
+        rightLeg.rotation.x = stride * 0.62;
+        leftLeg.rotation.x = -stride * 0.62;
+
+        if (state.skinIndex === 1) {
+          leftArm.rotation.x = 0;
+          leftArm.rotation.z = 0;
+        } else {
+          leftArm.rotation.x = stride * 0.52;
+        }
+        rightArm.rotation.x = -stride * 0.52;
+      }
+
+      // ------------------------------------------------------------------------
+      // ATTACK
+      // ------------------------------------------------------------------------
+      else if (state.animMode === 'attack') {
+        if (state.skinIndex === 0) {
+          const cycle = (t * 2.6) % 1;
+          const recoil = cycle < 0.2 ? Math.sin((cycle / 0.2) * Math.PI) : 0;
+
+          upperBody.rotation.y = 0.35;
+          headPivot.rotation.y = -0.35;
+          rightArm.rotation.x = -Math.PI / 2 - recoil * 0.22;
+          rightArm.rotation.y = -0.35;
+
+          if (pistol) {
+            pistol.userData.muzzleFlash.visible = cycle < 0.09;
+            pistol.userData.slide.position.z = (2.0 - recoil * 1.1) * PX;
+          }
+        } else if (state.skinIndex === 1) {
+          leftArm.rotation.x = 0;
+          leftArm.rotation.z = 0;
+        } else if (state.skinIndex === 3) {
+          if (fireAxe) fireAxe.visible = true;
+          const cycle = (t * 1.8) % 1;
+          let swing = cycle < 0.45 ? -2.5 * Math.sin((cycle / 0.45) * (Math.PI / 2)) : -2.5 + 2.1 * ((cycle - 0.45) / 0.2);
+          rightArm.rotation.x = swing;
+        }
+      }
+
+      // ------------------------------------------------------------------------
+      // SPECIAL
+      // ------------------------------------------------------------------------
+      else if (state.animMode === 'special') {
+        if (state.skinIndex === 0) {
+          upperBody.rotation.y = 0.14;
+          headPivot.rotation.y = -0.62;
+          rightArm.rotation.x = -Math.PI / 2;
+          rightArm.rotation.y = -0.62;
+        } else if (state.skinIndex === 1) {
+          // PHOTO 2 PHONE CALL POSE: Holds the Motorola DynaTAC flush against his right ear/cheek/jawline
+          const sway = Math.sin(t * 1.8) * 0.012;
+          headPivot.rotation.x = -0.04;
+          headPivot.rotation.y = 0.05;
+          headPivot.rotation.z = 0.05;
+
+          rightArm.position.set(-5.5 * PX, 10.2 * PX, -0.6 * PX);
+          rightArm.rotation.x = -2.18 + sway;
+          rightArm.rotation.y = -0.12;
+          rightArm.rotation.z = 0.18;
+
+          if (brickPhone) {
+            brickPhone.position.set(0.15 * PX, 3.4 * PX, 0.75 * PX);
+            brickPhone.rotation.set(1.65, 1.28, 0.28);
+          }
+
+          leftArm.rotation.x = 0;
+          leftArm.rotation.z = 0;
+        } else if (state.skinIndex === 2) {
+          headPivot.rotation.x = 0.05;
+        } else if (state.skinIndex === 3) {
+          rig.position.y = Math.abs(Math.cos(t * 4.2)) * 0.45 * PX;
+        }
+      }
+    }
+
+    // ============================================================================
+    // 7. UI LISTENERS & RENDER LOOP
+    // ============================================================================
+    const skinButtons = document.querySelectorAll('.skin-btn');
+    const animButtons = document.querySelectorAll('.anim-btn');
+    const resetCamBtn = document.getElementById('reset-cam-btn');
+
+    skinButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-skin'), 10);
+        state.skinIndex = idx;
+
+        models.forEach((m, i) => {
+          m.visible = i === idx;
+        });
+
+        skinButtons.forEach((b) => {
+          b.classList.remove('active', 'text-gray-300');
+          b.classList.add('text-gray-400');
+        });
+        btn.classList.add('active', 'text-gray-300');
+        btn.classList.remove('text-gray-400');
+      });
+    });
+
+    animButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-anim');
+        state.animMode = mode;
+        state.animTime = 0;
+
+        animButtons.forEach((b) => {
+          b.classList.remove('active', 'text-gray-300');
+          b.classList.add('text-gray-400');
+        });
+        btn.classList.add('active', 'text-gray-300');
+        btn.classList.remove('text-gray-400');
+      });
+    });
+
+    resetCamBtn.addEventListener('click', () => {
+      camera.position.copy(DEFAULT_CAM_POS);
+      controls.target.copy(DEFAULT_CAM_TARGET);
+      controls.update();
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      state.mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+      state.mouseY = (e.clientY / window.innerHeight) * 2 - 1;
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    let lastTime = performance.now();
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const rawDt = (now - lastTime) / 1000;
+      lastTime = now;
+      const dt = Math.min(rawDt, 1 / 30);
+
+      updateAnimation(dt);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function () {
+      requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>
