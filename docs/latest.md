@@ -1,8 +1,8 @@
 # Latest session
 
-- **Date:** 2026-10-15 17:51
-- **Request:** Hard git rule; Homelander glow/cape/3 new attacks; then continue: The King on the 2-bone rig + Show bones.
-- **Done:** Homelander (see changelog 17:37). The King: hand + ankle bones removed (shoe on the shin), ground solve for Idle 2 / Walk / Dance / Attack 2, Run IK on the real foot pitch, Show bones button; mod assets re-exported.
-- **Tested:** King `#cliptest`: no new clips, ground OK. `gradlew build` OK, 1:1 trace test passed. Renders checked. Not tested in game yet.
-- **Files:** `mobs/the_king/thekingv3.html`, `mod/src/main/resources/assets/theking/king/*`, `mod/src/test/resources/modtrace.json`, `AGENTS.md`, `docs/*`.
-- **Next step:** In-game check of The King (test world). Darth Vader, Thanos, The Joker, Reverse Flash still have 1-bone limbs (older viewer engine): ask the user before converting.
+- **Date:** 2026-10-15 19:51
+- **Request:** Fix clipping on special with tan overcoat, give tan overcoat a gun (point forward), raincoat an axe, suspenders a vintage brick phone, and put all reference photos in the root.
+- **Done:** Modeled 3D Glock 19 pistol, Paul Allen chrome axe, and 1980s Motorola DynaTAC brick phone; fixed arm pivot and overlay alignment so Special aims gun with 0 clipping; created dedicated attack/idle/special poses for all props; added keyboard controls 1-8 + R; placed all reference photos in root.
+- **Tested:** Headless Brave audit across all 16 variant/animation combinations: 0 penetrating vertices. Matrix state execution verified clean.
+- **Files:** `PatrickBateman.html`, `mobs/patrick_bateman/PatrickBateman.html`, `reference_bateman_*.png`, `references/patrick_bateman/*`, `docs/*`.
+- **Next step:** User review of Patrick Bateman 3D viewer, weapons/props, and animations.
