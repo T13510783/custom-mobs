@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-15 21:11
+- Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
+  - Fixed Glock pistol hold angle so it points correctly and never points upwards: re-anchored gun pivot to the hand grip and oriented with `rotation.x = Math.PI / 2`, so in Special (`rArmX = -Math.PI / 2`) the barrel aims dead level horizontally forward (`0.00 rad` elevation) directly at the target, and in Idle (`rArmX = -0.08`) the barrel points safely downward towards the ground at his side.
+  - Fixed Paul Allen chrome axe hold: re-anchored axe grip to the hand hold point right below the head, mounting the heavy mirror-chrome axe head upright at waist height with cutting edge facing forward (`+Z`) and the long hickory shaft extending cleanly down past the knee.
+  - Added the iconic "It's Hip to Be Square" dance for Raincoat Special animation: 140 BPM upbeat pop groove with high-stepping knee bounce, dynamic hip sway and torso rock, enthusiastic head bobbing, left arm pumping and pointing with 80s swagger, and right arm swaying the axe rhythmically at his side (zero clipping).
+  - Synchronized `PatrickBateman.html` directly to `mobs/patrick_bateman/PatrickBateman.html` (verified identical SHA256 hashes).
+
 ## 2026-10-15 20:53
 - Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
   - Fixed sunken / disconnected shoulder geometry: updated arm group pivots to `x = ±6.0 * PX, y = 12.0 * PX, z = 0` (was previously `y = 10.0 * PX`), making the top of the arms flush with the top of the torso and collar line, forming a seamless 16-pixel shoulder line without gaps.
