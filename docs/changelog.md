@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-15 20:53
+- Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
+  - Fixed sunken / disconnected shoulder geometry: updated arm group pivots to `x = ±6.0 * PX, y = 12.0 * PX, z = 0` (was previously `y = 10.0 * PX`), making the top of the arms flush with the top of the torso and collar line, forming a seamless 16-pixel shoulder line without gaps.
+  - Made held Glock pistol, Paul Allen chrome axe, and 1980s brick mobile phone prominently visible in the hand in Idle:
+    - Glock 19: refined tactical gunmetal slide (`0x2d323b`, metallic sheen), polished steel ejection port, bright white 3-dot aiming sights, recoil guide rod, and forward projection (`z = 1.6 * PX`, slide extending to `5.8 * PX` in +Z).
+    - In Idle pose for tan overcoat: angled the right arm forward (`rArmX = -0.22, rArmZ = 0.09, rArmY = -0.06`) so the gun silhouette clearly projects in front of the coat and is immediately visible from all camera angles.
+    - Synchronized `PatrickBateman.html` directly to `mobs/patrick_bateman/PatrickBateman.html` (verified identical SHA256 hashes).
+
 ## 2026-10-15 19:51
 - Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
   - Fixed clipping bug on special animation with tan overcoat: corrected arm pivot centering (y = -6*PX instead of -4*PX so shoulder rotates around top of arm without swinging backwards into the torso), refined outer torso/arm/leg coat overlay dimensions, and tuned arm angles. Clip audit: 0 penetrations across all 16 variant/animation combinations.
