@@ -75,8 +75,8 @@
       <div class="pill-bar rounded-full px-2 py-1.5 flex flex-wrap sm:flex-nowrap items-center justify-center gap-1 sm:gap-1.5">
         <!-- 4 Outfit Variants from Reference Pics -->
         <div class="flex items-center gap-1" role="group" aria-label="Outfit Variants">
-          <button data-variant="overcoat" class="pill-btn variant-btn active text-xs px-3 py-1.5 rounded-full border border-transparent whitespace-nowrap" title="Pic 1 & 2: Tan Overcoat, Black Gloves & Glock Pistol (Key 5)">
-            1. Tan Overcoat
+          <button data-variant="overcoat" class="pill-btn variant-btn active text-xs px-3 py-1.5 rounded-full border border-transparent whitespace-nowrap" title="Pic 1 & 2: Dark Brown Overcoat, Black Gloves & Glock Pistol (Key 5)">
+            1. Dark Brown Overcoat
           </button>
           <button data-variant="raincoat" class="pill-btn variant-btn text-xs px-3 py-1.5 rounded-full border border-transparent whitespace-nowrap" title="Pic 3 & 4: Clear Raincoat over Suit & Axe (Key 6)">
             2. Raincoat
@@ -424,53 +424,53 @@
 
     function buildTorsoMaterials(variant) {
       if (variant === 'overcoat') {
-        // Pic 1: Tan wool overcoat over light blue shirt & dark navy tie
-        const tanBase = '#bfa07a';
-        const tanLight = '#ccb08c';
-        const tanDark = '#a38460';
-        const tanDeep = '#876b4b';
+        // Pic 1 & 2: Dark brown wool overcoat over light blue shirt & dark navy tie
+        const coatBase = '#604229';
+        const coatLight = '#785334';
+        const coatDark = '#48311e';
+        const coatDeep = '#342315';
         const shirtBlue = '#d0e2f5';
         const tieNavy = '#192847';
         const tieStripe = '#3b5280';
 
         const front = makePixelTexture(8, 12, (ctx) => {
-          px(ctx, 0, 0, 8, 12, tanBase);
+          px(ctx, 0, 0, 8, 12, coatBase);
           // Side shading
-          px(ctx, 0, 0, 1, 12, tanDark);
-          px(ctx, 7, 0, 1, 12, tanDark);
+          px(ctx, 0, 0, 1, 12, coatDark);
+          px(ctx, 7, 0, 1, 12, coatDark);
           // V-neck shirt & navy tie visible at top
           px(ctx, 2, 0, 4, 2, shirtBlue);
           px(ctx, 3, 1, 2, 3, tieNavy);
           px(ctx, 3, 2, 1, 1, tieStripe);
           px(ctx, 4, 3, 1, 1, tieStripe);
           // Overcoat lapels & seam
-          px(ctx, 1, 0, 1, 4, tanLight);
-          px(ctx, 6, 0, 1, 4, tanLight);
-          px(ctx, 2, 2, 1, 3, tanLight);
-          px(ctx, 5, 2, 1, 3, tanLight);
+          px(ctx, 1, 0, 1, 4, coatLight);
+          px(ctx, 6, 0, 1, 4, coatLight);
+          px(ctx, 2, 2, 1, 3, coatLight);
+          px(ctx, 5, 2, 1, 3, coatLight);
           // Center coat overlap line
-          px(ctx, 4, 4, 1, 8, tanDeep);
-          px(ctx, 3, 4, 1, 8, tanLight);
-          // Tan buttons
-          px(ctx, 3, 6, 1, 1, tanDeep);
-          px(ctx, 3, 9, 1, 1, tanDeep);
+          px(ctx, 4, 4, 1, 8, coatDeep);
+          px(ctx, 3, 4, 1, 8, coatLight);
+          // Dark brown buttons
+          px(ctx, 3, 6, 1, 1, coatDeep);
+          px(ctx, 3, 9, 1, 1, coatDeep);
         });
 
         const back = makePixelTexture(8, 12, (ctx) => {
-          px(ctx, 0, 0, 8, 12, tanBase);
-          px(ctx, 0, 0, 1, 12, tanDark);
-          px(ctx, 7, 0, 1, 12, tanDark);
-          px(ctx, 3, 1, 1, 11, tanDark); // Center back seam
-          px(ctx, 4, 1, 1, 11, tanLight);
+          px(ctx, 0, 0, 8, 12, coatBase);
+          px(ctx, 0, 0, 1, 12, coatDark);
+          px(ctx, 7, 0, 1, 12, coatDark);
+          px(ctx, 3, 1, 1, 11, coatDark); // Center back seam
+          px(ctx, 4, 1, 1, 11, coatLight);
         });
 
         const side = makePixelTexture(4, 12, (ctx) => {
-          px(ctx, 0, 0, 4, 12, tanDark);
-          px(ctx, 1, 0, 2, 12, tanBase);
+          px(ctx, 0, 0, 4, 12, coatDark);
+          px(ctx, 1, 0, 2, 12, coatBase);
         });
 
         const topBottom = makePixelTexture(8, 4, (ctx) => {
-          px(ctx, 0, 0, 8, 4, tanDark);
+          px(ctx, 0, 0, 8, 4, coatDark);
           px(ctx, 2, 1, 4, 2, shirtBlue);
         });
 
@@ -631,22 +631,22 @@
       const empty8x12 = makePixelTexture(8, 12, () => {});
 
       if (variant === 'overcoat') {
-        // 3D sculpted tan lapels and pocket flaps
-        const tanLight = '#d4b996';
-        const tanBase = '#bfa07a';
-        const tanDark = '#8f7251';
+        // 3D sculpted dark brown lapels and pocket flaps
+        const coatLight = '#785334';
+        const coatBase = '#604229';
+        const coatDark = '#48311e';
 
         const front = makePixelTexture(8, 12, (ctx) => {
           // 3D Coat lapels
-          px(ctx, 1, 0, 1, 5, tanLight);
-          px(ctx, 6, 0, 1, 5, tanLight);
-          px(ctx, 2, 2, 1, 4, tanBase);
-          px(ctx, 5, 2, 1, 4, tanBase);
+          px(ctx, 1, 0, 1, 5, coatLight);
+          px(ctx, 6, 0, 1, 5, coatLight);
+          px(ctx, 2, 2, 1, 4, coatBase);
+          px(ctx, 5, 2, 1, 4, coatBase);
           // 3D Pocket flaps on sides
-          px(ctx, 0, 8, 2, 1, tanLight);
-          px(ctx, 6, 8, 2, 1, tanLight);
-          px(ctx, 0, 9, 2, 1, tanDark);
-          px(ctx, 6, 9, 2, 1, tanDark);
+          px(ctx, 0, 8, 2, 1, coatLight);
+          px(ctx, 6, 8, 2, 1, coatLight);
+          px(ctx, 0, 9, 2, 1, coatDark);
+          px(ctx, 6, 9, 2, 1, coatDark);
         });
 
         return makeBoxMaterials(
@@ -776,17 +776,17 @@
       const skinShadow = '#c28b6b';
 
       if (variant === 'overcoat') {
-        // Pic 1: Tan wool coat sleeves + white cuff + black leather gloves!
-        const tanBase = '#bfa07a';
-        const tanLight = '#ccb08c';
-        const tanDark = '#9e805c';
+        // Pic 1 & 2: Dark brown wool coat sleeves + white cuff + black leather gloves!
+        const coatBase = '#604229';
+        const coatLight = '#785334';
+        const coatDark = '#48311e';
         const gloveBlack = '#16181d';
         const gloveHighlight = '#2a2e37';
 
         const makeFace = (shade) =>
           makePixelTexture(4, 12, (ctx) => {
             px(ctx, 0, 0, 4, 9, shade);
-            px(ctx, 1, 0, 2, 8, tanBase);
+            px(ctx, 1, 0, 2, 8, coatBase);
             // White shirt cuff peek
             px(ctx, 0, 8, 4, 1, '#dce8f7');
             // Black leather glove (bottom 3 texels)
@@ -794,16 +794,16 @@
             px(ctx, 1, 9, 2, 2, gloveHighlight);
           });
 
-        const top = makePixelTexture(4, 4, (ctx) => px(ctx, 0, 0, 4, 4, tanLight));
+        const top = makePixelTexture(4, 4, (ctx) => px(ctx, 0, 0, 4, 4, coatLight));
         const bottom = makePixelTexture(4, 4, (ctx) => px(ctx, 0, 0, 4, 4, gloveBlack));
 
         return makeBoxMaterials([
-          makeFace(tanDark),
-          makeFace(tanDark),
+          makeFace(coatDark),
+          makeFace(coatDark),
           top,
           bottom,
-          makeFace(tanLight),
-          makeFace(tanDark)
+          makeFace(coatLight),
+          makeFace(coatDark)
         ]);
       }
 
@@ -939,10 +939,10 @@
       }
 
       if (variant === 'overcoat') {
-        // 3D Sleeve cuff strap & buttons on tan overcoat
+        // 3D Sleeve cuff strap & buttons on dark brown overcoat
         const cuff = makePixelTexture(4, 12, (ctx) => {
-          px(ctx, 0, 7, 4, 1, '#cbb08c');
-          px(ctx, 1, 7, 1, 1, '#876b4b');
+          px(ctx, 0, 7, 4, 1, '#785334');
+          px(ctx, 1, 7, 1, 1, '#342315');
         });
         return makeBoxMaterials(
           [cuff, cuff, empty4x4, empty4x4, cuff, cuff],
@@ -1014,36 +1014,38 @@
       const empty4x4 = makePixelTexture(4, 4, () => {});
 
       if (variant === 'overcoat') {
-        // Long tan wool overcoat extending past knees (top 8 texels of leg)
-        const tanBase = '#bfa07a';
-        const tanLight = '#ccb08c';
-        const tanDark = '#9e805c';
+        // Long dark brown wool overcoat extending past knees (top 8 texels of leg)
+        const coatBase = '#604229';
+        const coatLight = '#785334';
+        const coatDark = '#48311e';
 
         const front = makePixelTexture(4, 12, (ctx) => {
-          px(ctx, 0, 0, 4, 7, tanBase);
+          px(ctx, 0, 0, 4, 7, coatBase);
           // Open center split of coat showing dark trousers in between
           if (isLeftLeg) {
-            px(ctx, 0, 0, 1, 7, tanLight);
-            px(ctx, 3, 0, 1, 7, tanDark);
+            px(ctx, 0, 0, 1, 7, coatLight);
+            px(ctx, 3, 0, 1, 7, coatDark);
           } else {
-            px(ctx, 3, 0, 1, 7, tanDark);
-            px(ctx, 0, 0, 1, 7, tanDark);
+            px(ctx, 3, 0, 1, 7, coatDark);
+            px(ctx, 0, 0, 1, 7, coatDark);
           }
-          px(ctx, 0, 6, 4, 1, tanDark); // Coat bottom hem
+          px(ctx, 0, 6, 4, 1, coatDark); // Coat bottom hem
         });
 
         const back = makePixelTexture(4, 12, (ctx) => {
-          px(ctx, 0, 0, 4, 7, tanBase);
-          px(ctx, 0, 6, 4, 1, tanDark);
+          px(ctx, 0, 0, 4, 7, coatBase);
+          px(ctx, 0, 6, 4, 1, coatDark);
         });
 
         const side = makePixelTexture(4, 12, (ctx) => {
-          px(ctx, 0, 0, 4, 7, tanDark);
-          px(ctx, 1, 0, 2, 6, tanBase);
+          px(ctx, 0, 0, 4, 7, coatDark);
+          px(ctx, 1, 0, 2, 6, coatBase);
         });
 
         return makeBoxMaterials(
-          [side, side, empty4x4, empty4x4, front, back],
+          isLeftLeg
+            ? [side, empty4x12, empty4x4, empty4x4, front, back]
+            : [empty4x12, side, empty4x4, empty4x4, front, back],
           { alphaTest: 0.5 }
         );
       }
@@ -1612,13 +1614,13 @@
 
       // Long Overcoat / Clear Raincoat Skirt Overlay on Legs (Variants 1, 2, 3)
       if (variant !== 'executive') {
-        const legCoatGeo = new THREE.BoxGeometry(4.15 * PX, 12.1 * PX, 4.35 * PX);
+        const legCoatGeo = new THREE.BoxGeometry(4.06 * PX, 12.0 * PX, 4.08 * PX);
         const rightLegCoat = new THREE.Mesh(legCoatGeo, buildLegCoatOverlayMaterials(variant, false));
-        rightLegCoat.position.set(-0.12 * PX, -5.9 * PX, 0);
+        rightLegCoat.position.set(-0.04 * PX, -6.0 * PX, 0);
         rightLegGroup.add(rightLegCoat);
 
         const leftLegCoat = new THREE.Mesh(legCoatGeo, buildLegCoatOverlayMaterials(variant, true));
-        leftLegCoat.position.set(0.12 * PX, -5.9 * PX, 0);
+        leftLegCoat.position.set(0.04 * PX, -6.0 * PX, 0);
         leftLegGroup.add(leftLegCoat);
       }
     }
@@ -1705,10 +1707,16 @@
         if (currentVariant === 'overcoat') {
           rArmX = -0.10 - swing * 0.35;
           rArmZ = 0.07;
+          // Natural dignified stride tailored for long wool overcoat (zero clipping)
+          rLegX = swing * 0.28;
+          lLegX = -swing * 0.28;
         } else if (currentVariant === 'raincoat') {
           // Axe swings naturally with right arm, clear of coat and legs
           rArmX = -0.14 - swing * 0.30;
           rArmZ = 0.14;
+          // Clean stride tailored for raincoat
+          rLegX = swing * 0.32;
+          lLegX = -swing * 0.32;
         } else if (currentVariant === 'executive') {
           rArmX = -0.12 - swing * 0.36;
           rArmZ = 0.08;
@@ -1832,11 +1840,11 @@
           lArmX = 0.10;
           lArmZ = -0.08;
 
-          // Stable combat stance
-          rLegX = -0.12;
-          lLegX = 0.12;
-          rLegZ = 0.04;
-          lLegZ = -0.04;
+          // Stable planted shooting stance (upright legs, zero clipping into coat)
+          rLegX = 0;
+          lLegX = 0;
+          rLegZ = 0.03;
+          lLegZ = -0.03;
         } else if (currentVariant === 'raincoat') {
           // The iconic "It's Hip to Be Square" dance from American Psycho (Huey Lewis and the News scene)!
           // Alternates between two 100% movie lore-accurate phases matching the reference stills:

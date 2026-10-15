@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-15 21:52
+- Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
+  - Fixed legs clipping in Special: replaced rotated scissor stance (`rLegX = -0.12, lLegX = 0.12`) with an authentic upright planted shooting stance (`rLegX = 0, lLegX = 0, rLegZ = 0.03, lLegZ = -0.03`). Completely eliminates the disjointed coat protrusion at the back of the waist and front torso clipping shown in user screenshot.
+  - Fixed legs clipping in Walk: tailored walking stride for overcoat (`swing * 0.28`) and raincoat (`swing * 0.32`), refined coat overlay depth to `4.08 * PX` flush with the torso, and made the inner thigh faces transparent (`empty4x12`) so the two leg skirts never collide or slice through each other.
+  - Made overcoat DARKER brown overall: transformed sandy tan palette (`#bfa07a`) to rich dark chocolate / camel wool brown (`coatBase = '#604229'`, `coatLight = '#785334'`, `coatDark = '#48311e'`, `coatDeep = '#342315'`) across torso, 3D lapels, sleeves, cuff straps, and skirt overlay.
+  - Placed uploaded reference screenshot in root (`media_1792093345142_d3f364d8.png`) and backed up to `references/patrick_bateman/`.
+  - Synchronized `PatrickBateman.html` directly to `mobs/patrick_bateman/PatrickBateman.html` (verified identical SHA256 hashes).
+
 ## 2026-10-15 21:38
 - Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
   - Adjusted Glock pistol position forward along barrel axis and slightly outward (`y = -2.2 * PX`, `x = -0.35 * PX` in prop group): completely resolved the issue where the slide was sunken/no-clipped inside the black glove box; the rear sight and beavertail now sit cleanly at the knuckles, with the entire slide, ejection port, and sights clearly visible outside the glove.
