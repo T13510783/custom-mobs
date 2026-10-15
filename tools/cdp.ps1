@@ -1,5 +1,7 @@
-param([string]$url, [string]$expr, [string]$out, [int]$timeoutSec = 600, [int]$port = 9333, [int]$size = 1000, [string[]]$extra = @())
+param([string]$url, [string]$expr, [string]$out, [int]$timeoutSec = 600, [int]$port = 9333, [int]$size = 1000, [string[]]$extra = @(),
+  [string]$shot = '', [int]$shotQuality = 60)
 # $extra: more browser flags, e.g. '--allow-file-access-from-files' (read local video/audio pixels and samples).
+# $shot: also save a JPEG screenshot of the page (to the scratchpad, never the project) once $expr returns.
 # Headless Brave + DevTools protocol: open $url, poll $expr until it returns a non-empty string, save it to $out.
 # Example: cdp.ps1 -url 'file:///C:/custom%20mobs/files/thekingv3.html#cliptest' -expr "(document.getElementById('cliptest')||{}).textContent||''" -out clip.txt
 $b = 'C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe'
@@ -20,9 +22,10 @@ try {
   $ct = [Threading.CancellationToken]::None
   $sock.ConnectAsync([Uri]$ws, $ct).Wait()
   $id = 0
-  function Eval([string]$e) {
+  function Eval([string]$e) { Send 'Runtime.evaluate' @{ expression = $e; returnByValue = $true } }
+  function Send([string]$method, $params) {
     $script:id++
-    $msg = @{ id = $script:id; method = 'Runtime.evaluate'; params = @{ expression = $e; returnByValue = $true } } | ConvertTo-Json -Compress -Depth 5
+    $msg = @{ id = $script:id; method = $method; params = $params } | ConvertTo-Json -Compress -Depth 5
     $bytes = [Text.Encoding]::UTF8.GetBytes($msg)
     $sock.SendAsync((New-Object ArraySegment[byte] -ArgumentList (, $bytes)), 'Text', $true, $ct).Wait()
     $buf = New-Object byte[] 1048576
@@ -39,7 +42,14 @@ try {
   while ($true) {
     $res = Eval $expr | ConvertFrom-Json
     $v = $res.result.result.value
-    if ($v) { [IO.File]::WriteAllText($out, $v); 'saved ' + $v.Length + ' chars in ' + [int]((Get-Date) - $start).TotalSeconds + ' s'; break }
+    if ($v) {
+      [IO.File]::WriteAllText($out, $v); 'saved ' + $v.Length + ' chars in ' + [int]((Get-Date) - $start).TotalSeconds + ' s'
+      if ($shot) { # page screenshot as JPEG, taken right after $expr returned
+        $img = (Send 'Page.captureScreenshot' @{ format = 'jpeg'; quality = $shotQuality } | ConvertFrom-Json).result.data
+        [IO.File]::WriteAllBytes($shot, [Convert]::FromBase64String($img)); "shot $shot"
+      }
+      break
+    }
     if ($res.result.exceptionDetails) { 'eval error: ' + ($res.result.exceptionDetails | ConvertTo-Json -Depth 4 -Compress) }
     if (((Get-Date) - $start).TotalSeconds -gt $timeoutSec) { 'timeout'; break }
     Start-Sleep -Seconds 2

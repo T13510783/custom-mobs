@@ -93,17 +93,10 @@
     .dot:hover { transform: scale(1.12); }
     .dot.active { border-color: var(--accent); }
 
-    /* ───────── Toast ───────── */
-    #toast {
-      position: fixed; top: 64px; right: 16px; z-index: 30; padding: 8px 14px; font-size: 12px; color: #f1f5f9;
-      opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity .3s, transform .3s;
-    }
-    #toast.show { opacity: 1; transform: translateY(0); }
 
     @media (max-width: 540px) {
       .anim-btn { padding: 7px 10px; }
       .anim-btn kbd { display: none; }
-      #dlBtn span { display: none; }
     }
   </style>
 
@@ -117,18 +110,13 @@
 <body>
   <canvas id="viewport"></canvas>
 
-  <!-- Top right: download .bbmodel + camera reset -->
+  <!-- Top right: camera reset -->
   <div id="topRight">
-    <button id="dlBtn" class="pill icon-btn" title="Download .bbmodel (model, texture, animations)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      <span>Download .bbmodel</span>
-    </button>
     <button id="resetBtn" class="pill icon-btn" title="Reset camera (R)" aria-label="Reset camera">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
     </button>
   </div>
 
-  <div id="toast" class="pill">Downloaded black_noir.bbmodel</div>
 
   <!-- Bottom dock: exactly 3 animations (Idle, Idle 2, Walk), follow toggle, color variants -->
   <nav id="dock" class="pill" aria-label="Viewer controls">
@@ -1479,8 +1467,6 @@
 
     /* ───────── UI Controls ───────── */
     let sim = makeSim(999);
-    const toast = document.getElementById('toast');
-    let toastTimer = 0;
 
     const dotsEl = document.getElementById('dots');
     VARIANTS.forEach((v, i) => {
@@ -1511,18 +1497,6 @@
     let resetting = false;
     document.getElementById('resetBtn').addEventListener('click', () => { resetting = true; });
 
-    document.getElementById('dlBtn').addEventListener('click', () => {
-      const data = buildBBModel();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'black_noir.bbmodel';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-      toast.classList.add('show');
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
-    });
 
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT') return;

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-15 22:20
+- Viewers: Download .bbmodel button + toast removed (`mobs/the_king/thekingv3.html`, `mobs/homelander/homelander.html`, `mobs/black_noir/black_noir.html`); the export code stays for the headless `.bbmodel` save.
+- Show bones button (key `B`) added to `mobs/darth_vader/DarthVader.html`, `mobs/thanos/Thanos.html`, `mobs/patrick_bateman/PatrickBateman.html` (+ root copy), `mobs/reverse_flash/ReverseFlash.html`, `mobs/the_joker/the_joker.html`: one self-contained rig-overlay block that hooks the scene update.
+- `tools/cdp.ps1`: new `-shot <file.jpg>` option (page screenshot after the expression returns).
+
 ## 2026-10-15 22:04
 - Rules: every commit and squash-merge needs a clear, short, clean message with the AI co-author trailer (`CLAUDE.md` GitHub section, `AGENTS.md` section 6).
 - New `.claude/settings.json` with `"includeCoAuthoredBy": true`.
