@@ -1240,65 +1240,63 @@
       const sightMat = createSolidMat(0xffffff, 0.1, 0.0);   // bright white 3-dot sights
       const muzzleMat = createSolidMat(0x0a0c0e, 0.9, 0.0);  // hollow bore
 
-      // 1. Grip Frame (held inside glove fingers)
-      const grip = new THREE.Mesh(new THREE.BoxGeometry(1.05 * PX, 2.5 * PX, 1.45 * PX), frameMat);
-      grip.position.set(0, -0.3 * PX, 0.2 * PX);
-      grip.rotation.x = -0.14;
+      // 1. Grip Frame (centered at hand grip, extending down along -Y)
+      const grip = new THREE.Mesh(new THREE.BoxGeometry(1.05 * PX, 2.5 * PX, 1.4 * PX), frameMat);
+      grip.position.set(0, -1.25 * PX, 0);
       gun.add(grip);
 
-      // Magazine baseplate at bottom of grip (extends below glove)
-      const magBase = new THREE.Mesh(new THREE.BoxGeometry(1.15 * PX, 0.4 * PX, 1.6 * PX), frameMat);
-      magBase.position.set(0, -1.5 * PX, 0.05 * PX);
-      magBase.rotation.x = -0.14;
+      // Magazine baseplate at bottom of grip (extends below fist)
+      const magBase = new THREE.Mesh(new THREE.BoxGeometry(1.15 * PX, 0.35 * PX, 1.55 * PX), frameMat);
+      magBase.position.set(0, -2.5 * PX, -0.08 * PX);
       gun.add(magBase);
 
       // Trigger guard loop (projects forward from grip)
       const guard = new THREE.Mesh(new THREE.BoxGeometry(0.35 * PX, 0.9 * PX, 1.25 * PX), frameMat);
-      guard.position.set(0, 0.15 * PX, 1.25 * PX);
+      guard.position.set(0, -0.45 * PX, 0.95 * PX);
       gun.add(guard);
 
       // Steel trigger inside guard
       const trigger = new THREE.Mesh(new THREE.BoxGeometry(0.22 * PX, 0.5 * PX, 0.28 * PX), triggerMat);
-      trigger.position.set(0, 0.2 * PX, 1.15 * PX);
+      trigger.position.set(0, -0.4 * PX, 0.85 * PX);
       trigger.rotation.x = -0.28;
       gun.add(trigger);
 
-      // 2. Slide Assembly (sits on top of hand, extending forward in +Z)
+      // 2. Slide Assembly (sits on top of hand/grip, extending forward along +Z)
       const slide = new THREE.Mesh(new THREE.BoxGeometry(1.2 * PX, 1.25 * PX, 4.8 * PX), slideMat);
-      slide.position.set(0, 1.25 * PX, 1.6 * PX);
+      slide.position.set(0, 0.65 * PX, 1.2 * PX);
       gun.add(slide);
 
       // Polished steel ejection port / chamber on right side
       const ejectPort = new THREE.Mesh(new THREE.BoxGeometry(0.25 * PX, 0.45 * PX, 1.2 * PX), metalMat);
-      ejectPort.position.set(0.55 * PX, 1.4 * PX, 1.2 * PX);
+      ejectPort.position.set(0.55 * PX, 0.8 * PX, 0.8 * PX);
       gun.add(ejectPort);
 
-      // Front sight post with white dot
+      // Front sight post with bright white dot
       const frontSight = new THREE.Mesh(new THREE.BoxGeometry(0.25 * PX, 0.4 * PX, 0.4 * PX), sightMat);
-      frontSight.position.set(0, 2.05 * PX, 3.7 * PX);
+      frontSight.position.set(0, 1.45 * PX, 3.3 * PX);
       gun.add(frontSight);
 
       // Rear sight notch
       const rearSight = new THREE.Mesh(new THREE.BoxGeometry(0.9 * PX, 0.4 * PX, 0.4 * PX), slideMat);
-      rearSight.position.set(0, 2.05 * PX, -0.55 * PX);
+      rearSight.position.set(0, 1.45 * PX, -0.9 * PX);
       gun.add(rearSight);
 
       // Rear sight white aiming dots (left & right)
       const dotL = new THREE.Mesh(new THREE.BoxGeometry(0.2 * PX, 0.22 * PX, 0.05 * PX), sightMat);
-      dotL.position.set(-0.32 * PX, 2.05 * PX, -0.76 * PX);
+      dotL.position.set(-0.32 * PX, 1.45 * PX, -1.12 * PX);
       gun.add(dotL);
       const dotR = new THREE.Mesh(new THREE.BoxGeometry(0.2 * PX, 0.22 * PX, 0.05 * PX), sightMat);
-      dotR.position.set(0.32 * PX, 2.05 * PX, -0.76 * PX);
+      dotR.position.set(0.32 * PX, 1.45 * PX, -1.12 * PX);
       gun.add(dotR);
 
       // Muzzle bore / hollow opening at front
       const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.5 * PX, 0.5 * PX, 0.15 * PX), muzzleMat);
-      muzzle.position.set(0, 1.25 * PX, 4.02 * PX);
+      muzzle.position.set(0, 0.65 * PX, 3.62 * PX);
       gun.add(muzzle);
 
       // Recoil guide rod beneath barrel
       const guideRod = new THREE.Mesh(new THREE.BoxGeometry(0.3 * PX, 0.3 * PX, 0.18 * PX), metalMat);
-      guideRod.position.set(0, 0.72 * PX, 3.98 * PX);
+      guideRod.position.set(0, 0.15 * PX, 3.6 * PX);
       gun.add(guideRod);
 
       return gun;
@@ -1317,52 +1315,56 @@
       });
       const chromeMat = new THREE.MeshStandardMaterial({
         color: 0xf1f5f9,
-        metalness: 0.94,
-        roughness: 0.14
+        metalness: 0.96,
+        roughness: 0.10
       });
       const glintMat = new THREE.MeshStandardMaterial({
         color: 0xffffff,
         metalness: 0.98,
-        roughness: 0.04
+        roughness: 0.02
       });
 
-      // Long felling axe handle (total length ~16 pixels)
-      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.75 * PX, 15.5 * PX, 1.05 * PX), woodMat);
+      // Hand grip is at origin y = 0.
+      // Total handle length is ~15 pixels:
+      // - Extends upward above hand by 4.2 pixels to the axe head.
+      // - Extends downward below hand by 10.8 pixels.
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.75 * PX, 15.0 * PX, 1.05 * PX), woodMat);
+      handle.position.set(0, -3.3 * PX, 0);
       axe.add(handle);
 
-      const grainStrip = new THREE.Mesh(new THREE.BoxGeometry(0.78 * PX, 15.2 * PX, 0.45 * PX), woodGrainMat);
-      grainStrip.position.set(0, 0, 0.12 * PX);
+      const grainStrip = new THREE.Mesh(new THREE.BoxGeometry(0.78 * PX, 14.6 * PX, 0.45 * PX), woodGrainMat);
+      grainStrip.position.set(0, -3.3 * PX, 0.12 * PX);
       axe.add(grainStrip);
 
-      // Bottom ergonomic swell / knob
+      // Bottom ergonomic fawn-foot swell / knob at lower end of handle
       const knob = new THREE.Mesh(new THREE.BoxGeometry(0.85 * PX, 1.4 * PX, 1.35 * PX), woodKnobMat);
-      knob.position.set(0, -7.6 * PX, 0.05 * PX);
+      knob.position.set(0, -10.6 * PX, 0.05 * PX);
       axe.add(knob);
 
-      // Top handle protrusion above head
-      const topHandle = new THREE.Mesh(new THREE.BoxGeometry(0.72 * PX, 1.5 * PX, 0.98 * PX), woodKnobMat);
-      topHandle.position.set(0, 8.1 * PX, 0);
+      // Top handle protrusion above the axe head
+      const topHandle = new THREE.Mesh(new THREE.BoxGeometry(0.72 * PX, 1.2 * PX, 0.98 * PX), woodKnobMat);
+      topHandle.position.set(0, 4.6 * PX, 0);
       axe.add(topHandle);
 
-      // Axe head assembly (mounted near top of handle, y = 6.4 * PX)
+      // Axe head assembly (mounted above hand at y = 3.6 * PX)
       const headGroup = new THREE.Group();
-      headGroup.position.set(0, 6.4 * PX, 0);
+      headGroup.position.set(0, 3.6 * PX, 0);
 
       // Steel Eye collar wrapping around the handle
       const collar = new THREE.Mesh(new THREE.BoxGeometry(1.22 * PX, 2.4 * PX, 1.65 * PX), steelMat);
       headGroup.add(collar);
 
-      // Rear striking poll (square counterweight hammer face)
+      // Rear striking poll (square counterweight hammer face pointing backward, -Z)
       const poll = new THREE.Mesh(new THREE.BoxGeometry(1.05 * PX, 1.8 * PX, 1.35 * PX), steelMat);
       poll.position.set(0, 0, -1.4 * PX);
       headGroup.add(poll);
 
-      // Blade wedge extending forward
+      // Blade wedge extending forward (+Z)
       const bladeWedge = new THREE.Mesh(new THREE.BoxGeometry(0.88 * PX, 2.1 * PX, 2.3 * PX), steelMat);
       bladeWedge.position.set(0, 0, 1.85 * PX);
       headGroup.add(bladeWedge);
 
-      // Mirror-chrome flared bit (broad cutting flare)
+      // Mirror-chrome flared bit (broad cutting flare facing forward, +Z)
       const chromeBit = new THREE.Mesh(new THREE.BoxGeometry(0.55 * PX, 3.8 * PX, 1.9 * PX), chromeMat);
       chromeBit.position.set(0, 0, 3.65 * PX);
       headGroup.add(chromeBit);
@@ -1460,25 +1462,29 @@
 
     function buildHandProp(variant) {
       const propGroup = new THREE.Group();
-      // Positioned at palm of right hand (y = -10.0 * PX, projecting forward in +Z so items are prominently held)
-      propGroup.position.set(0, -10.0 * PX, 1.6 * PX);
+      // Positioned at palm of right hand (y = -10.5 * PX, z = 0.5 * PX)
+      propGroup.position.set(0, -10.5 * PX, 0.5 * PX);
 
       if (variant === 'overcoat') {
-        // Pic 1 & 2: Black Glock pistol held in black-gloved hand, slide & sights clearly visible
+        // Black Glock pistol held firmly in black-gloved hand
+        // Oriented with gun.rotation.x = Math.PI / 2 so that:
+        // - In Special (rArmX = -PI/2): barrel points dead level horizontally forward at the target!
+        // - In Idle (rArmX = -0.08): barrel points safely down towards the ground!
+        // It never points upwards!
         const gun = buildGlockPistol();
-        gun.position.set(0, 0, 0.2 * PX);
-        gun.rotation.x = -0.12;
+        gun.position.set(0, 0, 0);
+        gun.rotation.x = Math.PI / 2;
         propGroup.add(gun);
       } else if (variant === 'raincoat') {
-        // Pic 3 & 4: Chrome felling axe with long hickory handle clearly held in hand
+        // Paul Allen felling axe held firmly by handle below the axe head
+        // Broad mirror-chrome cutting bit faces forward (+Z), poll faces back (-Z), shaft goes down
         const axe = buildPaulAllenAxe();
-        axe.position.set(0, 2.5 * PX, 0.3 * PX);
-        axe.rotation.x = -0.18;
+        axe.position.set(0, 0, 0);
         propGroup.add(axe);
       } else if (variant === 'executive') {
         // Pic 5: Authentic 1980s Motorola DynaTAC brick mobile phone held in hand
         const phone = buildVintageBrickPhone();
-        phone.position.set(0, 0.8 * PX, 0.3 * PX);
+        phone.position.set(0, 0.5 * PX, 0.2 * PX);
         phone.rotation.x = 0.08;
         propGroup.add(phone);
       } else if (variant === 'walkman') {
@@ -1493,7 +1499,7 @@
           new THREE.BoxGeometry(2.6 * PX, 0.2 * PX, 1.6 * PX),
           new THREE.MeshStandardMaterial({ map: cardTex, roughness: 0.5 })
         );
-        card.position.set(0, 0, 1.0 * PX);
+        card.position.set(0, 0, 0.8 * PX);
         propGroup.add(card);
       }
 
@@ -1650,22 +1656,21 @@
         lArmZ = -0.08;
 
         if (currentVariant === 'overcoat') {
-          // Tan overcoat: Glock pistol held ready in right hand, angled forward so the silhouette is prominently visible
-          rArmX = -0.22 + breath * 0.02;
-          rArmZ = 0.09;
-          rArmY = -0.06;
+          // Tan overcoat: Glock pistol held in right hand, pointing safely downward at side (never upward!)
+          rArmX = -0.08 + breath * 0.02;
+          rArmZ = 0.08;
+          rArmY = -0.04;
           lArmX = 0.02;
         } else if (currentVariant === 'raincoat') {
-          // Raincoat: chrome axe held comfortably by right side, blade pointing forward/down
-          rArmX = -0.18 + breath * 0.02;
-          rArmZ = 0.12;
-          rArmY = 0.05;
+          // Raincoat: chrome axe held comfortably by right side, blade facing forward, shaft along leg
+          rArmX = -0.12 + breath * 0.02;
+          rArmZ = 0.14;
+          rArmY = 0.04;
           lArmX = 0.04;
         } else if (currentVariant === 'executive') {
           // Suspenders: 1980s brick phone held in right hand at side, cool executive lean
-          rArmX = -0.16 + breath * 0.02;
+          rArmX = -0.12 + breath * 0.02;
           rArmZ = 0.10;
-          rArmY = -0.04;
           upperRotX = -0.03;
         } else if (currentVariant === 'walkman') {
           // Walkman: subtle musical nod to headphones
@@ -1697,12 +1702,12 @@
         lArmZ = -0.06;
 
         if (currentVariant === 'overcoat') {
-          rArmX = -0.12 - swing * 0.35;
+          rArmX = -0.10 - swing * 0.35;
           rArmZ = 0.07;
         } else if (currentVariant === 'raincoat') {
           // Axe swings naturally with right arm, clear of coat and legs
-          rArmX = -0.20 - swing * 0.30;
-          rArmZ = 0.12;
+          rArmX = -0.14 - swing * 0.30;
+          rArmZ = 0.14;
         } else if (currentVariant === 'executive') {
           rArmX = -0.12 - swing * 0.36;
           rArmZ = 0.08;
@@ -1715,23 +1720,23 @@
           if (cycle < 0.2) {
             const p = cycle / 0.2;
             const ease = p * p * (3 - 2 * p);
-            rArmX = lerp(-0.1, -1.58, ease);
+            rArmX = lerp(-0.08, -1.57, ease);
             rArmZ = lerp(0.06, -0.04, ease);
             headRotY = lerp(0, -0.22, ease);
             upperRotY = lerp(0, 0.22, ease);
           } else if (cycle < 0.35) {
             const p = (cycle - 0.2) / 0.15;
             const kick = Math.sin(p * Math.PI);
-            rArmX = -1.58 - kick * 0.35; // slide kicks upward
-            rArmY = kick * 0.06;
-            upperRotX = -kick * 0.06;
-            headRotX = kick * 0.04;
+            rArmX = -1.57 - kick * 0.28; // slide and barrel kick upward from horizontal
+            rArmY = kick * 0.05;
+            upperRotX = -kick * 0.05;
+            headRotX = kick * 0.03;
             headRotY = -0.22;
             upperRotY = 0.22;
           } else if (cycle < 0.65) {
             const p = (cycle - 0.35) / 0.30;
             const ease = p * p * (3 - 2 * p);
-            rArmX = lerp(-1.58, -1.52, ease);
+            rArmX = lerp(-1.57, -1.52, ease);
             headRotY = -0.22;
             upperRotY = 0.22;
           } else {
@@ -1809,7 +1814,7 @@
         }
       } else if (currentAnim === 'special') {
         if (currentVariant === 'overcoat') {
-          // Reference Pic 2: Dramatic aiming stance with Glock pistol extended forward (NO CLIPPING!)
+          // Reference Pic 2: Dramatic aiming stance with Glock pistol extended forward (DEAD LEVEL, ZERO UPWARD TILT!)
           const sway = Math.sin(t * 2.5);
           upperRotY = 0.22 + sway * 0.02;
           upperRotX = 0.04;
@@ -1817,8 +1822,8 @@
           headRotZ = 0.09 + sway * 0.015;
           headRotX = 0.05;
 
-          // Right arm extended straight forward aiming (clean clearance from overcoat)
-          rArmX = -1.55 + Math.sin(t * 3.8) * 0.012;
+          // Right arm extended straight forward aiming (horizontal aim, zero upward tilt!)
+          rArmX = -1.57 + Math.sin(t * 3.8) * 0.012;
           rArmY = 0.02;
           rArmZ = -0.05; // slight outward angle to ensure the sleeve never clips into coat lapels
 
@@ -1832,25 +1837,40 @@
           rLegZ = 0.04;
           lLegZ = -0.04;
         } else if (currentVariant === 'raincoat') {
-          // Reference Pic 3: "Hey Paul!" Admiring the gleaming chrome axe blade in front of face
-          const sway = Math.sin(t * 2.2);
-          upperRotY = -0.12;
-          upperRotX = 0.05;
-          headRotX = 0.24 + sway * 0.02; // looking down at gleaming axe bit
-          headRotY = -0.18;
-          headRotZ = 0.12;
+          // The iconic "It's Hip to Be Square" dance from American Psycho!
+          // Rhythmic 140 BPM bouncy groove, high-stepping knee bounce, dynamic hip sway, and swaggering 80s pop arm pumping!
+          const tempo = 4.8;
+          const phase = t * tempo;
+          const bounce = Math.abs(Math.sin(phase));
 
-          // Right arm raised, presenting polished axe head right before face
-          rArmX = -1.68 + sway * 0.02;
-          rArmY = -0.15;
-          rArmZ = 0.46; // elbow held outward, zero clipping through raincoat
+          // Springy knee bounce & vertical hop
+          rootY = bounce * 0.052;
 
-          // Left arm open in manic delight
-          lArmX = -0.42 + Math.cos(t * 2.2) * 0.05;
-          lArmZ = -0.32;
+          // Torso sways and rocks to the 4/4 pop groove
+          upperRotY = Math.sin(phase * 0.5) * 0.30;
+          upperRotZ = Math.cos(phase * 0.5) * 0.10;
+          upperRotX = 0.06 + bounce * 0.035;
 
-          rLegX = -0.08;
-          lLegX = 0.08;
+          // Head bobs up and down on each beat with manic musical ecstasy
+          headRotX = -0.06 + Math.sin(phase) * 0.09;
+          headRotY = Math.sin(phase * 0.5) * 0.18;
+          headRotZ = Math.cos(phase * 0.5) * 0.08;
+
+          // Right arm holds the axe securely down at side, swinging rhythmically with the dance (zero clipping)
+          rArmX = -0.22 + Math.sin(phase * 0.5) * 0.22;
+          rArmZ = 0.18 + Math.abs(Math.sin(phase * 0.5)) * 0.06;
+          rArmY = 0.05;
+
+          // Left arm pumps and points in signature Patrick Bateman 80s dance moves
+          lArmX = -0.72 - Math.sin(phase) * 0.42;
+          lArmZ = -0.34 - Math.cos(phase * 0.5) * 0.18;
+          lArmY = -0.16 + Math.sin(phase * 0.5) * 0.22;
+
+          // High-stepping rhythmic dance strides with knees lifting to the beat
+          rLegX = Math.sin(phase * 0.5) * 0.56;
+          lLegX = -Math.sin(phase * 0.5) * 0.56;
+          rLegZ = Math.max(0, Math.sin(phase * 0.5)) * 0.12;
+          lLegZ = Math.max(0, -Math.sin(phase * 0.5)) * 0.12;
         } else if (currentVariant === 'executive') {
           // Reference Pic 5: Suspenders, Sunglasses & holding the 1980s Brick Phone to ear!
           const pulse = Math.sin(t * 2.4);
