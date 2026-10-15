@@ -25,6 +25,11 @@ gh pr list                          # see open PRs: who is changing what
 
 Then check `docs/working_on.md` (who works on which mob/file) and add your own line.
 
+**Shared folder?** If another person or AI works in the same project folder at the same time, don't switch
+branches there (you would switch theirs too). Work in your own git worktree (a second checkout of the repo):
+`git worktree add "C:\cm-worktrees\<topic>" <your-branch>`; test and build there; remove it after the merge
+(`git worktree remove "C:\cm-worktrees\<topic>"`). The shared folder stays on `main`.
+
 ## 3. After EVERY change (each finished edit)
 
 **HARD RULE: after EVERY prompt and EVERY change: pull, commit, push. No exceptions.**

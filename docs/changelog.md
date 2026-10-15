@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-15 17:51
+- The King (`mobs/the_king/thekingv3.html`) on the 2-bone rig rule:
+  - Removed the empty `hand_*` bones and the `ankle_*` bones; the shoe now sits on the shin bone (same spot).
+  - New ground solve (`legHeight()` / `footLow()`, smooth min): Idle 2 (relaxed knee forward), Walk (heel strike / toe-off, swing knee 1.15 so the long shoe clears), Dance (crouch on the balls of the feet, feet stay put), Attack 2 (back foot pivots on its toe, solved per key: no slide, no float).
+  - Run IK reads the real shoe pitch (thigh + knee) for the contact height (6 passes). Attack 1 keeps its keys (ground check lifts it as before).
+  - Show bones button (key B).
+  - Cliptest: no new clips (only the 4 old bandana contacts), ground 0-0.015, ground lift needed <= 0.07 (was up to 5.4 in Idle 2).
+- Mod: re-exported (`rig.json` 26 bones, `anims.bin`, trace); `gradlew build` OK, 1:1 test passed (max 0.00011 rad / 0.00031 texel).
+- `AGENTS.md`: shared folder -> work in your own git worktree, keep the shared folder on `main`.
+
 ## 2026-10-15 17:37
 - Homelander (`mobs/homelander/homelander.html`):
   - Red glow fixed: no more red light in the middle of the face; now only the eyes glow (red eye whites, hot orange core on the pupil, faint halo; a blink hides it). Attack: eyes flare in the wind-up. Special: eyes heat up fully before the beams.
