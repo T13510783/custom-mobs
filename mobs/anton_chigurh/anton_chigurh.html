@@ -1226,7 +1226,7 @@
       const faceMat = (hex) => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.9, metalness: 0 });
       const FACE_MATS = {
         white: faceMat('#cfc7bb'), pupil: faceMat('#1d140f'), lid: faceMat(PALETTE.skinShadow),
-        brow: faceMat(PALETTE.hairDark), lip: faceMat('#6a4234'), teeth: faceMat('#e9e2d4')
+        brow: faceMat(PALETTE.hairDark), lip: faceMat('#2c1813'), teeth: faceMat('#e9e2d4')
       };
       function faceBone(name, parent, x, y, z) {
         const g = new THREE.Group();
@@ -1254,9 +1254,9 @@
       facePlane(lidR, 2.1, 1, 0, -0.5, 0, FACE_MATS.lid);
       facePlane(lidL, 2.1, 1, 0, -0.5, 0, FACE_MATS.lid);
       // Heavy dark brows on row 2 (the bangs end above them)
-      const browR = faceBone('brow_right', headPivot, -2, 5.55, 4.04), browL = faceBone('brow_left', headPivot, 2, 5.55, 4.04);
-      facePlane(browR, 2, 0.6, 0, 0, 0, FACE_MATS.brow);
-      facePlane(browL, 2, 0.6, 0, 0, 0, FACE_MATS.brow);
+      const browR = faceBone('brow_right', headPivot, -2, 5.45, 4.04), browL = faceBone('brow_left', headPivot, 2, 5.45, 4.04);
+      facePlane(browR, 2, 0.55, 0, 0, 0, FACE_MATS.brow);
+      facePlane(browL, 2, 0.55, 0, 0, 0, FACE_MATS.brow);
       // Standard mouth: thin lip line + teeth plate (rest: inside the head)
       const mouth = faceBone('mouth', headPivot, 0, 1.55, 4.02);
       facePlane(mouth, 2, 0.35, 0, 0, 0.01, FACE_MATS.lip);
@@ -1322,7 +1322,7 @@
       /* ───────── Animations ─────────
          Each anim: fn(t, Q) fills bone rotations (Q.r[bone] = [x, y, z]), face channels (Q.f) and prop values (Q.v).
          Smooth curves only (no abs / bare max / hard clamps). T = whole 1/120 s frames. */
-      const FACE_KEYS = ['browUp', 'frown', 'open', 'wide', 'squint', 'glance', 'grin', 'smirk', 'down', 'eyesOpen'];
+      const FACE_KEYS = ['browUp', 'frown', 'open', 'wide', 'squint', 'glance', 'grin', 'smirk', 'down', 'eyesOpen', 'smile', 'press'];
       // followW: how much head-follow is allowed (faded out before an arm comes up beside the head)
       const V_DEFAULT = { sgRx: 0, sgRy: 0, sgRz: 0, sgY: 0, sgZ: 0, sgHang: 1, sling: 0, boltR: 0, rod: 0, sag: 7, bowX: 3.2, bowZ: -1.2, tankRx: 0, tankRz: 0, followW: 1 };
       const sm = (x) => x * x * (3 - 2 * x);                                   // smoothstep 0..1
@@ -1361,6 +1361,7 @@
           Q.f.frown = 0.2 + 0.05 * b;
           Q.f.glance = 0.35 * look;
           Q.f.open = 0.03 + 0.03 * b;
+          Q.f.press = 0.35 - 0.1 * b;                    // lips set tight, ease a little on the breath out
         } },
 
         // 2 · Idle 2: turns his head to look over his right shoulder, comes back with the eerie head tilt
@@ -1388,6 +1389,10 @@
           Q.f.frown = keys(t, [[0, 0.2], [3.4, 0.15], [4.6, 0.5], [6.4, 0.45], [7.4, 0.2], [8, 0.2]]);
           Q.f.squint = keys(t, [[0, 0], [3.4, 0], [4.6, 0.45], [6.4, 0.45], [7.4, 0], [8, 0]]);
           Q.f.down = 0.5 * grip;
+          // mouth: lips part a little at the sound (look left), press thin during the stare, then a cold half-smile
+          Q.f.open = keys(t, [[0, 0.02], [1.0, 0.18], [2.0, 0.08], [3.0, 0.02], [8, 0.02]]);
+          Q.f.press = keys(t, [[0, 0.25], [1.0, 0], [2.6, 0.2], [4.6, 0.6], [5.6, 0.3], [6.4, 0.45], [7.4, 0.25], [8, 0.25]]);
+          Q.f.smirk = keys(t, [[0, 0], [4.9, 0], [5.5, 0.4], [6.2, 0.35], [7.0, 0], [8, 0]]);
         } },
 
         // 3 · Walk: relentless, unhurried stalk. Knees bend in the swing, elbows bend with the arm swing,
@@ -1411,6 +1416,8 @@
           Q.v.bowX = 3.3;
           Q.f.frown = 0.25;
           Q.f.glance = 0.1 * Math.sin(TAU * t / 2 + 0.7);
+          Q.f.press = 0.3 + 0.08 * Math.sin(2 * p + 0.6);     // set jaw, a small breath on each step
+          Q.f.open = 0.03 * (1 + Math.sin(2 * p + 0.6));
         } },
 
         // 4 · Attack: "Would you hold still, please?" Slings the shotgun onto his back, takes the captive bolt
@@ -1442,6 +1449,7 @@
           const talk = Math.sin(clamp((t - 0.7) / 0.45, 0, 1) * Math.PI);   // "hold still" (0.7 - 1.15 s)
           Q.f.open = 0.35 * talk * (0.5 + 0.5 * Math.sin(TAU * 3 * (t - 0.7)));
           Q.f.browUp = 0.2 * aim;
+          Q.f.press = 0.4 * (1 - talk);                   // tight lips, open only for the words
           Q.f.frown = 0.25 + 0.2 * recoil;
           Q.f.squint = 0.15 * aim + 0.5 * recoil;
           Q.f.glance = -0.3 * aim;
@@ -1481,6 +1489,8 @@
           Q.f.squint = 0.25 * raise + 0.4 * Math.min(1, recoil);
           Q.f.down = boots;
           Q.f.browUp = 0.1 * boots;
+          Q.f.press = 0.45 * raise * (1 - 0.6 * Math.min(1, recoil));   // lips set while aiming, jolt open on each shot
+          Q.f.open = 0.12 * Math.min(1, recoil);
         }, events: [[0.65, 'shot'], [1.1, 'shot'], [1.55, 'shot']] },
       };
 
@@ -1551,8 +1561,11 @@
         if (xf && xf.w > 1e-4) {
           const mix = (c, v) => { fo[c] += (v - fo[c]) * xf.w; };
           mix('browUp', 0.8 * xf.brow); mix('frown', clamp(-0.6 * xf.tilt + 0.4 * Math.max(0, -xf.brow), -0.7, 1));
-          mix('wide', 0.4 * xf.smile + 0.2 * xf.open); mix('open', 0.8 * xf.open);
-          mix('grin', 0.9 * Math.max(0, xf.smile)); mix('smirk', 0); mix('squint', 0.7 * Math.max(0, -xf.eyes));
+          // angry = bared, clenched teeth (brows down + inner ends down); happy = grin
+          const snarl = clamp(-xf.brow, 0, 1) * clamp(-xf.tilt, 0, 1);
+          mix('wide', 0.3 * Math.max(0, xf.smile) + 0.2 * xf.open + 0.2 * snarl); mix('open', 0.8 * xf.open);
+          mix('smile', xf.smile); mix('press', 0);
+          mix('grin', 0.9 * Math.max(0, xf.smile) + 0.7 * snarl); mix('smirk', 0); mix('squint', 0.7 * Math.max(0, -xf.eyes));
           mix('eyesOpen', Math.max(0, xf.eyes)); mix('glance', 0); mix('down', 0);
           hx += window.MobViewer.head.pitch;
           hz += window.MobViewer.head.roll;
@@ -1627,15 +1640,23 @@
         const glance = clamp(fc.glance + F.eye * 0.6, -1, 1);
         pupilR.position.x = glance * 0.5;
         pupilL.position.x = glance * 0.5;
-        const browY = clamp(fc.browUp * 0.4 - fc.frown * 0.2, -0.3, 0.45);
-        browR.position.y = browR.userData.rest.y + browY;
-        browL.position.y = browL.userData.rest.y + browY;
-        browR.rotation.z = -fc.frown * 0.3;   // + frown = inner ends down (angry V)
-        browL.rotation.z = fc.frown * 0.3;
-        // standard mouth: open = thicker line, wide/grin = wider, smirk = tilt + slide, grin = teeth plate grows down
-        mouth.scale.set(1 + clamp(fc.wide, -1, 1) * 0.4 + fc.grin * 0.3, 1 + clamp(fc.open, 0, 1) * 1.5, 1);
+        // Brows: the bangs start 0.15 above a brow's top edge, so "up" is soft-limited to that gap (a brow never
+        // slides under the hair); surprise and sadness read from the tilt (inner ends up) and the open lids instead
+        const browY = clamp(fc.browUp * 0.4 - fc.frown * 0.2, -0.3, 1);
+        const browLift = browY > 0 ? 0.14 * Math.tanh(browY / 0.14) : browY;
+        browR.position.y = browR.userData.rest.y + browLift;
+        browL.position.y = browL.userData.rest.y + browLift;
+        browR.rotation.z = -fc.frown * 0.36;  // + frown = inner ends down (angry V), - = inner ends up (sad / afraid)
+        browL.rotation.z = fc.frown * 0.36;
+        // standard mouth (Homelander type): open = thicker line, wide/grin = wider, smirk = tilt + slide,
+        // grin = teeth plate grows down. smile: the whole line shifts up and widens (+) or drops and narrows (-);
+        // press: lips pressed thin and tight (Anton's stony calm)
+        const sm = clamp(fc.smile, -1, 1), pr = clamp(fc.press, 0, 1);
+        mouth.scale.set(1 + clamp(fc.wide, -1, 1) * 0.4 + fc.grin * 0.3 + 0.12 * Math.max(0, sm) - 0.18 * Math.max(0, -sm) - 0.12 * pr,
+          (1 + clamp(fc.open, 0, 1) * 1.5) * (1 - 0.3 * pr), 1);
         mouth.rotation.z = 0.14 * fc.smirk;
         mouth.position.x = 0.25 * fc.smirk;
+        mouth.position.y = mouth.userData.rest.y + 0.16 * sm + 0.06 * fc.smirk;
         teeth.scale.y = Math.max(0.001, fc.grin);
         teeth.position.z = -0.1 + 0.105 * clamp(fc.grin * 10, 0, 1);   // steps out of the head only while grinning
 
@@ -1912,6 +1933,7 @@
       } else if (hash.startsWith('shot-')) {
         // #shot-<anim>-<variant>-<sec>[-<camDeg>[f = face close-up][-<expression>]]
         const [, anim, , sec, cam, expr] = hash.split('-');
+        document.head.insertAdjacentHTML('beforeend', '<style>#dock,#topRight,#expr{display:none!important}</style>');   // clean still: no UI
         S.frozen = true; S.blink.off = true;
         S.follow.on = false;
         if (expr && window.MobViewer) window.MobViewer.set(expr);

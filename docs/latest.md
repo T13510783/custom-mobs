@@ -1,13 +1,14 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 22:56
-**Request:** Joker face white (cheeks, jaw); remove the player emote system; then mouth paint back as before and fix the stretched look.
+**Date:** 2026-10-16 23:15
+**Request:** Make Anton's face expressions and mouth better.
 
 **Done:**
-- `mobs/the_joker/the_joker.html`: front face all white paint (jaw corners, chin) with the red smile paint as before; head sides white only on the 2 cheek columns, ear + nape skin again (no stretched white slab).
-- Emote wheel removed completely: no emote code, mixins, lang keys, icons, test world or branch left (it was never committed).
-- Checked: face renders (front + below-left).
+- `mobs/anton_chigurh/anton_chigurh.html`: darker lip line; new `smile` (line up/down + width) and `press` (tight lips) channels.
+- Expression menu: Happy grin, Sad drop, Angry bared teeth, Afraid open mouth; brows lower/thinner so raises stay visible under the bangs.
+- Mouth now moves in all 5 animations (idle 2 ends in a cold half-smile).
+- Checked: face renders per expression + idle 2 at 5.8 s, `#cliptest` 0 clips.
 
-**Files:** `mobs/the_joker/the_joker.html`, docs.
+**Files:** `mobs/anton_chigurh/anton_chigurh.html`, docs.
 
-**Next:** nothing open for the Joker; `run.txt` has an uncommitted edit that is not from this session (left alone).
+**Next:** merge the PR (needs the user's "merge"); `run.txt` has an uncommitted edit not from this session (left alone).
