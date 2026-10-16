@@ -7,6 +7,22 @@ Rule set for Claude. It works in any project, for anyone who makes custom mobs a
 Put this file in the root of your project and name it `CLAUDE.md` (or paste it into your existing `CLAUDE.md`).
 These rules count for every mob and every mod, unless the user clearly says otherwise for one mob or mod.
 
+## Permanent project rules (user rules, 2026-10-16)
+
+Always apply these, every session, without being reminded:
+
+- **No sub-agents.** Work directly in the main loop. Spawn a sub-agent only when the user explicitly asks for one.
+- **Commit + push always**, with a clear, clean, short, accurate title (`<area>: <what changed>`) and a short description (details: GitHub section below).
+- **Co-Authored-By trailer on every commit and every squash-merge**: the last line names Claude and the exact model, e.g. `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. `.claude/settings.json` keeps `"includeCoAuthoredBy": true`.
+- **Viewer buttons:** no "Download .bbmodel" / "Download Blockbench Model" button in any HTML viewer, ever; the "Show bones" toggle (key `B`) is in every HTML viewer, always (rule 10).
+- **Hygiene:** root, folders and git branches stay clean: files in logical folders, finished branches merged and deleted, no leftover or obsolete files, no stale branches or worktrees (rule 15, `AGENTS.md` section 7).
+- **1-on-1 parity:** every mob in Minecraft is 100% identical to its HTML viewer: model, bone count, idles, face, attacks, audio / voice lines, VFX and physical interactions (rule 23).
+- **Releases and versions** (rule 20):
+  - GitHub Release tag/title and jar name end in `-alpha`, e.g. `v0.0.1-alpha`, `custommobs-0.0.1-alpha.jar`.
+  - Each version part goes up to 99, then rolls over into the next part: `0.0.99` -> `0.1.0`, `0.99.99` -> `1.0.0`; maximum `v99.99.99-alpha`.
+  - Locally (`builds/`) only the newest 5 jars stay; on GitHub Releases every jar stays forever (never delete a release).
+  - Every release changelog (GitHub Release + in-game updater) has exactly three sections: `Added`, `Removed`, `Fixed`. Short bullets, nothing else.
+
 ## GitHub repo and teamwork (user rule, 2026-10-15)
 
 Full commands in `AGENTS.md`. Short version, always:
