@@ -15,7 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /* ───────── Homelander's data, exported 1:1 from mobs/homelander/homelander.html (#modexport) ─────────
-   assets/homelander/homelander/rig.json  : bones (rest pose), cubes as finished quads, springs, eye glow + beam
+   assets/homelander/homelander/rig.json  : bones (rest pose), cubes as finished quads, cape cloth, eye glow + beam
                                             geometry, victim spots, voice curve, animation list
    assets/homelander/homelander/anims.bin : every animation channel at 120 fps, 16-bit steps stored as frame-to-frame differences
    Units: texels and radians, axes like the viewer: +x = his left, +y = up, +z = his front.
@@ -35,15 +35,27 @@ public final class HomelanderData {
         public Quad[] quads;
     }
 
-    /** One cape spring (viewer SPRINGS): angles in radians, k/d per second. */
-    public static final class Spring {
+    /** A body box the cape collides with (viewer CLOTH.colliders): bone, center (texels), half size incl. inflate, rotation. */
+    public static final class Collider {
+        public String name;
         public int bone;
-        public double chain, k, d, accel, x0, x1, z0, z1, bx, breeze, f, lag;
+        public double[] c, h, r;
+        public boolean hand;       // forearm / fist: joins the "hands block" when behind the cape
+    }
+
+    /** The cape cloth (viewer CLOTH + CAPE_*): physics settings, size, bones, colliders and the mesh texture rects. */
+    public static final class Cloth {
+        public double sub, gravity, drag, margin, wind, seg, width, thick;
+        public int iters, cols, n;
+        public double[] top;
+        public int[] bones;
+        public Collider[] colliders;
+        public int[][] rects;      // atlas rects [x, y, w, h] of faces right, left, top, bottom, front (lining), back (outside)
     }
 
     public static final class Anim {
         public String name;
-        public double T, yawLimit, follow, beam;
+        public double T, yawLimit, follow, beam, look, mood, move;   // look / mood = director weights, move = walk speed (texels/s)
         public int frames;
         public final Map<String, Double> events = new LinkedHashMap<>();
         public double[][] rot, pos;    // [bone*3 + axis] -> samples (null = always 0)
@@ -85,7 +97,7 @@ public final class HomelanderData {
     public int[] parent;
     public double[] restPos, restRot;  // [bone*3 + axis]
     public Cube[] cubes;
-    public Spring[] springs;
+    public Cloth cloth;
     public VoiceLine[] voice;
     // Eye glow planes + heat-vision beams (viewer: eyeGlow / lasers, in the head bone)
     public double[] eyesX, glowZ, beamR;
@@ -94,7 +106,12 @@ public final class HomelanderData {
     public double eyeY, beamZ, laserLen;
     // Victims: hand point (forearm_right space), dummy neck height, throw speed (blocks/s), grab lift time (s)
     public double[] hand;
-    public double neck, throwVy, grabLift;
+    public double neck, scale, hangUp, hangOut, throwVy, grabLift;
+    /** Smash fling speed (blocks/s, forward / up) and the dummy's length soles..head top (texels). */
+    public double smashVz, smashVy, victimLen;
+    /** Walk while attacking: bones the Walk drives under an attack, and the root (only its height). */
+    public int[] walkBones;
+    public int walkRoot;
     public final Map<String, Victim> victims = new HashMap<>();
     public final Map<String, Anim> anims = new LinkedHashMap<>();
     private final Map<String, Integer> boneIndex = new HashMap<>();
@@ -185,26 +202,43 @@ public final class HomelanderData {
             d.cubes[c] = cube;
         }
 
-        JsonArray springs = j.getAsJsonArray("springs");
-        d.springs = new Spring[springs.size()];
-        for (int s = 0; s < springs.size(); s++) {
-            JsonObject o = springs.get(s).getAsJsonObject();
-            Spring sp = new Spring();
-            sp.bone = o.get("bone").getAsInt();
-            sp.chain = o.get("chain").getAsDouble();
-            sp.k = o.get("k").getAsDouble();
-            sp.d = o.get("d").getAsDouble();
-            sp.accel = o.get("accel").getAsDouble();
-            sp.x0 = o.getAsJsonArray("x").get(0).getAsDouble();
-            sp.x1 = o.getAsJsonArray("x").get(1).getAsDouble();
-            sp.z0 = o.getAsJsonArray("z").get(0).getAsDouble();
-            sp.z1 = o.getAsJsonArray("z").get(1).getAsDouble();
-            sp.bx = o.get("bx").getAsDouble();
-            sp.breeze = o.get("breeze").getAsDouble();
-            sp.f = o.get("f").getAsDouble();
-            sp.lag = o.get("lag").getAsDouble();
-            d.springs[s] = sp;
+        JsonObject cl = j.getAsJsonObject("cloth");
+        Cloth cloth = new Cloth();
+        cloth.sub = cl.get("sub").getAsDouble();
+        cloth.gravity = cl.get("gravity").getAsDouble();
+        cloth.drag = cl.get("drag").getAsDouble();
+        cloth.iters = cl.get("iters").getAsInt();
+        cloth.cols = cl.get("cols").getAsInt();
+        cloth.margin = cl.get("margin").getAsDouble();
+        cloth.wind = cl.get("wind").getAsDouble();
+        cloth.n = cl.get("n").getAsInt();
+        cloth.seg = cl.get("seg").getAsDouble();
+        cloth.width = cl.get("width").getAsDouble();
+        cloth.thick = cl.get("thick").getAsDouble();
+        cloth.top = doubles(cl.getAsJsonArray("top"));
+        JsonArray cb = cl.getAsJsonArray("bones");
+        cloth.bones = new int[cb.size()];
+        for (int i = 0; i < cloth.bones.length; i++) cloth.bones[i] = cb.get(i).getAsInt();
+        JsonArray cc = cl.getAsJsonArray("colliders");
+        cloth.colliders = new Collider[cc.size()];
+        for (int i = 0; i < cloth.colliders.length; i++) {
+            JsonObject o = cc.get(i).getAsJsonObject();
+            Collider c = new Collider();
+            c.name = o.get("name").getAsString();
+            c.bone = o.get("bone").getAsInt();
+            c.c = doubles(o.getAsJsonArray("c"));
+            c.h = doubles(o.getAsJsonArray("h"));
+            c.r = doubles(o.getAsJsonArray("r"));
+            c.hand = c.name.startsWith("lower_arm_") || c.name.startsWith("gauntlet_");
+            cloth.colliders[i] = c;
         }
+        JsonArray cr = cl.getAsJsonArray("rects");
+        cloth.rects = new int[cr.size()][];
+        for (int i = 0; i < cloth.rects.length; i++) {
+            JsonArray r = cr.get(i).getAsJsonArray();
+            cloth.rects[i] = new int[] { r.get(0).getAsInt(), r.get(1).getAsInt(), r.get(2).getAsInt(), r.get(3).getAsInt() };
+        }
+        d.cloth = cloth;
 
         JsonObject fx = j.getAsJsonObject("fx");
         d.eyesX = doubles(fx.getAsJsonArray("eyesX"));
@@ -225,6 +259,9 @@ public final class HomelanderData {
         JsonObject victim = j.getAsJsonObject("victim");
         d.hand = doubles(victim.getAsJsonArray("hand"));
         d.neck = victim.get("neck").getAsDouble();
+        d.scale = victim.get("scale").getAsDouble();
+        d.hangUp = victim.get("hangUp").getAsDouble();
+        d.hangOut = victim.get("hangOut").getAsDouble();
         d.throwVy = victim.get("throwVy").getAsDouble();
         d.grabLift = victim.get("grabLift").getAsDouble();
         for (Map.Entry<String, JsonElement> e : victim.getAsJsonObject("spots").entrySet()) {
@@ -235,6 +272,14 @@ public final class HomelanderData {
             v.release = o.has("release") ? doubles(o.getAsJsonArray("release")) : null;
             d.victims.put(e.getKey(), v);
         }
+        d.smashVz = victim.get("smashVz").getAsDouble();
+        d.smashVy = victim.get("smashVy").getAsDouble();
+        d.victimLen = victim.get("len").getAsDouble();
+        JsonObject wl = j.getAsJsonObject("walkLayer");
+        JsonArray wb = wl.getAsJsonArray("bones");
+        d.walkBones = new int[wb.size()];
+        for (int i = 0; i < wb.size(); i++) d.walkBones[i] = wb.get(i).getAsInt();
+        d.walkRoot = wl.get("root").getAsInt();
 
         JsonArray voice = j.getAsJsonArray("voice");
         d.voice = new VoiceLine[voice.size()];
@@ -260,6 +305,9 @@ public final class HomelanderData {
             a.yawLimit = o.get("yawLimit").getAsDouble();
             a.follow = o.get("follow").getAsDouble();
             a.beam = o.get("beam").getAsDouble();
+            a.look = o.get("look").getAsDouble();
+            a.mood = o.get("mood").getAsDouble();
+            a.move = o.get("move").getAsDouble();
             for (Map.Entry<String, JsonElement> e : o.getAsJsonObject("events").entrySet()) a.events.put(e.getKey(), e.getValue().getAsDouble());
             a.rot = new double[nb * 3][];
             a.pos = new double[nb * 3][];

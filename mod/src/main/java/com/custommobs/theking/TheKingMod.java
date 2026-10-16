@@ -1,5 +1,6 @@
 package com.custommobs.theking;
 
+import com.custommobs.Sindicate;
 import com.custommobs.theking.entity.KingEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -15,7 +16,6 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.common.DeferredSpawnEggItem;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
@@ -26,8 +26,9 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 
 /* ───────── The King: main mod class (both sides) ─────────
    Registers the mob, its spawn egg, its sounds and its own creative tab, plus spawn rules and the config. */
-@Mod(TheKingMod.MODID)
+@Mod(Sindicate.MODID)
 public final class TheKingMod {
+    /** The King's namespace (entity, egg, sounds, textures): kept from the old "The King" jar so worlds keep their Kings. */
     public static final String MODID = "theking";
 
     /* ───────── Registries ───────── */
@@ -73,7 +74,6 @@ public final class TheKingMod {
         ITEMS.register(modBus);
         SOUNDS.register(modBus);
         TABS.register(modBus);
-        container.registerConfig(ModConfig.Type.COMMON, KingConfig.COMMON_SPEC);
         modBus.addListener(EntityAttributeCreationEvent.class, e -> e.put(KING.get(), KingEntity.createAttributes().build()));
         modBus.addListener(RegisterSpawnPlacementsEvent.class, e -> e.register(KING.get(), SpawnPlacementTypes.ON_GROUND,
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, KingEntity::checkKingSpawnRules, RegisterSpawnPlacementsEvent.Operation.REPLACE));

@@ -21,11 +21,11 @@ Always apply these, every session, without being reminded:
 - **Every request ends with:** re-organise + optimise all files and folders (rule 15), then commit + push yourself (GitHub section). Never ask first, never skip.
 - **Edits** (user rule, 2026-10-16): use the `Edit` tool (the user sees the diff) or a script (`node`, `sed`), whichever gives the best quality and is fastest at that moment.
 - **Other characters' viewers are never edited by hand** (user rule, 2026-10-16): only the mob the user asks about; shared UI changes go into `mobs/_shared/` (html/css/js), never into the other pages.
-- **Branch cleanup:** only your own branches (`tivek87/*`, own `backup/*`); never delete or rewrite a branch of `T13510783` or anyone else.
+- **Branch cleanup:** only your own branches (`tivek87/*`, own `backup/*`); a branch of `T13510783` or anyone else only when the user explicitly allows it (2026-10-16: allowed for all branches: finish/merge their work into `main`, then delete, never lose it).
 - **Hygiene:** root, folders and git branches stay clean: files in logical folders, finished branches merged and deleted, no leftover or obsolete files, no stale branches or worktrees (rule 15, `AGENTS.md` section 7).
 - **1-on-1 parity:** every mob in Minecraft is 100% identical to its HTML viewer: model, bone count, idles, face, attacks, audio / voice lines, VFX and physical interactions (rule 23).
 - **Releases and versions** (rule 20):
-  - GitHub Release tag/title and jar name end in `-alpha`, e.g. `v0.0.1-alpha`, `custommobs-0.0.1-alpha.jar`.
+  - GitHub Release tag/title and jar name end in `-alpha`, e.g. `v0.0.1-alpha`, `sindicate-0.0.1-alpha.jar`. The mod is called **Sindicate** (mod id `sindicate`, user rule 2026-10-16); mob namespaces stay `theking`, `homelander`, ...
   - Each version part goes up to 99, then rolls over into the next part: `0.0.99` -> `0.1.0`, `0.99.99` -> `1.0.0`; maximum `v99.99.99-alpha`.
   - Locally (`builds/`) only the newest 5 jars stay; on GitHub Releases every jar stays forever (never delete a release).
   - Every release changelog (GitHub Release + in-game updater) has exactly three sections: `Added`, `Removed`, `Fixed`. Short bullets, nothing else.
@@ -41,8 +41,9 @@ Full commands in `AGENTS.md`. Short version, always:
   - Title: `<area>: <what changed>`, short (max ~72 chars), clear, simple English. Never "update", "fix stuff", "wip", "test".
   - Description: 1-4 short bullets: what, which files, why, how tested (or "not tested"). Same for PR titles/descriptions and squash-merge messages.
 
-- **Repo:** `https://github.com/T13510783/custom-mobs`, private, owner `T13510783`. Squash merge only; GitHub deletes merged branches.
-- **`main` is not locked** (free private repo, no branch protection). Never commit or push straight to `main`; it changes only through pull requests (PRs).
+- **README at EVERY push (user rule, 2026-10-16):** before every `git push`, update `README.md` (the repo's GitHub front page) so it matches what is pushed: mobs table, mod name/jar, commands, features, config. Nothing changed for the reader -> still check it.
+- **Repo:** `https://github.com/T13510783/custom-mobs`, public (since 2026-10-16), owner `T13510783`. Squash merge only; GitHub deletes merged branches.
+- **`main` is not locked** (no branch protection set). Never commit or push straight to `main`; it changes only through pull requests (PRs).
 - **Own branch** per person/agent and topic: `<github-name>/<topic>`, lowercase (e.g. `t13510783/the-king-rig`). Start it from `origin/main`.
 - **Claim your work** in `docs/working_on.md` (who, branch, mob/files). One person per mob page at a time. Remove your line when the PR is merged.
 - **Session start:** `git fetch --all --prune` -> switch to your branch -> `git pull --rebase` -> `git rebase origin/main` -> `gh pr list`.
@@ -68,7 +69,7 @@ Full commands in `AGENTS.md`. Short version, always:
   - Push rejected -> `git pull --rebase`, never force. `--force-with-lease` only on your own branch, never on `main`.
   - Uncommitted work before a pull or branch switch -> commit or stash it first.
   - Never `git reset --hard`, `git clean -fd`, `git checkout -- .`, or delete someone else's branch or commits.
-  - Never commit `.env`, tokens, passwords, build output (`mod/build/`, `mod/run/`, `builds/`) or test renders. Shared settings go in `.env.example`.
+  - Never commit `.env`, tokens, passwords, build output (`mod/build/`, `mod/run/`, `builds/`) or test renders. `.env.example` is local only too (user rule, 2026-10-16: git-ignored, never commit it); the settings it holds are listed in `README.md`.
   - No file over 50 MB (GitHub refuses 100 MB). Bigger media -> shrink it with ffmpeg first, or ask.
   - Never without the user's OK: change repo visibility, settings or collaborators, delete the repo, merge someone else's PR.
 - **What is in git:** viewer pages, references, sounds (`.ogg` + `.mp3`), archive, tools, docs, the mod's source + Gradle wrapper. Text files are LF (`.gitattributes`), `.bat`/`.ps1` CRLF.
@@ -171,7 +172,7 @@ When the user says "model from A, animations from B":
     - `mobs/<mob>/` viewer pages (only there, no copy in the root) · `archive/<mob>/` old versions (old sounds in `archive/<mob>/sounds/`)
     - `references/<mob>/` only material the user gave (photos, videos); not yet tied to a mob -> `references/_unsorted/`
     - `sounds/<mob>/` every sound as `.ogg` (the mod) + `.mp3` (browser backup); pages pick with `canPlayType` · `tools/` test and helper scripts · `docs/` changelog + session log
-    - Root holds only `README.md`, `CLAUDE.md`, `AGENTS.md`, `run.txt`, `.gitignore`, `.gitattributes`, `.env.example`, `.vscode/`, `.claude/` and the folders. Never a copy of a viewer or reference in the root, even if asked for "in the root": sort it in. (2026-10-15)
+    - Root holds only `README.md`, `CLAUDE.md`, `AGENTS.md`, `run.txt`, `.gitignore`, `.gitattributes`, `.env` + `.env.example` (both local, git-ignored), `.vscode/`, `.claude/` and the folders. Never a copy of a viewer or reference in the root, even if asked for "in the root": sort it in. (2026-10-15)
     - New files from the user in the root -> sort them in; exact duplicates (same hash) -> delete.
     - File names: lowercase, `_` instead of spaces, say what it is (`drop_kick_slow_motion.mp4`, not `VID_2026....mp4` or a hash). Fix every path that points to a renamed file. (2026-10-15)
     - Test output (renders, clip reports, `shot_*.txt/.png`) goes to the session scratchpad / `%TEMP%`, never into the project. (2026-10-14)
@@ -183,14 +184,16 @@ When the user says "model from A, animations from B":
 
 ## Mods (.jar)
 
-20. **Keep the last 5 builds** (user rule, 2026-10-14). `gradlew build` copies the jar to `builds/<modid>-<version>-<yyyyMMdd-HHmmss>.jar` and deletes all but the newest 5 (Gradle task `copyToBuilds`, in `build.gradle`).
+20. **Keep the last 5 builds** (user rule, 2026-10-14). `gradlew build` copies the jar to `builds/sindicate-<version>-<yyyyMMdd-HHmmss>.jar`; `builds/` and `mod/build/libs/` each keep only their newest 5 (Gradle task `copyToBuilds`, in `build.gradle`). GitHub Releases keep every version.
+    - **Releases (2026-10-16):** version `X.Y.Z-alpha` in `mod/gradle.properties` (`mod_version`), every part 0..99 and rolls over at 99 (`0.0.99` -> `0.1.0`, `0.99.99` -> `1.0.0`, last `99.99.99`). Changelog = `mod/release_notes.md` with only `## Added`, `## Removed`, `## Fixed`. Publish from merged `main`: `tools\release.ps1 -Bump` (bump, build + tests, tag `vX.Y.Z-alpha`, GitHub release with the jar); `-DryRun` checks without publishing. A release is outward-facing: only when the user asked for it.
+    - In-game updater (`com.custommobs.update`): "Check for Updates" button (title + pause screen), auto check every 5 min, changelog screen, "Update and Close Game" (downloads the jar, a detached helper swaps it after the game closed). The repo is public, so no token is needed (`githubToken` in `config/sindicate-client.toml` only for a private fork).
 21. **Always a `run.txt`** in the project root with one command the user can copy, paste and run to test the mod (now: `cd .\mod; .\gradlew.bat runClient`, for PowerShell in the project folder). Keep it correct after every change. No absolute paths: each teammate clones to another folder (`C:\custom mobs`, `C:\custom-mobs`, ...). (2026-10-15)
 22. Test the mod before saying it is done. Not tested -> say so. Claude may start Minecraft to test, without asking (user rule, 2026-10-14): `gradlew runClient` (dev client, mod already loaded) or the user's own Minecraft.
 23. **Mod = the viewer, 1:1** (2026-10-14). The HTML stays the source of truth; the mod never gets its own model or animation edits.
     - Setup: NeoForge 21.1.x + ModDevGradle 2.0.x (`mod/`). JDK 21: `C:\Program Files\Microsoft\jdk-21.0.12.101-hotspot` (machine `JAVA_HOME`).
     - VS Code red errors like "import net.minecraft cannot be resolved" (2026-10-15) = the Java extension synced before the Minecraft jar existed (e.g. right after a `neo_version` change), not a code bug. Fix: `gradlew build` first, then a build-file change reloads the project (`.vscode/settings.json` has `updateBuildConfiguration: automatic`). Check with the VS Code diagnostics tool, aim for 0 problems.
     - Build against the NeoForge version of the user's pack, not the newest (2026-10-15): a jar that needs a newer NeoForge does not load. The pack's version is in its `logs/latest.log` (`neoforge-21.1.xxx`). Range in `neo_version_range`.
-    - The user's Modrinth instance "take a guess" = `%APPDATA%\ModrinthApp\profiles\SuperPowers test 1.0.0\` (NeoForge 21.1.251, Sodium, Iris, EMF/ETF, JEI, Jade, Multiverse Powers). Install = copy the newest `builds/` jar to its `mods\` as `the-king-crowned-brawler-<version>.jar` (replace the old one).
+    - The user's Modrinth instance "take a guess" = `%APPDATA%\ModrinthApp\profiles\SuperPowers test 1.0.0\` (NeoForge 21.1.251, Sodium, Iris, EMF/ETF, JEI, Jade, Multiverse Powers). Install = copy `mod/build/libs/sindicate-<version>.jar` to its `mods\` and delete the old `the-king-crowned-brawler-*.jar` / `sindicate-*.jar` (one jar holds every mob).
     - Test with the pack's mods: copy its jars (not Essential: needs a login) into `mod/run/mods/` (1.21.1 runs Mojang names, so release jars load in dev), run, then empty that folder again.
     - After every viewer change: `tools\export_mod_assets.ps1` (headless `#modexport`: rig.json, anims.bin baked at 120 fps, textures, mono `.ogg`, trace), then `gradlew build` (runs the 1:1 trace test).
     - The Java animator is a line-by-line port of the viewer's `step()`; `#modtrace` records the viewer, the JUnit test replays it (limits: rotation < 0.001 rad, position < 0.005 texel).
@@ -201,10 +204,15 @@ When the user says "model from A, animations from B":
     - Base animations (walk/run) are picked on the client from synced vanilla flags (e.g. `isSprinting()` = Run, +30% speed) and sped up by real ground speed / the animation's design speed.
     - Sounds: mono `.ogg` (stereo does not get a position in Minecraft). Actions start on the server and reach the client as entity events (`broadcastEntityEvent`, ids 100+).
     - Server-side root motion (leaps): the server moves the entity along the root curve; the client renderer subtracts it from the root bone.
-    - Every mod: own creative tab + egg also in the vanilla Spawn Eggs tab, common/client config with a config screen, `en_us` + `nl_nl`, subtitles, loot table, biome modifier.
+    - Every mob: own creative tab + egg also in the vanilla Spawn Eggs tab, `en_us` + `nl_nl`, subtitles, loot table, biome modifier.
+    - Config (2026-10-16): one shared system in `com.custommobs.config.SindicateConfig` (`config/sindicate-client.toml` + per-world `sindicate-server.toml`), one section per mob, every option with an English hover tooltip. Screen: `SindicateConfigScreen` (Mods list -> Config, or key `K`), Client/Server tabs; server edits go over `ConfigNet` and only work for the singleplayer owner or, when `opsCanEditConfig` is on, operators.
 24. **Test in game, fast** (2026-10-14): `gradlew runTestWorld` opens `mod/run/saves/kingtest`; its datapack (source `mod/testworld/`, copy it into the save after edits) builds a stage and scripts fights. Dev runs log actions with `-Dtheking.debug=true` -> check `mod/run/logs/latest.log` for `[TheKing]`. Screenshots: `tools\winshot.ps1`. The dev world has cheats off: chat commands fail, script tests in the datapack instead. Stop the client by matching the project's `mod` folder path (e.g. `custom-mobs\mod`) in the java command line (the client's own command line also contains "gradle": never filter on `*Gradle*`, only on `*GradleDaemon*` / `*GradleWrapperMain*`). The server ticks a bit behind the wall clock: wait for a scripted step to show (screenshot/log) before simulating input.
     - A dark mob in a screenshot: check F3 light and the player's own hand first (the player may stand in shadow) before blaming normals.
     - Scripted tests: place mob and player with absolute `tp` spots inside the walled stage, never relative to a mob (they fall off and the test lies).
+    - Homelander (2026-10-16): `gradlew runHomelanderTest` opens `mod/run/saves/homelandertest` (datapack source `mod/testworld/homelandertest`). Dev tags `hl_punch/hl_laser/hl_throw/hl_clap/hl_burn` force an attack, `hl_hold` blocks random ones. Chat `HLSHOT <name>` saves a game screenshot to `mod/run/screenshots/`, `HLHUD off` hides the HUD, `CMTEST ui` shoots the pause menu + update screen.
+    - Screenshots: use the game's own (`HLSHOT`), never `tools\winshot.ps1` while the user works: it grabs whatever window is on top (2026-10-16 it caught a private chat).
+    - `hurt()` with an entity source already knocks back 0.4: for burns/grabs/own knockback save and restore `getDeltaMovement()` around it (victims flew away otherwise).
+    - A pause screen in singleplayer stops the server ticks (datapack timeline): UI tests run on the client.
 
 ## Testing a viewer (no Node/Python here) (2026-10-14)
 

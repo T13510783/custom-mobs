@@ -128,12 +128,18 @@
     <button class="anim-btn active" data-anim="idle"><kbd>1</kbd>Idle</button>
     <button class="anim-btn" data-anim="idle2"><kbd>2</kbd>Idle 2</button>
     <button class="anim-btn" data-anim="walk"><kbd>3</kbd>Walk</button>
-    <button class="anim-btn" data-anim="attack"><kbd>4</kbd>Attack</button>
-    <button class="anim-btn" data-anim="special"><kbd>5</kbd>Special</button>
-    <button class="anim-btn" data-anim="throw"><kbd>6</kbd>Throw</button>
-    <button class="anim-btn" data-anim="clap"><kbd>7</kbd>Clap</button>
-    <button class="anim-btn" data-anim="throatLaser"><kbd>8</kbd>Throat Laser</button>
+    <button class="anim-btn" data-anim="run"><kbd>4</kbd>Run</button>
+    <button class="anim-btn" data-anim="attack"><kbd>5</kbd>Attack</button>
+    <button class="anim-btn" data-anim="special"><kbd>6</kbd>Special</button>
+    <button class="anim-btn" data-anim="throw"><kbd>7</kbd>Throw</button>
+    <button class="anim-btn" data-anim="clap"><kbd>8</kbd>Clap</button>
+    <button class="anim-btn" data-anim="throatLaser"><kbd>9</kbd>Throat Laser</button>
+    <button class="anim-btn" data-anim="smash"><kbd>0</kbd>Smash</button>
     <span class="sep"></span>
+    <!-- Walk while attacking: the legs keep walking under every attack (the mod does this when he moves). Key W. -->
+    <button id="walkAtkBtn" class="icon-btn" title="Walk while attacking (W)" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="M11 8l-3 5 4 2 1 7M11 8l4 3 4-1M8 13l-3 7M16 3l5 2-2 3"/></svg>
+    </button>
     <button id="followBtn" class="icon-btn on" title="Head and eyes follow the mouse" aria-pressed="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
@@ -141,7 +147,7 @@
     <button id="voiceBtn" class="icon-btn on" title="Sound on/off (V = say I AM GOD now)" aria-pressed="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>
     </button>
-    <input id="voiceVol" type="range" min="0" max="100" value="60" title="Volume: 60%" aria-label="Volume">
+    <input id="voiceVol" type="range" min="0" max="100" value="85" title="Volume: 85%" aria-label="Volume">
     <!-- Test dummy: the victim of the attacks (grabbed, thrown, lasered, clapped). Key D. -->
     <button id="dummyBtn" class="icon-btn on" title="Show test dummy (D)" aria-pressed="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M7 10h10v6H7zM9 16v6M15 16v6M7 10l-3 5M17 10l3 5"/></svg>
@@ -279,6 +285,14 @@ function hash2D(x, y, seed = 1) {
 }
 function px(ctx, x, y, col) { ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1); }
 const flat = (key) => (ctx, f, w, h) => { ctx.fillStyle = P[key]; ctx.fillRect(0, 0, w, h); };
+
+// Neck: warm skin, darker in the shadow right under the chin (top row) and at the sides
+function paintNeck(ctx, face, w, h) {
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const side = face === 'right' || face === 'left';
+    px(ctx, x, y, y === 0 ? P.skinShadow : side || x === 0 || x === w - 1 ? P.skinWarm : P.skinBase);
+  }
+}
 
 // Head base (8x8x8): Rich dimensional skin tones with micro-shading, rosy cheeks & jawline depth (matching The King)
 function paintHead(ctx, face, w, h) {
@@ -728,6 +742,11 @@ box(chest, 'torso_suit', 9, 12, 5, 0, 6, 0, paintTorso);
 const head = bone('head', chest, 0, 12.0, 0);
 box(head, 'head_cranium', 8, 8, 8, 0, 4.0, 0, paintHead);
 
+// Recessed neck (rule 9): hidden inside the head and the torso at rest. When an animation lifts the head on its
+// neck (so its corners stay out of the torso while it tilts), skin shows here instead of a gap of empty air.
+// 3.1 tall (head-local y -2.6..0.5: covers lifts up to ~2.3 texels), 3.4 deep: a pitched-up head keeps it inside the chest front.
+box(head, 'neck', 4, 3.1, 3.4, 0, -1.05, 0, paintNeck, { shadow: false });
+
 // No nose block: flat player-style face like The King (nose is painted in paintHead)
 
 // Extruded Blonde Hair: Authentic combed slickback outer shell, encases head top with zero clipping
@@ -799,8 +818,10 @@ const LASER_LEN = 56; // default beam length in texels (3.5 blocks); anims may s
 // American flag cape: 50 bones of 0.4 texel each, posed only by cloth physics (see Cloth below), no keyframes.
 // The bones are the rig (Show bones, .bbmodel, the mod); what you SEE is one continuous cloth surface made
 // straight from the cloth points every frame (see Cape mesh): no boxes, so no gaps, steps or box edges when it bends.
-// 20 texels long, 9.6 wide. CAPE_TOP = where it hangs from the chest (texels): behind the torso's back face.
-const CAPE_N = 50, CAPE_SEG = 0.4, CAPE_W = 9.6, CAPE_TOP = [0, 11.6, -2.8];
+// 20 texels long, 14.4 wide: wider than his shoulders (arms at x +-4.8..8.8), so it hangs over the backs of both
+// upper arms and lies on them instead of folding in between arm and torso. CAPE_TOP = where it hangs from the
+// chest (texels): behind the torso's back face and the pauldrons' back faces (z -2.2), just under their top.
+const CAPE_N = 50, CAPE_SEG = 0.4, CAPE_W = 14.4, CAPE_TOP = [0, 11.6, -2.8];
 const CAPE = [];
 let capeParent = chest;
 for (let i = 0; i < CAPE_N; i++) {
@@ -824,7 +845,7 @@ function paintCapeFull(ctx, face, w, h) {
     ctx.drawImage(capeSub, 0, 0, w, 4, 0, y0, w, 4);
   }
 }
-const CAPE_CLOTH = { name: 'cape', size: [10, 20, 0.4], inflate: 0, painter: paintCapeFull, rects: [] };
+const CAPE_CLOTH = { name: 'cape', size: [14, 20, 0.4], inflate: 0, painter: paintCapeFull, rects: [] };
 
 // Arms with Golden Eagle Pauldrons and Gauntlet Bracers (muscular proportions)
 function buildArm(side, sx) {
@@ -978,6 +999,40 @@ function legs(Q, hR, kR, hL, kL, lift = 0, splay = 0.03) {
   pos(Q, 'root', 0, -HIP_H - smin(footLow(hR, kR), footLow(hL, kL)) + 0.06 + lift, 0);
 }
 
+// 2-bone leg IK (run rule): hip + knee angles that put the sole point (bottom of the boot on the shin line)
+// at (ty, tz) texels from the hip joint (ty < 0 = below). Knee only bends backward (k >= 0). Out of reach
+// = leg nearly straight toward the target. out = [hip, knee] (hip forward = negative, like legs()).
+// toe = true: the end point is the boot's TOE tip instead (SOLE down + TOE forward of the shin line): the Run
+// lands on the forefoot, heel up (a sprinter's foot; with no ankle the boot tilts with the shin).
+const TOE_L = Math.sqrt(SOLE * SOLE + TOE * TOE), TOE_A = Math.atan2(TOE, SOLE);
+function legIK(ty, tz, out, toe = false) {
+  const L1 = THIGH, L2 = toe ? TOE_L : SOLE, d = Math.min(Math.sqrt(ty * ty + tz * tz), (L1 + L2) * 0.999);
+  const phi = Math.atan2(-tz, -ty);                                        // angle of the hip->target line from straight down
+  const alpha = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1));
+  out[0] = phi - alpha;                                                    // thigh forward of the line ...
+  out[1] = Math.PI - Math.acos(clamp((L1 * L1 + L2 * L2 - d * d) / (2 * L1 * L2), -1, 1)) + (toe ? TOE_A : 0); // ... knee folds the shin back
+  return out;
+}
+const ikA = [0, 0];
+// Run foot path for one leg, phase ph 0..1: stance (RUN.stance of the cycle) = the sole slides back flat on the
+// floor at constant speed; swing = toe-off, heel kicks up behind, knee drives forward, foot paws back onto the
+// floor (cubic Hermite with the stance speed at both ends: no corner at touch-down or toe-off). Returns [y, z]
+// of the sole target in texels from the floor / the hip's forward position.
+const RUN = { T: 0.35, stance: 0.34, front: 3.2, back: 3.2, kick: 4.5, hip: 11.7, bob: 0.35, tan: 1 };   // tan 1 = swing leaves/lands at the stance speed (no velocity corner)
+function runFoot(ph, out) {
+  ph -= Math.floor(ph);
+  const s = RUN.stance, F = RUN.front, Bk = RUN.back;
+  if (ph < s) { out[0] = 0; out[1] = F - (F + Bk) * (ph / s); return out; }
+  const u = (ph - s) / (1 - s), m = -RUN.tan * (F + Bk) / s * (1 - s);    // Hermite tangents: part of the stance speed
+  const u2 = u * u, u3 = u2 * u;
+  const w = u + 0.15 * Math.sin(TAU * u), sw = Math.sin(Math.PI * w);     // warp: the heel peaks early (behind him)
+  // (the heel kick happens behind the hip: -2.5 texels at the top of the lift keeps the thigh out of the torso)
+  out[1] = (2 * u3 - 3 * u2 + 1) * -Bk + (u3 - 2 * u2 + u) * m + (-2 * u3 + 3 * u2) * F + (u3 - u2) * m - 2.5 * sw * sw;
+  out[0] = RUN.kick * sw * sw * (1 - u * u);                              // (1 - u^2): the foot comes down early, so the thigh never drives up into the torso
+  return out;
+}
+const rfA = [0, 0];
+
 // Hands on hips (photo 1): elbows out, fists on the belt. w = 0..1 blend weight.
 function handsOnHips(Q, side, w, breath = 0) {
   const sx = side === 'right' ? -1 : 1;
@@ -1043,29 +1098,49 @@ const TH_UP   = [[0, 0], [1.4, 0], [1.6, 1], [2.3, 1], [2.6, 0], [3.25, 0]]; // 
 const TH_DOWN = [[0, 0], [2.4, 0], [2.7, 1], [3.0, 1], [3.25, 0]];          // ...and down where they land
 const TH_HOLD = [[0, 0], [0.32, 0], [0.45, 1], [1.2, 1], [1.4, 0], [3.25, 0]]; // choking hold
 
-// Clap (4.2 s) = "I AM GOD" + head clap, from the two reference clips:
-//  0.0-0.3   breath in, arms pull back a little
-//  0.3-1.95  (homelander_i_am_god.mp4) arms thrown out wide and low, chest out, chin up, red eyes,
-//            screams "I AM GOD" (voice line starts at 0.3 s, mouth from its loudness curve), leans in on "GOD"
-//  1.95-2.35 (homelander_clap_head.mp4, 0-0.6 s) calm again in a heartbeat: arms drop, head cocked, fake smile
-//  2.35-2.6  wind-up: both arms swing out wide at head height, snarl
-//  2.6-2.68  SLAM: both palms whip in and smack the victim's ears, hard and fast (no squeezing); 2.68 = hit
-//  2.68-2.8  palms bounce straight off the head (a smack, no holding) and swing out; then the victim grabs its ears, smirk
+// Clap (3.8 s) = the head clap, nothing else (homelander_clap_head.mp4), while he shouts "I AM GOD":
+//  0.0-0.15  plants his feet in front of the victim
+//  0.15-1.1  "I AM ..." (voice line starts at 0.15 s, mouth from its loudness curve): both arms rise slowly out
+//            to the sides up to head height, chest opens, eyes heat up red, snarl
+//  1.1-1.2   SLAM on "GOD" (the word starts ~1.03 s into the line): both palms whip in and smack the victim's ears,
+//            hard and fast (no squeezing); 1.2 = hit
+//  1.2-1.32  palms bounce straight off the head (a smack, no holding) and swing out
+//  1.32-3.8  arms down, smug smirk: he watches the victim grab its ears, scream and fall over.
+//            The whole voice line (2.55 s) ends at 2.7 s, inside the animation: it is never cut short.
 // Victim (dummy / mod): stands 12 texels in front of him, head center ~26 texels high (VICTIM.clap).
-const CL_AX   = [[0, 0], [0.3, 0.15], [0.62, -0.35], [1.95, -0.35], [2.35, -0.3], [2.6, -1.4], [2.68, -1.6], [2.8, -1.62], [3.2, -1.3], [4.2, 0]];
-const CL_AY   = [[0, 0], [2.6, 0], [2.68, -0.09], [2.8, -0.35], [3.2, 0.03], [4.2, 0]];                       // right arm (+ = inward); left = -
-const CL_AZ   = [[0, 0], [0.3, -0.12], [0.62, -1.0], [1.95, -1.0], [2.35, -0.15], [2.6, -1.05], [2.68, -0.32], [2.8, -0.55], [3.2, -0.3], [4.2, 0]]; // right arm (- = out); left = -
-const CL_FX   = [[0, 0], [0.3, -0.2], [0.62, -0.25], [1.95, -0.25], [2.35, -0.35], [2.6, -0.9], [2.68, -0.62], [2.8, -0.5], [3.2, -0.45], [4.2, 0]];
-const CL_WIDE = [[0, 0], [0.3, 0], [0.62, 1], [1.95, 1], [2.3, 0], [4.2, 0]];                              // arms out, screaming
-const CL_GOD  = [[0, 0], [1.35, 0], [1.5, 1], [1.85, 1], [2.0, 0], [4.2, 0]];                              // "GOD": leans in
-const CL_CALM = [[0, 0], [1.95, 0], [2.2, 1], [2.4, 1], [2.6, 0], [4.2, 0]];                               // fake smile, head cocked
-const CL_WIND = [[0, 0], [2.35, 0], [2.6, 1], [2.68, 0], [4.2, 0]];                                        // swings out, snarling
-const CL_CUP  = [[0, 0], [2.66, 0], [2.68, 1], [2.74, 1], [2.85, 0], [4.2, 0]];                             // palms on the ears: only the smack
-const CL_SLAM = [[0, 0], [2.64, 0], [2.68, 1], [2.76, 0.4], [2.9, 0.3], [3.1, 0], [4.2, 0]];               // impact: forearms snap in, body jolts
-const CL_HIT  = [[0, 0], [2.66, 0], [2.7, 1], [2.85, 0], [4.2, 0]];                                        // impact jolt
-const CL_STANCE = [[0, 0], [0.5, 1], [3.2, 1], [4.2, 0]];
-const CL_SMUG = [[0, 0], [3.1, 0], [3.4, 1], [4.0, 1], [4.2, 0]];                                          // smirk after the hit
-const CL_SQUEEZE = 0.0;    // forearm z snap on the slam (right arm; left = -): palms land on the ears, not in the head
+// wind-up (0.9-1.12): arms out to the sides at head height, a little forward, elbows bent (palms open wide), then the whip in
+const CL_AX   = [[0, 0], [0.15, 0.1], [0.9, -0.75], [1.12, -0.85], [1.2, -1.6], [1.32, -1.62], [1.7, -1.0], [2.3, -0.12], [3.8, 0]];
+const CL_AY   = [[0, 0], [1.12, 0], [1.2, -0.09], [1.32, -0.35], [1.7, 0.03], [2.3, 0], [3.8, 0]];                      // right arm (+ = inward); left = -
+const CL_AZ   = [[0, 0], [0.15, -0.1], [0.9, -1.4], [1.12, -1.5], [1.2, -0.32], [1.32, -0.55], [1.7, -0.3], [2.3, -0.14], [3.8, 0]]; // right arm (- = out); left = -
+const CL_FX   = [[0, 0], [0.15, -0.15], [0.9, -1.0], [1.12, -1.1], [1.2, -0.62], [1.32, -0.5], [1.7, -0.45], [2.3, -0.2], [3.8, 0]];
+const CL_WIND = [[0, 0], [0.15, 0], [0.9, 1], [1.12, 1], [1.2, 0], [3.8, 0]];                               // arms rise out, snarling
+const CL_GOD  = [[0, 0], [1.05, 0], [1.2, 1], [1.6, 1], [1.9, 0], [3.8, 0]];                                // "GOD": leans into the slam
+const CL_CUP  = [[0, 0], [1.18, 0], [1.2, 1], [1.26, 1], [1.37, 0], [3.8, 0]];                              // palms on the ears: only the smack
+const CL_SLAM = [[0, 0], [1.16, 0], [1.2, 1], [1.28, 0.4], [1.42, 0.3], [1.62, 0], [3.8, 0]];               // impact: forearms snap in, body jolts
+const CL_HIT  = [[0, 0], [1.18, 0], [1.22, 1], [1.37, 0], [3.8, 0]];                                        // impact jolt
+const CL_STANCE = [[0, 0], [0.4, 1], [2.6, 1], [3.8, 0]];
+const CL_SMUG = [[0, 0], [1.6, 0], [1.9, 1], [3.4, 1], [3.8, 0]];                                           // smirk while the victim falls
+
+// Smash (5.6 s): hammer-fist from overhead onto the victim's head/shoulders, smashing it flat onto its back;
+// bends down, grabs its ankles (right hand), drags it backward 2 steps, winds up with a body twist and swings it
+// around his right side, flinging it forward-up as far as he can. Victim stands 14 texels in front of him.
+//  0.0-0.5 wind (arm overhead, up on his toes) · 0.5-0.62 strike (0.6 = hit) · 0.62-0.9 follow-through
+//  0.9-1.5 bends down to its feet (1.45 = grab) · 1.5-1.9 stands up with its legs in his hand
+//  1.9-3.4 drags it back (walks backward, 2 steps per 0.75 s) · 3.4-4.0 twist wind-up · 4.0-4.32 whip (4.3 = release)
+//  4.35-5.6 watches it fly, smirks, back to his stance
+// (after the release the arm ends up and OUT to his right side, never across his face)
+const SM_AX   = [[0, 0], [0.5, -2.75], [0.62, -1.55], [0.9, -1.0], [1.3, -0.9], [1.5, -0.9], [1.9, -0.35], [3.4, -0.35], [4.0, 0.45], [4.32, -1.9], [4.5, -1.7], [5.6, 0]];
+// (arm z: out = negative while the arm points down/forward, POSITIVE while it is overhead, see TH_AZ)
+const SM_AZ   = [[0, 0], [0.5, 0.3], [0.62, -0.1], [1.5, -0.1], [1.9, -0.18], [3.4, -0.18], [4.0, -0.7], [4.32, -0.9], [4.5, -0.85], [5.6, 0]];
+const SM_FX   = [[0, 0], [0.5, -0.6], [0.62, -0.2], [0.9, -0.15], [1.5, -0.1], [1.9, -0.3], [3.4, -0.3], [4.0, -0.15], [4.32, -0.05], [5.6, 0]];
+const SM_RISE = [[0, 0], [0.4, 1], [0.55, 1], [0.62, 0], [5.6, 0]];                     // up on his toes in the wind
+const SM_HIT  = [[0, 0], [0.55, 0], [0.62, 1], [0.9, 0.6], [1.0, 0], [5.6, 0]];          // strike crouch + chest snap
+const SM_BEND = [[0, 0], [0.9, 0], [1.4, 1], [1.5, 1], [1.9, 0], [5.6, 0]];              // bent down to the feet
+const SM_HOLD = [[0, 0], [1.4, 0], [1.5, 1], [4.3, 1], [4.4, 0], [5.6, 0]];              // has its ankles
+const SM_DRAG = [[0, 0], [1.8, 0], [2.0, 1], [3.25, 1], [3.45, 0], [5.6, 0]];            // walking backward
+const SM_WIND = [[0, 0], [3.4, 0], [4.0, 1], [4.32, 0], [5.6, 0]];                        // twist back-right
+const SM_WHIP = [[0, 0], [4.0, 0], [4.32, 1], [4.6, 1], [5.6, 0]];                        // swung through to the front
+const SM_WATCH = [[0, 0], [4.3, 0], [4.5, 1], [5.1, 1], [5.6, 0]];                       // looks after it
 
 // Throat laser (3.4 s): grabs the throat and lifts, holds 1 s while his eyes heat up,
 // then burns the victim's face point-blank, drops them and smirks.
@@ -1241,7 +1316,75 @@ const ANIMS = {
     }
   },
 
-  // 4 · Attack: wind-up and explosive right super-punch, lunging onto the left leg
+  // 4 · Run: superhuman sprint (the mod plays it while he chases, sped up to his real speed: ~11 blocks/s =
+  // 2x a sprinting player). Not a fast walk (run rule): foot path + 2-bone IK (RUN, runFoot, legIK); the body is
+  // lowest at mid-stance and highest in the flight phase (both feet off the floor). Leans into it, arms pump
+  // with the elbows bent ~90 deg, pelvis and chest twist against each other, jaw set, eyes on the target.
+  run: {
+    T: 0.35, yawLimit: 0.12, look: 0, mood: 0.3, move: 54,    // design speed 54 texels/s = 3.4 blocks/s (stance 6.4 texels in 0.119 s: no foot slide; the mod speeds it up)
+    fn(t, Q) {
+      const p = t / RUN.T, c = Math.cos(TAU * p);
+      const hipY = RUN.hip - RUN.bob * Math.cos(2 * TAU * (p - RUN.stance / 2)); // low at both mid-stances, high in flight
+      const lean = 0.12;                                       // pelvis leans forward; the legs are solved in world angles
+      pos(Q, 'root', 0, hipY - HIP_H, 0);
+      rot(Q, 'body', lean, 0.12 * c, 0);                       // pelvis turns with the forward leg
+      pos(Q, 'body', -0.35 * Math.sin(TAU * (p + 0.08)), 0, 0); // weight over the stance foot
+      for (const [side, off, sx] of [['right', 0, -1], ['left', 0.5, 1]]) {
+        runFoot(p + off, rfA);
+        let ty = rfA[0] - hipY;
+        legIK(ty, rfA[1], ikA);
+        // Floor contact: move the target so the LOWEST boot corner (heel or toe: the foot tilts with the shin) sits
+        // on the floor in stance (weight fades out smoothly as the foot rises), and never dips under it in the
+        // swing (soft max: no corner). 6 passes: each solve tilts the foot a little differently.
+        // Swing only (sw: 0 on the floor, the stance foot stays exact): the knee turns around the BACK edge of the
+        // joint (like the elbows around their front edge), so the heel kick never folds the calf into the thigh.
+        // That moves the foot (dy below, in world): the floor check counts it.
+        const wgt = 1 / (1 + rfA[0] * rfA[0]), sw = 1 - wgt, ck = -1.4 * sw * sw;
+        const hingeDy = () => ck * Math.sin(ikA[1]) * Math.cos(ikA[0]) - ck * (1 - Math.cos(ikA[1])) * Math.sin(ikA[0]);
+        for (let it = 0; it < 6; it++) {
+          const s = 0.06 - (footLow(ikA[0], ikA[1]) + hipY + hingeDy());
+          ty += wgt * s + (1 - wgt) * 0.5 * (s + Math.sqrt(s * s + 0.01));
+          legIK(ty, rfA[1], ikA);
+        }
+        const kn = ikA[1];
+        rot(Q, `leg_${side}`, ikA[0] - lean, 0, sx * 0.03);
+        rot(Q, `knee_${side}`, kn, 0, 0);
+        pos(Q, `knee_${side}`, 0, ck * Math.sin(kn), ck * (1 - Math.cos(kn)));
+      }
+
+      // Upper body: more lean in the chest, twists against the pelvis (shoulders follow the arms)
+      rot(Q, 'chest', 0.1, -0.2 * c, 0.02 * Math.sin(TAU * p));   // (more lean tips the torso's front edge into the thighs)
+      // Arms pump opposite to the legs, elbows ~70 deg, a bit more bent on the forward swing. The elbow turns
+      // around a point on the front edge of the joint (like Idle 2's raised arm), so the folded forearm never
+      // cuts into the upper arm.
+      const cr = Math.cos(TAU * (p + 0.05)), fwdR = (1 - cr) * 0.5, fwdL = (1 + cr) * 0.5;
+      rot(Q, 'arm_right', 0.8 * cr, 0, -0.1);
+      rot(Q, 'arm_left', -0.8 * cr, 0, 0.1);
+      for (const [side, fwd] of [['right', fwdR], ['left', fwdL]]) {
+        const fold = 1.0 + 0.25 * fwd, hz = 1.9;
+        rot(Q, `forearm_${side}`, -fold, 0, 0);
+        pos(Q, `forearm_${side}`, 0, -hz * Math.sin(fold), hz * (1 - Math.cos(fold)));
+      }
+
+      // Head: eyes front (counters the lean and the chest twist); the neck lifts by the tilt (no corner in the torso)
+      const hx = -0.24 + 0.02 * Math.cos(2 * TAU * p), hy = 0.15 * c;
+      rot(Q, 'head', hx, hy, 0);
+      pos(Q, 'head', 0, 4.2 * (Math.sqrt(hx * hx + 4e-4) - 0.02), 0);
+
+      // Face: jaw set, teeth bared a little, fast breaths, brows low, a faint red in the eyes
+      Q.f.frown = 0.55;
+      Q.f.squint = 0.35;
+      Q.f.grin = 0.35;
+      Q.f.open = 0.12 + 0.08 * (1 + Math.sin(2 * TAU * p));
+      Q.f.wide = 0.25;
+      Q.f.browUp = 0;
+      Q.f.smirk = 0.1;
+      Q.f.glow = 0.15;
+      Q.f.glance = 0;
+    }
+  },
+
+  // 5 · Attack: wind-up and explosive right super-punch, lunging onto the left leg
   attack: {
     T: 1.8, yawLimit: 0.05, follow: 0,
     events: { hit: 0.65 },                                  // punch lands (mod: damage + knockback)
@@ -1354,52 +1497,50 @@ const ANIMS = {
     }
   },
 
-  // 7 · Clap: "I AM GOD" + head clap (both reference clips, see CL_*). Arms thrown out wide,
-  // screaming the voice line with red eyes, then calm with a fake smile, then both arms swing out and the
-  // palms smack the victim's ears hard and fast (no squeezing). The voice line starts at events.voice.
+  // 7 · Clap: the head clap only (see CL_*), shouting "I AM GOD": both arms rise out to the sides on
+  // "I AM", the palms smack the victim's ears on "GOD" (hard and fast, no squeezing), bounce off, and he
+  // watches the victim fall with a smirk. The voice line starts at events.voice and plays to its end.
   clap: {
-    T: 4.2, yawLimit: 0.05, follow: 0,
-    events: { voice: 0.3, swing: 2.4, hit: 2.68 },
+    T: 3.8, yawLimit: 0.05, follow: 0,
+    events: { voice: 0.15, swing: 1.08, hit: 1.2 },
     fn(t, Q) {
-      const wide = kf(t, CL_WIDE), god = kf(t, CL_GOD), calm = kf(t, CL_CALM), wind = kf(t, CL_WIND), cup = kf(t, CL_CUP);
+      const god = kf(t, CL_GOD), wind = kf(t, CL_WIND), cup = kf(t, CL_CUP);
       const slam = kf(t, CL_SLAM), hit = kf(t, CL_HIT), st = kf(t, CL_STANCE);
-      const shake = 0.035 * Math.sin(TAU * 7 * t) * wide;              // arms tremble with rage while he screams
+      const shake = 0.025 * Math.sin(TAU * 7 * t) * wind;              // arms tremble with rage while they rise
 
       // Legs: wide planted stance (splay), knees give a little on "GOD" and dip into the slam
       // (lift 0.13*st: the wide splay tips the boots' outer edges below the floor solve)
       const kn = 0.06 * st + 0.12 * god + 0.1 * wind + 0.18 * slam;
       legs(Q, -0.05 * st - 0.08 * god - 0.1 * cup, kn, -0.05 * st - 0.08 * god - 0.1 * cup, kn, 0.13 * st, 0.03 + 0.09 * st * (1 - 0.6 * cup));
 
-      // Chest: puffs up and arches back while screaming, pushes in on "GOD", opens up in the wind-up,
-      // snaps forward into the slam
-      rot(Q, 'chest', -0.12 * wide + 0.08 * god - 0.06 * wind + 0.1 * cup + 0.06 * slam, 0, 0);
-      pos(Q, 'chest', 0, 0.25 * wide, 0.35 * god + 0.3 * cup + 0.2 * slam - 0.15 * hit);
+      // Chest: opens up while the arms rise, pushes in on "GOD", snaps forward into the slam
+      rot(Q, 'chest', 0.08 * god - 0.06 * wind + 0.1 * cup + 0.06 * slam, 0, 0);
+      pos(Q, 'chest', 0, 0.1 * wind, 0.12 * god + 0.12 * cup + 0.1 * slam - 0.15 * hit);   // (more = his face hits the victim's)
 
-      // Arms (mirrored): out wide and low -> drop calmly -> swing out wide at head height -> whip in onto the ears
+      // Arms (mirrored): rise out to the sides to head height -> whip in onto the ears -> bounce off -> down
       const ax = kf(t, CL_AX), ay = kf(t, CL_AY), az = kf(t, CL_AZ), fx = kf(t, CL_FX);
       rot(Q, 'arm_right', ax - 0.1 * god, ay, az - 0.12 * god + shake);
       rot(Q, 'arm_left', ax - 0.1 * god, -ay, -az + 0.12 * god - shake);
-      // the slam snaps the forearms in (elbows swing in): the upper arms stay clear of his chin
-      rot(Q, 'forearm_right', fx, 0, CL_SQUEEZE * slam);
-      rot(Q, 'forearm_left', fx, 0, -CL_SQUEEZE * slam);
+      rot(Q, 'forearm_right', fx, 0, 0);
+      rot(Q, 'forearm_left', fx, 0, 0);
 
-      // Head: chin up for the scream, cocked while smiling, tilts down at the victim on the slam, shakes on the impact.
-      // Neck lifts with the pitch/tilt (head half size x angle) so no corner sinks into the chest.
-      const hx = -0.2 * wide + 0.12 * cup + 0.05 * wind + 0.02 * hit;
-      const hz = 0.08 * calm + 0.03 * Math.sin(TAU * 9 * t) * hit;
+      // Head: chin up a little while he shouts, tilts down at the victim on the slam, shakes on the impact.
+      // Neck lifts with the pitch/tilt (head half size x angle) so no corner sinks into the chest (the neck block shows).
+      const hx = -0.06 * wind + 0.05 * cup + 0.02 * hit;              // (more pitch: his hair touches the victim's head)
+      const hz = 0.03 * Math.sin(TAU * 9 * t) * hit;
       rot(Q, 'head', hx, 0, hz);
-      pos(Q, 'head', 0, 1.0 * wide + 4.2 * Math.max(0, hx) ** 2 / (Math.max(0, hx) + 0.05) + 4.2 * hz * hz / Math.sqrt(hz * hz + 0.0025) + 0.25 * cup, 0);
+      pos(Q, 'head', 0, 0.3 * wind + 4.2 * Math.max(0, hx) ** 2 / (Math.max(0, hx) + 0.05) + 4.2 * hz * hz / Math.sqrt(hz * hz + 0.0025) + 0.25 * cup, 0);
 
-      // Face: scream (open mouth = the voice line's loudness, red eyes, brows up then frown) ->
-      // deliberate fake smile -> snarl in the wind-up (bared teeth, eyes heat up) -> clenched teeth on the hit -> smirk
-      Q.f.open = 0.75 * wide + 0.15 * wind;
-      Q.f.wide = 0.2 + 0.5 * wide + 0.7 * calm;
-      Q.f.browUp = 0.45 * wide - 0.1 * god + 0.55 * calm - 0.2 * wind;
-      Q.f.frown = 0.5 * wide + 0.4 * god + 0.9 * wind + 1.0 * cup;
-      Q.f.grin = 1.0 * calm + 0.6 * wind + 0.8 * cup;
-      Q.f.squint = 0.1 + 0.25 * god + 0.3 * wind + 0.4 * cup - 0.05 * calm;
-      Q.f.glow = 0.75 * wide + 0.25 * god + 0.6 * wind + 0.35 * cup;
-      Q.f.smirk = 0.3 * calm + 0.6 * kf(t, CL_SMUG);
+      // Face: snarl while the arms rise (bared teeth, eyes heat up; the shout opens the mouth by the voice line's
+      // loudness) -> clenched teeth on the hit -> smug smirk while the victim falls
+      Q.f.open = 0.15 * wind;
+      Q.f.wide = 0.2 + 0.2 * wind;
+      Q.f.browUp = 0.1 - 0.2 * wind - 0.1 * god;
+      Q.f.frown = 0.3 + 0.4 * god + 0.9 * wind + 1.0 * cup;
+      Q.f.grin = 0.6 * wind + 0.8 * cup;
+      Q.f.squint = 0.1 + 0.25 * god + 0.3 * wind + 0.4 * cup;
+      Q.f.glow = 0.25 * god + 0.7 * wind + 0.35 * cup;
+      Q.f.smirk = 0.7 * kf(t, CL_SMUG);
       Q.f.glance = 0;
     }
   },
@@ -1441,6 +1582,63 @@ const ANIMS = {
       Q.f.browUp = 0.15 * hold * (1 - laser);
       Q.f.glance = 0;
     }
+  },
+
+  // 10 · Smash: hammer-fist smashes the victim flat onto its back, he grabs its ankles, drags it back and
+  // flings it forward-up as far as he can with a twisting swing (see SM_*). Works on any mob; the mod lays
+  // the victim down, drags it behind his hand and throws it far.
+  smash: {
+    T: 5.6, yawLimit: 0.05, follow: 0,
+    events: { swing: 0.5, hit: 0.6, grab: 1.45, release: 4.3 },
+    fn(t, Q) {
+      const rise = kf(t, SM_RISE), hit = kf(t, SM_HIT), bend = kf(t, SM_BEND), hold = kf(t, SM_HOLD);
+      const drag = kf(t, SM_DRAG), wind = kf(t, SM_WIND), whip = kf(t, SM_WHIP), watch = kf(t, SM_WATCH);
+
+      // Legs: up on the toes in the wind, crouch on the strike, deep squat to reach the feet, walk BACKWARD while
+      // dragging (walk cycle run in reverse, 0.75 s per cycle), wide stance for the throw
+      const ph = (t - 1.9) / 0.75, wc = Math.cos(TAU * ph);
+      const back = (o) => { const sp = Math.sin(TAU * (ph + o)), sw = sp * sp; return [0.3 * Math.cos(TAU * (ph + o)), (sp > 0 ? 0.8 : 0.06) * sw]; };
+      const [dhR, dkR] = back(0), [dhL, dkL] = back(0.5);
+      const sq = 0.25 * hit + 1.25 * bend + 0.3 * wind;
+      legs(Q,
+        -0.25 * sq + 0.1 * rise + drag * dhR + 0.15 * whip, 0.55 * sq + drag * dkR + 0.1 * whip,
+        -0.25 * sq - 0.15 * rise + drag * dhL - 0.3 * whip, 0.55 * sq + drag * dkL + 0.25 * whip,
+        0.8 * rise + 0.14 * (wind + whip), 0.03 + 0.06 * (wind + whip));   // (+lift: the wider splay tips the boots' outer edges down)
+
+      // Whole body turns into the throw (root yaw): back-right in the wind, through to the left on the whip
+      // (the root carries most of the twist: a fast chest twist would sweep the torso through the cape)
+      rot(Q, 'root', 0, -0.45 * wind + 0.15 * whip, 0);
+      // Chest: arches back in the wind, snaps forward on the strike, bends far down to the feet, leans back
+      // while dragging, twists hard right and whips left for the throw
+      rot(Q, 'chest', -0.12 * rise + 0.35 * hit + 0.65 * bend - 0.14 * drag + 0.1 * wind - 0.08 * whip,
+          -0.4 * wind + 0.25 * whip + 0.06 * drag * wc, 0);
+      pos(Q, 'chest', 0, 0, 0.4 * hit + 0.6 * bend);
+
+      // Right arm: overhead -> hammer down -> reach the ankles -> hold them low beside the hip -> swing back -> fling up
+      rot(Q, 'arm_right', kf(t, SM_AX), 0, kf(t, SM_AZ));
+      rot(Q, 'forearm_right', kf(t, SM_FX), 0, 0);
+      // Left arm: back for balance in the wind (clear of the victim's raised arms), out to the side while dragging / throwing
+      rot(Q, 'arm_left', 0.15 * rise + 0.3 * hit - 0.4 * bend - 0.25 * drag * wc + 0.15 * wind - 0.6 * whip, 0, 0.12 + 0.2 * rise + 0.25 * hold + 0.5 * wind);
+      rot(Q, 'forearm_left', -0.3 * rise - 0.3 * hit - 0.3 * bend - 0.35 * drag, 0, 0);
+
+      // Head: eyes on the victim (down while bent and dragging), up after it as it flies; neck lifts with the tilt
+      // (tilts toward his left, away from the raised right arm, in the wind and the fling)
+      const hx = 0.12 * hit + 0.25 * bend + 0.15 * drag - 0.3 * watch - 0.05 * rise;
+      const hz = -0.14 * rise - 0.12 * whip;
+      rot(Q, 'head', hx, 0.3 * wind - 0.25 * whip, hz);
+      pos(Q, 'head', 0, 4.2 * (Math.sqrt(hx * hx + hz * hz + 4e-4) - 0.02), 0);
+
+      // Face: snarl + red eyes on the strike, cruel grin while dragging, shout on the throw, smirk watching
+      Q.f.frown = 0.6 * rise + 0.9 * hit + 0.4 * drag + 0.7 * wind;
+      Q.f.grin = 0.7 * hit + 0.6 * drag + 0.4 * wind;
+      Q.f.open = 0.35 * hit + 0.7 * whip * (1 - watch);
+      Q.f.squint = 0.3 * hit + 0.25 * drag + 0.3 * wind;
+      Q.f.glow = 0.6 * rise + 0.5 * hit + 0.3 * wind;
+      Q.f.smirk = 0.8 * watch + 0.3 * drag;
+      Q.f.browUp = 0.25 * watch;
+      Q.f.wide = 0.15 + 0.25 * whip;
+      Q.f.glance = 0;
+    }
   }
 };
 
@@ -1451,10 +1649,11 @@ const SFX_EVENTS = {
   special: { laserOn: 'laser', laserOff: '-laser' },
   throw: { grab: 'grab', release: 'whoosh' },
   clap: { swing: 'whoosh', hit: 'slap' },
-  throatLaser: { grab: 'grab', burnOn: 'laser', burnOff: '-laser' }
+  throatLaser: { grab: 'grab', burnOn: 'laser', burnOff: '-laser' },
+  smash: { swing: 'whoosh', hit: 'punch', grab: 'grab', release: 'whoosh' }
 };
 
-const ANIM_ORDER = ['idle', 'idle2', 'walk', 'attack', 'special', 'throw', 'clap', 'throatLaser'];   // dock buttons / keys 1-8
+const ANIM_ORDER = ['idle', 'idle2', 'walk', 'run', 'attack', 'special', 'throw', 'clap', 'throatLaser', 'smash'];   // dock buttons / keys 1-9, 0
 const ALL_ANIMS = [...ANIM_ORDER, 'hover'];                           // + hidden ones (tests, export)
 
 /* ───────── Cloth physics (the cape) ─────────
@@ -1469,7 +1668,7 @@ const CLOTH = {
   gravity: 156.8,         // texels/s^2 (9.8 m/s^2, 16 texels per block)
   drag: 3.0,              // air drag per second (light cloth: walking 1 block/s blows it back ~17 degrees)
   iters: 6,               // constraint + collision passes per substep
-  cols: 7,               // chains across the cape (a point every CAPE_W / 6 = 1.6 texels: body corners cannot poke through)
+  cols: 9,                // chains across the cape (a point every CAPE_W / 8 = 1.8 texels: body corners cannot poke through)
   margin: 0.5,            // points stay this far outside body boxes (cloth half thickness + room for the flat row boxes)
   wind: 10,               // breeze strength (texels/s^2): slow random gusts, ripples run down the cape
   colliders: ['torso_suit', 'head_cranium', 'hair_main', 'upper_arm_right', 'upper_arm_left', 'pauldron_right', 'pauldron_left',
@@ -1588,7 +1787,7 @@ const handIn = new Uint8Array(CLOTH_COL.length), hb = new Float64Array(6), cv = 
 function handsBlock(C) {
   const M = C.col, mg = CLOTH.margin;
   hb[0] = hb[2] = hb[4] = 1e9; hb[1] = hb[3] = hb[5] = -1e9;
-  let any = false;
+  let inR = false, inL = false;
   for (let c = 0; c < CLOTH_COL.length; c++) {
     handIn[c] = 0;
     if (!HAND_COL[c]) continue;
@@ -1604,11 +1803,15 @@ function handsBlock(C) {
       lo0 = Math.min(lo0, x); hi0 = Math.max(hi0, x); lo1 = Math.min(lo1, y); hi1 = Math.max(hi1, y); lo2 = Math.min(lo2, z); hi2 = Math.max(hi2, z);
     }
     if (lo2 >= CAPE_TOP[2] - mg) continue;                // not behind the cape's plane
-    handIn[c] = 1; any = true;
+    handIn[c] = 1;
+    if (cube.name.endsWith('_right')) inR = true; else inL = true;
     hb[0] = Math.min(hb[0], lo0); hb[1] = Math.max(hb[1], hi0); hb[2] = Math.min(hb[2], lo1); hb[3] = Math.max(hb[3], hi1); hb[4] = Math.min(hb[4], lo2);
   }
+  // only with BOTH hands behind the back: one arm swung back (walk, run) keeps its real boxes, so the cape lies
+  // along that arm instead of on a flat shelf (the block's top) that stuck out sideways
+  if (!(inR && inL)) { handIn.fill(0); return false; }
   hb[0] -= mg; hb[1] += mg; hb[2] -= mg; hb[3] += mg; hb[4] -= mg; hb[5] = CAPE_TOP[2];
-  return any;
+  return true;
 }
 function clothCollide(C, hands) {
   const P = C.P, Q = C.Q, M = C.col, mg = CLOTH.margin;
@@ -1809,6 +2012,8 @@ function makeSim(seed = randomSeed()) {
     follow: { on: true, w: 1, yaw: 0, pitch: 0, eye: 0, mx: 0, my: 0, has: false, inject: null }, // inject {yaw, pitch}: look angles instead of the mouse (tests, mod)
     // Voice line playing: level = loudness 0..1, shape = brightness 0..1 (from the line's curve, see voice.js)
     talk: { active: false, level: 0, shape: 0.5 }, talkW: 0,
+    // Walk while attacking: target weight 0..1, filtered weight, the walk layer's own clock and speed
+    walkAtk: 0, walkW: 0, walkT: 0, walkRate: 1,
     onEvent: null,   // (name, anim) when an animation passes one of its `events` times (voice line, hit, grab ...)
     beamLen: null,   // () => beam length in texels to whatever the beam hits (test dummy); else LASER_LEN
     cloth: null,     // the cape (makeCloth, after the director below: same random order as the mod)
@@ -1869,6 +2074,9 @@ function directorStep(S, dt) {
 
 const clothMove = [0, 0, 0];
 function filt(dt, rate) { return 1 - Math.exp(-dt * rate); }
+// Walk-while-attacking layer: the bones the Walk drives under an attack (legs + pelvis), reused pose buffer
+const WALK_BONES = ['body', 'leg_right', 'knee_right', 'leg_left', 'knee_left'].map((n) => B[n]);
+const walkPose = makePose();
 
 /* ───────── Simulation Step ───────── */
 function step(S, dt) {
@@ -1938,6 +2146,24 @@ function step(S, dt) {
   } else {
     copyPose(S.cur, S.out);
     S.yawLimit = A.yawLimit || 0.45;
+  }
+
+  // Walk while attacking (hybrid): S.walkAtk = 0..1 (viewer: the W button; mod: how fast he really moves).
+  // The legs, pelvis and root height come from the Walk cycle (its own clock, so steps never restart),
+  // everything above the pelvis stays the attack's. Only for one-shot attacks, never for the calm loops.
+  const calm = S.anim === 'idle' || S.anim === 'idle2' || S.anim === 'walk' || S.anim === 'run' || S.anim === 'hover';
+  S.walkW += ((calm ? 0 : S.walkAtk) - S.walkW) * filt(dt, 6);
+  S.walkT = (S.walkT + dt * S.walkRate) % ANIMS.walk.T;
+  if (S.walkW > 1e-4) {
+    clearPose(walkPose);
+    ANIMS.walk.fn(S.walkT, walkPose);
+    const w = S.walkW;
+    for (const i of WALK_BONES) for (let a = 0; a < 3; a++) {
+      S.out.r[i * 3 + a] += (walkPose.r[i * 3 + a] - S.out.r[i * 3 + a]) * w;
+      S.out.p[i * 3 + a] += (walkPose.p[i * 3 + a] - S.out.p[i * 3 + a]) * w;
+    }
+    const ry = B.root * 3 + 1;                                  // root: only its height (an attack's turn stays)
+    S.out.p[ry] += (walkPose.p[ry] - S.out.p[ry]) * w;
   }
 
   // Random director on the face: the mood blends over the animation's own face by the animation's
@@ -2103,7 +2329,7 @@ function step(S, dt) {
 
   // Cape: cloth physics (see Cloth). The viewer has no real movement, so an animation that walks gives
   // its own speed (A.move, texels/s forward); the mod passes his real movement in S.move.
-  if (!S.move) { clothMove[0] = 0; clothMove[1] = 0; clothMove[2] = (A.move || 0) * dt; }
+  if (!S.move) { clothMove[0] = 0; clothMove[1] = 0; clothMove[2] = ((A.move || 0) + ANIMS.walk.move * S.walkW * S.walkRate) * dt; }
   clothStep(S, dt, S.move || clothMove);
 }
 
@@ -2338,7 +2564,10 @@ function modExport() {
         glowColors: [col(glowMat), col(glowCoreMat), col(glowHaloMat)], beamZ: 4.1, beamR: [0.7, 0.28], beamSides: [8, 6],
         beamColors: [col(laserMat), col(laserCoreMat)], laserLen: LASER_LEN
       },
-      victim: { hand: HAND_PT, neck: DUMMY_NECK, scale: DUMMY_SCALE, hangUp: HANG_UP, hangOut: HANG_OUT, throwVy: THROW_VY, grabLift: GRAB_LIFT, spots: VICTIM },
+      victim: { hand: HAND_PT, neck: DUMMY_NECK, scale: DUMMY_SCALE, hangUp: HANG_UP, hangOut: HANG_OUT, throwVy: THROW_VY, grabLift: GRAB_LIFT, spots: VICTIM,
+        smashVz: SMASH_VZ, smashVy: SMASH_VY, len: DUMMY_LEN },
+      // Walk while attacking: the bones the Walk drives under an attack (+ the root's height)
+      walkLayer: { bones: WALK_BONES, root: B.root },
       voice: VOICE_LINES.map((v) => ({ id: v.id, env: v.env, zcr: v.zcr })),
       anims
     },
@@ -2351,8 +2580,10 @@ function modExport() {
    Every 1/30 s: each bone's rotation, position (texels) and scale, plus the eye/laser effect values. */
 function modTrace() {
   const S = makeSim(7), dt = 1 / 120, out = [], fx = [];
-  const plan = [[0, 'idle'], [3, 'idle2'], [6, 'walk'], [8, 'attack'], [10, 'special'], [14.2, 'throw'], [17.6, 'clap'], [21.4, 'throatLaser'], [25, 'idle']];
-  const end = 36; // seconds recorded (the Java test reads it); the last Idle runs into a Hover
+  const plan = [[0, 'idle'], [3, 'idle2'], [6, 'walk'], [8, 'run'], [9.4, 'attack'], [11.4, 'special'], [15.6, 'throw'], [19, 'clap'],
+                [23, 'throatLaser'], [26.6, 'smash'], [32.4, 'idle']];
+  const end = 44; // seconds recorded (the Java test reads it); the last Idle runs into a Hover
+  const WALK_ATK = [9.4, 15.6];   // walk while attacking during Attack + Special (the layer is tested too)
   S.follow.on = true; S.follow.has = true; S.follow.inject = { yaw: 0, pitch: 0 };
   const line = VOICE_LINES[0];
   let talkStart = -1;
@@ -2362,6 +2593,7 @@ function modTrace() {
     const t = i * dt;
     while (p < plan.length && t >= plan[p][0] - 1e-9) { switchAnim(S, plan[p][1]); p++; }
     S.follow.inject.yaw = 0.6 * Math.sin(0.7 * t); S.follow.inject.pitch = 0.1 * Math.sin(0.5 * t);
+    S.walkAtk = t >= WALK_ATK[0] && t < WALK_ATK[1] ? 1 : 0;
     // the page's updateVoice(): mouth from the curve on the line's own clock
     const k = talkStart >= 0 ? Math.floor((S.time - talkStart) * 30) : -1;
     if (k >= line.env.length) talkStart = -1;
@@ -2375,12 +2607,13 @@ function modTrace() {
       fx.push([glowMat.opacity, glowCoreMat.opacity, glowHaloMat.opacity, laserMat.opacity, lasers[0].beam.scale.x, eyeGlow[0].core.position.x / TEXEL + 2].map(r5));
     }
   }
-  return { dt, every: 1 / 30, end, plan, frames: out, fx };
+  return { dt, every: 1 / 30, end, plan, walkAtk: WALK_ATK, frames: out, fx };
 }
 
 /* ───────── Voice line ─────────
    sounds/homelander/i_am_god: .ogg (also used by the mod) and .mp3 (browsers without Ogg Vorbis).
-   It plays when the Clap passes its events.voice time (0.3 s), or on key V (any animation).
+   It plays when the Clap passes its events.voice time (0.15 s), or on key V (any animation), always to its end.
+   Loudness: the files are normalized loud (peak -1 dB); effects play at SFX_MIX of the volume so the voice stays on top.
    The mouth follows a loudness curve made beforehand with tools/lipsync.html (30 values per second):
    live audio analysis gives zeros on file:// pages. env: loudness 0-35 (base 36 digit), zcr: brightness 0-9.
    The curve runs on its own clock, so the mouth moves the same with the sound muted or still locked
@@ -2391,8 +2624,8 @@ const VOICE_LINES = [
     env: '6iuyzzvsssmdbfmtutsstsstkb9aa635ivywuttvzzzyutqkjha53211000000001121122222122',
     zcr: '52322224511354422334331003698555523333332222332445455555555555551111111111111' }
 ];
-// vol: 0.6 by default; the dock slider changes it (saved in this browser).
-const voice = { on: true, unlocked: false, line: null, start: 0, anim: null, audio: null, vol: 0.6 };
+// vol: 0.85 by default; the dock slider changes it (saved in this browser).
+const voice = { on: true, unlocked: false, line: null, start: 0, anim: null, audio: null, vol: 0.85 };
 try { const s = localStorage.getItem('homelander.voiceVol'); if (s !== null && isFinite(+s)) voice.vol = clamp(+s, 0, 1); } catch (e) { /* storage blocked: keep the default */ }
 const AUDIO_EXT = new Audio().canPlayType('audio/ogg; codecs="vorbis"') ? '.ogg' : '.mp3';
 VOICE_LINES.forEach((v) => { v.audio = new Audio(v.src + AUDIO_EXT); v.audio.preload = 'auto'; v.audio.volume = voice.vol; });
@@ -2412,7 +2645,7 @@ function stopLine() {
 // Every frame, before step(): feed the mouth from the line's curve at the line's own clock.
 function updateVoice(S) {
   const v = voice.line, T = S.talk;
-  if (v && voice.anim && S.anim !== voice.anim) stopLine();   // the attack was cut off: so is the shout
+  // (an animation that is cut off does NOT stop the shout: the line always plays to its end, user rule)
   if (!voice.line) { T.active = false; return; }
   const i = Math.floor((S.time - voice.start) * 30);
   if (i >= v.env.length) { voice.line = null; T.active = false; return; }   // curve done: the sound plays out by itself (never cut)
@@ -2423,14 +2656,14 @@ function updateVoice(S) {
 function setVoiceVol(x) {
   voice.vol = clamp(x, 0, 1);
   VOICE_LINES.forEach((l) => { l.audio.volume = voice.vol; });
-  for (const n in SFX) SFX[n].audio.volume = voice.vol;
+  for (const n in SFX) SFX[n].audio.volume = voice.vol * SFX_MIX;
 }
 /* ───────── Sound effects (punch, grab, whoosh, slap, laser) ─────────
    Made by tools/sfx/make_homelander_sfx.ps1. Played on animation events (SFX_EVENTS in anims.js),
    same on/off button and volume as the voice line. A sound stops when its animation is cut off. */
-const SFX = {};
+const SFX = {}, SFX_MIX = 0.7;                     // effects a bit under the voice, so "I AM GOD" is never drowned out
 ['punch', 'grab', 'whoosh', 'slap', 'laser'].forEach((n) => {
-  const a = new Audio('../../sounds/homelander/' + n + AUDIO_EXT); a.preload = 'auto'; a.volume = voice.vol; SFX[n] = { audio: a, anim: '', count: 0 };
+  const a = new Audio('../../sounds/homelander/' + n + AUDIO_EXT); a.preload = 'auto'; a.volume = voice.vol * SFX_MIX; SFX[n] = { audio: a, anim: '', count: 0 };
 });
 // name from SFX_EVENTS ('-laser' = stop it); anim = the animation that started it
 function playSfx(name, anim = '') {
@@ -2465,8 +2698,12 @@ const VICTIM = {
   special: { spot: [0, 0, 56] },            // 3.5 blocks: the beams come down onto its chest
   throw: { grab: true },                    // spot = under the hand at events.grab (computed below)
   clap: { spot: [0, 0, 12] },               // head between his palms (they smack its ears)
-  throatLaser: { grab: true }
+  throatLaser: { grab: true },
+  smash: { spot: [0, 0, 14], feet: true }   // smashed onto its back right there; then held by the ANKLES (release computed below)
 };
+// Smash throw: speed of the fling (blocks/s, forward + up in his facing at the release; the mod uses it too)
+const SMASH_VZ = 26, SMASH_VY = 14;
+const DUMMY_LEN = 32 * DUMMY_SCALE;         // 30 texels: soles to the top of its head
 
 /* ───────── Dummy model ─────────
    A plain player-shaped mannequin (8x8x8 head, 8x12x4 body, arms and legs 4x12x4 split in two), burlap colors.
@@ -2517,7 +2754,14 @@ const EAR_POSE = { arm: -1.911, elbow: -2.461 };
    Fills DS: feet position (texels), lean back (rad), spin, arms up 0..1, cower, flail, hands on its ears 0..1,
    legs kick / knees buckle, head tilt / jolt, mouth gape, burn 0..1, blood puffs (time since the hit + where). */
 const DS = { x: 0, y: 0, z: 0, lean: 0, spin: 0, arms: 0, cower: 0, kick: 0, burn: 0, faceBurn: 0, headBack: 0, gape: 0, flail: 0,
-             ears: 0, buckle: 0, jolt: 0, puff: -1, puffAt: [0, 0, 0], puffEars: false };
+             ears: 0, buckle: 0, jolt: 0, puff: -1, puffAt: [0, 0, 0], puffEars: false, yaw: NaN };   // yaw NaN = faces him
+// Lay the victim along direction (dx, dy, dz) from its soles (held by the ankles): sets DS.lean + DS.yaw
+// (root rotation Y then X: body axis = (sin yaw * sin lean, cos lean, cos yaw * sin lean)).
+function aimBody(dx, dy, dz) {
+  const l = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+  DS.lean = -Math.acos(clamp(dy / l, -1, 1));
+  DS.yaw = Math.atan2(-dx, -dz);
+}
 const smooth01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
 const vHand = new THREE.Vector3();
 
@@ -2549,12 +2793,18 @@ function handWorld(out) {
     VICTIM[name].spot = [s[0], 0, s[2]];
     VICTIM[name].release = [r[0], Math.max(0, r[1]), r[2]];
   }
+  // Smash: the hand itself at the release (the victim hangs from it by the ankles, not by the neck)
+  const S = makeSim(1); S.events = false; S.anim = 'smash'; S.follow.on = false;
+  for (let k = 0; k < Math.round(ANIMS.smash.events.release * 120); k++) step(S, 1 / 120);
+  mobRoot.updateMatrixWorld(true);
+  handWorld(h);
+  VICTIM.smash.release = [h.x, h.y, h.z];
 })();
 const hTmp = new THREE.Vector3(), aTmp = [0, 0, 0];   // reused every frame
 
 function victimPose(name, t, S) {
   Object.assign(DS, { lean: 0, spin: 0, arms: 0, cower: 0, kick: 0, burn: 0, faceBurn: 0, headBack: 0, gape: 0, flail: 0,
-                      ears: 0, buckle: 0, jolt: 0, puff: -1, puffEars: false });
+                      ears: 0, buckle: 0, jolt: 0, puff: -1, puffEars: false, yaw: NaN });
   const sp = VICTIM[name].spot, ev = ANIMS[name].events || {};
   [DS.x, DS.y, DS.z] = sp;
   if (name === 'attack') {
@@ -2598,21 +2848,66 @@ function victimPose(name, t, S) {
       }
     }
   } else if (name === 'clap') {
-    // First HIS hit, then its reaction: while he screams I AM GOD it only shrinks back (arms a little out, no hands
-    // up), flinches in his wind-up. The smack on both ears: head jolts, blood from the ears; THEN it grabs its own
-    // ears, screams (mouth wide, shaking), staggers back, knees buckle, falls on its back.
+    // First HIS hit, then its reaction: it flinches while his arms rise (shrinks back a little, no hands up).
+    // The smack on both ears: head jolts, blood from the ears; THEN (his hands are off) it puts both hands on its
+    // ears, screams (mouth wide, shaking), staggers back, knees buckle, falls on its back and lies there
+    // screaming with its hands on its ears, legs kicking and head rolling side to side.
     const u = t - ev.hit;
-    DS.cower = kf(t, [[0, 0], [0.5, 0], [0.9, 0.7], [1.95, 0.7], [2.3, 0.2], [2.45, 0.2], [2.6, 0.5], [ev.hit, 0.5], [ev.hit + 0.1, 0], [ANIMS.clap.T, 0]]);
+    DS.cower = kf(t, [[0, 0], [0.4, 0], [0.9, 0.5], [ev.hit, 0.5], [ev.hit + 0.1, 0], [ANIMS.clap.T, 0]]);
     DS.lean = -0.12 * DS.cower;
     DS.ears = kf(t, [[0, 0], [ev.hit + 0.18, 0], [ev.hit + 0.4, 1], [ANIMS.clap.T, 1]]);   // after his hands are off
     if (u > 0) {
-      DS.jolt = Math.exp(-u * 9) * Math.sin(TAU * 7 * u);              // head snaps side to side
+      const down = smooth01((u - 0.95) / 0.4);                          // 0 standing .. 1 lying on its back
+      DS.jolt = Math.exp(-u * 9) * Math.sin(TAU * 7 * u) + 0.35 * down * Math.sin(TAU * 1.4 * u);   // snaps, then rolls in pain
       DS.gape = smooth01((u - 0.1) / 0.15) * (0.85 + 0.15 * Math.sin(TAU * 9 * u));   // screams once its hands are up
       DS.headBack = 0.5 * smooth01((u - 0.15) / 0.2) * (1 - smooth01((u - 0.7) / 0.3));
-      DS.z = sp[2] + 7 * smooth01(u / 0.8);                             // knocked back by the smack, staggers
-      DS.buckle = smooth01((u - 0.55) / 0.4);
-      DS.lean = -0.12 * DS.cower - Math.PI / 2 * smooth01((u - 0.85) / 0.45);
+      DS.z = sp[2] + 7 * smooth01(u / 0.8) + 3 * down;                   // knocked back by the smack, staggers, falls away
+      DS.buckle = smooth01((u - 0.5) / 0.4) * (1 - 0.55 * down);         // knees give, half straighten once it lies
+      DS.lean = -0.12 * DS.cower - Math.PI / 2 * down;
+      DS.y = 2 * DUMMY_SCALE * down;                                     // lying: its back (body half depth) on the floor, not in it
+      DS.kick = down * Math.sin(TAU * 2.1 * u);                          // legs kick while it writhes
       DS.puff = u; DS.puffAt[0] = 0; DS.puffAt[1] = 26; DS.puffAt[2] = sp[2]; DS.puffEars = true;
+    }
+  } else if (name === 'smash') {
+    // Shields its head while he winds up; the hammer-fist smashes it flat onto its back (fast fall, dust/blood
+    // puff, limbs flop); lies dazed; he grabs its ankles: the soles go to his hand, the body lies along the floor
+    // away from him (head end on the floor) while he drags it; in the throw it swings out flat around him, then
+    // flies forward-up, tumbling, far out of sight.
+    const u = t - ev.hit, low = 2 * DUMMY_SCALE;                       // lying: soles / back this high above the floor
+    const pre = 1 - smooth01(u / 0.08);
+    DS.arms = 0.5 * smooth01((t - 0.15) / 0.3) * pre;
+    DS.cower = 0.6 * smooth01((t - 0.25) / 0.25) * pre;
+    if (u > 0 && t < ev.grab) {
+      const f = smooth01(u / 0.22);                                    // smashed down onto its back
+      DS.lean = -Math.PI / 2 * f; DS.y = low * f;
+      DS.buckle = smooth01(u / 0.1) * (1 - 0.8 * f);
+      DS.jolt = Math.exp(-u * 8) * Math.sin(TAU * 6 * u);
+      DS.flail = 0.7 * smooth01(u / 0.08) * (1 - smooth01((u - 0.2) / 0.3));
+      DS.gape = 0.8 * smooth01(u / 0.1) * (1 - 0.5 * smooth01((u - 0.4) / 0.3));
+      DS.headBack = 0.3 * f;
+      DS.puff = u; DS.puffAt[0] = sp[0]; DS.puffAt[1] = 28; DS.puffAt[2] = sp[2] - 2;
+    } else if (t >= ev.grab && t < ev.release) {
+      handWorld(hTmp);
+      const k = smooth01((t - ev.grab) / 0.35);                        // ankles lifted from the floor into his hand
+      DS.x = sp[0] + (hTmp.x - sp[0]) * k; DS.y = low + (hTmp.y - low) * k; DS.z = sp[2] + (hTmp.z - sp[2]) * k;
+      // away from him (horizontal, from his body axis through the soles); the head end rests on the floor while
+      // dragged, swings out nearly flat in the throw (centrifugal), never into the floor
+      const rl = Math.hypot(DS.x, DS.z) || 1, rx = DS.x / rl, rz = DS.z / rl;
+      const swing = smooth01((t - 3.5) / 0.3);
+      const eG = Math.asin(clamp((DS.y - low) / DUMMY_LEN, 0, 1)), e = eG + (0.18 - eG) * swing;
+      aimBody(rx * Math.cos(e), -Math.sin(e), rz * Math.cos(e));
+      DS.gape = 0.75 + 0.15 * Math.sin(TAU * 7 * t);                    // screams the whole time
+      DS.flail = 0.5 + 0.4 * swing;                                    // arms trail / flail
+      DS.headBack = 0.4;
+      DS.kick = 0.25 * Math.sin(TAU * 1.7 * t) * (1 - swing);
+    } else if (t >= ev.release) {
+      const r = VICTIM.smash.release, u2 = t - ev.release;            // flung: ballistic arc, tumbling end over end
+      DS.x = r[0]; DS.z = r[2] + 16 * SMASH_VZ * u2;
+      DS.y = r[1] + 16 * (SMASH_VY * u2 - 0.5 * GRAVITY_B * u2 * u2);
+      const rl = Math.hypot(r[0], r[2]) || 1;
+      aimBody(r[0] / rl, -0.2, r[2] / rl);
+      DS.lean -= 1.6 * TAU * u2;                                      // ~1.6 turns per second
+      DS.gape = 0.9; DS.flail = 1;
     }
   }
   return DS;
@@ -2635,7 +2930,7 @@ function updateDummy(S, dt) {
   mobRoot.updateMatrixWorld(true);              // the hand's world matrix of this frame's pose
   const v = victimPose(D.shown, S.t % ANIMS[D.shown].T, S);
   D.root.position.set(v.x * TEXEL, v.y * TEXEL, v.z * TEXEL);
-  D.root.rotation.set(v.lean, Math.atan2(-v.x, -v.z), v.spin);   // faces him, leans back, rolls
+  D.root.rotation.set(v.lean, Number.isNaN(v.yaw) ? Math.atan2(-v.x, -v.z) : v.yaw, v.spin);   // faces him (or aimBody), leans back, rolls
   // Arms (right; left mirrored): flail = out to the sides and back, elbows bent (clear of his arms in front);
   // cower = out a little; arms = raised in front of the face; ears = hands on its own ears.
   const fl = v.flail * (1 + 0.12 * Math.sin(TAU * 5 * S.t)), e = v.ears;
@@ -2787,6 +3082,15 @@ voiceVol.addEventListener('input', () => {
   try { localStorage.setItem('homelander.voiceVol', String(voice.vol)); } catch (e) { /* storage blocked: fine */ }
 });
 
+// Walk while attacking on/off (key W): the legs keep walking under every attack
+const walkAtkBtn = document.getElementById('walkAtkBtn');
+function toggleWalkAtk() {
+  sim.walkAtk = sim.walkAtk ? 0 : 1;
+  walkAtkBtn.classList.toggle('on', !!sim.walkAtk);
+  walkAtkBtn.setAttribute('aria-pressed', String(!!sim.walkAtk));
+}
+walkAtkBtn.addEventListener('click', toggleWalkAtk);
+
 // Test dummy on/off (key D): the victim of the attacks
 const dummyBtn = document.getElementById('dummyBtn');
 function toggleDummy() {
@@ -2802,11 +3106,12 @@ document.getElementById('resetBtn').addEventListener('click', () => { resetting 
 
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return; // the volume slider keeps the keys
-  const i = ['1', '2', '3', '4', '5', '6', '7', '8'].indexOf(e.key);
+  const i = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].indexOf(e.key);
   if (i >= 0) selectAnim(ANIM_ORDER[i]);
   if (e.key === 'r' || e.key === 'R') resetting = true;
   if (e.key === 'b' || e.key === 'B') toggleBones();
   if (e.key === 'd' || e.key === 'D') toggleDummy();
+  if (e.key === 'w' || e.key === 'W') toggleWalkAtk();
   if (e.key === 'v' || e.key === 'V') { voice.unlocked = true; sayLine(sim, 'i_am_god'); }
 });
 
@@ -2945,6 +3250,7 @@ function clipTest() {
     [/^(lower_arm_|gauntlet_)/, /^(upper_arm_|pauldron_)/],
     [/^(upper_arm_|pauldron_)/, /^(torso_suit|head_cranium)$/],
     [/^head_cranium$/, /^torso_suit$/],
+    [/^neck$/, /^(torso_suit|hair_main)$/],                  // recessed neck: hidden inside the torso by design
     [/^cape_seg_([1-9]|10)$/, /^(torso_suit|head_cranium|hair_main|pauldron_|upper_arm_)/],   // shoulders (top 4 texels = 10 bones)
     ...CAPE.slice(1).map((n, i) => [new RegExp(`^${n}$`), new RegExp(`^${CAPE[i]}$`)]) // each bone with the one above
   ];
@@ -2962,11 +3268,16 @@ function clipTest() {
   const corner = new THREE.Vector3();
   const mice = [[0, 0], [-0.95, 0], [0.95, 0], [0, 0.95], [0, -0.95]];
 
-  for (const name of ALL_ANIMS) {
+  // every animation with the 5 mouse spots, + every attack with "walk while attacking" on (center mouse)
+  const ATTACKS = ANIM_ORDER.filter((n) => !['idle', 'idle2', 'walk', 'run'].includes(n));
+  const runs = [...ALL_ANIMS.map((n) => [n, 0, mice]), ...ATTACKS.map((n) => [n, 1, [[0, 0]]])];
+  for (const [name, walkAtk, spots] of runs) {
     let low = 99;
-    for (const [, [mx, my]] of mice.entries()) {
+    const label = walkAtk ? name + '+walk' : name;
+    for (const [mx, my] of spots) {
       const S = makeSim(99);
       S.anim = name;
+      S.walkAtk = walkAtk; S.walkW = walkAtk;
       S.events = false; // no random anim switches while testing one animation
       Object.assign(S.follow, { on: true, has: true, mx, my });
       const dt = 1 / 120;
@@ -2986,12 +3297,12 @@ function clipTest() {
           if (joint && d <= base + EPS) continue;
           const bucket = joint ? report.joints : report.clips;
           const id = `${a} in ${b}`;
-          if (!bucket[id] || bucket[id].depth < d) bucket[id] = { depth: +d.toFixed(3), rest: +base.toFixed(3), anim: name };
+          if (!bucket[id] || bucket[id].depth < d) bucket[id] = { depth: +d.toFixed(3), rest: +base.toFixed(3), anim: label };
         }
         for (const [cname, d] of clothDepth(S.cloth)) {
           if (d <= EPS) continue;
           const id = `cape cloth in ${cname}`;
-          if (!report.clips[id] || report.clips[id].depth < d) report.clips[id] = { depth: +d.toFixed(3), rest: 0, anim: name };
+          if (!report.clips[id] || report.clips[id].depth < d) report.clips[id] = { depth: +d.toFixed(3), rest: 0, anim: label };
         }
         for (const c of boots) {
           const [hx, hy, hz] = half[cubeList.indexOf(c)];
@@ -3002,7 +3313,7 @@ function clipTest() {
         }
       }
     }
-    report.ground[name] = +low.toFixed(3);
+    report.ground[label] = +low.toFixed(3);
   }
 
   // Victim clipping: the test dummy against his cubes in every attack (both directions, 5x5 points per face).
@@ -3034,7 +3345,7 @@ function clipTest() {
         for (const p of dPts[j]) { wp.copy(p).applyMatrix4(dMeshes[j].matrixWorld).applyMatrix4(inv[i]); worst = Math.max(worst, inside(half[i], wp)); }
         for (const p of pts[i]) { wp.copy(p).applyMatrix4(meshes[i].matrixWorld).applyMatrix4(dInv[j]); worst = Math.max(worst, inside(dHalf[j], wp)); }
         if (worst / TEXEL <= EPS) continue;
-        const evs = ANIMS[name].events, touchAt = evs.grab !== undefined ? evs.grab : evs.hit !== undefined ? evs.hit : 1e9;
+        const evs = ANIMS[name].events, touchAt = Math.min(evs.grab !== undefined ? evs.grab : 1e9, evs.hit !== undefined ? evs.hit : 1e9);
         const contact = HAND.test(cubeList[i].name) && (S.t % ANIMS[name].T) >= touchAt - 0.05;
         const bucket = contact ? report.victim.contact : report.victim.clips;
         const id = `${cubeList[i].name} / dummy ${dMeshes[j].name} (${name})`;
@@ -3113,7 +3424,7 @@ function strip(anim, variant, from, to, stepS, camDeg = 35, dist = 3.8) {
 
 window.setVariant = setVariant;
 window.selectAnim = selectAnim;
-window.homelanderDebug = { cubeList, bones, boneList, atlas, get sim() { return sim; }, ANIMS, camera, controls, dumpFrame, setVariant, selectAnim, buildBBModel, rigView, toggleBones, makeSim, step, HB, VICTIM, dummy, voice };
+window.homelanderDebug = { cubeList, bones, boneList, atlas, get sim() { return sim; }, ANIMS, camera, controls, dumpFrame, setVariant, selectAnim, buildBBModel, rigView, toggleBones, makeSim, step, HB, VICTIM, dummy, voice, clothDepth };
 // Headless JSON modes (tools/export_mod_assets.ps1, .bbmodel save): the result goes into <pre id="...">.
 const dumpJson = (id, obj) => { const pre = document.createElement('pre'); pre.id = id; pre.textContent = JSON.stringify(obj); document.body.appendChild(pre); };
 if (location.hash === '#cliptest') clipTest();

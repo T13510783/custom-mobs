@@ -1,0 +1,16 @@
+{
+  "sindicate.update.check": "Check for Updates",
+  "sindicate.update.checking": "Checking...",
+  "sindicate.update.title": "Sindicate update",
+  "sindicate.update.versions": "Installed v%s  →  new v%s",
+  "sindicate.update.install": "Update and Close Game",
+  "sindicate.update.later": "Later",
+  "sindicate.update.downloading": "Downloading... %s%%",
+  "sindicate.update.failed": "Update failed: %s",
+  "sindicate.update.check_failed": "Update check failed",
+  "sindicate.update.up_to_date": "Sindicate is up to date",
+  "sindicate.update.available": "Sindicate %s is out",
+  "sindicate.update.available_hint": "Open the pause menu to see what changed",
+  "key.categories.sindicate": "Sindicate",
+  "key.sindicate.settings": "Open Sindicate settings"
+}

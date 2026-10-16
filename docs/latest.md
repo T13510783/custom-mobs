@@ -1,14 +1,15 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 08:55
-**Request:** fix Homelander cape (real physics, lies on the arms, no gaps/clipping), clap order + full I AM GOD line, nicer expression menu, rules (10000 lines, only touch Homelander, organise + commit + push every request).
+**Date:** 2026-10-16 12:09
+**Request:** rename the mod to Sindicate, config screen, Homelander stats + neutral, flag egg, then cape/clap/voice/run/smash/hybrid fixes, clean all branches, release.
 
-**Done:**
-- Cape: 50 bones moved only by cloth physics; drawn as one continuous cloth surface (no gaps or box edges); cliptest cape max 0.26 texel (was 1.8).
-- Clap: palms smack the ears and bounce off; then the dummy grabs its ears, screams, falls. I AM GOD plays to the end.
-- Expression menu (`mobs/_shared/`): pill button with face icon + word and a glass list; only Homelander uses it (other characters untouched).
-- Rules in `CLAUDE.md`.
+**Done (step 3 of 4):**
+- Steps 1-2 (earlier): Sindicate rename, config screen, stats, flag egg; viewer: cape, clap, voice, neck, run, smash, walk + attack.
+- Mod port: run (~10-11 blocks/s measured), smash (grab, drag, ~12-block fling), clap victims lie down with hands on ears, walk while attacking.
+- Fixed in game: victims stuck on his fist after throw/burn, chase step shoving victims away, lying victims walking off.
+- Cape: no flat shelf when one arm swings back (hands block only with both hands behind the back); viewer + mod, trace test green.
+- In-game test (`gradlew runHomelanderTest`) passes all scenes; `gradlew build` 8 tests green. Player as smash victim: fling resend added, not seen in a test yet.
 
-**Files:** `mobs/homelander/homelander.html`, `mobs/_shared/*`, `CLAUDE.md`, `README.md`, `docs/changelog.md`, `docs/latest.md`, `sounds/homelander/*`, `tools/sfx/*`.
+**Files:** `mod/src/main/java/com/custommobs/homelander/**`, `mod/src/main/java/com/custommobs/mixin/`, `sindicate.mixins.json`, `neoforge.mods.toml`, `sounds.json`, test datapack, docs.
 
-**Next:** Homelander in the mod 1:1 (Java port of cloth + director, entity, attacks on mobs, VFX, spawn egg), then release pipeline + in-game updater.
+**Next:** merge open PRs / branches into main, clean branches, release v0.0.1-alpha.

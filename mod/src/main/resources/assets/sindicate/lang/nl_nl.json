@@ -1,0 +1,16 @@
+{
+  "sindicate.update.check": "Zoek naar updates",
+  "sindicate.update.checking": "Zoeken...",
+  "sindicate.update.title": "Sindicate-update",
+  "sindicate.update.versions": "Geïnstalleerd v%s  →  nieuw v%s",
+  "sindicate.update.install": "Updaten en spel sluiten",
+  "sindicate.update.later": "Later",
+  "sindicate.update.downloading": "Downloaden... %s%%",
+  "sindicate.update.failed": "Update mislukt: %s",
+  "sindicate.update.check_failed": "Zoeken naar updates mislukt",
+  "sindicate.update.up_to_date": "Sindicate is up-to-date",
+  "sindicate.update.available": "Sindicate %s is uit",
+  "sindicate.update.available_hint": "Open het pauzemenu om te zien wat er nieuw is",
+  "key.categories.sindicate": "Sindicate",
+  "key.sindicate.settings": "Sindicate-instellingen openen"
+}
