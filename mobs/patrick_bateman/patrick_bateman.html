@@ -12,10 +12,12 @@
     Patrick Bateman (fan model, vanilla+ humanoid). Five outfits = the color-variant dots:
     Overcoat (pistol), Raincoat (axe), Walkman (nail gun), Suspenders (brick phone), Shorts (gel eye mask).
     - Shared UI from ../_shared/: viewer.css (look) + viewer.js (expression menu, MobViewer.face(dt)).
-    - Rig: head 8x8x8, body 8x12x4, 2-bone arms (arm_/forearm_) and legs (leg_/knee_), feet at y = 0.
+    - Rig: head 8x8x8 right on the torso top (no neck), body 8x12x4, 2-bone arms (arm_/forearm_) and legs
+      (leg_/knee_), feet at y = 0.
     - Face: the painted eyes, brows and mouth are thin planes on the head front (same pixels at rest),
       so they blink, glance, frown and grin. Eyelids slide over the eyes.
-    - Animations (keys 1-3): Idle, Idle 2, Walk. Follow mouse (eye button), Show bones (B), reset camera (R).
+    - Animations (keys 1-3): Idle, Idle 2, Walk. Key 4 / button: Use the held item once (shoot, chop, nail gun,
+      phone call). Follow mouse (eye button), Show bones (B), reset camera (R).
     - Test modes: #cliptest, #rest, #shot-<anim>-<variant>-<sec>[-<cam>[-<expression>]].
   -->
 
@@ -45,6 +47,7 @@
     <button class="anim-btn active" data-anim="idle"><kbd>1</kbd>Idle</button>
     <button class="anim-btn" data-anim="idle2"><kbd>2</kbd>Idle 2</button>
     <button class="anim-btn" data-anim="walk"><kbd>3</kbd>Walk</button>
+    <button class="anim-btn" data-anim="use" id="useBtn"><kbd>4</kbd><span id="useLbl">Shoot</span></button>
     <span class="sep"></span>
     <button id="followBtn" class="icon-btn round-btn on" title="Head follows the mouse" aria-label="Follow mouse" aria-pressed="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -206,11 +209,12 @@ function bone(name,parent,x,y,z,rr=[0,0,0]){
   parent.add(g); bones[name]=g; return g;
 }
 bone('body',root,0,12,0);                         // hips: the torso hangs up from here
-bone('head',R.body,0,13,0);                        // lifted 1.0 on a recessed neck block: turning never cuts the shoulders
+const SH_Y=11.2;                                    // shoulder pivot height: 0.8 below the torso top (as Homelander), so a turned head clears the arm tops
+bone('head',R.body,0,12,0);                        // no neck: the head sits right on the torso top
 bone('tie',R.body,0,10.5,2);                       // suspenders tie blade (spring)
 bone('hair_lock',R.head,-1.5,8.3,4.15);            // messy fringe lock (spring)
 for(const [s,sx] of [['right',-1],['left',1]]){
-  bone(`arm_${s}`,R.body,sx*6,12,0);               // pivot on the arm's top edge, flush with the torso top (vanilla)
+  bone(`arm_${s}`,R.body,sx*6,SH_Y,0);             // pivot on the arm's top edge
   bone(`forearm_${s}`,R[`arm_${s}`],0,-6,0);       // elbow
   bone(`leg_${s}`,root,sx*2,12,0);                 // hip
   bone(`knee_${s}`,R[`leg_${s}`],0,-6,0);          // knee (the shoe is a cube on the shin)
@@ -378,8 +382,8 @@ const FITS={};
       return y===11?OC.s:fab(OC.c,x,y,q.s);
     }});
     // notched lapels + buttons
-    L.push({bone:'torso',at:[-2.9,5.9,2.45],size:[1.6,6.2,0.55],tx:[2,6,1],rot:[0,0,0.36],seed:10,paint:q=>q.F==='F'?(q.x===0?OC.l:OC.c):OC.s});
-    L.push({bone:'torso',at:[1.3,5.9,2.45],size:[1.6,6.2,0.55],tx:[2,6,1],rot:[0,0,-0.36],seed:11,paint:q=>q.F==='F'?(q.x===1?OC.l:OC.c):OC.s});
+    L.push({bone:'torso',at:[-2.9,5.5,2.45],size:[1.6,6.2,0.55],tx:[2,6,1],rot:[0,0,0.36],seed:10,paint:q=>q.F==='F'?(q.x===0?OC.l:OC.c):OC.s});
+    L.push({bone:'torso',at:[1.3,5.5,2.45],size:[1.6,6.2,0.55],tx:[2,6,1],rot:[0,0,-0.36],seed:11,paint:q=>q.F==='F'?(q.x===1?OC.l:OC.c):OC.s});
     for(const y of [1.1,4.4]) L.push({bone:'torso',at:[0.15,y,2.45],size:[0.9,0.9,0.4],tx:[1,1,1],paint:()=>OC.btn});
     // sleeves (navy suit sleeve, shirt cuff, black leather gloves) + coat sleeve
     for(const s of ['R','L']){
@@ -398,11 +402,11 @@ const FITS={};
     // trousers + knee-length coat panels on each leg
     for(const s of ['R','L']){
       L.push({bone:'leg'+s,at:[-2,-12,-2],size:[4,12,4],side:s,seed:s==='R'?6:7,paint:legPaint(NV)});
-      L.push({bone:'skirt'+s,at:[s==='R'?-2.65:-2,-8.3,-2.65],size:[4.65,8.9,5.3],tx:[4,9,4],side:s,mode:'cut',seed:s==='R'?14:15,paint:q=>{
+      L.push({bone:'skirt'+s,at:[s==='R'?-2.65:-2,-9.3,-2.65],size:[4.65,9.9,5.3],tx:[4,10,4],side:s,mode:'cut',seed:s==='R'?14:15,paint:q=>{
         const {F,y,x}=q;
         if(F==='T') return null;
         if(F==='D') return OC.d;
-        if(y===8) return OC.d;
+        if(y===9) return OC.d;
         if(q.inner) return sh(OC.c,0.86);
         if(F==='F'){ if(q.iu===0) return OC.d; if(y===2&&q.iu>=1) return OC.s; }
         if(F==='B'&&q.iu===0&&y>=4) return OC.d;
@@ -412,23 +416,30 @@ const FITS={};
     }
     return L;
   },
-  // pistol, item space: +Z forward, +Y up, grip in the fist at origin
+  // Big black semi-automatic (film: the police chase). Item space: +Z barrel, +Y top, grip in the fist at the origin.
   item(){
-    const G='#2b2d31',GH='#4b4f57',GD='#1b1c1f';
+    const G='#2a2c30',GH='#4a4e56',GD='#17181b',GM='#070708';
     return [
-      {at:[-0.75,1.75,-2.5],size:[1.5,2,8],tx:[2,2,8],paint:q=>q.F==='T'?(q.y%2?GH:G):q.F==='F'?GD:(q.y===0?GH:(q.x<2&&q.y===1?GD:G))},
-      {at:[-0.6,1.1,1],size:[1.2,0.7,4.6],tx:[1,1,5],paint:solid(GD)},
-      {at:[-0.7,-3.2,-2.4],size:[1.4,5,2],tx:[1,5,2],paint:q=>(q.y%2===0&&q.x>0)?'#2a2b2f':GD},
-      {at:[-0.4,-0.2,0.9],size:[0.8,1.4,1.6],tx:[1,1,2],paint:solid(GD)},
-      {at:[-0.25,3.75,4.9],size:[0.5,0.6,0.5],tx:[1,1,1],paint:()=>GH},
-      {at:[-0.6,3.75,-2.4],size:[1.2,0.5,0.5],tx:[1,1,1],paint:()=>GD},
+      {at:[-0.7,2.0,-1.0],size:[1.4,1.6,6.6],tx:[2,2,7],paint:solid(G,{edge:0.8})},                          // slide
+      {at:[-0.72,2.0,-2.8],size:[1.44,1.6,1.8],tx:[1,2,4],paint:q=>(q.F==='L'||q.F==='R')?(q.x%2?GD:GH):G},   // rear slide serrations
+      {at:[-0.45,3.56,0.3],size:[0.9,0.12,1.5],tx:[1,1,2],paint:()=>GM},                                     // ejection port
+      {at:[-0.4,2.4,5.58],size:[0.8,0.8,0.14],tx:[1,1,1],paint:()=>GM},                                      // muzzle
+      {at:[-0.2,3.6,4.8],size:[0.4,0.45,0.45],tx:[1,1,1],paint:()=>GH},                                      // front sight
+      {at:[-0.55,3.6,-2.75],size:[1.1,0.45,0.5],tx:[1,1,1],paint:()=>GD},                                    // rear sight
+      {at:[-0.25,2.7,-3.3],size:[0.5,0.8,0.5],tx:[1,1,1],paint:()=>GD},                                      // hammer
+      {at:[-0.6,1.25,0.6],size:[1.2,0.8,4.9],tx:[1,1,5],paint:solid(GD)},                                    // frame + dust cover
+      {at:[-0.35,-0.15,2.2],size:[0.7,1.45,0.35],tx:[1,1,1],paint:()=>GD},                                   // trigger guard, front
+      {at:[-0.35,-0.45,0.4],size:[0.7,0.35,2.15],tx:[1,1,2],paint:()=>GD},                                   // trigger guard, bottom
+      {at:[-0.15,0.05,1.0],size:[0.3,0.9,0.3],tx:[1,1,1],paint:()=>GH},                                      // trigger
+      {at:[-0.75,-3.3,-2.6],size:[1.5,5.4,2.2],tx:[2,5,2],rot:[0.22,0,0],paint:q=>(q.F==='L'||q.F==='R')&&(q.x+q.y)%2?'#222428':GD},  // checkered grip, raked back
+      {at:[-0.8,-3.66,-3.3],size:[1.6,0.45,2.4],tx:[2,1,2],rot:[0.22,0,0],paint:()=>GH},                    // magazine base plate
     ];
   }};
 }
 
 // ---- 2. Raincoat (translucent coat over dark suit, red tie) · axe ----
 {
-  const RC={c:'rgba(232,238,243,0.52)',s:'rgba(244,247,250,0.66)',seam:'rgba(250,252,253,0.9)',op:'rgba(243,246,249,0.86)',btn:'rgba(255,255,255,0.98)'};
+  const RC={c:'rgba(232,238,243,0.6)',s:'rgba(244,247,250,0.66)',seam:'rgba(250,252,253,0.9)',op:'rgba(243,246,249,0.86)',btn:'rgba(255,255,255,0.98)'};
   const CH={c:'#25272c',l:'#33363d',s:'#1b1c20'};
   const RT={c:'#b3222c',l:'#d24a4f',k:'#8f1a22'};
   const glassN=(c,x,y,s)=>N(x,y,s)>0.86?RC.s:c;
@@ -483,14 +494,18 @@ const FITS={};
     }
     return L;
   },
+  // The axe from the film: long pale ash handle, polished chrome head with a flared, bright edge.
+  // Item space: +Z = handle toward the head, -Y = the blade side, held near the handle end.
   item(){
-    const W='#a67c4e',WG='#8a6238',WL='#c49968',ST='#9aa4ae',SE='#e3e8ec',SD='#6c747d';
+    const W='#d3ae78',WG='#b88e57',WL='#e6c792',WD='#9c7443',CH='#c3cad1',CL='#eef2f5',CD='#7f8890',CE='#f7f9fb';
     return [
-      {at:[-0.5,-0.5,-3],size:[1,1,15.5],tx:[1,1,16],paint:q=>(q.x+q.y)%5===0?WG:q.F==='T'?WL:W},
-      {at:[-0.6,-0.6,-3.5],size:[1.2,1.2,0.6],tx:[1,1,1],paint:()=>WG},
-      {at:[-0.75,-3,9.5],size:[1.5,3.6,3],tx:[2,4,3],paint:q=>q.y===0?SD:fab(ST,q.x,q.y,q.s,0.08)},
-      {at:[-0.45,-5,8.6],size:[0.9,2.1,4.8],tx:[1,2,5],paint:q=>(q.F==='D'||q.y===1)?SE:ST},
-      {at:[-0.75,0.5,10],size:[1.5,1.4,2],tx:[2,1,2],paint:solid(SD)},
+      {at:[-0.5,-0.5,-1.4],size:[1,1,13.2],tx:[1,1,13],paint:q=>q.F==='T'?WL:(q.x+q.y)%4===0?WG:W},         // handle (its end stays inside the fist)
+      {at:[-0.8,-1.25,9.5],size:[1.6,2.5,2.4],tx:[2,3,2],paint:q=>q.F==='T'?CL:fab(CH,q.x,q.y,q.s,0.06)},    // eye, wraps the handle
+      {at:[-0.6,-3.3,9.6],size:[1.2,2.1,2.2],tx:[1,2,2],paint:q=>fab(CH,q.x,q.y,q.s,0.06)},                  // blade neck
+      {at:[-0.45,-5.0,8.7],size:[0.9,1.8,4.0],tx:[1,2,4],paint:q=>q.F==='L'||q.F==='R'?(q.y===0?CL:CH):CD},  // blade flares out
+      {at:[-0.3,-5.45,8.5],size:[0.6,0.5,4.4],tx:[1,1,4],paint:()=>CE},                                      // sharpened edge
+      {at:[-0.75,1.2,9.8],size:[1.5,1.1,1.8],tx:[2,1,2],paint:solid(CD)},                                    // poll (back of the head)
+      {at:[-0.35,-0.35,11.75],size:[0.7,0.7,0.4],tx:[1,1,1],paint:()=>WD},                                   // handle end through the eye
     ];
   }};
 }
@@ -512,8 +527,8 @@ const FITS={};
       if(y===4&&u===6) return BK.l;
       return fab(BK.c,x,y,q.s,0.1);
     }});
-    L.push({bone:'torso',at:[-2.85,5.4,2],size:[1.6,6.6,0.55],tx:[2,7,1],rot:[0,0,0.34],seed:10,paint:q=>q.F==='F'?(q.x===0?'#3a3d45':BK.sat):BK.s});
-    L.push({bone:'torso',at:[1.25,5.4,2],size:[1.6,6.6,0.55],tx:[2,7,1],rot:[0,0,-0.34],seed:11,paint:q=>q.F==='F'?(q.x===1?'#3a3d45':BK.sat):BK.s});
+    L.push({bone:'torso',at:[-2.85,5.1,2],size:[1.6,6.6,0.55],tx:[2,7,1],rot:[0,0,0.34],seed:10,paint:q=>q.F==='F'?(q.x===0?'#3a3d45':BK.sat):BK.s});
+    L.push({bone:'torso',at:[1.25,5.1,2],size:[1.6,6.6,0.55],tx:[2,7,1],rot:[0,0,-0.34],seed:11,paint:q=>q.F==='F'?(q.x===1?'#3a3d45':BK.sat):BK.s});
     // cassette player clipped on the belt + headphone cord
     L.push({bone:'torso',at:[1.4,1.2,2],size:[3,4,1.3],tx:[3,4,1],seed:17,paint:q=>{
       if(q.F==='F') return q.y===1||q.y===2?(q.x===1?'#4d7cc0':'#2f5d9e'):q.y===0?'#c9ced5':'#9aa0a8';
@@ -536,16 +551,20 @@ const FITS={};
     for(const s of ['R','L']) L.push({bone:'leg'+s,at:[-2,-12,-2],size:[4,12,4],side:s,seed:s==='R'?6:7,paint:legPaint({c:BK.c,l:BK.l})});
     return L;
   },
+  // Pneumatic framing nailer: motor housing with a black cap, nose forward, angled nail strip, rubber grip, air fitting.
+  // Item space: +Z = nose, +Y = top, grip in the fist at the origin.
   item(){
-    const GR='#8e959d',GL='#bcc2c9',GD='#3b3f45',BL='#141416',RD='#c8352b';
+    const Y='#e2a51e',YD='#b67f12',K='#1b1c1f',KH='#34363b',M='#9aa1a9',ML='#c8ced4',BR='#c39a3e';
     return [
-      {at:[-1.25,1.5,-3.5],size:[2.5,3,7.5],tx:[3,3,8],paint:q=>q.F==='T'?GL:(q.y===1&&(q.F==='L'||q.F==='R'))?RD:fab(GR,q.x,q.y,q.s,0.07)},
-      {at:[-1.5,4.4,-3.6],size:[3,1,2.6],tx:[3,1,3],paint:solid(BL)},
-      {at:[-0.8,1.7,4],size:[1.6,1.6,3.1],tx:[2,2,3],paint:solid(GD)},
-      {at:[-0.45,2,7.1],size:[0.9,0.9,0.8],tx:[1,1,1],paint:()=>GL},
-      {at:[-0.9,-2.6,-2.6],size:[1.8,4.6,2.2],tx:[2,5,2],paint:q=>q.y%2?'#1f2024':BL},
-      {at:[-0.6,-2.9,0.3],size:[1.2,1.1,6.2],tx:[1,1,6],paint:q=>q.F==='L'||q.F==='R'?(q.x%2?'#c7cbd1':'#8b9097'):GD},
-      {at:[-0.6,-1.8,5.4],size:[1.2,3.5,1],tx:[1,3,1],paint:solid(GD)},
+      {at:[-1.2,1.9,-1.9],size:[2.4,2.8,3.6],tx:[2,3,4],paint:q=>q.F==='T'?KH:(q.y===0?YD:Y)},              // motor housing
+      {at:[-1.35,4.5,-2.05],size:[2.7,0.7,3.9],tx:[3,1,4],paint:solid(K)},                                  // top cap
+      {at:[-0.95,2.1,1.6],size:[1.9,2.2,3.6],tx:[2,2,4],paint:q=>q.y===1&&q.F!=='T'?YD:Y},                  // drive body
+      {at:[-0.55,1.7,5.2],size:[1.1,1.6,2.4],tx:[1,2,3],paint:solid(M)},                                    // nose
+      {at:[-0.4,1.45,7.6],size:[0.8,0.9,0.6],tx:[1,1,1],paint:()=>ML},                                      // safety contact tip
+      {at:[-0.75,-3.0,-2.6],size:[1.5,5.0,2.0],tx:[2,5,2],rot:[0.18,0,0],paint:q=>q.y%2?K:KH},               // rubber grip
+      {at:[-0.45,-3.95,-2.75],size:[0.9,0.8,1.0],tx:[1,1,1],paint:()=>BR},                                  // air fitting
+      {at:[-0.5,-0.7,1.4],size:[1.0,1.1,6.4],tx:[1,1,6],rot:[-0.42,0,0],paint:q=>q.F==='L'||q.F==='R'?(q.x%2?M:ML):K},  // nail strip
+      {at:[-0.3,0.6,0.9],size:[0.6,0.9,0.5],tx:[1,1,1],paint:()=>K},                                        // trigger
     ];
   }};
 }
@@ -714,11 +733,19 @@ function splitAt(spec,up,low,cut){
     paint:q=>q.F==='T'?(shell?null:P({...q,F:'F',y:rowsTop,h:tx[1]})):sideF(q.F)?P({...q,y:q.y+rowsTop,h:tx[1]}):P(q)});
 }
 function place(spec){
-  if(SIMPLE[spec.bone]) return add(SIMPLE[spec.bone],spec);
+  if(SIMPLE[spec.bone]){
+    // torso shells (coat layers) end flush with the torso top: the head sits on it with nothing in between
+    if(spec.bone==='torso'&&(spec.mode==='cut'||spec.mode==='glass')&&spec.at[1]+spec.size[1]>12) spec={...spec,size:[spec.size[0],12-spec.at[1],spec.size[2]]};
+    return add(SIMPLE[spec.bone],spec);
+  }
   const [up,low,dx,dy]=LIMB[spec.bone];
   const at=[spec.at[0]+dx,spec.at[1]+dy,spec.at[2]], size=[...spec.size];
   // sleeve shells end flush with the shoulder pivot: a swinging arm never lifts cloth into the head
   if(up.startsWith('arm_')&&at[1]+size[1]>0) size[1]=-at[1];
+  // ...and stay flush with the arm on the inner side (toward the torso, hidden): a raised arm's shoulder corner
+  // then never reaches under the head (0.03 left so the two faces do not flicker)
+  const shell=spec.mode==='cut'||spec.mode==='glass';
+  if(up.startsWith('arm_')&&shell&&size[0]>4.5){ const trim=(size[0]-4)/2-0.03; size[0]-=trim; if(spec.side==='L') at[0]+=trim; }
   splitAt({...spec,at,size},up,low,-6);
 }
 let fitKey='overcoat', fit=FITS[fitKey];
@@ -729,8 +756,6 @@ function buildFit(k){
   add('head',{at:[-4,0,-4],size:[8,8,8],paint:headPaint,seed:1});
   // hair layer: its lower side rows are see-through (clipLo: only the hair part counts in the clip test)
   add('head',{...inf([-4,0,-4],[8,8,8],0.5),paint:hatPaint(fit.hair),mode:'cut',seed:2,clipLo:2.9});
-  // recessed neck block under the lifted head (shadowed skin, mostly hidden by the collar)
-  add('body',{at:[-2.5,11.6,-1.5],size:[5,1.6,3],tx:[5,1,3],seed:31,paint:q=>q.F==='F'?SK.s:SK.d});
   if(fit.hair==='messy') add('hair_lock',lockSpec);
   for(const s of fit.parts()) place(s);
   for(const s of ['right','left']) add(`knee_${s}`,{at:[-2,-6,2],size:[4,1.5,0.7],tx:[4,2,1],paint:fit.toe||toePaint,seed:8});
@@ -777,14 +802,14 @@ const FACE_KEYS=['brow','tilt','smile','open','teeth','squint','wide','glance','
 const SWING={gun:0.6,axe:0.32,nail:0.55,phone:0.8,none:1};       // right arm swing per held item
 
 /* ───────── Arm IK ─────────
-   Puts a fist (5 below the elbow) on a target in torso space (texels; torso pivot = hips, shoulders at (±6, 12, 0),
+   Puts a fist (5 below the elbow) on a target in torso space (texels; torso pivot = hips, shoulders at (±6, SH_Y, 0),
    chest front z = 2, coat front z = 2.5). Upper arm 6, forearm to fist 5. pole = the way the elbow points.
    The forearm bends toward its local +z, as in the FK poses. Scratch objects are reused: no new objects per frame. */
 const _ik={u:new THREE.Vector3(),p:new THREE.Vector3(),a:new THREE.Vector3(),c:new THREE.Vector3(),
   x:new THREE.Vector3(),y:new THREE.Vector3(),m:new THREE.Matrix4(),e:new THREE.Euler(0,0,0,'ZYX')};
 function armIK(side,t,pole){
   const k=_ik, L1=6, L2=5;
-  k.u.set(t[0]-(side==='right'?-6:6),t[1]-12,t[2]);
+  k.u.set(t[0]-(side==='right'?-6:6),t[1]-SH_Y,t[2]);
   const d=clamp(k.u.length(),1.5,L1+L2-0.05); k.u.normalize();
   const a1=Math.acos(clamp((L1*L1+d*d-L2*L2)/(2*L1*d),-1,1));               // shoulder angle (law of cosines)
   const inner=Math.acos(clamp((L1*L1+L2*L2-d*d)/(2*L1*L2),-1,1));            // elbow angle
@@ -798,14 +823,120 @@ function armIK(side,t,pole){
   k.m.makeBasis(k.x,k.y,k.c); k.e.setFromRotationMatrix(k.m,'ZYX');
   return [k.e.x,k.e.y,k.e.z,-(Math.PI-inner)];
 }
+// Euler angles unwrapped by ± 2π to the side of ref: blends take the short way, no full-turn flip between frames
+const wrapNear=(v,r)=>v-TAU*Math.round((v-r)/TAU);
+const wrapEuler=(e,ref)=>[0,1,2].map(i=>wrapNear(e[i],ref[i]));
 // Blend an IK gesture over the FK pose of one arm (w 0..1, smooth curves only)
 function gesture(Q,side,w,t,pole){
   if(w<=1e-4) return;
   const g=armIK(side,t,pole), A=Q.r[`arm_${side}`]||(Q.r[`arm_${side}`]=[0,0,0]), F=Q.r[`forearm_${side}`]||(Q.r[`forearm_${side}`]=[0,0,0]);
-  for(let i=0;i<3;i++) A[i]+=(g[i]-A[i])*w;
+  const n=wrapEuler(g,A);
+  for(let i=0;i<3;i++) A[i]+=(n[i]-A[i])*w;
   F[0]+=(g[3]-F[0])*w; F[1]*=1-w; F[2]*=1-w;
 }
 const bump=(t,c,w)=>pos2(Math.cos(clamp((t-c)/w,-1,1)*Math.PI/2));        // smooth pulse around c, half width w
+
+/* ───────── Held item aim ─────────
+   Turns the held item in the right fist (the prop bone acts as the wrist) so its +Z (barrel / handle) points along D
+   and its -Y side (blade / grip) along B, both in torso space. Needs the right arm pose already in Q.
+   Blended from the rest grip by w (quaternion slerp). Scratch objects are reused. */
+const _pa={a:new THREE.Matrix4(),f:new THREE.Matrix4(),m:new THREE.Matrix4(),e:new THREE.Euler(0,0,0,'ZYX'),
+  x:new THREE.Vector3(),y:new THREE.Vector3(),z:new THREE.Vector3(),q:new THREE.Quaternion(),
+  rest:new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI/2,0,0,'ZYX'))};   // rest grip (prop bone rest rotation)
+function aimProp(Q,w,D,B){
+  if(w<=1e-4) return;
+  const k=_pa, A=Q.r.arm_right||[0,0,0], F=Q.r.forearm_right||[0,0,0];
+  k.e.set(A[0],A[1],A[2],'ZYX'); k.a.makeRotationFromEuler(k.e);
+  k.e.set(F[0],F[1],F[2],'ZYX'); k.f.makeRotationFromEuler(k.e);
+  k.a.multiply(k.f);                                                          // forearm orientation in torso space
+  k.z.set(D[0],D[1],D[2]).normalize();
+  k.y.set(B[0],B[1],B[2]); k.y.addScaledVector(k.z,-k.y.dot(k.z)).normalize().negate();   // +Y = away from the blade
+  k.x.crossVectors(k.y,k.z);
+  k.m.makeBasis(k.x,k.y,k.z); k.f.copy(k.a).transpose().multiply(k.m);        // into forearm space
+  k.q.setFromRotationMatrix(k.f); k.q.slerpQuaternions(k.rest,k.q,w);       // blend as a rotation (slerp), not per angle
+  k.e.setFromQuaternion(k.q,'ZYX');
+  Q.r.prop=wrapEuler([k.e.x,k.e.y,k.e.z],[Math.PI/2,0,0]);
+}
+
+/* Use (key 4): plays once per press, then fades back to the animation before it. One action per held item:
+   pistol: aims straight ahead, fires twice with recoil and a muzzle flash (the police chase);
+   axe: one-handed overhead chop with the wild "Hey Paul!" grin, then holds the axe up to admire it;
+   nail gun: from the hip, three quick nails with a manic grin; phone: a smug call, brick phone at his cheek. */
+const USE={gun:{T:3,shots:[1.0,1.55]},axe:{T:2.8,shots:[]},nail:{T:2.6,shots:[0.9,1.15,1.4]},phone:{T:3.4,shots:[]},none:{T:1,shots:[]}};
+// 3D keyframe path [[t,[x,y,z]], ...] -> t -> [x,y,z] (monotone cubic per axis)
+function path(keys){ const c=[0,1,2].map(i=>curve(keys.map(k=>[k[0],k[1][i]]))); return t=>[c[0](t),c[1](t),c[2](t)]; }
+const kick=u=>u<=0?0:(u/0.045)**2*Math.exp(2-2*u/0.045);          // recoil pulse: smooth start, peak 1 at 45 ms, fast decay
+const recoil=(t,shots)=>shots.reduce((a,sh)=>a+kick(t-sh),0);
+const useFw=(t,T)=>pos2((t-(T-0.5))/0.5);                          // head-follow weight: 0 until the last 0.5 s, then eases back
+// calm base stance under every Use action (arms down, slow breath)
+function stance(t,Q){
+  const br=Math.sin(TAU*t/5);
+  Q.r.body=[-0.012+0.012*br,0,0]; Q.r.head=[-0.008*br,0,0];
+  Q.r.arm_right=[-0.06,0,-0.05-(fit.weapon==='axe'?0.1:0)]; Q.r.arm_left=[0.02,0,0.09];
+  Q.r.forearm_right=[-0.1,0,0]; Q.r.forearm_left=[-0.08,0,0];
+  Q.f.stare=0.5;
+}
+const GUN_W=curve([[0,0],[0.4,0],[0.85,1],[2.2,1],[2.75,0],[3,0]]);
+const AXE_W=curve([[0,0],[0.12,0],[0.5,1],[2.3,1],[2.75,0],[2.8,0]]);
+const AXE_P=path([[0,[-7,4,3]],[0.5,[-9.4,16,-0.5]],[0.75,[-9.6,18.2,-1.6]],[0.92,[-9.2,18.6,3.5]],[1.08,[-6.6,8.5,9.4]],
+  [1.45,[-6.4,6.6,8.2]],[1.9,[-5.6,8.6,7]],[2.3,[-5.6,8.8,7]],[2.8,[-7,4,3]]]);                          // right fist
+const AXE_D=path([[0,[0,-1,0.2]],[0.5,[0,0.6,-0.8]],[0.75,[0,0.33,-0.94]],[0.92,[0,1,0.3]],[1.08,[0,-0.55,0.84]],
+  [1.45,[0,-0.8,0.6]],[1.9,[0.25,0.85,0.45]],[2.3,[0.25,0.85,0.45]],[2.8,[0,-1,0.2]]]);                   // handle direction
+const AXE_F=tracks({
+  'f.teeth':[[0,0],[0.3,0.9],[1.0,0.9],[1.1,0.6],[1.5,1],[2.4,1],[2.8,0]],
+  'f.smile':[[0,0],[0.3,1],[2.4,1],[2.8,0]],
+  'f.open':[[0,0],[0.35,0],[0.55,0.55],[0.75,0.5],[0.95,0.1],[1.08,0.45],[1.3,0.1],[2.8,0]],
+  'f.wide':[[0,0],[0.3,0.6],[0.95,0.6],[1.1,0],[1.6,0.35],[2.4,0.35],[2.8,0]],
+  'f.brow':[[0,0],[0.3,0.5],[0.95,0.5],[1.1,-0.2],[1.5,0.4],[2.4,0.4],[2.8,0]],
+  'f.squint':[[0,0],[0.95,0],[1.1,0.45],[1.4,0],[2.8,0]],
+});
+const NAIL_W=curve([[0,0],[0.15,0],[0.6,1],[1.85,1],[2.4,0],[2.6,0]]);
+const PHONE_W=curve([[0,0],[0.15,0],[0.65,1],[2.75,1],[3.25,0],[3.4,0]]);
+const PHONE_TALK=curve([[0,0],[0.8,0],[1.0,1],[2.5,1],[2.7,0],[3.4,0]]);
+const USE_FN={
+  gun(t,Q){
+    const w=GUN_W(t), r=recoil(t,USE.gun.shots);
+    Q.r.body[1]+=0.36*w; Q.r.body[0]-=0.02*r;                               // right shoulder forward (aims straight ahead), kick back
+    gesture(Q,'right',w,[-9.2,12.2+1.1*r,10.3-0.7*r],[0,-1,0.1]);             // arm straight out, a bit wide
+    aimProp(Q,w,[-0.35,0.03,0.94],[0,-1,0]);                                    // wrist keeps the gun upright, straight ahead in the world
+    Q.r.arm_left[0]+=0.12*w; Q.r.arm_left[2]+=0.06*w;
+    Q.r.head[0]+=0.02*w-0.03*r; Q.r.head[1]-=0.08*w*w;                        // eyes down the barrel, once the arm is up
+    Q.f.stare=0.5+0.3*w; Q.f.squint=0.35*w+0.5*softLim(r,1); Q.f.brow=-0.35*w; Q.f.smile=-0.12*w; Q.f.glance=-0.55*w;
+    Q.fw=useFw(t,USE[fit.weapon].T);
+  },
+  axe(t,Q){
+    const w=AXE_W(t), P=AXE_P(t), D=AXE_D(t), wnd=bump(t,0.72,0.32), imp=bump(t,1.22,0.3), hold=bump(t,2.1,0.45);
+    gesture(Q,'right',w,P,[-1,-0.4,-0.3]);                                      // elbow out to his right
+    aimProp(Q,w,D,[0,-D[2],D[1]]);                                              // blade leads the swing (x × D)
+    Q.r.arm_left[0]+=-0.45*wnd+0.3*imp; Q.r.arm_left[2]+=0.35*wnd;            // left arm balances
+    Q.r.body[0]+=-0.07*wnd+0.16*imp; Q.r.body[1]+=-0.14*wnd+0.12*imp;          // wind up back, chop forward
+    const kb=0.32*imp;
+    Q.r.knee_right=[kb,0,0]; Q.r.knee_left=[kb,0,0]; Q.r.leg_right=[-kb*0.55,0,0]; Q.r.leg_left=[-kb*0.55,0,0];
+    Q.r.head[0]+=0.06*imp-0.04*wnd-0.04*hold; Q.r.head[1]-=0.12*hold;         // then admires the blade
+    for(const tr of AXE_F) tr(t,Q);
+    Q.f.glance-=0.5*hold; Q.f.stare=0.3;
+    Q.fw=useFw(t,USE[fit.weapon].T);
+  },
+  nail(t,Q){
+    const w=NAIL_W(t), r=recoil(t,USE.nail.shots);
+    Q.r.body[0]+=0.05*w-0.015*r; Q.r.body[1]+=0.08*w;
+    gesture(Q,'right',w,[-6.4,7.4+0.5*r,8.6-0.5*r],[-0.5,-0.85,-0.1]);        // from the hip, elbow down
+    aimProp(Q,w,[0.04,0.06,1],[0,-1,0]);                                        // nose straight ahead, grip down
+    Q.r.arm_left[0]-=0.1*w; Q.r.arm_left[2]+=0.1*w;
+    Q.r.head[0]+=0.06*w; Q.r.head[1]-=0.06*w;
+    Q.f.teeth=0.85*w; Q.f.smile=0.9*w; Q.f.wide=0.45*w; Q.f.brow=0.3*w; Q.f.stare=0.5+0.2*w; Q.f.squint=0.6*softLim(r,1);
+    Q.fw=useFw(t,USE[fit.weapon].T);
+  },
+  phone(t,Q){
+    const w=PHONE_W(t), tk=PHONE_TALK(t);
+    gesture(Q,'right',w,[-6.6,11.4,6.6],[-0.4,-1,0.3]);                         // fist in front of the right cheek
+    aimProp(Q,w,[0.05,1,-0.1],[1,0,-0.3]);                                     // phone up, keypad facing out
+    Q.r.body[1]-=0.05*w; Q.r.head[1]-=0.06*w; Q.r.head[2]-=0.04*w;
+    Q.f.open=0.3*tk*Math.sin(TAU*1.7*t)**2;                                     // talking: ~3.4 mouth flaps per second
+    Q.f.smile=0.35*w; Q.f.brow=0.3*bump(t,1.9,0.35); Q.f.glance=-0.4*w; Q.f.squint=0.15*w; Q.f.stare=0;
+    Q.fw=useFw(t,USE[fit.weapon].T);
+  },
+};
 
 /* Idle: "the mask". Rigid, perfect posture, controlled breathing, the blank stare. He straightens his tie
    (left hand), flashes a fake smile with dead eyes, gets the nervous eye twitch, then slowly scans the room. */
@@ -842,7 +973,7 @@ const idle2Tracks=tracks({
   'f.glance':[[0,0],[7.4,0],[7.9,0.8],[8.8,0.75],[9.2,-0.95],[9.75,-0.9],[10.15,0],[11.2,0.5],[12.0,0.5],[12.4,0],[16,0]],
   'f.look':[[0,0],[11.0,0],[11.3,-0.9],[12.0,-0.9],[12.3,1],[12.7,1],[13.0,0],[16,0]],
   'f.open':[[0,0.02],[12.7,0.02],[12.95,0.3],[13.4,0.25],[13.7,0.02],[16,0.02]],
-  'fw':[[0,1],[4.5,1],[4.8,1],[7.2,1],[7.5,0],[13.2,0],[13.8,1],[16,1]],
+  'fw':[[0,1],[0.3,1],[0.9,0.4],[4.3,0.4],[4.8,1],[7.2,1],[7.5,0],[13.2,0],[13.8,1],[16,1]],   // half follow while grooving
 });
 const g2groove=curve([[0,0],[0.3,0],[0.9,1],[4.3,1],[4.6,0],[16,0]]);
 const g2flex=curve([[0,0],[7.3,0],[8.0,1],[10.0,1],[10.7,0],[16,0]]);
@@ -868,7 +999,7 @@ const ANIMS={
     for(const f of idleTracks) f(t,Q);
     // straighten the tie: left fist to the knot, two small tugs down
     const tug=0.6*(bump(t,2.85,0.18)+bump(t,3.3,0.18));
-    gesture(Q,'left',idleTie(t),[2.2,7.6-tug,7.6],[0.5,-0.8,0.7]);              // elbow down and a bit out: shoulder stays low, clear of chest and head
+    gesture(Q,'left',idleTie(t),[2.2,7.4-tug,8.0],[0.6,-1,0.45]);              // elbow down and a bit out: shoulder stays low, clear of chest and head
     // nervous twitch of the right eye: three quick pulses, the head jerks a hair
     const tw=bump(t,6.55,0.12)+bump(t,6.85,0.12)+0.8*bump(t,7.15,0.12);
     Q.f.twitch=tw; Q.r.head[2]+=0.02*tw;
@@ -888,14 +1019,15 @@ const ANIMS={
     Q.r.knee_right=[kb,0,0]; Q.r.knee_left=[kb,0,0];
     Q.r.leg_right=[-kb*0.55,0,0]; Q.r.leg_left=[-kb*0.55,0,0];
     Q.r.body[0]+=gw*0.03; Q.r.body[1]+=gw*0.06*Math.sin(Math.PI*b+0.5); Q.r.body[2]+=gw*0.04*sb;
-    Q.r.arm_left[0]+=gw*(-0.25+0.18*sb); Q.r.arm_right[0]+=gw*(-0.25-0.18*sb);
+    const ga=fit.coatSleeves?0.6:0.8;                          // thick coat sleeves pump less (their tops rise toward the head)
+    Q.r.arm_left[0]+=gw*ga*(-0.25+0.18*sb); Q.r.arm_right[0]+=gw*ga*(-0.25-0.18*sb);
     Q.r.arm_left[2]+=gw*0.08; Q.r.arm_right[2]-=gw*0.08;
     Q.r.forearm_left[0]+=-gw*1.15; Q.r.forearm_right[0]+=-gw*(fit.weapon==='none'?1.15:0.7);   // a prop must not swing into the arm
     Q.r.head[0]+=gw*0.05*(1-Math.cos(TAU*b))/2; Q.r.head[2]+=-gw*0.03*sb;
     Q.f.open+=gw*0.28*pos2(Math.sin(TAU*b/2)); Q.f.glance+=gw*0.4*Math.sin(Math.PI*b/2);
     // double-biceps flex: upper arms level (elbows at shoulder height), forearms straight up, fists beside the head
     const fx=g2flex(t), pulse=0.4*bump(t,8.4,0.25)+0.4*bump(t,9.6,0.25);    // squeezes harder twice
-    const fy=16.4-pulse-(fit.headphones?0.8:0);                                  // the cups hang low: flex a bit lower
+    const fy=SH_Y+4.4-pulse-(fit.headphones?1.2:0);                              // fist 4.4 above the shoulder; the cups hang low: flex a bit lower
     gesture(Q,'left',fx,[12.0,fy,0.8],[1,-0.15,-0.35]);
     if(fit.weapon==='none') gesture(Q,'right',fx,[-12.0,fy,0.8],[-1,-0.15,-0.35]);   // empty hands: double biceps
     else { const R2=Q.r.arm_right; R2[0]+=0.12*fx; R2[2]-=0.12*fx; }                       // holding a prop: it stays down, arm a bit back
@@ -921,7 +1053,7 @@ const ANIMS={
     Q.r.body=[0.02,-0.04*s,0.015*Math.sin(p-Math.PI/2)];                  // square shoulders, barely twisting
     const nod=0.045*pos2(Math.cos(2*p-0.5))**2;                             // a nod on every heel strike
     Q.r.head=[-0.04+nod,0.03*s-0.38*lk,-0.01*Math.sin(p-Math.PI/2)+0.03*lk];
-    const amp=fit.coatSleeves?0.28:0.3;
+    const amp=fit.coatSleeves?0.22:0.3;                                    // thick coat sleeves swing a bit less
     Q.r.arm_right=[amp*a*sl,0,-0.1-(fit.weapon==='axe'?0.1:0)];
     Q.r.arm_left=[-amp*sl,0,0.1];
     Q.r.forearm_right=[-0.1-0.12*a*pos2(-sl),0,0];                        // straight-ish executive arms
@@ -930,6 +1062,8 @@ const ANIMS={
     Q.f.squint=0.1+0.25*lk; Q.f.glance=-0.75*lk; Q.f.stare=0.4*(1-lk);
     Q.fw=0.35*(1-lk);
   }},
+  // 4 · Use: the held item (pistol / axe / nail gun / phone), once per press; length depends on the item
+  use:{get T(){ return USE[fit.weapon].T; },fn(t,Q){ stance(t,Q); const fn=USE_FN[fit.weapon]; if(fn) fn(t,Q); }},
 };
 const ANIM_ORDER=Object.keys(ANIMS);
 
@@ -942,6 +1076,7 @@ const S={
   follow:{on:true,has:false,tYaw:0,tPitch:0,yaw:0,pitch:0,eye:0,w:1},
   spring:{lockX:{a:0,v:0},lockZ:{a:0,v:0},tieX:{a:0,v:0},tieZ:{a:0,v:0}},
   lag:{right:0,left:0}, prevLeg:{right:0,left:0}, prevHead:[0,0], prevRootY:0, prevBodyX:0, prevRootX:0, prevRootV:0,
+  useOnce:false, useFrom:'idle', shot:0, lastUseT:0, flashT:1,               // Use: started by a press, back to useFrom; shot index
 };
 const mkPose=()=>({r:{},f:Object.fromEntries(FACE_KEYS.map(k=>[k,0])),root:[0,0,0],fw:1});
 const poseA=mkPose(), poseB=mkPose();
@@ -953,6 +1088,8 @@ function evalAnim(name,t,Q){
 }
 function selectAnim(name){
   if(!ANIMS[name]||name===S.anim) return;
+  if(name==='use'){ if(fit.weapon==='none') return; S.useFrom=S.anim; S.useOnce=true; S.shot=0; S.lastUseT=0; }
+  else S.useOnce=false;
   S.prev=S.anim; S.prevT=S.t; S.anim=name; S.t=0; S.blend=0;
   document.querySelectorAll('.anim-btn').forEach(b=>b.classList.toggle('active',b.dataset.anim===name));
 }
@@ -1013,11 +1150,20 @@ function step(dt){
     mix('wide',Math.max(0,xf.eyes)); mix('glance',0); mix('look',0.6*xf.look); mix('twitch',0); mix('stare',0);
     H.x+=window.MobViewer.head.pitch; H.z+=window.MobViewer.head.roll;
   }
-  // Short recessed neck: soft tilt limits keep the chin out of the collar (chin down 0.1, up 0.1, roll 0.07)
-  H.x=softLim(H.x,0.1); H.z=softLim(H.z,0.07);
+  // No neck: soft tilt limits keep the chin dip into the torso under ~0.5 (pitch 0.12, roll 0.06 rad)
+  H.x=softLim(H.x,0.12); H.z=softLim(H.z,0.06);
 
   springs(dt,fw);
   updateFace(dt,fo,F);
+
+  // Use: shots on their times (muzzle flash, nails); a pressed Use fades back to the animation before it
+  if(S.anim==='use'){
+    const U=USE[fit.weapon], tt=S.t%U.T;
+    if(tt<S.lastUseT) S.shot=0; S.lastUseT=tt;
+    while(S.shot<U.shots.length&&tt>=U.shots[S.shot]){ fireFx(); S.shot++; }
+    if(S.useOnce&&S.t>=U.T-0.3) selectAnim(S.useFrom);
+  }
+  updateFx(dt);
 
   // Contact shadow follows the hips
   blob.position.x=root.position.x; blob.position.z=root.position.z;
@@ -1106,6 +1252,51 @@ function applyFace(fc,blinkV,glance){
   R.teeth.position.z=-0.1+0.11*clamp(grin*10,0,1);                    // steps out of the head only while grinning
 }
 
+/* ───────── Weapon effects (Use): muzzle flash (pistol, nail gun) and flying nails ─────────
+   Made once and reused (no new objects per frame). The flash hangs on the prop bone at the muzzle. */
+const MUZZLE={gun:[0,2.8,6.2],nail:[0,1.9,8.4]};
+const flashTex=(()=>{
+  const c=document.createElement('canvas'); c.width=c.height=64; const g=c.getContext('2d');
+  const rg=g.createRadialGradient(32,32,0,32,32,32);
+  rg.addColorStop(0,'rgba(255,252,225,1)'); rg.addColorStop(0.3,'rgba(255,205,90,.9)'); rg.addColorStop(1,'rgba(255,120,20,0)');
+  g.fillStyle=rg; g.beginPath();
+  for(let i=0;i<16;i++){ const a=i*Math.PI/8, r=i%2?11:32; g.lineTo(32+Math.cos(a)*r,32+Math.sin(a)*r); }   // 8-point star
+  g.closePath(); g.fill();
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+})();
+const flashMat=new THREE.MeshBasicMaterial({map:flashTex,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
+const flash=new THREE.Group(); flash.visible=false; R.prop.add(flash);
+{
+  flash.add(new THREE.Mesh(new THREE.PlaneGeometry(3,3),flashMat));          // star facing down the barrel
+  const tongue=new THREE.PlaneGeometry(2.2,4.6);                             // flame tongue along the barrel, seen from the sides
+  const a=new THREE.Mesh(tongue,flashMat); a.rotation.x=Math.PI/2; a.position.z=1.6; flash.add(a);
+  const w=new THREE.Group(); w.rotation.z=Math.PI/2; flash.add(w);
+  const b=new THREE.Mesh(tongue,flashMat); b.rotation.x=Math.PI/2; b.position.z=1.6; w.add(b);
+}
+const nailGeo=new THREE.BoxGeometry(0.22,0.22,1.5), nailMat=new THREE.MeshLambertMaterial({color:0xb9bec5});
+const nails=[0,1,2].map(()=>{ const m=new THREE.Mesh(nailGeo,nailMat); m.visible=false; m.scale.setScalar(1/16);
+  m.userData={v:new THREE.Vector3(),life:0}; scene.add(m); return m; });
+let nailI=0; const _nd=new THREE.Vector3();
+function fireFx(){
+  S.flashT=0; flash.rotation.z=Math.random()*TAU; flash.scale.setScalar(0.8+Math.random()*0.4);
+  if(fit.weapon!=='nail') return;
+  const n=nails[nailI++%nails.length];
+  R.prop.updateWorldMatrix(true,false);
+  R.prop.localToWorld(n.position.set(...MUZZLE.nail));
+  R.prop.getWorldQuaternion(n.quaternion); R.prop.getWorldDirection(_nd);
+  n.userData.v.copy(_nd).multiplyScalar(14); n.userData.life=0.35; n.visible=true;   // 14 blocks/s, gone after 0.35 s
+}
+function updateFx(dt){
+  S.flashT+=dt;
+  const o=S.flashT<0.12?Math.exp(-S.flashT/0.025):0;                         // ~25 ms flash
+  flashMat.opacity=o; flash.visible=o>0.01;
+  for(const n of nails){
+    if(!n.visible) continue;
+    n.userData.life-=dt; n.position.addScaledVector(n.userData.v,dt);
+    if(n.userData.life<=0) n.visible=false;
+  }
+}
+
 /* ───────── Show bones (B): a dot on every pivot, a line to its parent, updated every frame ───────── */
 const rigView=new THREE.Group(); rigView.visible=false; scene.add(rigView);
 const boneList=Object.values(bones);
@@ -1139,8 +1330,14 @@ const VARIANTS=[
   {key:'suspenders',name:'Suspenders · phone',c:'#2c3f78'},
   {key:'shorts',name:'Shorts · face mask',c:'#8fb8de'},
 ];
+const USE_LABEL={gun:'Shoot',axe:'Chop',nail:'Nail gun',phone:'Call'};
 function setVariant(i){
   buildFit(VARIANTS[i].key);
+  const lbl=USE_LABEL[fit.weapon], ub=document.getElementById('useBtn');   // no item (shorts): no Use button
+  ub.style.display=lbl?'':'none'; ub.title=lbl?lbl+' (4)':'';
+  if(lbl) document.getElementById('useLbl').textContent=lbl;
+  if(MUZZLE[fit.weapon]) flash.position.set(...MUZZLE[fit.weapon]);
+  if(S.anim==='use'&&!lbl) selectAnim(S.useFrom);
   document.querySelectorAll('.dot').forEach((d,k)=>d.classList.toggle('active',k===i));
 }
 document.querySelectorAll('.anim-btn').forEach(b=>b.addEventListener('click',()=>selectAnim(b.dataset.anim)));
@@ -1179,7 +1376,7 @@ function followTarget(now){
   const F=S.follow; F.has=true;
   R.head.getWorldPosition(_h);
   if(now-ptrT<4000){ ray.setFromCamera(ptr,camera); ray.ray.at(camera.position.distanceTo(_h),_t); } else _t.copy(camera.position);
-  R.body.worldToLocal(_t); _t.y-=17;                             // head pivot (13) + eye height (4)
+  R.body.worldToLocal(_t); _t.y-=16;                             // head pivot (12) + eye height (4)
   let yaw=Math.atan2(_t.x,_t.z), pitch=-Math.atan2(_t.y,Math.hypot(_t.x,_t.z));
   if(Math.abs(yaw)>1.75){ yaw=0; pitch=0; }                      // behind him: look ahead
   F.tYaw=clamp(yaw,-0.85,0.85); F.tPitch=clamp(pitch,-0.45,0.4);
@@ -1193,7 +1390,9 @@ function restPose(){
   root.updateMatrixWorld(true);
 }
 function resetSim(anim,mx=0,my=0){
-  Object.assign(S,{anim,t:0,prev:null,prevT:0,blend:1,time:0,prevHead:[0,0],prevRootY:0,prevBodyX:0,prevRootX:0,prevRootV:0});
+  Object.assign(S,{anim,t:0,prev:null,prevT:0,blend:1,time:0,prevHead:[0,0],prevRootY:0,prevBodyX:0,prevRootX:0,prevRootV:0,
+    useOnce:false,shot:0,lastUseT:0,flashT:1});
+  for(const n of nails) n.visible=false;
   for(const k of FACE_KEYS) S.face[k]=0;
   for(const s of Object.values(S.spring)){ s.a=0; s.v=0; }
   S.lag={right:0,left:0}; S.prevLeg={right:0,left:0};
@@ -1287,7 +1486,7 @@ function clipTest(only){
 
 /* ───────── Still frames (#rest, #shot-<anim>-<variant>-<sec>[-<cam>[-<expression>]]) ─────────
    The picture goes into <pre id="shot"> as a PNG data URL; the loop stops so a screenshot sees the same. */
-const CAMS={full:[HOME.pos,HOME.tgt],face:[new THREE.Vector3(0.3,1.86,2.0),new THREE.Vector3(0,1.79,0)],
+const CAMS={full:[HOME.pos,HOME.tgt],face:[new THREE.Vector3(0.3,1.8,2.0),new THREE.Vector3(0,1.73,0)],
   bust:[new THREE.Vector3(0.9,1.6,3.0),new THREE.Vector3(0,1.4,0)],
   side:[new THREE.Vector3(4.9,1.3,0.3),new THREE.Vector3(0,1.0,0)],back:[new THREE.Vector3(-2.6,1.7,-4.6),new THREE.Vector3(0,1.02,0)],
   front:[new THREE.Vector3(0,1.25,5.2),new THREE.Vector3(0,1.02,0)]};

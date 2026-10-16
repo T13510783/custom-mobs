@@ -12,6 +12,7 @@ These rules count for every mob and every mod, unless the user clearly says othe
 Always apply these, every session, without being reminded:
 
 - **No sub-agents.** Work directly in the main loop. Spawn a sub-agent only when the user explicitly asks for one.
+- **Never make necks** (user rule, 2026-10-16): every mob's head sits right on the torso top: no neck block, never lifted (rig details: rule 9).
 - **Commit + push always**, with a clear, clean, short, accurate title (`<area>: <what changed>`) and a short description (details: GitHub section below).
 - **Co-Authored-By trailer on every commit and every squash-merge**: the last line names Claude and the exact model, e.g. `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. `.claude/settings.json` keeps `"includeCoAuthoredBy": true`.
 - **Viewer buttons:** no "Download .bbmodel" / "Download Blockbench Model" button in any HTML viewer, ever; the "Show bones" toggle (key `B`) is in every HTML viewer, always (rule 10).
@@ -116,6 +117,7 @@ When the user says "model from A, animations from B":
 5. Design each animation for that mob's body, weight and character.
    - A run is not a fast walk (2026-10-15): the body is lowest at mid-stance and highest in a flight phase (both feet off the ground), never lowest with the legs spread (that reads as walking). Build it with a foot path + 2-bone IK (hip and knee solved from where the foot must be): stance slides back on the ground, swing kicks the heel up and drives the knee forward.
    - No hard corners in motion curves: `abs()`, a bare `max(0, x)`, hard clamps. Use `x*x`, `max(0, x)**2`, softplus limits. Corners look jerky and break the mod's 1:1 test.
+   - Arm IK and held items (2026-10-16): before blending an IK result over the FK pose, unwrap its Euler angles by ±2π toward the FK pose; never switch between the two equivalent Euler triples (it flips mid-blend). Turn a held item in the fist (the prop bone = the wrist) with a quaternion slerp from its rest grip. Check: the biggest per-frame rotation step, full turns ignored.
 
 ## Face
 
@@ -147,8 +149,8 @@ When the user says "model from A, animations from B":
    - Check it numerically, not by eye: per frame, sample a 5x5 grid of points on every face of part A, transform them into part B's local space, count points inside B by more than 0.06. Test every animation with the mouse pointer at the center, edges and corners (head-follow extremes).
    - Rig lessons that avoid most clipping:
      - arm pivot on the arm's top edge (not 2 below it), arms only rotate outward on Z;
-     - head on top of the body: lift it ~0.7 on a recessed neck block and clamp head pitch to about ±0.08 rad; arm tops ~0.4 below the body top;
-     - no neck wanted (Homelander, 2026-10-16): head sits right on the torso top, never lifted; soft tilt limits instead (`limit * tanh(x / limit)`, pitch ~0.12, roll ~0.06 rad) keep the chin dip into the torso under ~0.5;
+     - **never a neck** (user rule, 2026-10-16, every mob): the head sits right on the torso top (no neck block, never lifted); arm pivots ~0.8 below the torso top so a turned head clears the arm tops; soft tilt limits (`limit * tanh(x / limit)`, pitch ~0.12, roll ~0.06 rad) keep the chin dip into the torso under ~0.5;
+     - coat / armor shells end flush with the torso top, and sleeve shells stay flush with the arm on the inner side (toward the torso): an arm raised forward lifts its shoulder corner ~2.5 above the pivot, and an inflated inner side then always reaches under the head (Bateman, 2026-10-16);
      - a cape with hands behind the back: the hands rest ON the cape (forearms push cloth toward the back, upper arms toward the spine, torso pushed last) and the cape's top edge narrows to fit between the arms;
      - a long beard below the chin hangs from the torso (following the chin), not from the head;
      - poses with arms beside the head fade head-follow out before the arms move;

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-16 15:47
+- Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`):
+  - No neck: head right on the torso top, neck block removed, shoulders 0.8 below the torso top, coat shells flush (torso top, sleeve inner side).
+  - New weapons: big black pistol (slide, sights, trigger guard, raked grip), film axe (pale ash handle, chrome head, bright edge), pneumatic nail gun.
+  - New Use button / key 4 (asked for): Shoot (aim, 2 shots, recoil, muzzle flash), Chop (overhead axe chop, "Hey Paul!" grin, admires the axe), Nail gun (3 nails from the hip), Call (brick phone at his cheek). Hidden in the shorts outfit.
+  - Outfits from the references: overcoat to mid-calf, milkier raincoat, lapels end under the head.
+  - Clip test: 0 clips in all 5 outfits and all 4 animations.
+- `CLAUDE.md`: rule "never make necks" (+ rig details), IK / held-item Euler lesson. `mobs/_shared/viewer_template.html`: head comment says no neck.
+
 ## 2026-10-16 15:08
 - Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`): new film-based animations, all his own.
   - Idle "the mask": rigid posture, dead stare (blinks held back), left hand straightens the tie with two tugs, fake teeth smile, right-eye twitch (3 pulses), slow scan of the room.
