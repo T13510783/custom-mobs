@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 21:31
+- Anton Chigurh (`mobs/anton_chigurh/anton_chigurh.html`): upgrade, same look.
+  - Moving face: eye whites + centered pupils (were cross-eyed), heavy upper lids that blink, brows, standard lip line + teeth; bangs end above the brows.
+  - Shared UI: expression menu (Auto/Happy/Sad/Angry/Afraid), follow-mouse toggle, Show bones, keys 1-5 + R + B, 120/60 FPS loop.
+  - Rig: 2-bone arms and legs (elbows + knees bend), feet solved onto the floor, hair wings + back hair on springs; new Idle 2 (look over the shoulder, head tilt, grip adjust).
+  - Clipping fixed: collar no longer in the head (now flat V flaps), arms clear the jacket, tank + shotgun no longer through the floor, shotgun slings onto his back for the bolt attack, hip-fire special. `#cliptest`: 0 clips, chin dip 0.42, floor 0.
+
 ## 2026-10-16 20:48
 - The Joker (`mobs/the_joker/the_joker.html`): better face and a mouth made for him.
   - Clipping at the top of the face fixed: the hair crown starts on the head top and overhangs the forehead (it sat on the face plane and flickered).

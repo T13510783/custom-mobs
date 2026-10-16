@@ -4,144 +4,84 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Anton Chigurh — Vanilla+ 16x16 Model Viewer</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!--
+    Anton Chigurh viewer (one page, classic scripts: works as a local file).
+    - Rig: hips -> torso -> head (no neck), 2-bone arms (arm/forearm) and legs (leg/knee), hair spring pivots,
+      face bones (eye whites, pupils, lids, brows, standard lip line + teeth).
+    - Animations (keys 1-5): Idle, Idle 2, Walk, Attack (captive bolt), Special (silenced shotgun).
+      Follow mouse (eye button), Show bones (B), reset camera (R), expression menu (top right, shared).
+    - Test modes: #cliptest, #rest, #shot-<anim>-0-<sec>[-<camDeg>[-<expression>]].
+  -->
+  <!-- Shared viewer UI: mobs/_shared/ -->
+  <!-- Page cannot reach ../_shared/ (copy, other folder, preview of one folder): same files from the public repo -->
+  <link rel="stylesheet" href="../_shared/viewer.css"
+    onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/gh/T13510783/custom-mobs@main/mobs/_shared/viewer.css'">
+  <script src="../_shared/viewer.js"
+    onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/T13510783/custom-mobs@main/mobs/_shared/viewer.js';document.head.appendChild(s)"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-
-    * {
-      box-sizing: border-box;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background-color: #0f1115;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      color: #e2e8f0;
-    }
-
-    #canvas-container {
-      width: 100%;
-      height: 100%;
-      position: relative;
-    }
-
-    canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-      outline: none;
-    }
-
-    .pill-bar {
-      background: rgba(20, 23, 30, 0.82);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    }
-
-    .anim-btn {
-      position: relative;
-      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
-      color: #94a3b8;
-    }
-
-    .anim-btn:hover {
-      color: #f1f5f9;
-      background: rgba(255, 255, 255, 0.05);
-    }
-
-    .anim-btn.active {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.12);
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-    }
-
-    .reset-btn {
-      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
-      color: #94a3b8;
-    }
-
-    .reset-btn:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
-      transform: scale(1.05);
-    }
-
-    .reset-btn:active {
-      transform: scale(0.96);
-    }
+    /* Test modes print their result here (read by tools\cdp.ps1) */
+    pre#cliptest, pre#shot { position: fixed; left: 8px; top: 8px; margin: 0; font: 11px monospace; color: #94a3b8; opacity: 0; pointer-events: none; }
   </style>
 </head>
-<body>
-  <div id="canvas-container">
-    <!-- Floating bottom pill bar + small camera reset button -->
-    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2.5">
-      <div class="pill-bar rounded-full p-1.5 flex items-center gap-1">
-        <button data-anim="idle" class="anim-btn active px-4 py-1.5 rounded-full text-xs font-medium tracking-wide">
-          Idle
-        </button>
-        <button data-anim="walk" class="anim-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide">
-          Walk
-        </button>
-        <button data-anim="attack" class="anim-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide">
-          Attack
-        </button>
-        <button data-anim="special" class="anim-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide">
-          Special
-        </button>
-      </div>
+<body class="mv-ui">
+  <canvas id="viewport" tabindex="0"></canvas>
 
-      <button id="reset-camera" title="Reset Camera" aria-label="Reset Camera" class="pill-bar reset-btn w-9 h-9 rounded-full flex items-center justify-center">
-        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-          <path d="M3 3v5h5"/>
-        </svg>
-      </button>
-    </div>
+  <!-- Top right: the expression menu (added by viewer.js) sits left of the reset button -->
+  <div id="topRight">
+    <button id="resetBtn" class="pill icon-btn" title="Reset camera (R)" aria-label="Reset camera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+    </button>
   </div>
+
+  <!-- Bottom dock: animations, follow toggle, bones toggle -->
+  <nav id="dock" class="pill">
+    <button class="anim-btn active" data-anim="idle"><kbd>1</kbd>Idle</button>
+    <button class="anim-btn" data-anim="idle2"><kbd>2</kbd>Idle 2</button>
+    <button class="anim-btn" data-anim="walk"><kbd>3</kbd>Walk</button>
+    <button class="anim-btn" data-anim="attack"><kbd>4</kbd>Attack</button>
+    <button class="anim-btn" data-anim="special"><kbd>5</kbd>Special</button>
+    <span class="sep"></span>
+    <button id="followBtn" class="icon-btn round-btn on" title="Head follows the mouse" aria-label="Follow mouse" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+    <button id="bonesBtn" class="icon-btn round-btn" title="Show bones (B)" aria-label="Show bones" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8 8l8 8"/></svg>
+    </button>
+  </nav>
 
   <script>
     window.onload = function () {
-      const container = document.getElementById('canvas-container');
+      /* ───────── Setup ───────── */
+      const TAU = Math.PI * 2;
+      const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+      const filt = (dt, rate) => 1 - Math.exp(-dt * rate);   // per-frame smoothing factor (frame-rate independent)
+      const canvas = document.getElementById('viewport');
 
       // Scene setup matching ultra-minimal dark aesthetic (#0f1115)
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x0f1115);
       scene.fog = new THREE.FogExp2(0x0f1115, 0.012);
 
-      // Perspective camera
-      const camera = new THREE.PerspectiveCamera(
-        38,
-        window.innerWidth / window.innerHeight,
-        0.1,
-        500
-      );
-      const DEFAULT_CAM_POS = new THREE.Vector3(24, 22, 42);
-      const DEFAULT_TARGET = new THREE.Vector3(0, 15.5, 0);
+      // Perspective camera (aspect set by resize())
+      const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 500);
+      const DEFAULT_CAM_POS = new THREE.Vector3(29, 24, 51);    // far enough that the boots clear the dock
+      const DEFAULT_TARGET = new THREE.Vector3(0, 15, 0);
       camera.position.copy(DEFAULT_CAM_POS);
 
       // WebGLRenderer with crisp pixel preservation and soft shadows
-      const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputEncoding = THREE.sRGBEncoding;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.08;
-      container.appendChild(renderer.domElement);
 
       // OrbitControls
-      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      const controls = new THREE.OrbitControls(camera, canvas);
       controls.target.copy(DEFAULT_TARGET);
       controls.enableDamping = true;
       controls.dampingFactor = 0.06;
@@ -281,10 +221,12 @@
             fillTexturedRect(ctx, 0, 0, cw, ch, '#22252a', 6, idx);
           });
           const tex = makePixelTexture(tw, th, drawFn);
+          // Roughness >= 0.7 and low metalness (rule 13): glossy faces mirror the blue rim light as a strip,
+          // and Minecraft has no gloss anyway. Metal still reads brighter through its light texture colors.
           return new THREE.MeshStandardMaterial({
             map: tex,
-            roughness: matParams.roughness !== undefined ? matParams.roughness : 0.85,
-            metalness: matParams.metalness !== undefined ? matParams.metalness : 0.05,
+            roughness: Math.max(0.7, matParams.roughness !== undefined ? matParams.roughness : 0.85),
+            metalness: Math.min(0.3, matParams.metalness !== undefined ? matParams.metalness : 0.05),
             transparent: !!matParams.transparent,
             alphaTest: matParams.alphaTest || 0
           });
@@ -469,20 +411,24 @@
       jacketBack.position.set(0, 6.6, -2.05);
       torsoPivot.add(jacketBack);
 
-      // 3D Denim Jacket Collar Flaps
-      const collarRight = createPixelBox(2.4, 1.4, 4.6, {
-        all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.denimSeam, 5, 27)
-      });
-      collarRight.position.set(-2.6, 11.7, 0.1);
-      collarRight.rotation.z = 0.18;
-      torsoPivot.add(collarRight);
-
-      const collarLeft = createPixelBox(2.4, 1.4, 4.6, {
-        all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.denimSeam, 5, 28)
-      });
-      collarLeft.position.set(2.6, 11.7, 0.1);
-      collarLeft.rotation.z = -0.18;
-      torsoPivot.add(collarLeft);
+      // 3D Denim Jacket Collar: two pointed flaps lying flat on the chest in a V (Ref Pic 1 & 3).
+      // No neck: the head sits on the torso top, so the collar stays below it (top 11.5, the chin dip stays clear).
+      function buildCollarFlap(sx, seed) {
+        const flap = createPixelBox(2, 3, 0.35, {
+          front: (ctx, w, h) => {
+            fillTexturedRect(ctx, 0, 0, w, h, PALETTE.denimSeam, 5, seed);
+            ctx.fillStyle = PALETTE.denimEdge;
+            ctx.fillRect(sx < 0 ? w - 1 : 0, 0, 1, h);       // stitched outer edge toward the V
+          },
+          all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.denimSeam, 5, seed + 1)
+        });
+        flap.position.set(sx * 1.9, 9.7, 2.45);
+        flap.rotation.z = -sx * 0.5;                         // tops lean out to the shoulders, points meet low
+        torsoPivot.add(flap);
+        return flap;
+      }
+      buildCollarFlap(-1, 27);
+      buildCollarFlap(1, 29);
 
       // 3D Belt Buckle Accent on waist
       const beltBuckleMesh = createPixelBox(2.2, 1.6, 0.4, {
@@ -521,23 +467,18 @@
           ctx.fillRect(6, 0, 2, 1);
           ctx.fillRect(0, 1, 2, 1);
 
-          // Heavy furrowed brow ridge (y = 2)
-          ctx.fillStyle = PALETTE.hairDark;
+          // Brow row (y = 2): plain shaded skin under the moving brow planes
+          ctx.fillStyle = PALETTE.skinShadow;
           ctx.fillRect(1, 2, 2, 1);
           ctx.fillRect(5, 2, 2, 1);
           // Furrow crease between eyebrows
           ctx.fillStyle = PALETTE.skinDeep;
           ctx.fillRect(3, 2, 2, 1);
 
-          // Menacing heavy-lidded eyes (y = 3)
-          // Whites of eyes (slightly shadowed/cold)
-          ctx.fillStyle = '#d8d2c9';
-          ctx.fillRect(1, 3, 1, 1);
-          ctx.fillRect(6, 3, 1, 1);
-          // Dark brooding pupils
-          ctx.fillStyle = '#14100e';
-          ctx.fillRect(2, 3, 1, 1);
-          ctx.fillRect(5, 3, 1, 1);
+          // Eye row (y = 3): deep sockets under the moving eye whites, pupils and lids
+          ctx.fillStyle = PALETTE.skinDeep;
+          ctx.fillRect(1, 3, 2, 1);
+          ctx.fillRect(5, 3, 2, 1);
 
           // Heavy dark under-eye bags & prominent nose bridge (y = 4)
           ctx.fillStyle = PALETTE.skinDeep;
@@ -557,10 +498,10 @@
           ctx.fillRect(2, 5, 1, 1);
           ctx.fillRect(5, 5, 1, 1);
 
-          // Stoic slightly parted lips (as in Ref Pic 2, y = 6)
-          ctx.fillStyle = '#7d5243';
+          // Mouth row (y = 6): plain skin under the lip line plane, mouth corners in skin shadow
+          ctx.fillStyle = PALETTE.skinBase;
           ctx.fillRect(3, 6, 2, 1);
-          ctx.fillStyle = '#9e6b59';
+          ctx.fillStyle = PALETTE.skinShadow;
           ctx.fillRect(2, 6, 1, 1);
           ctx.fillRect(5, 6, 1, 1);
 
@@ -629,7 +570,7 @@
       bangsUpper.position.set(0, 6.7, 4.15);
       headPivot.add(bangsUpper);
 
-      // Lower diagonal swept fringe over his left brow (x > 0 in model space, left side of screen)
+      // Lower diagonal swept fringe above his right brow (x < 0 in model space)
       const bangsSweepLeft = createPixelBox(5.2, 1.35, 0.6, {
         all: (ctx, w, h) => {
           fillTexturedRect(ctx, 0, 0, w, h, PALETTE.hairBase, 5, 44);
@@ -637,37 +578,38 @@
           ctx.fillRect(1, 0, 2, 1);
         }
       });
-      bangsSweepLeft.position.set(-1.3, 5.75, 4.15);
-      bangsSweepLeft.rotation.z = -0.12;
+      // Bangs end above the brows (bottom >= 5.87) so the brows stay visible and can move
+      bangsSweepLeft.position.set(-1.6, 6.55, 4.15);
+      bangsSweepLeft.rotation.z = -0.08;
       headPivot.add(bangsSweepLeft);
 
       // Right temple hair lock
       const bangsRightSide = createPixelBox(2.1, 1.5, 0.55, {
         all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.hairDark, 5, 45)
       });
-      bangsRightSide.position.set(3.15, 5.65, 4.12);
+      bangsRightSide.position.set(3.15, 6.7, 4.12);
       headPivot.add(bangsRightSide);
 
       // Iconic thick 1970s pageboy bob side-wings framing the cheeks & jawline
-      const hairBobLeft = createPixelBox(1.15, 6.8, 8.5, {
+      const hairBobLeft = createPixelBox(1.15, 6.5, 8.5, {
         all: (ctx, w, h) => {
           fillTexturedRect(ctx, 0, 0, w, h, PALETTE.hairBase, 6, 46);
           ctx.fillStyle = PALETTE.hairHighlight;
           ctx.fillRect(1, 1, Math.max(1, w - 2), 2);
         }
       });
-      hairBobLeft.position.set(-4.05, 3.9, -0.1);
+      hairBobLeft.position.set(-4.05, 4.05, -0.1);   // ends 0.8 above the head bottom
       hairBobLeft.rotation.z = -0.05;
       headPivot.add(hairBobLeft);
 
-      const hairBobRight = createPixelBox(1.15, 6.8, 8.5, {
+      const hairBobRight = createPixelBox(1.15, 6.5, 8.5, {
         all: (ctx, w, h) => {
           fillTexturedRect(ctx, 0, 0, w, h, PALETTE.hairBase, 6, 47);
           ctx.fillStyle = PALETTE.hairHighlight;
           ctx.fillRect(1, 1, Math.max(1, w - 2), 2);
         }
       });
-      hairBobRight.position.set(4.05, 3.9, -0.1);
+      hairBobRight.position.set(4.05, 4.05, -0.1);
       hairBobRight.rotation.z = 0.05;
       headPivot.add(hairBobRight);
 
@@ -675,14 +617,14 @@
       const hairFlareLeft = createPixelBox(1.3, 2.2, 7.6, {
         all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.hairDark, 5, 48)
       });
-      hairFlareLeft.position.set(-4.1, 1.3, -0.2);
+      hairFlareLeft.position.set(-4.1, 1.95, -0.2);  // clears the sleeve tops
       hairFlareLeft.rotation.z = 0.08;
       headPivot.add(hairFlareLeft);
 
       const hairFlareRight = createPixelBox(1.3, 2.2, 7.6, {
         all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.hairDark, 5, 49)
       });
-      hairFlareRight.position.set(4.1, 1.3, -0.2);
+      hairFlareRight.position.set(4.1, 1.95, -0.2);
       hairFlareRight.rotation.z = -0.08;
       headPivot.add(hairFlareRight);
 
@@ -700,113 +642,162 @@
       hairBackCurtain.position.set(0, 3.8, -4.05);
       headPivot.add(hairBackCurtain);
 
+      /* ───────── Arms: 2 bones each (arm = shoulder -> elbow, forearm = elbow -> hand) ─────────
+         Pivot on the arm's top edge, 0.5 below the torso top. x = ±6.25: the arm's inner side (4.25) clears the
+         jacket panels (4.2), so a swinging arm never scrapes the jacket. Sleeve shells stay flush on the inner side. */
+      const ARM_X = 6.25;
+      const denimArmFace = (seed) => (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.denimBase, 6, seed);
       function buildArm(isLeft) {
+        const side = isLeft ? 'left' : 'right';
         const shoulderPivot = new THREE.Group();
-        // Shoulder pivot at top of arm: X = ±6, Y = 11.5 relative to torsoPivot
-        shoulderPivot.position.set(isLeft ? 6 : -6, 11.5, 0);
+        shoulderPivot.name = `arm_${side}`;
+        shoulderPivot.position.set(isLeft ? ARM_X : -ARM_X, 11.5, 0);
 
-        const armMesh = createPixelBox(4, 12, 4, {
+        // Upper arm: denim sleeve
+        const upperMesh = createPixelBox(4, 6, 4, {
+          left: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.denimDark, 6, 65),
+          right: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.denimDark, 6, 67),
+          all: denimArmFace(isLeft ? 60 : 61)
+        });
+        upperMesh.position.set(0, -3, 0);
+        shoulderPivot.add(upperMesh);
+
+        // 3D outer sleeve layer (upper part), flush with the arm on the inner side
+        const shellX = isLeft ? 0.225 : -0.225;
+        const sleeveUpper = createPixelBox(4.45, 6, 4.45, { all: denimArmFace(isLeft ? 71 : 72) });
+        sleeveUpper.position.set(shellX, -3, 0);
+        shoulderPivot.add(sleeveUpper);
+
+        // Elbow: forearm bone
+        const elbowPivot = new THREE.Group();
+        elbowPivot.name = `forearm_${side}`;
+        elbowPivot.position.set(0, -6, 0);
+        shoulderPivot.add(elbowPivot);
+
+        // Forearm: 3 rows denim sleeve with cuff + silver button, 3 rows hand
+        const foreMesh = createPixelBox(4, 6, 4, {
           front: (ctx, w, h) => {
-            // Denim sleeve top 9 pixels
-            fillTexturedRect(ctx, 0, 0, w, 9, PALETTE.denimBase, 6, isLeft ? 60 : 61);
+            fillTexturedRect(ctx, 0, 0, w, 3, PALETTE.denimBase, 6, isLeft ? 62 : 63);
             ctx.fillStyle = PALETTE.denimDark;
-            ctx.fillRect(0, 8, w, 1);
-            // Silver cuff button
+            ctx.fillRect(0, 2, w, 1);
             ctx.fillStyle = PALETTE.SilverButton;
-            ctx.fillRect(isLeft ? 2 : 1, 8, 1, 1);
-            // Hand skin bottom 3 pixels
-            fillTexturedRect(ctx, 0, 9, w, 3, PALETTE.skinBase, 4, 62);
+            ctx.fillRect(isLeft ? 2 : 1, 2, 1, 1);           // cuff button
+            fillTexturedRect(ctx, 0, 3, w, 3, PALETTE.skinBase, 4, 62);
             ctx.fillStyle = PALETTE.skinShadow;
-            ctx.fillRect(0, 9, w, 1);
+            ctx.fillRect(0, 3, w, 1);
             ctx.fillStyle = PALETTE.skinDeep;
-            ctx.fillRect(1, 11, 2, 1); // knuckles
+            ctx.fillRect(1, 5, 2, 1);                         // knuckles
           },
           back: (ctx, w, h) => {
-            fillTexturedRect(ctx, 0, 0, w, 9, PALETTE.denimBase, 6, 63);
-            fillTexturedRect(ctx, 0, 9, w, 3, PALETTE.skinShadow, 4, 64);
+            fillTexturedRect(ctx, 0, 0, w, 3, PALETTE.denimBase, 6, 63);
+            fillTexturedRect(ctx, 0, 3, w, 3, PALETTE.skinShadow, 4, 64);
           },
           left: (ctx, w, h) => {
-            fillTexturedRect(ctx, 0, 0, w, 9, PALETTE.denimDark, 6, 65);
-            fillTexturedRect(ctx, 0, 9, w, 3, PALETTE.skinBase, 4, 66);
+            fillTexturedRect(ctx, 0, 0, w, 3, PALETTE.denimDark, 6, 65);
+            fillTexturedRect(ctx, 0, 3, w, 3, PALETTE.skinBase, 4, 66);
           },
           right: (ctx, w, h) => {
-            fillTexturedRect(ctx, 0, 0, w, 9, PALETTE.denimDark, 6, 67);
-            fillTexturedRect(ctx, 0, 9, w, 3, PALETTE.skinBase, 4, 68);
+            fillTexturedRect(ctx, 0, 0, w, 3, PALETTE.denimDark, 6, 67);
+            fillTexturedRect(ctx, 0, 3, w, 3, PALETTE.skinBase, 4, 68);
           },
-          top: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.denimBase, 5, 69),
+          top: denimArmFace(69),
           bottom: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.skinDeep, 4, 70)
         });
-        armMesh.position.set(0, -5.5, 0);
-        shoulderPivot.add(armMesh);
+        foreMesh.position.set(0, -3, 0);
+        elbowPivot.add(foreMesh);
 
-        // 3D Outer Sleeve Cuff Layer
-        const sleeveOuter = createPixelBox(4.45, 9.2, 4.45, {
+        // 3D outer sleeve layer (lower part, ends at the cuff seam)
+        const sleeveLower = createPixelBox(4.45, 3.2, 4.45, {
           all: (ctx, w, h) => {
-            fillTexturedRect(ctx, 0, 0, w, h, PALETTE.denimBase, 6, isLeft ? 71 : 72);
+            fillTexturedRect(ctx, 0, 0, w, h, PALETTE.denimBase, 6, isLeft ? 73 : 74);
             ctx.fillStyle = PALETTE.denimSeam;
             ctx.fillRect(0, h - 1, w, 1);
           }
         });
-        sleeveOuter.position.set(0, -4.1, 0);
-        shoulderPivot.add(sleeveOuter);
+        sleeveLower.position.set(shellX, -1.6, 0);
+        elbowPivot.add(sleeveLower);
 
-        // Hand socket at bottom of arm (Y = -10.5)
+        // Hand socket (props): 1 texel above the fist bottom
         const handPivot = new THREE.Group();
-        handPivot.position.set(0, -10.5, 0.5);
-        shoulderPivot.add(handPivot);
+        handPivot.position.set(0, -5, 0.5);
+        elbowPivot.add(handPivot);
 
-        return { shoulderPivot, handPivot };
+        return { shoulderPivot, elbowPivot, handPivot };
       }
 
-      const rightArm = buildArm(false); // Character's Right Arm (X = -6)
-      const leftArm = buildArm(true);   // Character's Left Arm (X = +6)
+      const rightArm = buildArm(false); // Character's Right Arm (X = -6.25)
+      const leftArm = buildArm(true);   // Character's Left Arm (X = +6.25)
       torsoPivot.add(rightArm.shoulderPivot);
       torsoPivot.add(leftArm.shoulderPivot);
 
+      /* ───────── Legs: 2 bones each (leg = hip -> knee, knee = shin with the boot) ───────── */
       function buildLeg(isLeft) {
+        const side = isLeft ? 'left' : 'right';
         const hipPivot = new THREE.Group();
+        hipPivot.name = `leg_${side}`;
         hipPivot.position.set(isLeft ? 2 : -2, 0, 0);
 
-        const legMesh = createPixelBox(4, 12, 4, {
+        // Thigh: black trousers with the press crease
+        const thighMesh = createPixelBox(4, 6, 4, {
           front: (ctx, w, h) => {
-            // Black trousers (top 10 rows)
-            fillTexturedRect(ctx, 0, 0, w, 10, PALETTE.pantsBase, 4, isLeft ? 80 : 81);
-            // Center vertical trouser press crease
+            fillTexturedRect(ctx, 0, 0, w, h, PALETTE.pantsBase, 4, isLeft ? 80 : 81);
             ctx.fillStyle = PALETTE.pantsHighlight;
-            ctx.fillRect(2, 1, 1, 8);
+            ctx.fillRect(2, 1, 1, h - 1);
             ctx.fillStyle = PALETTE.pantsDark;
-            ctx.fillRect(isLeft ? 0 : 3, 0, 1, 10);
-            // Brown leather cowboy boot (bottom 2 rows)
-            fillTexturedRect(ctx, 0, 10, w, 2, PALETTE.bootBase, 5, 82);
+            ctx.fillRect(isLeft ? 0 : 3, 0, 1, h);
+          },
+          back: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.pantsBase, 4, 83),
+          left: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.pantsDark, 4, 85),
+          right: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.pantsDark, 4, 87),
+          top: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.pantsDark, 3, 89),
+          bottom: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.pantsDark, 3, 93)
+        });
+        thighMesh.position.set(0, -3, 0);
+        hipPivot.add(thighMesh);
+
+        // Knee: shin bone (trousers + brown cowboy boot)
+        const kneePivot = new THREE.Group();
+        kneePivot.name = `knee_${side}`;
+        kneePivot.position.set(0, -6, 0);
+        hipPivot.add(kneePivot);
+
+        const shinMesh = createPixelBox(4, 6, 4, {
+          front: (ctx, w, h) => {
+            fillTexturedRect(ctx, 0, 0, w, 4, PALETTE.pantsBase, 4, isLeft ? 94 : 95);
+            ctx.fillStyle = PALETTE.pantsHighlight;
+            ctx.fillRect(2, 0, 1, 3);
+            ctx.fillStyle = PALETTE.pantsDark;
+            ctx.fillRect(isLeft ? 0 : 3, 0, 1, 4);
+            fillTexturedRect(ctx, 0, 4, w, 2, PALETTE.bootBase, 5, 82);
             ctx.fillStyle = PALETTE.bootTip;
-            ctx.fillRect(1, 10, 2, 1);
+            ctx.fillRect(1, 4, 2, 1);
             ctx.fillStyle = PALETTE.bootDark;
-            ctx.fillRect(0, 11, w, 1);
+            ctx.fillRect(0, 5, w, 1);
           },
           back: (ctx, w, h) => {
-            fillTexturedRect(ctx, 0, 0, w, 10, PALETTE.pantsBase, 4, 83);
-            fillTexturedRect(ctx, 0, 10, w, 2, PALETTE.bootDark, 4, 84);
+            fillTexturedRect(ctx, 0, 0, w, 4, PALETTE.pantsBase, 4, 83);
+            fillTexturedRect(ctx, 0, 4, w, 2, PALETTE.bootDark, 4, 84);
           },
           left: (ctx, w, h) => {
-            fillTexturedRect(ctx, 0, 0, w, 10, PALETTE.pantsDark, 4, 85);
-            fillTexturedRect(ctx, 0, 10, w, 2, PALETTE.bootBase, 5, 86);
+            fillTexturedRect(ctx, 0, 0, w, 4, PALETTE.pantsDark, 4, 85);
+            fillTexturedRect(ctx, 0, 4, w, 2, PALETTE.bootBase, 5, 86);
           },
           right: (ctx, w, h) => {
-            fillTexturedRect(ctx, 0, 0, w, 10, PALETTE.pantsDark, 4, 87);
-            fillTexturedRect(ctx, 0, 10, w, 2, PALETTE.bootBase, 5, 88);
+            fillTexturedRect(ctx, 0, 0, w, 4, PALETTE.pantsDark, 4, 87);
+            fillTexturedRect(ctx, 0, 4, w, 2, PALETTE.bootBase, 5, 88);
           },
-          top: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.pantsDark, 3, 89),
+          top: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.pantsDark, 3, 96),
           bottom: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, '#1c120c', 3, 90)
         });
-        legMesh.position.set(0, -6, 0);
-        hipPivot.add(legMesh);
+        shinMesh.position.set(0, -3, 0);
+        kneePivot.add(shinMesh);
 
         // 3D Trouser Hem Overhang
         const trouserHem = createPixelBox(4.3, 2.2, 4.3, {
           all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.pantsBase, 4, 91)
         });
-        trouserHem.position.set(0, -8.8, 0);
-        hipPivot.add(trouserHem);
+        trouserHem.position.set(0, -2.8, 0);
+        kneePivot.add(trouserHem);
 
         // 3D Pointed Cowboy Boot Toe Tip (Ref Pic 1)
         const bootToe = createPixelBox(3.2, 1.5, 1.1, {
@@ -816,10 +807,10 @@
             ctx.fillRect(1, 0, 1, 1);
           }
         });
-        bootToe.position.set(0, -11.25, 2.35);
-        hipPivot.add(bootToe);
+        bootToe.position.set(0, -5.25, 2.35);
+        kneePivot.add(bootToe);
 
-        return { hipPivot };
+        return { hipPivot, kneePivot };
       }
 
       const rightLeg = buildLeg(false);
@@ -861,7 +852,7 @@
       gasTankGroup.add(tankShoulder);
 
       // Main tall cylindrical-octagonal brushed silver tank body (extends down near ankle like Pic 1 & 3)
-      const tankBodyCore = createPixelBox(3.6, 11.5, 3.0, {
+      const tankBodyCore = createPixelBox(3.6, 7.2, 3.0, {
         front: (ctx, w, h) => {
           fillTexturedRect(ctx, 0, 0, w, h, PALETTE.tankSilver, 6, 104);
           // Vertical metallic specular highlight strip
@@ -877,17 +868,17 @@
           ctx.fillRect(0, h - 1, w, 1);
         }
       }, { roughness: 0.35, metalness: 0.7 });
-      tankBodyCore.position.set(0.6, -9.8, 0);
+      tankBodyCore.position.set(0.6, -8.0, 0);   // bottom 11.6 below the hand: clears the floor
       gasTankGroup.add(tankBodyCore);
 
-      const tankBodyCross = createPixelBox(3.0, 11.5, 3.6, {
+      const tankBodyCross = createPixelBox(3.0, 7.2, 3.6, {
         all: (ctx, w, h) => {
           fillTexturedRect(ctx, 0, 0, w, h, PALETTE.tankDark, 6, 106);
           ctx.fillStyle = '#2d3338';
           ctx.fillRect(0, h - 1, w, 1);
         }
       }, { roughness: 0.38, metalness: 0.68 });
-      tankBodyCross.position.set(0.6, -9.8, 0);
+      tankBodyCross.position.set(0.6, -8.0, 0);
       gasTankGroup.add(tankBodyCross);
 
       // Anchor point where the red pneumatic hose connects to the tank regulator valve
@@ -977,13 +968,13 @@
 
       // Held in Right Hand or slung seamlessly (Ref Pic 3: long black shotgun with huge silver cylinder suppressor)
       const shotgunGroup = new THREE.Group();
-      rightArm.handPivot.add(shotgunGroup);
+      scene.add(shotgunGroup); // placed in world space each frame: right hand <-> back sling (attack)
 
       // Black polymer stock & grip
-      const sgStock = createPixelBox(1.3, 4.2, 2.1, {
+      const sgStock = createPixelBox(1.3, 3.0, 2.1, {
         all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.gunDark, 4, 130)
       }, { roughness: 0.6, metalness: 0.2 });
-      sgStock.position.set(-0.4, 2.2, -0.3);
+      sgStock.position.set(-0.4, 1.6, -0.3);   // short stock: stays inside the fist + forearm when the gun swings
       sgStock.rotation.x = -0.15;
       shotgunGroup.add(sgStock);
 
@@ -1006,14 +997,14 @@
       sgForend.position.set(-0.4, -5.6, 0.05);
       shotgunGroup.add(sgForend);
 
-      const sgBarrel = createPixelBox(0.95, 7.2, 1.35, {
+      const sgBarrel = createPixelBox(0.95, 3.6, 1.35, {
         all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.gunMetal, 4, 134)
       }, { roughness: 0.35, metalness: 0.75 });
-      sgBarrel.position.set(-0.4, -7.2, 0.25);
+      sgBarrel.position.set(-0.4, -6.9, 0.25);
       shotgunGroup.add(sgBarrel);
 
       // Iconic oversized brushed-silver cylindrical suppressor / silencer at the muzzle (Ref Pic 3)
-      const sgSuppressorCore = createPixelBox(2.15, 5.2, 1.85, {
+      const sgSuppressorCore = createPixelBox(2.15, 4.4, 1.85, {
         all: (ctx, w, h) => {
           fillTexturedRect(ctx, 0, 0, w, h, PALETTE.silencerSilver, 5, 135);
           ctx.fillStyle = '#dce4e8';
@@ -1023,10 +1014,10 @@
           ctx.fillRect(0, h - 1, w, 1);
         }
       }, { roughness: 0.25, metalness: 0.85 });
-      sgSuppressorCore.position.set(-0.4, -12.8, 0.25);
+      sgSuppressorCore.position.set(-0.4, -10.0, 0.25);   // muzzle 12.2 below the grip: clears the floor
       shotgunGroup.add(sgSuppressorCore);
 
-      const sgSuppressorCross = createPixelBox(1.85, 5.2, 2.15, {
+      const sgSuppressorCross = createPixelBox(1.85, 4.4, 2.15, {
         bottom: (ctx, w, h) => {
           fillTexturedRect(ctx, 0, 0, w, h, PALETTE.silencerDark, 4, 136);
           ctx.fillStyle = '#111315';
@@ -1034,12 +1025,12 @@
         },
         all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PALETTE.silencerDark, 5, 137)
       }, { roughness: 0.28, metalness: 0.82 });
-      sgSuppressorCross.position.set(-0.4, -12.8, 0.25);
+      sgSuppressorCross.position.set(-0.4, -10.0, 0.25);
       shotgunGroup.add(sgSuppressorCross);
 
       // Muzzle anchor for Special animation silenced blast particles
       const shotgunMuzzleAnchor = new THREE.Object3D();
-      shotgunMuzzleAnchor.position.set(-0.4, -15.6, 0.25);
+      shotgunMuzzleAnchor.position.set(-0.4, -12.4, 0.25);
       shotgunGroup.add(shotgunMuzzleAnchor);
 
       // Ejection port anchor for flying red 12-gauge shells
@@ -1175,45 +1166,35 @@
       const tempMid = new THREE.Vector3();
       const tempP1 = new THREE.Vector3();
       const tempP2 = new THREE.Vector3();
-      const tempQuat = new THREE.Quaternion();
-      const tempScale = new THREE.Vector3(1, 1, 1);
 
-      // Updates the 12-segment red pneumatic hose in a realistic hanging loop between the gas tank and captive bolt nozzle
-      function updatePneumaticHose(time, sagAmount = 6.5, sideBow = 2.8) {
+      // Quadratic Bezier point: (1-t)^2 a + 2t(1-t) m + t^2 b
+      function bezier(out, a, m, b, t) {
+        const u = 1 - t;
+        return out.set(
+          u * u * a.x + 2 * u * t * m.x + t * t * b.x,
+          u * u * a.y + 2 * u * t * m.y + t * t * b.y,
+          u * u * a.z + 2 * u * t * m.z + t * t * b.z
+        );
+      }
+
+      // Updates the 12-segment red pneumatic hose: a hanging loop between the gas tank valve and the captive bolt
+      // coupler. sag = how far the middle hangs below the lower end, bowX / bowZ = where the loop swings out to.
+      function updatePneumaticHose(time, sagAmount, bowX, bowZ) {
         hoseStartAnchor.getWorldPosition(tempStart);
         hoseEndAnchor.getWorldPosition(tempEnd);
 
-        // Compute middle control point with gravity sag & subtle pendulum sway
+        // Middle control point with gravity sag & a slow pendulum sway (always moving a little)
         tempMid.lerpVectors(tempStart, tempEnd, 0.5);
-        tempMid.y = Math.min(tempStart.y, tempEnd.y) - sagAmount + Math.sin(time * 2.5) * 0.25;
-        tempMid.x += sideBow + Math.cos(time * 1.8) * 0.2;
-        tempMid.z -= 1.2;
-
-        // Prevent hose from clipping below floor (y = 0.4)
-        if (tempMid.y < -2.2) tempMid.y = -2.2;
+        tempMid.y = Math.max(-2.2, Math.min(tempStart.y, tempEnd.y) - sagAmount + Math.sin(time * 2.5) * 0.25);
+        tempMid.x += bowX + Math.cos(time * 1.8) * 0.2;
+        tempMid.z += bowZ;
 
         for (let i = 0; i < HOSE_SEGMENTS; i++) {
-          const t0 = i / HOSE_SEGMENTS;
-          const t1 = (i + 1) / HOSE_SEGMENTS;
-
-          // Quadratic Bezier evaluation for t0 and t1
-          const omt0 = 1 - t0;
-          tempP1.set(
-            omt0 * omt0 * tempStart.x + 2 * omt0 * t0 * tempMid.x + t0 * t0 * tempEnd.x,
-            omt0 * omt0 * tempStart.y + 2 * omt0 * t0 * tempMid.y + t0 * t0 * tempEnd.y,
-            omt0 * omt0 * tempStart.z + 2 * omt0 * t0 * tempMid.z + t0 * t0 * tempEnd.z
-          );
-
-          const omt1 = 1 - t1;
-          tempP2.set(
-            omt1 * omt1 * tempStart.x + 2 * omt1 * t1 * tempMid.x + t1 * t1 * tempEnd.x,
-            omt1 * omt1 * tempStart.y + 2 * omt1 * t1 * tempMid.y + t1 * t1 * tempEnd.y,
-            omt1 * omt1 * tempStart.z + 2 * omt1 * t1 * tempMid.z + t1 * t1 * tempEnd.z
-          );
-
-          // Clamp points above ground plane
-          tempP1.y = Math.max(0.35, tempP1.y);
-          tempP2.y = Math.max(0.35, tempP2.y);
+          bezier(tempP1, tempStart, tempMid, tempEnd, i / HOSE_SEGMENTS);
+          bezier(tempP2, tempStart, tempMid, tempEnd, (i + 1) / HOSE_SEGMENTS);
+          // Keep the hose on top of the ground (soft floor: never a hard corner in the curve)
+          tempP1.y = 0.35 + Math.log1p(Math.exp((tempP1.y - 0.35) * 8)) / 8;
+          tempP2.y = 0.35 + Math.log1p(Math.exp((tempP2.y - 0.35) * 8)) / 8;
 
           const seg = hoseMeshes[i];
           seg.position.lerpVectors(tempP1, tempP2, 0.5);
@@ -1223,283 +1204,467 @@
         }
       }
 
-      // Helper to attach the Captive Bolt Pistol cleanly to either the Left Hand (with tank, Ref Pic 3) or Right Hand (Ref Pics 1 & 2)
-      const leftHandBoltOffsetPos = new THREE.Vector3(1.65, 0.35, 1.35);
-      const leftHandBoltOffsetRot = new THREE.Euler(0.45, 0.15, -0.35);
+      /* ───────── Hair pivots (spring physics) ─────────
+         The bob wings and the back curtain hang from pivots on their top edge, so a spring can swing them.
+         Wings only swing outward, the curtain only backward (never into the face or the jacket). */
+      function pivotAround(name, x, y, z, meshes) {
+        const g = new THREE.Group();
+        g.name = name;
+        g.position.set(x, y, z);
+        headPivot.add(g);
+        for (const m of meshes) { m.position.x -= x; m.position.y -= y; m.position.z -= z; g.add(m); }
+        return g;
+      }
+      const hairRight = pivotAround('hair_right', -4.05, 7.3, -0.1, [hairBobLeft, hairFlareLeft]);   // x < 0 = his right
+      const hairLeft = pivotAround('hair_left', 4.05, 7.3, -0.1, [hairBobRight, hairFlareRight]);
+      const hairBack = pivotAround('hair_back', 0, 7.4, -4.05, [hairBackCurtain]);
 
-      const rightHandBoltOffsetPos = new THREE.Vector3(-0.3, -0.6, 1.2);
-      const rightHandBoltOffsetRot = new THREE.Euler(Math.PI / 2 - 0.15, 0, 0);
+      /* ───────── Face rig ─────────
+         Thin planes on the head front (z = 4): eye whites, pupils (glance), upper lids (blink: scale from the top
+         edge), brows, standard mouth (one lip line + a teeth plate that hides in the head until a grin).
+         Plain skin is painted under every moving part. Head front rows: 2 = brows, 3 = eyes, 6 = mouth. */
+      const faceMat = (hex) => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.9, metalness: 0 });
+      const FACE_MATS = {
+        white: faceMat('#cfc7bb'), pupil: faceMat('#1d140f'), lid: faceMat(PALETTE.skinShadow),
+        brow: faceMat(PALETTE.hairDark), lip: faceMat('#6a4234'), teeth: faceMat('#e9e2d4')
+      };
+      function faceBone(name, parent, x, y, z) {
+        const g = new THREE.Group();
+        g.name = name;
+        g.position.set(x, y, z);
+        parent.add(g);
+        return g;
+      }
+      function facePlane(parent, w, h, x, y, z, mat) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+        m.position.set(x, y, z);
+        m.receiveShadow = true;
+        parent.add(m);
+        return m;
+      }
+      const eyeR = faceBone('eye_right', headPivot, -2, 4.5, 4.01), eyeL = faceBone('eye_left', headPivot, 2, 4.5, 4.01);
+      facePlane(eyeR, 2, 1, 0, 0, 0, FACE_MATS.white);
+      facePlane(eyeL, 2, 1, 0, 0, 0, FACE_MATS.white);
+      // Pupils rest in the middle of the eye white (never on the inner pixels: that reads cross-eyed)
+      const pupilR = faceBone('pupil_right', eyeR, 0, 0, 0.01), pupilL = faceBone('pupil_left', eyeL, 0, 0, 0.01);
+      facePlane(pupilR, 1, 1, 0, 0, 0, FACE_MATS.pupil);
+      facePlane(pupilL, 1, 1, 0, 0, 0, FACE_MATS.pupil);
+      // Upper lids: pivot on the eye's top edge, plane hangs down; scale.y = how far closed
+      const lidR = faceBone('lid_right', headPivot, -2, 5, 4.03), lidL = faceBone('lid_left', headPivot, 2, 5, 4.03);
+      facePlane(lidR, 2.1, 1, 0, -0.5, 0, FACE_MATS.lid);
+      facePlane(lidL, 2.1, 1, 0, -0.5, 0, FACE_MATS.lid);
+      // Heavy dark brows on row 2 (the bangs end above them)
+      const browR = faceBone('brow_right', headPivot, -2, 5.55, 4.04), browL = faceBone('brow_left', headPivot, 2, 5.55, 4.04);
+      facePlane(browR, 2, 0.6, 0, 0, 0, FACE_MATS.brow);
+      facePlane(browL, 2, 0.6, 0, 0, 0, FACE_MATS.brow);
+      // Standard mouth: thin lip line + teeth plate (rest: inside the head)
+      const mouth = faceBone('mouth', headPivot, 0, 1.55, 4.02);
+      facePlane(mouth, 2, 0.35, 0, 0, 0.01, FACE_MATS.lip);
+      const teeth = faceBone('teeth', mouth, 0, -0.1, -0.1);
+      facePlane(teeth, 2, 0.8, 0, -0.4, 0, FACE_MATS.teeth);
+      const HOOD = 0.15;   // Anton's heavy lids: always a little closed
 
-      function positionCaptiveBoltOnHand(targetHandPivot, localPos, localEuler) {
-        targetHandPivot.updateWorldMatrix(true, false);
-        const worldPos = localPos.clone().applyMatrix4(targetHandPivot.matrixWorld);
-        const handQuat = new THREE.Quaternion();
-        targetHandPivot.getWorldQuaternion(handQuat);
-        const offsetQuat = new THREE.Quaternion().setFromEuler(localEuler);
-        handQuat.multiply(offsetQuat);
+      /* ───────── Bones ───────── */
+      characterRoot.name = 'root';
+      bodyPivot.name = 'hips';
+      torsoPivot.name = 'torso';
+      headPivot.name = 'head';
+      const bones = {
+        root: characterRoot, hips: bodyPivot, torso: torsoPivot, head: headPivot,
+        arm_right: rightArm.shoulderPivot, forearm_right: rightArm.elbowPivot,
+        arm_left: leftArm.shoulderPivot, forearm_left: leftArm.elbowPivot,
+        leg_right: rightLeg.hipPivot, knee_right: rightLeg.kneePivot,
+        leg_left: leftLeg.hipPivot, knee_left: leftLeg.kneePivot,
+        hair_right: hairRight, hair_left: hairLeft, hair_back: hairBack,
+        eye_right: eyeR, eye_left: eyeL, pupil_right: pupilR, pupil_left: pupilL,
+        lid_right: lidR, lid_left: lidL, brow_right: browR, brow_left: browL, mouth, teeth
+      };
+      for (const b of Object.values(bones)) b.userData.rest = b.position.clone();
+      const POSE_BONES = ['torso', 'head', 'arm_right', 'forearm_right', 'arm_left', 'forearm_left', 'leg_right', 'knee_right', 'leg_left', 'knee_left'];
 
-        captiveBoltGroup.position.copy(worldPos);
-        captiveBoltGroup.quaternion.copy(handQuat);
+      /* ───────── Props: captive bolt + shotgun placed in world space ─────────
+         Both blend between two holds (bolt: left hand <-> right hand, shotgun: right hand <-> slung on the back)
+         along a curved path outside the body, so a switch never cuts through the torso. */
+      const BOLT_LEFT = { p: new THREE.Vector3(1.65, 0.35, 1.35), q: new THREE.Quaternion().setFromEuler(new THREE.Euler(0.45, 0.15, -0.35)) };
+      const BOLT_RIGHT = { p: new THREE.Vector3(-0.2, -0.5, 1.3), q: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI - 0.18, 0, 0.1)) };
+      const BOLT_VIA = new THREE.Vector3(0, 10, 9);           // torso space: in front of the chest
+      // Back sling: gun flat on the back (thin side to the jacket), diagonal from his right shoulder to his left hip
+      // GUN_MID = middle of the gun along its own y; the gun parts sit at x = -0.4, which the sling turns into z + 0.4
+      const SLING_PHI = 0.9, SLING_Z = -3.8, GUN_MID = -4.55;
+      const SLING_Q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, SLING_PHI))
+        .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)));
+      const SLING_P = new THREE.Vector3(0, 6.5, SLING_Z).sub(new THREE.Vector3(0, GUN_MID, 0).applyQuaternion(SLING_Q));
+      const SLING_VIA = new THREE.Vector3(-15, 3, -6);         // torso space: out to his right, low and behind (clears the arm)
+      const GUN_LIFT = 0.6;                                     // gun sits 0.6 higher in the fist: muzzle clears the floor
+
+      const _pA = new THREE.Vector3(), _pB = new THREE.Vector3(), _pC = new THREE.Vector3(), _pD = new THREE.Vector3();
+      const _qA = new THREE.Quaternion(), _qB = new THREE.Quaternion(), _qT = new THREE.Quaternion();
+      const _e = new THREE.Euler();
+      // World transform of an offset (local position p, local rotation q) in an object's frame
+      function frameXform(obj, p, q, outP, outQ) {
+        outP.copy(p).applyMatrix4(obj.matrixWorld);
+        obj.getWorldQuaternion(outQ).multiply(q);
+      }
+      // Blend two holds along a curve through a torso-space waypoint; s = 0 -> A, 1 -> B.
+      // turnLate: the prop first moves out, turns in the middle of the path, then moves in (long shotgun).
+      function placeAlong(group, s, via, turnLate) {
+        if (s < 1e-4) { group.position.copy(_pA); group.quaternion.copy(_qA); }
+        else if (s > 1 - 1e-4) { group.position.copy(_pB); group.quaternion.copy(_qB); }
+        else {
+          _pC.copy(via).applyMatrix4(torsoPivot.matrixWorld);
+          _pC.multiplyScalar(2).sub(_pD.copy(_pA).add(_pB).multiplyScalar(0.5));   // control point: curve passes the waypoint
+          bezier(group.position, _pA, _pC, _pB, s);
+          group.quaternion.copy(_qA).slerp(_qB, turnLate ? ramp(s, 0.3, 0.7) : s);
+        }
+        group.updateMatrixWorld(true);
       }
 
-      let currentAnim = 'idle';
-      let animTime = 0;
-      let lastAttackPulse = -1;
-      let lastShotCount = -1;
-
-      function easeInOutCubic(x) {
-        return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+      /* ───────── Animations ─────────
+         Each anim: fn(t, Q) fills bone rotations (Q.r[bone] = [x, y, z]), face channels (Q.f) and prop values (Q.v).
+         Smooth curves only (no abs / bare max / hard clamps). T = whole 1/120 s frames. */
+      const FACE_KEYS = ['browUp', 'frown', 'open', 'wide', 'squint', 'glance', 'grin', 'smirk', 'down', 'eyesOpen'];
+      // followW: how much head-follow is allowed (faded out before an arm comes up beside the head)
+      const V_DEFAULT = { sgRx: 0, sgRy: 0, sgRz: 0, sgY: 0, sgZ: 0, sgHang: 1, sling: 0, boltR: 0, rod: 0, sag: 7, bowX: 3.2, bowZ: -1.2, tankRx: 0, tankRz: 0, followW: 1 };
+      const sm = (x) => x * x * (3 - 2 * x);                                   // smoothstep 0..1
+      const ramp = (t, a, b) => sm(clamp((t - a) / (b - a), 0, 1));             // smooth 0 -> 1 between a and b
+      const pos2 = (x) => (x > 0 ? x * x : 0);                                  // max(0, x)^2: no corner
+      const easeInOutCubic = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+      const easeOutBack = (x) => 1 + 2.70158 * Math.pow(x - 1, 3) + 1.70158 * Math.pow(x - 1, 2);
+      // Keyframes [[time, value], ...] eased with smoothstep (zero speed at every key: no corners)
+      function keys(t, ks) {
+        for (let i = 1; i < ks.length; i++) {
+          if (t <= ks[i][0]) {
+            const [t0, v0] = ks[i - 1], [t1, v1] = ks[i];
+            return v0 + (v1 - v0) * sm((t - t0) / (t1 - t0));
+          }
+        }
+        return ks[ks.length - 1][1];
       }
 
-      function easeOutBack(x) {
-        const c1 = 1.70158;
-        const c3 = c1 + 1;
-        return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+      const ANIMS = {
+        // 1 · Idle: cold, still corridor stance. Slow breathing, a slow scan left/right, gun and tank hang heavy.
+        idle: { T: 7, fn(t, Q) {
+          const b = Math.sin(2 * TAU * t / 7);           // breath (3.5 s)
+          const look = Math.sin(TAU * t / 7);            // slow scan
+          const sway = Math.sin(TAU * t / 7 + 1.2);
+          Q.r.torso = [0.03 + 0.012 * b, 0.05 * look, 0.008 * sway];
+          Q.r.head = [0.03 + 0.02 * Math.cos(2 * TAU * t / 7), 0.17 * look, 0.035 * sway];
+          Q.r.arm_right = [-0.06 + 0.015 * b, 0, -0.05];
+          Q.r.forearm_right = [-0.1 - 0.01 * b, 0, 0];
+          Q.r.arm_left = [0.04 - 0.015 * b, 0, 0.07];
+          Q.r.forearm_left = [-0.06, 0, 0];
+          Q.r.leg_right = [-0.03, 0, -0.03];
+          Q.r.leg_left = [0.03, 0, 0.03];
+          Q.r.knee_right = [0.04, 0, 0];
+          Q.r.knee_left = [0.04, 0, 0];
+          Q.v.tankRx = 0.02 * b;
+          Q.f.frown = 0.2 + 0.05 * b;
+          Q.f.glance = 0.35 * look;
+          Q.f.open = 0.03 + 0.03 * b;
+        } },
+
+        // 2 · Idle 2: turns his head to look over his right shoulder, comes back with the eerie head tilt
+        //     and a narrow stare, then adjusts the grip on the shotgun.
+        idle2: { T: 8, fn(t, Q) {
+          const yaw = keys(t, [[0, 0], [1.6, -0.42], [3.2, -0.42], [4.4, 0.05], [6.4, 0.05], [8, 0]]);
+          const roll = keys(t, [[0, 0], [3.4, 0], [4.6, 0.1], [6.4, 0.1], [7.4, 0], [8, 0]]);
+          const pitch = keys(t, [[0, 0.02], [1.6, 0.04], [4.6, -0.02], [6.4, 0.06], [8, 0.02]]);
+          const grip = keys(t, [[0, 0], [5, 0], [5.6, 1], [6.4, 1], [7.2, 0], [8, 0]]);
+          const b = Math.sin(TAU * t / 4);
+          Q.r.torso = [0.03 + 0.01 * b, keys(t, [[0, 0], [1.6, -0.1], [3.2, -0.1], [4.4, 0], [8, 0]]), 0.5 * roll * 0.1];
+          Q.r.head = [pitch, yaw, roll];
+          Q.r.arm_right = [-0.06 - 0.08 * grip, 0, -0.05];
+          Q.r.forearm_right = [-0.1 - 0.25 * grip, 0, 0];
+          Q.v.sgHang = 1 - 0.8 * grip;                              // the lifted gun turns with the forearm (stock stays in the fist)
+          Q.r.arm_left = [0.04, 0, 0.07];
+          Q.r.forearm_left = [-0.06 - 0.02 * b, 0, 0];
+          Q.r.leg_right = [-0.03, 0, -0.03];
+          Q.r.leg_left = [0.03, 0, 0.03];
+          Q.r.knee_right = [0.04, 0, 0];
+          Q.r.knee_left = [0.04, 0, 0];
+          Q.v.sgRx = 0.05 * grip;
+          Q.f.glance = keys(t, [[0, 0], [1.0, -0.8], [2.4, -0.6], [3.0, -0.9], [3.8, 0.3], [4.6, 0], [8, 0]]);
+          Q.f.browUp = keys(t, [[0, 0], [1.2, 0.35], [2.6, 0.25], [3.6, 0], [8, 0]]);
+          Q.f.frown = keys(t, [[0, 0.2], [3.4, 0.15], [4.6, 0.5], [6.4, 0.45], [7.4, 0.2], [8, 0.2]]);
+          Q.f.squint = keys(t, [[0, 0], [3.4, 0], [4.6, 0.45], [6.4, 0.45], [7.4, 0], [8, 0]]);
+          Q.f.down = 0.5 * grip;
+        } },
+
+        // 3 · Walk: relentless, unhurried stalk. Knees bend in the swing, elbows bend with the arm swing,
+        //     shoulders counter-rotate, the head stays locked on the target. Heavy gun + tank swing less.
+        walk: { T: 2, fn(t, Q) {
+          const p = TAU * t / 2, s = Math.sin(p), c = Math.cos(p);
+          Q.r.leg_right = [0.38 * s, 0, -0.02];
+          Q.r.leg_left = [-0.38 * s, 0, 0.02];
+          Q.r.knee_right = [0.04 + 0.75 * pos2(-Math.cos(p - 0.35)), 0, 0];
+          Q.r.knee_left = [0.04 + 0.75 * pos2(Math.cos(p - 0.35)), 0, 0];
+          Q.r.torso = [0.06, 0.08 * s, 0.015 * c];
+          Q.r.head = [0.03 + 0.015 * Math.cos(2 * p), -0.07 * s + 0.06 * Math.sin(TAU * t / 2 + 0.7), -0.015 * c];
+          Q.r.arm_right = [-0.14 * s - 0.04, 0, -0.06];
+          Q.r.forearm_right = [-0.12 - 0.12 * pos2(s), 0, 0];
+          Q.r.arm_left = [0.1 * s + 0.04, 0, 0.09];
+          Q.r.forearm_left = [-0.08 - 0.08 * pos2(-s), 0, 0];
+          Q.v.sgRx = 0.06 * Math.sin(p - 0.5);               // gun swings a bit behind the hand (inertia)
+          Q.v.tankRx = 0.1 * Math.sin(p - 0.45);
+          Q.v.tankRz = 0.03 * c;
+          Q.v.sag = 7 + 0.4 * Math.sin(2 * p);
+          Q.v.bowX = 3.3;
+          Q.f.frown = 0.25;
+          Q.f.glance = 0.1 * Math.sin(TAU * t / 2 + 0.7);
+        } },
+
+        // 4 · Attack: "Would you hold still, please?" Slings the shotgun onto his back, takes the captive bolt
+        //     in his right hand, raises it to forehead height with the head tilt, PUNCH (bolt + air ring), lowers.
+        attack: { T: 2.4, fn(t, Q) {
+          const aim = ramp(t, 0.25, 0.85) * (1 - ramp(t, 1.6, 2.1));
+          const sling = ramp(t, 0, 0.45) * (1 - ramp(t, 1.95, 2.4));
+          const boltR = ramp(t, 0.1, 0.6) * (1 - ramp(t, 1.85, 2.3));
+          const punch = t > 1.15 && t < 1.35 ? Math.sin((t - 1.15) / 0.2 * Math.PI) : 0;
+          const recoil = punch * punch;
+          Q.r.torso = [0.03 - recoil * 0.05, aim * 0.22, 0];
+          Q.r.head = [-0.03, -aim * 0.06, -aim * 0.1];        // tilt toward his left shoulder, away from the raised arm
+          Q.v.followW = 1 - ramp(t, 0.05, 0.3) * (1 - ramp(t, 2.05, 2.35));
+          // z (applied first) swings the arm out, then x raises it: the raised arm points forward and a bit outward
+          Q.r.arm_right = [-0.06 + (-1.42 + recoil * 0.25 + 0.06) * aim, 0, -0.05 - 0.15 * aim];
+          Q.r.forearm_right = [-0.1 - 0.06 * aim, 0, 0];
+          Q.r.arm_left = [0.04 - 0.24 * aim, 0, 0.07 + 0.07 * aim];
+          Q.r.forearm_left = [-0.06 - 0.1 * aim, 0, 0];
+          Q.r.leg_right = [-0.08 * aim, 0, -0.03];
+          Q.r.leg_left = [0.08 * aim, 0, 0.03];
+          Q.r.knee_right = [0.04 + 0.04 * aim, 0, 0];
+          Q.r.knee_left = [0.04, 0, 0];
+          Q.v.sling = sling;
+          Q.v.boltR = boltR;
+          Q.v.rod = punch;
+          Q.v.sag = 7 - 2.5 * boltR;
+          Q.v.bowX = 3.2 * (1 - boltR);
+          Q.v.bowZ = -1.2 + 8.2 * boltR;
+          const talk = Math.sin(clamp((t - 0.7) / 0.45, 0, 1) * Math.PI);   // "hold still" (0.7 - 1.15 s)
+          Q.f.open = 0.35 * talk * (0.5 + 0.5 * Math.sin(TAU * 3 * (t - 0.7)));
+          Q.f.browUp = 0.2 * aim;
+          Q.f.frown = 0.25 + 0.2 * recoil;
+          Q.f.squint = 0.15 * aim + 0.5 * recoil;
+          Q.f.glance = -0.3 * aim;
+        }, events: [[1.15, 'bolt']] },
+
+        // 5 · Special: silenced shotgun. Raises it, three muffled shots (recoil, gas puffs, red shells),
+        //     lowers it and glances down at his boots.
+        special: { T: 3, fn(t, Q) {
+          let raise = 0, recoil = 0;
+          if (t < 0.15) raise = 0;                                 // head-follow fades out first (0 - 0.15 s)
+          else if (t < 0.6) raise = easeOutBack((t - 0.15) / 0.45);
+          else if (t < 1.95) raise = 1;
+          else if (t < 2.55) raise = 1 - easeInOutCubic((t - 1.95) / 0.6);
+          for (const st of [0.65, 1.1, 1.55]) {
+            const d = t - st;
+            if (d > 0 && d < 0.32) recoil += Math.sin((d / 0.32) * Math.PI) * Math.exp(-d * 6);
+          }
+          const boots = t > 1.95 && t < 2.75 ? Math.sin(((t - 1.95) / 0.8) * Math.PI) ** 2 : 0;
+          Q.r.torso = [0.03 - recoil * 0.12 + boots * 0.08, -raise * 0.24, 0];
+          Q.r.head = [0.02 - recoil * 0.06 + boots * 0.25, raise * 0.22, 0];
+          Q.v.followW = 1 - ramp(t, 0, 0.15) * (1 - ramp(t, 2.3, 2.6));
+          // Hip fire: upper arm half forward, forearm level, the gun along the forearm (stays clear of the hair)
+          Q.r.arm_right = [-0.06 + (-0.5 + recoil * 0.12) * raise, 0, -0.05 - 0.06 * raise];
+          Q.r.forearm_right = [-0.1 + (-0.92 + recoil * 0.2) * raise, 0, 0];
+          Q.r.arm_left = [0.04 + (0.24 + recoil * 0.1) * raise, 0, 0.07 + 0.1 * raise];
+          Q.r.forearm_left = [-0.06, 0, 0];
+          Q.r.leg_right = [-raise * 0.14, 0, -0.03];
+          Q.r.leg_left = [raise * 0.14, 0, 0.03];
+          Q.r.knee_right = [0.04 + 0.06 * raise, 0, 0];
+          Q.r.knee_left = [0.04 + 0.03 * raise, 0, 0];
+          Q.v.sgHang = 1 - clamp(raise, 0, 1);
+          Q.v.sgRx = (-0.12 - recoil * 0.18) * raise;
+          Q.v.sgY = -1.2 * raise;
+          Q.v.sgZ = 1.5 * raise;
+          Q.v.bowX = 3.4;
+          Q.f.frown = 0.3 + 0.2 * raise;
+          Q.f.squint = 0.25 * raise + 0.4 * Math.min(1, recoil);
+          Q.f.down = boots;
+          Q.f.browUp = 0.1 * boots;
+        }, events: [[0.65, 'shot'], [1.1, 'shot'], [1.55, 'shot']] },
+      };
+
+      /* ───────── Sim (state) ───────── */
+      const S = {
+        anim: 'idle', t: 0, prev: null, prevT: 0, blend: 1, time: 0, frozen: false,
+        face: Object.fromEntries(FACE_KEYS.map((k) => [k, 0])),
+        blink: { t: -1, wait: 2, again: false, off: false },
+        follow: { on: true, has: false, mx: 0, my: 0, yaw: 0, pitch: 0, eye: 0, instant: false },
+        hair: { yaw: 0, pitch: 0, hipY: 12, r: { x: 0, v: 0 }, l: { x: 0, v: 0 }, b: { x: 0, v: 0 } },
+        headFinal: { x: 0, y: 0, z: 0 },
+      };
+      const newPose = () => ({ r: {}, f: {}, v: {} });
+      const poseA = newPose(), poseB = newPose(), pose = newPose();
+      function evalAnim(name, t, Q) {
+        for (const k in Q.r) delete Q.r[k];
+        for (const k of FACE_KEYS) Q.f[k] = 0;
+        Object.assign(Q.v, V_DEFAULT);
+        ANIMS[name].fn(t % ANIMS[name].T, Q);
+      }
+      function selectAnim(name) {
+        if (!ANIMS[name] || name === S.anim) return;
+        S.prev = S.anim; S.prevT = S.t; S.anim = name; S.t = 0; S.blend = 0;
+        document.querySelectorAll('.anim-btn').forEach((b) => b.classList.toggle('active', b.dataset.anim === name));
       }
 
-      function updateAnimation(dt, totalTime) {
-        animTime += dt;
+      // Foot solver: distance from the hip down to the lowest boot point for one leg (thigh 6, shin 6, sole
+      // from the heel z = -2 to the toe tip z = 2.9). Smooth max, so the body never jerks.
+      // A sideways leg angle z lowers the sole's inner or outer edge (half width 2).
+      const smax = (a, b, e = 1e-4) => (a + b) / 2 + Math.sqrt(((a - b) / 2) ** 2 + e);
+      const legDrop = (a, k, z) => {
+        const b = a + k;
+        return Math.cos(z) * (6 * Math.cos(a) + 6 * Math.cos(b) + smax(2.9 * Math.sin(b), -2 * Math.sin(b))) + 2 * Math.sqrt(Math.sin(z) ** 2 + 1e-6);
+      };
+      // One-sided soft limit: 0 .. lim, smooth (softplus then tanh)
+      const softPos = (x, lim) => lim * Math.tanh((Math.log1p(Math.exp(x * 40)) / 40) / lim);
+      function spring(sp, target, dt) { sp.v += ((target - sp.x) * 60 - sp.v * 7) * dt; sp.x += sp.v * dt; }
 
-        // Reset defaults before applying active state transforms
-        bodyPivot.position.set(0, 12, 0);
-        bodyPivot.rotation.set(0, 0, 0);
-        torsoPivot.rotation.set(0, 0, 0);
-        headPivot.rotation.set(0, 0, 0);
-        rightArm.shoulderPivot.rotation.set(0, 0, 0);
-        leftArm.shoulderPivot.rotation.set(0, 0, 0);
-        rightLeg.hipPivot.rotation.set(0, 0, 0);
-        leftLeg.hipPivot.rotation.set(0, 0, 0);
-        gasTankGroup.rotation.set(0, 0, 0);
-        shotgunGroup.position.set(0, 0, 0);
-        shotgunGroup.rotation.set(0, 0, 0);
-        boltPunchRod.position.y = 3.2;
+      function step(dt) {
+        S.time += dt; S.t += dt; S.prevT += dt;
+        S.blend = Math.min(1, S.blend + dt / 0.3);
+        const w = S.blend * S.blend * (3 - 2 * S.blend);            // smooth crossfade between animations
+        const fading = S.prev && w < 1;
+        evalAnim(S.anim, S.t, poseA);
+        if (fading) evalAnim(S.prev, S.prevT, poseB);
+        const k = fading ? w : 1;
+        for (const n of POSE_BONES) {
+          const a = poseA.r[n] || [0, 0, 0], b = (fading && poseB.r[n]) || [0, 0, 0];
+          pose.r[n] = fading ? [b[0] + (a[0] - b[0]) * k, b[1] + (a[1] - b[1]) * k, b[2] + (a[2] - b[2]) * k] : a;
+        }
+        for (const f of FACE_KEYS) pose.f[f] = fading ? poseB.f[f] + (poseA.f[f] - poseB.f[f]) * k : poseA.f[f];
+        for (const v in V_DEFAULT) pose.v[v] = fading ? poseB.v[v] + (poseA.v[v] - poseB.v[v]) * k : poseA.v[v];
 
-        // Subtle secondary motion: hair bob follow-through
-        const hairSway = Math.sin(totalTime * 2.2) * 0.025;
-        hairBobLeft.rotation.z = -0.05 + hairSway;
-        hairBobRight.rotation.z = 0.05 + hairSway;
+        for (const n of POSE_BONES) { const b = bones[n]; b.position.copy(b.userData.rest); b.rotation.set(pose.r[n][0], pose.r[n][1], pose.r[n][2]); }
 
-        if (currentAnim === 'idle') {
-          // Chilling, stoic corridor/highway stance (Ref Pic 3 & Pic 1)
-          const breath = Math.sin(animTime * 1.8);
-          const slowLook = Math.sin(animTime * 0.75);
+        // Head + eyes follow the mouse; when off they ease back to the animation's pose (never snap)
+        const F = S.follow, on = F.on && F.has, fw = pose.v.followW;
+        const fy = on ? F.mx * 0.5 * fw : 0, fp = on ? -F.my * 0.15 * fw : 0, fe = on ? F.mx : 0;
+        if (F.instant) { F.yaw = fy; F.pitch = fp; F.eye = fe; }
+        F.yaw += (fy - F.yaw) * filt(dt, 6);
+        F.pitch += (fp - F.pitch) * filt(dt, 6);
+        F.eye += (fe - F.eye) * filt(dt, 10);
+        let hx = pose.r.head[0] + F.pitch, hy = pose.r.head[1] + F.yaw, hz = pose.r.head[2];
 
-          bodyPivot.position.y = 12 + breath * 0.12;
-          torsoPivot.rotation.x = 0.03 + breath * 0.015;
-          torsoPivot.rotation.y = slowLook * 0.06;
+        // Forced expression from the shared menu: eases over the animation's face + head pose
+        const fo = pose.f;
+        const xf = window.MobViewer ? window.MobViewer.face(dt) : null;
+        if (xf && xf.w > 1e-4) {
+          const mix = (c, v) => { fo[c] += (v - fo[c]) * xf.w; };
+          mix('browUp', 0.8 * xf.brow); mix('frown', clamp(-0.6 * xf.tilt + 0.4 * Math.max(0, -xf.brow), -0.7, 1));
+          mix('wide', 0.4 * xf.smile + 0.2 * xf.open); mix('open', 0.8 * xf.open);
+          mix('grin', 0.9 * Math.max(0, xf.smile)); mix('smirk', 0); mix('squint', 0.7 * Math.max(0, -xf.eyes));
+          mix('eyesOpen', Math.max(0, xf.eyes)); mix('glance', 0); mix('down', 0);
+          hx += window.MobViewer.head.pitch;
+          hz += window.MobViewer.head.roll;
+        }
 
-          // Cold, heavy-lidded head tracking with eerie slight tilt
-          headPivot.rotation.y = slowLook * 0.18;
-          headPivot.rotation.x = 0.04 + Math.cos(animTime * 0.9) * 0.03;
-          headPivot.rotation.z = Math.sin(animTime * 0.5) * 0.045;
+        // Soft head limits (no neck: the head sits on the torso). Yaw max ~0.6; pitch / roll shrink as the
+        // yaw grows, so a turned head never hangs a corner into the shoulders.
+        hy = 0.6 * Math.tanh(hy / 0.6);
+        const fac = 1 - Math.tanh((hy / 0.4) ** 2);
+        const limP = 0.02 + 0.1 * fac, limR = 0.02 + 0.08 * fac;
+        hx = limP * Math.tanh(hx / limP);
+        hz = limR * Math.tanh(hz / limR);
+        headPivot.rotation.set(hx, hy, hz);
 
-          // Right Arm holds the Suppressed Shotgun pointing straight down along his right leg (Ref Pic 3)
-          rightArm.shoulderPivot.rotation.x = -0.08 + breath * 0.02;
-          rightArm.shoulderPivot.rotation.z = -0.06;
-          shotgunGroup.rotation.x = 0.08;
+        // Feet on the ground: hip height from the leg angles (lowest boot point, smooth max of both legs)
+        const dR = legDrop(pose.r.leg_right[0], pose.r.knee_right[0], pose.r.leg_right[2]);
+        const dL = legDrop(pose.r.leg_left[0], pose.r.knee_left[0], pose.r.leg_left[2]);
+        bodyPivot.position.y = 12 + smax(dR, dL) - legDrop(0, 0, 0);   // lowest point exactly on the floor (±0.01)
 
-          // Left Arm holds the heavy Silver Gas Tank + Captive Bolt Nozzle with red hose loop (Ref Pic 3)
-          leftArm.shoulderPivot.rotation.x = 0.06 - breath * 0.02;
-          leftArm.shoulderPivot.rotation.z = 0.08;
-          // Heavy pendulum counterweight on the gas tank
-          gasTankGroup.rotation.x = -leftArm.shoulderPivot.rotation.x * 0.85 + Math.sin(animTime * 1.8) * 0.02;
-          gasTankGroup.rotation.z = -0.05;
+        // Gas tank hangs from the hand: it counter-rotates so it stays (almost) vertical
+        const r = pose.r;
+        gasTankGroup.rotation.set(-(r.torso[0] + r.arm_left[0] + r.forearm_left[0]) * 0.9 + pose.v.tankRx, 0,
+          -(r.torso[2] + r.arm_left[2]) * 0.9 + pose.v.tankRz);
+        boltPunchRod.position.y = 3.2 + pose.v.rod * 1.95;
 
-          // Legs planted in a slightly wide, menacing stance
-          rightLeg.hipPivot.rotation.z = -0.03;
-          leftLeg.hipPivot.rotation.z = 0.03;
-          rightLeg.hipPivot.rotation.x = -0.04;
-          leftLeg.hipPivot.rotation.x = 0.04;
+        // Hair springs: driven by head turn / nod speed and the body's up-down motion, always a little breeze
+        const H = S.hair, idt = 1 / Math.max(dt, 1e-3);
+        const yv = (hy - H.yaw) * idt, pv = (hx - H.pitch) * idt, bv = (bodyPivot.position.y - H.hipY) * idt;
+        H.yaw = hy; H.pitch = hx; H.hipY = bodyPivot.position.y;
+        const breeze = 0.012 * Math.sin(S.time * 1.3) + 0.008 * Math.sin(S.time * 2.9 + 1);
+        spring(H.r, 0.015 + 0.05 * Math.tanh(yv * 0.8) + breeze, dt);
+        spring(H.l, 0.015 - 0.05 * Math.tanh(yv * 0.8) + breeze, dt);
+        spring(H.b, 0.02 + 0.05 * Math.tanh(-bv * 0.2) + 0.04 * Math.tanh(-pv) + breeze, dt);
+        hairRight.rotation.z = -softPos(H.r.x, 0.07);   // outward only
+        hairLeft.rotation.z = softPos(H.l.x, 0.07);
+        // A raised arm pushes its bob wing up (never out: the arm is out there); the wing top hides in the crown
+        hairRight.position.y = hairRight.userData.rest.y + 0.9 * ramp(-r.arm_right[0], 0.6, 1.3);
+        hairLeft.position.y = hairLeft.userData.rest.y + 0.9 * ramp(-r.arm_left[0], 0.6, 1.3);
+        hairBack.rotation.x = softPos(H.b.x, 0.14);    // backward only
 
-          scene.updateMatrixWorld();
-          positionCaptiveBoltOnHand(leftArm.handPivot, leftHandBoltOffsetPos, leftHandBoltOffsetRot);
-          updatePneumaticHose(totalTime, 7.2, 3.2);
+        scene.updateMatrixWorld();
 
-        } else if (currentAnim === 'walk') {
-          // Relentless, unhurried stalk (Ref Pic 1 & Pic 3)
-          const speed = 3.2;
-          const phase = animTime * speed;
-          const stride = Math.sin(phase);
-          const bob = Math.abs(Math.cos(phase));
+        // Props: captive bolt (left hand <-> right hand) and shotgun (right hand <-> back sling)
+        frameXform(leftArm.handPivot, BOLT_LEFT.p, BOLT_LEFT.q, _pA, _qA);
+        frameXform(rightArm.handPivot, BOLT_RIGHT.p, BOLT_RIGHT.q, _pB, _qB);
+        placeAlong(captiveBoltGroup, pose.v.boltR, BOLT_VIA);
+        const hang = -(r.torso[0] + r.arm_right[0] + r.forearm_right[0]) * pose.v.sgHang;
+        _e.set(hang + pose.v.sgRx, pose.v.sgRy, pose.v.sgRz);
+        _qT.setFromEuler(_e);
+        _pB.set(0, GUN_LIFT + pose.v.sgY, pose.v.sgZ);
+        frameXform(rightArm.handPivot, _pB, _qT, _pA, _qA);
+        _pB.copy(SLING_P).applyMatrix4(torsoPivot.matrixWorld);
+        torsoPivot.getWorldQuaternion(_qB).multiply(SLING_Q);
+        placeAlong(shotgunGroup, pose.v.sling, SLING_VIA, true);
+        updatePneumaticHose(S.time, pose.v.sag, pose.v.bowX, pose.v.bowZ);
 
-          bodyPivot.position.y = 12 - bob * 0.45;
-          bodyPivot.position.x = Math.cos(phase) * 0.25;
-          torsoPivot.rotation.x = 0.06; // Predatory forward lean
-          torsoPivot.rotation.y = -stride * 0.11;
-          torsoPivot.rotation.z = Math.cos(phase) * 0.025;
+        // Face: smoothing filter on every channel (no snapping), random (double) blinks as a sine bump
+        for (const f of FACE_KEYS) S.face[f] += (fo[f] - S.face[f]) * filt(dt, 16);
+        const fc = S.face, bl = S.blink;
+        let blinkV = 0;
+        if (!bl.off) {
+          if (bl.t < 0) { bl.wait -= dt; if (bl.wait <= 0) { bl.t = 0; bl.again = Math.random() < 0.18; } }
+          if (bl.t >= 0) {
+            bl.t += dt;
+            if (bl.t >= 0.18) { bl.t = -1; bl.wait = bl.again ? 0.12 : 2.2 + Math.random() * 3.6; bl.again = false; }
+            else blinkV = Math.sin(Math.PI * bl.t / 0.18);
+          }
+        }
+        const lidRest = clamp(HOOD * (1 - fc.eyesOpen) + 0.45 * fc.down + 0.45 * fc.squint, 0, 1);
+        const closed = clamp(lidRest + (1 - lidRest) * blinkV, 0.001, 1);
+        lidR.scale.y = lidL.scale.y = closed;
+        const glance = clamp(fc.glance + F.eye * 0.6, -1, 1);
+        pupilR.position.x = glance * 0.5;
+        pupilL.position.x = glance * 0.5;
+        const browY = clamp(fc.browUp * 0.4 - fc.frown * 0.2, -0.3, 0.45);
+        browR.position.y = browR.userData.rest.y + browY;
+        browL.position.y = browL.userData.rest.y + browY;
+        browR.rotation.z = -fc.frown * 0.3;   // + frown = inner ends down (angry V)
+        browL.rotation.z = fc.frown * 0.3;
+        // standard mouth: open = thicker line, wide/grin = wider, smirk = tilt + slide, grin = teeth plate grows down
+        mouth.scale.set(1 + clamp(fc.wide, -1, 1) * 0.4 + fc.grin * 0.3, 1 + clamp(fc.open, 0, 1) * 1.5, 1);
+        mouth.rotation.z = 0.14 * fc.smirk;
+        mouth.position.x = 0.25 * fc.smirk;
+        teeth.scale.y = Math.max(0.001, fc.grin);
+        teeth.position.z = -0.1 + 0.105 * clamp(fc.grin * 10, 0, 1);   // steps out of the head only while grinning
 
-          // Head stays locked forward on target while shoulders counter-rotate
-          headPivot.rotation.y = stride * 0.09 + Math.sin(animTime * 0.8) * 0.08;
-          headPivot.rotation.x = 0.03 + bob * 0.03;
-          headPivot.rotation.z = -Math.cos(phase) * 0.02;
-
-          // Legs stride
-          rightLeg.hipPivot.rotation.x = stride * 0.48;
-          leftLeg.hipPivot.rotation.x = -stride * 0.48;
-
-          // Right Arm swings slightly with the heavy Suppressed Shotgun
-          rightArm.shoulderPivot.rotation.x = -stride * 0.24 - 0.08;
-          rightArm.shoulderPivot.rotation.z = -0.07;
-          shotgunGroup.rotation.x = 0.1 + stride * 0.08;
-
-          // Left Arm carries the heavy Gas Tank + Captive Bolt Nozzle with damped swing
-          leftArm.shoulderPivot.rotation.x = stride * 0.18 + 0.08;
-          leftArm.shoulderPivot.rotation.z = 0.09;
-
-          // Secondary motion: Gas tank swings with delayed inertia so it stays nearly vertical
-          const tankLag = Math.sin(phase - 0.45);
-          gasTankGroup.rotation.x = -leftArm.shoulderPivot.rotation.x + tankLag * 0.12;
-          gasTankGroup.rotation.z = -0.06 + Math.cos(phase) * 0.04;
-
-          scene.updateMatrixWorld();
-          positionCaptiveBoltOnHand(leftArm.handPivot, leftHandBoltOffsetPos, leftHandBoltOffsetRot);
-          updatePneumaticHose(totalTime, 7.0 + Math.sin(phase * 2) * 0.4, 3.3);
-
-        } else if (currentAnim === 'attack') {
-          // "Would you hold still, please, sir?" — Captive Bolt Pistol Strike (Ref Pic 2!)
-          // 2.4-second cycle:
-          // 0.0 - 0.7s: Raises Captive Bolt Pistol in Right Hand to forehead height while slinging shotgun to hip
-          // 0.7 - 1.15s: Holds cold aim with head cocked (exact Ref Pic 2 pose!)
-          // 1.15 - 1.35s: PNEUMATIC BOLT PUNCH! Steel rod shoots out + compressed air shockwave ring!
-          // 1.35 - 2.4s: Retracts bolt with mechanical hiss and returns smoothly
-          const cycleDur = 2.4;
-          const t = animTime % cycleDur;
-
-          // Sling shotgun securely at right hip during two-handed pneumatic operation
-          shotgunGroup.position.set(-1.5, 4.5, -1.8);
-          shotgunGroup.rotation.set(0.35, 0, -0.15);
-
-          let aimWeight = 0;
-          let recoilKick = 0;
-          let rodExtend = 0;
-
-          if (t < 0.7) {
-            aimWeight = easeInOutCubic(t / 0.7);
-            lastAttackPulse = -1;
-          } else if (t < 1.15) {
-            aimWeight = 1.0;
-          } else if (t < 1.35) {
-            aimWeight = 1.0;
-            const punchP = (t - 1.15) / 0.2;
-            rodExtend = Math.sin(punchP * Math.PI);
-            recoilKick = Math.sin(punchP * Math.PI);
-
-            if (lastAttackPulse !== Math.floor(animTime / cycleDur)) {
-              lastAttackPulse = Math.floor(animTime / cycleDur);
-              scene.updateMatrixWorld();
+        // Events of the current animation (bolt punch, shots): fire when its time passes the mark
+        const A = ANIMS[S.anim];
+        if (A.events && !S.noFx) {
+          const t1 = S.t % A.T, t0 = (S.t - dt) % A.T;
+          for (const [et, kind] of A.events) {
+            const hit = t0 <= t1 ? t0 < et && et <= t1 : et > t0 || et <= t1;
+            if (!hit || S.t - dt < 0) continue;
+            scene.updateMatrixWorld();
+            if (kind === 'bolt') {
               const muzzlePos = new THREE.Vector3(0, 5.2, 0).applyMatrix4(captiveBoltGroup.matrixWorld);
               const forwardDir = new THREE.Vector3(0, 1, 0).applyQuaternion(captiveBoltGroup.quaternion).normalize();
               spawnAirBurst(muzzlePos, forwardDir);
+            } else {
+              const mPos = new THREE.Vector3(), ePos = new THREE.Vector3();
+              shotgunMuzzleAnchor.getWorldPosition(mPos);
+              shotgunEjectAnchor.getWorldPosition(ePos);
+              const dir = new THREE.Vector3(0, -1, 0).applyQuaternion(shotgunGroup.quaternion).normalize();
+              spawnSilencedShot(mPos, dir, ePos);
             }
-          } else if (t < 1.75) {
-            aimWeight = 1.0;
-          } else {
-            aimWeight = 1.0 - easeInOutCubic((t - 1.75) / 0.65);
           }
-
-          // Torso & head posture matching Ref Pic 2 (slightly tilted head, cold gaze)
-          torsoPivot.rotation.y = aimWeight * 0.22;
-          torsoPivot.rotation.x = -recoilKick * 0.06;
-          headPivot.rotation.y = -aimWeight * 0.14;
-          headPivot.rotation.z = aimWeight * 0.11; // Signature eerie head tilt from Pic 2
-          headPivot.rotation.x = -0.05;
-
-          // Right Arm raises the Captive Bolt Pistol up to forehead level
-          rightArm.shoulderPivot.rotation.x = THREE.MathUtils.lerp(-0.1, -1.52 + recoilKick * 0.28, aimWeight);
-          rightArm.shoulderPivot.rotation.y = THREE.MathUtils.lerp(0, -0.18, aimWeight);
-          rightArm.shoulderPivot.rotation.z = THREE.MathUtils.lerp(-0.06, -0.12, aimWeight);
-
-          // Left Arm braces the heavy Gas Tank slightly forward
-          leftArm.shoulderPivot.rotation.x = THREE.MathUtils.lerp(0.06, -0.25, aimWeight);
-          leftArm.shoulderPivot.rotation.z = THREE.MathUtils.lerp(0.08, 0.14, aimWeight);
-          gasTankGroup.rotation.x = -leftArm.shoulderPivot.rotation.x * 0.9;
-
-          // Extend internal steel captive bolt rod
-          boltPunchRod.position.y = 3.2 + rodExtend * 1.95;
-
-          scene.updateMatrixWorld();
-          // Orient Captive Bolt Pistol in Right Hand pointing forward toward target forehead
-          const attackBoltPos = new THREE.Vector3(-0.2, -0.5, 1.3);
-          const attackBoltRot = new THREE.Euler(Math.PI - 0.18, 0, 0.1);
-          positionCaptiveBoltOnHand(rightArm.handPivot, attackBoltPos, attackBoltRot);
-          updatePneumaticHose(totalTime, 5.2, 1.2);
-
-        } else if (currentAnim === 'special') {
-          // Special: Suppressed Remington 11-87 Shotgun Ambush (Ref Pic 3)
-          // 3.0-second cycle:
-          // 0.0 - 0.55s: Raises the Suppressed Shotgun with his right arm to hip/shoulder firing stance while holding Gas Tank + Captive Bolt in Left Hand
-          // 0.55 - 1.95s: Fires 3 rapid silenced blasts (*CHUG! CHUG! CHUG!*) with recoil kicks, muzzle gas puffs, and ejecting red 12-gauge shells!
-          // 1.95 - 2.55s: Lowers shotgun and glances down at his cowboy boots
-          // 2.55 - 3.0s: Returns smoothly to menacing corridor stance
-          const cycleDur = 3.0;
-          const t = animTime % cycleDur;
-
-          let raiseW = 0;
-          let recoil = 0;
-          let lookBoots = 0;
-
-          if (t < 0.55) {
-            raiseW = easeOutBack(t / 0.55);
-            lastShotCount = -1;
-          } else if (t < 1.95) {
-            raiseW = 1.0;
-            // 3 shots at t = 0.65, 1.10, 1.55
-            const shotTimes = [0.65, 1.10, 1.55];
-            shotTimes.forEach((st, idx) => {
-              const dtShot = t - st;
-              if (dtShot >= 0 && dtShot < 0.32) {
-                recoil += Math.sin((dtShot / 0.32) * Math.PI) * Math.exp(-dtShot * 6);
-                if (lastShotCount < idx) {
-                  lastShotCount = idx;
-                  scene.updateMatrixWorld();
-                  const mPos = new THREE.Vector3();
-                  const ePos = new THREE.Vector3();
-                  shotgunMuzzleAnchor.getWorldPosition(mPos);
-                  shotgunEjectAnchor.getWorldPosition(ePos);
-                  const dir = new THREE.Vector3(0, -1, 0).applyQuaternion(shotgunGroup.getWorldQuaternion(new THREE.Quaternion())).normalize();
-                  spawnSilencedShot(mPos, dir, ePos);
-                }
-              }
-            });
-          } else if (t < 2.55) {
-            const p = (t - 1.95) / 0.6;
-            raiseW = 1.0 - easeInOutCubic(p);
-            lookBoots = Math.sin(p * Math.PI);
-          } else {
-            raiseW = 0;
-          }
-
-          bodyPivot.position.z = -recoil * 0.45;
-          torsoPivot.rotation.y = -raiseW * 0.24;
-          torsoPivot.rotation.x = -recoil * 0.14 + lookBoots * 0.08;
-
-          headPivot.rotation.y = raiseW * 0.22;
-          headPivot.rotation.x = -recoil * 0.08 + lookBoots * 0.32; // Glances down to check boots after firing
-
-          // Right Arm raises the heavy Suppressed Shotgun forward
-          rightArm.shoulderPivot.rotation.x = THREE.MathUtils.lerp(-0.08, -1.42 + recoil * 0.35, raiseW);
-          rightArm.shoulderPivot.rotation.y = THREE.MathUtils.lerp(0, 0.12, raiseW);
-          rightArm.shoulderPivot.rotation.z = THREE.MathUtils.lerp(-0.06, -0.08, raiseW);
-
-          // Align shotgun horizontally along the raised forearm
-          shotgunGroup.rotation.x = THREE.MathUtils.lerp(0.08, -0.12 - recoil * 0.18, raiseW);
-          shotgunGroup.position.y = THREE.MathUtils.lerp(0, -1.2, raiseW);
-          shotgunGroup.position.z = THREE.MathUtils.lerp(0, 1.5, raiseW);
-
-          // Left Arm counter-balances with the Gas Tank and Captive Bolt Nozzle
-          leftArm.shoulderPivot.rotation.x = THREE.MathUtils.lerp(0.06, 0.28 + recoil * 0.1, raiseW);
-          leftArm.shoulderPivot.rotation.z = THREE.MathUtils.lerp(0.08, 0.18, raiseW);
-          gasTankGroup.rotation.x = -leftArm.shoulderPivot.rotation.x * 0.9;
-
-          rightLeg.hipPivot.rotation.x = -raiseW * 0.14;
-          leftLeg.hipPivot.rotation.x = raiseW * 0.14;
-
-          scene.updateMatrixWorld();
-          positionCaptiveBoltOnHand(leftArm.handPivot, leftHandBoltOffsetPos, leftHandBoltOffsetRot);
-          updatePneumaticHose(totalTime, 7.0, 3.4);
         }
+        updateFx(dt);
+      }
 
-        // Update active particle FX
+      /* ───────── FX update (air ring, puffs, shells) ───────── */
+      function updateFx(dt) {
         if (airRingMesh.userData.active) {
           airRingMesh.userData.age += dt;
           const p = airRingMesh.userData.age / 0.32;
@@ -1515,199 +1680,276 @@
 
         for (let i = 0; i < puffPool.length; i++) {
           const p = puffPool[i];
-          if (p.active) {
-            p.age += dt;
-            if (p.age >= p.maxAge) {
-              p.active = false;
-              p.mesh.visible = false;
-            } else {
-              p.mesh.position.addScaledVector(p.vel, dt);
-              p.vel.multiplyScalar(0.9);
-              const lifeRatio = p.age / p.maxAge;
-              p.mesh.material.opacity = (1 - lifeRatio) * 0.75;
-              p.mesh.scale.addScalar(dt * 1.8);
-            }
+          if (!p.active) continue;
+          p.age += dt;
+          if (p.age >= p.maxAge) {
+            p.active = false;
+            p.mesh.visible = false;
+          } else {
+            p.mesh.position.addScaledVector(p.vel, dt);
+            p.vel.multiplyScalar(Math.exp(-dt * 6.3));     // same drag as 0.9 per 60 fps frame, at any frame rate
+            p.mesh.material.opacity = (1 - p.age / p.maxAge) * 0.75;
+            p.mesh.scale.addScalar(dt * 1.8);
           }
         }
 
         for (let i = 0; i < shellPool.length; i++) {
           const s = shellPool[i];
-          if (s.active) {
-            s.age += dt;
-            if (s.age > 1.6) {
-              s.active = false;
-              s.mesh.visible = false;
-            } else {
-              s.vel.y -= 28 * dt; // gravity
-              s.mesh.position.addScaledVector(s.vel, dt);
-              s.mesh.rotation.x += s.rotVel.x * dt;
-              s.mesh.rotation.y += s.rotVel.y * dt;
-              s.mesh.rotation.z += s.rotVel.z * dt;
-              if (s.mesh.position.y < 0.25) {
-                s.mesh.position.y = 0.25;
-                s.vel.y = Math.abs(s.vel.y) * 0.45;
-                s.vel.x *= 0.7;
-                s.vel.z *= 0.7;
-              }
+          if (!s.active) continue;
+          s.age += dt;
+          if (s.age > 1.6) {
+            s.active = false;
+            s.mesh.visible = false;
+          } else {
+            s.vel.y -= 28 * dt; // gravity
+            s.mesh.position.addScaledVector(s.vel, dt);
+            s.mesh.rotation.x += s.rotVel.x * dt;
+            s.mesh.rotation.y += s.rotVel.y * dt;
+            s.mesh.rotation.z += s.rotVel.z * dt;
+            if (s.mesh.position.y < 0.25) {
+              s.mesh.position.y = 0.25;
+              s.vel.y = -s.vel.y * 0.45;
+              s.vel.x *= 0.7;
+              s.vel.z *= 0.7;
+              s.rotVel.multiplyScalar(0.6);
             }
           }
         }
       }
 
-      const animButtons = document.querySelectorAll('.anim-btn');
-      animButtons.forEach((btn) => {
-        btn.addEventListener('click', () => {
-          animButtons.forEach((b) => b.classList.remove('active'));
-          btn.classList.add('active');
-          currentAnim = btn.getAttribute('data-anim');
-          animTime = 0;
-          lastAttackPulse = -1;
-          lastShotCount = -1;
+      /* ───────── Show bones (B): a dot on every pivot, a line to its parent, updated every frame ───────── */
+      const boneList = Object.values(bones).filter((b) => b !== characterRoot);
+      const boneIdx = new Map(boneList.map((b, i) => [b, i]));
+      const boneParent = boneList.map((b) => { let p = b.parent; while (p && !boneIdx.has(p)) p = p.parent; return p ? boneIdx.get(p) : -1; });
+      const rigLinePos = new Float32Array(boneList.length * 6), rigDotPos = new Float32Array(boneList.length * 3);
+      const rigLineGeo = new THREE.BufferGeometry(), rigDotGeo = new THREE.BufferGeometry();
+      rigLineGeo.setAttribute('position', new THREE.BufferAttribute(rigLinePos, 3));
+      rigDotGeo.setAttribute('position', new THREE.BufferAttribute(rigDotPos, 3));
+      const rigLines = new THREE.LineSegments(rigLineGeo, new THREE.LineBasicMaterial({ color: 0x93c5fd, depthTest: false, transparent: true }));
+      const rigDots = new THREE.Points(rigDotGeo, new THREE.PointsMaterial({ color: 0x60a5fa, size: 6, sizeAttenuation: false, depthTest: false, transparent: true }));
+      for (const o of [rigLines, rigDots]) { o.renderOrder = 999; o.frustumCulled = false; o.visible = false; scene.add(o); }
+      const vA = new THREE.Vector3(), vB = new THREE.Vector3();
+      function updateRigView() {
+        if (!rigLines.visible) return;
+        boneList.forEach((b, i) => {
+          vA.setFromMatrixPosition(b.matrixWorld);
+          const p = boneParent[i];
+          if (p >= 0) vB.setFromMatrixPosition(boneList[p].matrixWorld); else vB.copy(vA);
+          rigLinePos.set([vB.x, vB.y, vB.z, vA.x, vA.y, vA.z], i * 6);
+          rigDotPos.set([vA.x, vA.y, vA.z], i * 3);
         });
-      });
+        rigLineGeo.attributes.position.needsUpdate = true;
+        rigDotGeo.attributes.position.needsUpdate = true;
+      }
+      function toggleBones() {
+        rigLines.visible = rigDots.visible = !rigLines.visible;
+        const b = document.getElementById('bonesBtn');
+        b.classList.toggle('on', rigLines.visible);
+        b.setAttribute('aria-pressed', String(rigLines.visible));
+      }
 
-      // Smooth camera reset transition
-      let isResettingCamera = false;
-      const resetBtn = document.getElementById('reset-camera');
-      resetBtn.addEventListener('click', () => {
-        isResettingCamera = true;
+      /* ───────── UI ───────── */
+      document.querySelectorAll('.anim-btn').forEach((b) => b.addEventListener('click', () => selectAnim(b.dataset.anim)));
+      const followBtn = document.getElementById('followBtn');
+      followBtn.addEventListener('click', () => {
+        S.follow.on = !S.follow.on;
+        followBtn.classList.toggle('on', S.follow.on);
+        followBtn.setAttribute('aria-pressed', String(S.follow.on));
       });
-
-      controls.addEventListener('start', () => {
-        isResettingCamera = false;
+      document.getElementById('bonesBtn').addEventListener('click', toggleBones);
+      let camTween = null;
+      const resetCam = () => { camTween = { t: 0, p: camera.position.clone(), q: controls.target.clone() }; };
+      document.getElementById('resetBtn').addEventListener('click', resetCam);
+      controls.addEventListener('start', () => { camTween = null; });
+      window.addEventListener('pointermove', (e) => {
+        S.follow.has = true;
+        S.follow.mx = e.clientX / innerWidth * 2 - 1;
+        S.follow.my = e.clientY / innerHeight * 2 - 1;
       });
-
-      // Responsive resize handler
-      window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
+      window.addEventListener('keydown', (e) => {
+        const names = Object.keys(ANIMS), n = parseInt(e.key, 10);
+        if (n >= 1 && n <= names.length) selectAnim(names[n - 1]);
+        else if (e.key === 'r' || e.key === 'R') resetCam();
+        else if (e.key === 'b' || e.key === 'B') toggleBones();
+      });
+      function resize() {
+        renderer.setSize(innerWidth, innerHeight, false);
+        camera.aspect = innerWidth / innerHeight;
         camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
+      }
+      window.addEventListener('resize', resize);
+      resize();
 
-      // Locked 60 FPS delta-time loop
-      const clock = new THREE.Clock();
-      let totalElapsed = 0;
-
-      function animate() {
-        requestAnimationFrame(animate);
-
-        const rawDelta = clock.getDelta();
-        const dt = Math.min(rawDelta, 0.05);
-        totalElapsed += dt;
-
-        if (isResettingCamera) {
-          camera.position.lerp(DEFAULT_CAM_POS, 0.1);
-          controls.target.lerp(DEFAULT_TARGET, 0.1);
-          if (
-            camera.position.distanceTo(DEFAULT_CAM_POS) < 0.08 &&
-            controls.target.distanceTo(DEFAULT_TARGET) < 0.08
-          ) {
-            camera.position.copy(DEFAULT_CAM_POS);
-            controls.target.copy(DEFAULT_TARGET);
-            isResettingCamera = false;
+      /* ───────── Clip test (#cliptest) ─────────
+         Every animation, 30 samples/s, mouse pointer at the center, edges and corners. Per sample: a 5x5 grid of
+         points on every face of box A, moved into box B's space; a point deeper than 0.06 inside B = a clip.
+         Skipped: boxes on the same bone, joints (parent/child bones), props vs the hand that holds them.
+         Head vs torso is the no-neck chin dip (limit 0.5). Also: the lowest point of every part (floor >= 0). */
+      function clipTest() {
+        const owners = new Map();
+        const ownerOf = (m) => {
+          let o = m.parent;
+          while (o && !boneIdx.has(o) && o !== gasTankGroup && o !== captiveBoltGroup && o !== shotgunGroup && o !== hoseGroup) o = o.parent;
+          return o === gasTankGroup ? 'tank' : o === captiveBoltGroup ? 'bolt' : o === shotgunGroup ? 'shotgun' : o === hoseGroup ? 'hose' : o.name;
+        };
+        const parts = [];
+        for (const g of [characterRoot, captiveBoltGroup, shotgunGroup, hoseGroup]) {
+          g.traverse((m) => {
+            if (!m.isMesh || m.geometry.type !== 'BoxGeometry') return;
+            const p = m.geometry.parameters, own = ownerOf(m);
+            owners.set(own, (owners.get(own) || 0) + 1);
+            parts.push({ m, own, id: `${own}#${owners.get(own)}`, h: [p.width / 2, p.height / 2, p.depth / 2], box: new THREE.Box3(), inv: new THREE.Matrix4() });
+          });
+        }
+        const key = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+        const JOINT = new Set([['torso', 'leg_right'], ['torso', 'leg_left'], ['arm_right', 'forearm_right'], ['arm_left', 'forearm_left'],
+          ['leg_right', 'knee_right'], ['leg_left', 'knee_left'], ['forearm_left', 'tank'], ['bolt', 'tank'], ['hose', 'tank'], ['bolt', 'hose'],
+          ['forearm_right', 'shotgun'], ['head', 'hair_right'], ['head', 'hair_left'], ['head', 'hair_back'],
+          ['hair_back', 'hair_right'], ['hair_back', 'hair_left']].map(([a, b]) => key(a, b)));
+        // Held: the bolt sits in either fist, and the hose end plugs into the bolt inside that fist
+        const HOSE_END = new Set(['hose#11', 'hose#12']);
+        const held = (A, B) => (A.own === 'bolt' || HOSE_END.has(A.id)) && (B.own === 'forearm_left' || B.own === 'forearm_right');
+        const skip = (A, B) => A.own === B.own || JOINT.has(key(A.own, B.own)) || held(A, B) || held(B, A);
+        const pts = [];
+        for (let f = 0; f < 6; f++) for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) {
+          const u = -1 + i / 2, v = -1 + j / 2, ax = f >> 1, s = f & 1 ? 1 : -1;
+          const q = [0, 0, 0]; q[ax] = s; q[(ax + 1) % 3] = u; q[(ax + 2) % 3] = v; pts.push(q);
+        }
+        const P = new THREE.Vector3();
+        const hits = new Map();
+        let chinDip = 0, chinAt = '', floor = 99, floorAt = '';
+        function depthIn(A, B) {             // deepest point of A's face grid inside B, and how many points
+          let n = 0, worst = 0;
+          for (const q of pts) {
+            P.set(q[0] * A.h[0], q[1] * A.h[1], q[2] * A.h[2]).applyMatrix4(A.m.matrixWorld).applyMatrix4(B.inv);
+            const d = Math.min(B.h[0] - Math.abs(P.x), B.h[1] - Math.abs(P.y), B.h[2] - Math.abs(P.z));
+            if (d > 0.06) { n++; if (d > worst) worst = d; }
+          }
+          return [n, worst];
+        }
+        const PTRS = [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+        S.noFx = true; S.blink.off = true;
+        const DT = 1 / 120;
+        for (const name of Object.keys(ANIMS)) {
+          for (const [mx, my] of PTRS) {
+            Object.assign(S.follow, { on: true, has: true, mx, my, instant: true });
+            S.anim = name; S.prev = null; S.blend = 1; S.t = 0;
+            const T = ANIMS[name].T, frames = Math.round(T * 120);
+            for (let i = 0; i < frames; i++) step(DT);                  // warm-up cycle (springs settle)
+            S.t = 0;
+            for (let i = 0; i < frames; i++) {
+              step(DT);
+              if (i % 4) continue;
+              scene.updateMatrixWorld();
+              for (const p of parts) {
+                p.box.setFromObject(p.m);
+                p.inv.copy(p.m.matrixWorld).invert();
+                if (p.box.min.y > Math.min(floor, 0.3)) continue;
+                for (let c = 0; c < 8; c++) {                         // exact lowest corner (the box above is a bound)
+                  P.set((c & 1 ? 1 : -1) * p.h[0], (c & 2 ? 1 : -1) * p.h[1], (c & 4 ? 1 : -1) * p.h[2]).applyMatrix4(p.m.matrixWorld);
+                  if (P.y < floor) { floor = P.y; floorAt = `${p.id} ${name} t=${(i / 120).toFixed(2)}`; }
+                }
+              }
+              for (let a = 0; a < parts.length; a++) {
+                for (let b = a + 1; b < parts.length; b++) {
+                  const A = parts[a], B = parts[b];
+                  if (skip(A, B) || !A.box.intersectsBox(B.box)) continue;
+                  const [n1, d1] = depthIn(A, B), [n2, d2] = depthIn(B, A);
+                  const d = Math.max(d1, d2);
+                  if (!(n1 + n2)) continue;
+                  const pair = `${A.id} | ${B.id}`;
+                  if ((A.own === 'head' && B.own === 'torso') || (A.own === 'torso' && B.own === 'head')) {
+                    if (d > chinDip) { chinDip = d; chinAt = `${pair} ${name} ptr=${mx},${my} t=${(i / 120).toFixed(2)}`; }
+                    continue;
+                  }
+                  const h = hits.get(pair);
+                  if (!h || d > h.depth) hits.set(pair, { pair, depth: +d.toFixed(3), n: n1 + n2, anim: name, ptr: `${mx},${my}`, t: +(i / 120).toFixed(2) });
+                }
+              }
+            }
           }
         }
+        // Floor: exact lowest corner (the AABB above is only a quick bound)
+        const list = [...hits.values()].sort((x, y) => y.depth - x.depth);
+        const rv = { clips: list.length, worst: list.slice(0, 40), chinDip: +chinDip.toFixed(3), chinAt, floorAabb: +floor.toFixed(3), floorAt };
+        const out = document.createElement('pre');
+        out.id = 'cliptest';
+        out.textContent = JSON.stringify(rv, null, 1);
+        document.body.appendChild(out);
+      }
 
-        updateAnimation(dt, totalElapsed);
+      /* ───────── Test modes (#rest, #shot-..., #cliptest) ───────── */
+      const hash = decodeURIComponent(location.hash.slice(1));
+      function showResult(text) {
+        const out = document.createElement('pre');
+        out.id = 'shot';
+        out.textContent = text;
+        document.body.appendChild(out);
+      }
+      // Orbit the default camera by deg around the model; face = close-up of the head (camDeg "0f", "30f")
+      function placeCam(deg, face) {
+        const tgt = face ? new THREE.Vector3(0, 27.5, 0) : DEFAULT_TARGET;
+        const r = face ? new THREE.Vector3(0, 1, 18) : DEFAULT_CAM_POS.clone().sub(DEFAULT_TARGET), a = deg * Math.PI / 180;
+        const flat = Math.hypot(r.x, r.z), base = Math.atan2(r.x, r.z);
+        camera.position.set(tgt.x + flat * Math.sin(base + a), tgt.y + r.y, tgt.z + flat * Math.cos(base + a));
+        controls.minDistance = face ? 4 : 16;
+        controls.target.copy(tgt);
         controls.update();
+      }
+      if (hash === 'cliptest') {
+        S.frozen = true;
+        setTimeout(clipTest, 0);
+      } else if (hash === 'rest') {
+        // Rest pose: every bone at rest, face neutral (open eyes, closed mouth)
+        S.frozen = true;
+        S.noFx = true; S.blink.off = true;
+        S.follow.on = false;
+        ANIMS.rest = { T: 1, fn() {} };                               // empty pose: every bone at rest
+        S.anim = 'rest';
+        step(1 / 120);
         renderer.render(scene, camera);
+        showResult('rest');
+      } else if (hash.startsWith('shot-')) {
+        // #shot-<anim>-<variant>-<sec>[-<camDeg>[f = face close-up][-<expression>]]
+        const [, anim, , sec, cam, expr] = hash.split('-');
+        S.frozen = true; S.blink.off = true;
+        S.follow.on = false;
+        if (expr && window.MobViewer) window.MobViewer.set(expr);
+        S.anim = ANIMS[anim] ? anim : 'idle'; S.prev = null; S.blend = 1; S.t = 0;
+        const n = Math.round((parseFloat(sec) || 0) * 120);
+        for (let i = 0; i < 240; i++) step(1 / 120);                 // warm-up (springs, filters settle)
+        S.t = -1 / 120;
+        for (let i = 0; i <= n; i++) step(1 / 120);                  // then play from 0 to <sec>
+        placeCam(parseFloat(cam) || 0, /f$/.test(cam || ''));
+        setTimeout(() => { renderer.render(scene, camera); showResult(`shot ${S.anim} ${sec}`); }, 50);
       }
 
-      animate();
+      /* ───────── Loop: 120 FPS when the screen can (measured over ~30 frames), else 60 ───────── */
+      let last = performance.now(), acc = 0, rate = 60, probe = [], lastRaf = 0;
+      function frame(now) {
+        requestAnimationFrame(frame);
+        if (probe.length < 30) {
+          if (lastRaf) probe.push(now - lastRaf);
+          lastRaf = now;
+          if (probe.length === 30) { probe.sort((a, b) => a - b); rate = 1000 / probe[15] >= 110 ? 120 : 60; }
+        }
+        acc += now - last; last = now;
+        if (acc < 1000 / rate - 1) return;               // lock to the chosen rate
+        const dt = Math.min(acc / 1000, 0.1); acc = 0;
+        if (!S.frozen) step(dt);
+        if (camTween) {
+          camTween.t = Math.min(1, camTween.t + dt / 0.7);
+          const k = 1 - (1 - camTween.t) ** 3;
+          camera.position.lerpVectors(camTween.p, DEFAULT_CAM_POS, k);
+          controls.target.lerpVectors(camTween.q, DEFAULT_TARGET, k);
+          if (camTween.t >= 1) camTween = null;
+        }
+        controls.update();
+        if (!S.frozen) { scene.updateMatrixWorld(); updateRigView(); renderer.render(scene, camera); }
+      }
+      requestAnimationFrame(frame);
+      window.antonDebug = { S, bones, selectAnim, step };   // test handle
     };
-  </script>
-  <script>
-    /* ───────── Rig overlay ("Show bones" button, key B) ─────────
-       Same block in every mob (rule 10). A dot on every bone pivot (yellow) and a line to its
-       parent bone (cyan), drawn on top of the model and updated live in every animation.
-       Waits for window.THREE (module pages set it after their import).
-       Bones = the group nodes of the mob (the scene child with the most meshes).
-       It wraps renderer.render, so it needs none of the page's own variables. */
-    (function waitThree() {
-      if (!window.THREE) return setTimeout(waitThree, 50); // module pages: THREE arrives later
-      const ANCHOR = '#reset-camera'; // a button in the dock: the bones button goes right after it
-      const rig = { on: false, scene: null, root: null, list: [], parentIdx: [], lines: null, dots: null, linePos: null, dotPos: null, checkAt: 0 };
-      const va = new THREE.Vector3(), vb = new THREE.Vector3();
-      const isBone = (o) => !o.isMesh && !o.isLight && !o.isCamera && !o.isLine && !o.isPoints && !o.isSprite && o.children.length > 0;
-
-      // Find the mob root and its bones; (re)make the buffers only when the bone count changes.
-      function build(scene) {
-        let best = 0; rig.root = null;
-        for (const c of scene.children) {
-          if (c === rig.lines || c === rig.dots || c.isLight || c.isCamera) continue;
-          let n = 0; c.traverse((x) => { if (x.isMesh) n++; });
-          if (n > best) { best = n; rig.root = c; }
-        }
-        rig.list = [];
-        if (rig.root) rig.root.traverse((x) => { if (x !== rig.root && isBone(x)) rig.list.push(x); });
-        const idx = new Map(rig.list.map((g, i) => [g, i]));
-        rig.parentIdx = rig.list.map((g) => { let p = g.parent; while (p && p !== rig.root && !idx.has(p)) p = p.parent; return idx.has(p) ? idx.get(p) : -1; });
-        const n = rig.list.length;
-        if (!rig.lines || rig.dotPos.length !== n * 3) {
-          if (rig.lines) { scene.remove(rig.lines, rig.dots); rig.lines.geometry.dispose(); rig.dots.geometry.dispose(); }
-          rig.linePos = new Float32Array(n * 6); rig.dotPos = new Float32Array(n * 3);
-          const lg = new THREE.BufferGeometry(), dg = new THREE.BufferGeometry();
-          lg.setAttribute('position', new THREE.BufferAttribute(rig.linePos, 3));
-          dg.setAttribute('position', new THREE.BufferAttribute(rig.dotPos, 3));
-          rig.lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x67e8f9, depthTest: false, transparent: true, opacity: 0.9 }));
-          rig.dots = new THREE.Points(dg, new THREE.PointsMaterial({ color: 0xfacc15, size: 6, sizeAttenuation: false, depthTest: false, transparent: true }));
-          for (const o of [rig.lines, rig.dots]) { o.renderOrder = 999; o.frustumCulled = false; }
-        }
-        if (rig.lines.parent !== scene) scene.add(rig.lines, rig.dots);
-        rig.lines.visible = rig.dots.visible = rig.on;
-        rig.scene = scene;
-      }
-
-      // Plain writes into the buffers: no new objects per frame.
-      function update(now) {
-        if (now > rig.checkAt) { rig.checkAt = now + 1000; build(rig.scene); } // variants may rebuild parts
-        if (!rig.root) return;
-        rig.list.forEach((g, i) => { // world matrices are fresh: the scene was just updated
-          va.setFromMatrixPosition(g.matrixWorld);
-          const p = rig.parentIdx[i];
-          if (p >= 0) vb.setFromMatrixPosition(rig.list[p].matrixWorld); else vb.copy(va);
-          const j = i * 6, k = i * 3;
-          rig.linePos[j] = vb.x; rig.linePos[j + 1] = vb.y; rig.linePos[j + 2] = vb.z;
-          rig.linePos[j + 3] = va.x; rig.linePos[j + 4] = va.y; rig.linePos[j + 5] = va.z;
-          rig.dotPos[k] = va.x; rig.dotPos[k + 1] = va.y; rig.dotPos[k + 2] = va.z;
-        });
-        rig.lines.geometry.attributes.position.needsUpdate = true;
-        rig.dots.geometry.attributes.position.needsUpdate = true;
-      }
-
-      // The renderer calls scene.updateMatrixWorld() at the start of every render: hook it there
-      // (r128 sets render() per renderer instance, so wrapping render on the prototype would miss it).
-      const baseUpdate = THREE.Object3D.prototype.updateMatrixWorld;
-      THREE.Object3D.prototype.updateMatrixWorld = function (force) {
-        baseUpdate.call(this, force);
-        if (rig.on && this.isScene) { if (rig.scene !== this) { rig.checkAt = 0; rig.scene = this; } update(performance.now()); }
-      };
-
-      // Bones button: copies the look of the anchor button, without its role classes.
-      const anchor = document.querySelector(ANCHOR);
-      const btn = document.createElement('button');
-      btn.id = 'bonesBtn'; btn.type = 'button'; btn.title = 'Show bones (B)'; btn.setAttribute('aria-pressed', 'false');
-      btn.className = anchor ? anchor.className.split(/\s+/).filter((c) => !/^(anim-btn|variant-btn|toggle-btn|active.*)$/.test(c)).join(' ') : '';
-      btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;';
-      if (!anchor) btn.style.cssText += 'position:fixed;right:16px;bottom:16px;z-index:50;width:36px;height:36px;border-radius:999px;background:#1a1d24;color:#cbd5e1;border:1px solid #2a2f3a;';
-      btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><circle cx="7" cy="12" r="1.6"/><circle cx="17" cy="12" r="1.6"/><circle cx="9" cy="20" r="1.6"/><circle cx="15" cy="20" r="1.6"/><path d="M12 6v8M12 8l-5 4M12 8l5 4M12 14l-3 6M12 14l3 6"/></svg>';
-      if (anchor) anchor.insertAdjacentElement('afterend', btn); else document.body.appendChild(btn);
-
-      function toggleBones() {
-        rig.on = !rig.on;
-        if (rig.lines) rig.lines.visible = rig.dots.visible = rig.on;
-        rig.checkAt = 0; // rebuild on the next frame
-        btn.setAttribute('aria-pressed', String(rig.on));
-        btn.style.background = rig.on ? 'rgba(250, 204, 21, 0.18)' : (anchor ? '' : '#1a1d24');
-        btn.style.color = rig.on ? '#facc15' : '';
-      }
-      btn.addEventListener('click', toggleBones);
-      window.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
-        if (e.key === 'b' || e.key === 'B') toggleBones();
-      });
-      window.rigOverlay = { toggle: toggleBones, get bones() { return rig.list.length; } }; // test handle
-    })();
   </script>
 </body>
 </html>

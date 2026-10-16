@@ -1,12 +1,13 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 20:48
-**Request:** Make the Joker's face and expressions much better, a mouth that fits him, fix the clipping at the top of his face.
+**Date:** 2026-10-16 21:31
+**Request:** Improve Anton Chigurh without reworking him: fix bugs and clipping, add facial expressions, check the reference images.
 
 **Done:**
-- `mobs/the_joker/the_joker.html`: hair crown off the forehead (no flicker); new blocky Joker mouth (corner blocks, dropping jaw, two teeth rows); lower lids, pupil size, brow furrow; new Snarl expression; attack and dance faces use the new parts.
-- Checked: face renders of all 12 expressions + attack/dance/laugh, `#cliptest` max 0.38 texel, step probe max 0.084 rad.
+- `mobs/anton_chigurh/anton_chigurh.html`: moving face (eyes, lids, brows, mouth) + shared expression menu, follow mouse, Show bones; 2-bone limbs, foot solver, hair springs; new Idle 2; collar / arm / prop / floor clipping fixed; test modes `#cliptest`, `#rest`, `#shot-...`.
+- `references/anton_chigurh/`: the 3 reference images added to git.
+- Checked: `#cliptest` 0 clips (chin dip 0.42, floor 0), face renders of all 5 expressions, all 5 animations run without errors.
 
-**Files:** `mobs/the_joker/the_joker.html`, docs.
+**Files:** `mobs/anton_chigurh/anton_chigurh.html`, `references/anton_chigurh/*`, docs.
 
-**Next:** Joker still viewer only (not in the mod, no release).
+**Next:** Anton is viewer only (not in the mod, no release).
