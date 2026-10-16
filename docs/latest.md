@@ -1,14 +1,13 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 14:37
-**Request:** in-game updater: auto check every 5 min with a notification, manual check, changelog in game, "Update and Close Game" (manual restart); then commit + push + release.
+**Date:** 2026-10-16 14:49
+**Request:** Clean up and organise all branches, folders and files; merge every finished branch into main.
 
 **Done:**
-- Already there: button (title + pause), 5-minute check, changelog screen, download + swap after close.
-- New: toast + clickable chat link `[Changelog + Update]` while playing (client command `/sindicate update`), restart hint, scroll arrow, toast cleared on the screen.
-- Tests: `gradlew build` 8 tests green; in game (`runHomelanderTest`, `CMTEST ui`): notice shown, link opens the update screen with the changelog.
-- Not tested in game: the real download + jar swap (dev run has no jar); covered by `UpdateInstallerTest`.
+- Branches: only `tivek87/patrick-bateman` (PR #31) was open; it is finished and merged (Bateman rework, standard Homelander-type mouth rule, archive of old pages, references renamed, README mobs table).
+- Scan: root holds only the allowed files, no bad file names, no file over 50 MB, `docs/working_on.md` empty.
+- Worktree `C:\cm-worktrees\patrick-bateman` and its branch removed after the merge.
 
-**Files:** `mod/src/main/java/com/custommobs/update/UpdateClient.java`, `UpdateScreen.java`, lang, test timeline, `CLAUDE.md`, `README.md`, docs, version 0.0.3-alpha.
+**Files:** `mobs/patrick_bateman/patrick_bateman.html`, `mobs/_shared/viewer_template.html`, `CLAUDE.md`, `archive/*`, `references/*`, `README.md`, docs.
 
-**Next:** v0.0.3-alpha released; players on v0.0.2 get the notice within 5 minutes.
+**Next:** no release (viewer-only; v0.0.3-alpha is the latest jar). Other mobs get the standard mouth when they are worked on.

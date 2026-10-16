@@ -23,6 +23,11 @@ Custom Minecraft mobs for **Minecraft 1.21.1 + NeoForge**, made in three steps:
 | Jason Voorhees | `mobs/jason_voorhees/jason_voorhees.html` | not yet |
 | Hannibal Lecter | `mobs/hannibal/hannibal.html` | not yet |
 | Michael Myers | `mobs/michael_myers/michael_myers.html` | not yet |
+| Bane | `mobs/bane/bane.html` | not yet |
+| Davy Jones | `mobs/davy_jones/davy_jones.html` | not yet |
+| Ghostface | `mobs/ghostface/ghostface.html` | not yet |
+| Pennywise | `mobs/pennywise/pennywise.html` | not yet |
+| Victor Perkins | `mobs/victor_perkins/victor_perkins.html` | not yet |
 
 Viewer controls: number keys = animations, `B` = show bones, `R` = reset camera,
 eye button = head follows the mouse, dots = color variants, top right = expression menu (Auto / Happy / Sad / Angry / Afraid) + reset camera.
@@ -36,7 +41,7 @@ Shared viewer UI for every mob: `mobs/_shared/` (`viewer.css`, `viewer.js`, `vie
 | `mod/` | the NeoForge mod (Gradle project) |
 | `references/<mob>/` | reference photos and videos |
 | `sounds/<mob>/` | sounds (`.ogg` for the mod, `.mp3` for the browser) |
-| `archive/` | old versions |
+| `archive/<mob>/` | old versions (e.g. `<mob>_old.html`) |
 | `tools/` | test and helper scripts (PowerShell) |
 | `docs/` | changelog, latest session, who works on what |
 

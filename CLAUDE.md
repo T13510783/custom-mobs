@@ -124,6 +124,11 @@ When the user says "model from A, animations from B":
    - eyelids (user rule, 2026-10-16): ALWAYS make and animate them whenever a mob gets eyes / brows / a face: real lid parts that slide over the eye in every blink, squint and closed-eye moment, in every animation, high quality (see rule 7);
    - eyebrows: raise / frown with the motion;
    - mouth: open/close or change shape (breath, snarl, shout, yawn, grin).
+   - **Standard mouth = the Homelander type, every mob with a face** (user rule, 2026-10-16; code: `mobs/homelander/homelander.html` + `mobs/_shared/viewer_template.html`):
+     one thin lip line plane (2 x ~0.35 texels, lip color) on the mouth row, mouth corners painted skin shadow in the head texture;
+     smirk = the line tilts (~0.14 rad) and slides ~0.25 toward the smirk side; open = line thicker (scale y `1 + 1.5 * open`); smile/wide = wider (scale x);
+     grin = a white teeth plate (2 x 0.8) under the line that grows down (scale y 0 -> 1) and hides inside the head until it grins.
+     No thick 1-pixel lips, no loose corner pixels, no separate jaw or dark mouth box (looked weird on Bateman).
 7. **Always very smooth, never clunky or teleporting:**
    - no instant 0/1 steps, no parts popping in at full size, no snapping to whole texels;
    - a blink is the lid sliding down and up (scale from a pivot on the lid's top edge, ~0.18 s sine bump);

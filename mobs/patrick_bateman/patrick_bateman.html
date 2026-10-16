@@ -1,85 +1,74 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Bateman Vanilla+ Model</title>
-<style>
-  :root{
-    --bg:#0f1115; --pill:rgba(22,25,31,.78); --line:rgba(255,255,255,.07);
-    --fg:#c9cdd4; --mute:#6f7580; --on:#f4f5f7; --hi:rgba(255,255,255,.09);
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;color:var(--fg);
-    font:500 12.5px/1 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    -webkit-font-smoothing:antialiased;user-select:none}
-  canvas{display:block;outline:none;touch-action:none}
-  .bar{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);
-    display:flex;flex-direction:column;align-items:center;gap:4px;padding:5px;border-radius:22px;background:var(--pill);
-    border:1px solid var(--line);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
-    box-shadow:0 12px 32px rgba(0,0,0,.4);max-width:calc(100vw - 32px)}
-  .row{display:flex;align-items:center;gap:2px;max-width:100%;overflow-x:auto;scrollbar-width:none}
-  .row::-webkit-scrollbar{display:none}
-  .fits{padding-bottom:5px;border-bottom:1px solid var(--line)}
-  .bar button{appearance:none;border:0;background:transparent;color:var(--mute);height:30px;padding:0 13px;
-    border-radius:999px;font:inherit;cursor:pointer;display:flex;align-items:center;gap:7px;
-    transition:color .18s,background .18s}
-  .bar button:hover{color:var(--fg)}
-  .bar button.on{color:var(--on);background:var(--hi)}
-  .bar button:focus-visible{outline:1px solid rgba(255,255,255,.35);outline-offset:1px}
-  .sep{width:1px;height:16px;background:var(--line);margin:0 4px}
-  .bar .fit{height:auto;width:78px;padding:6px 4px 7px;border-radius:14px;flex-direction:column;gap:3px;flex:none;
-    border:1px solid transparent}
-  .bar .fit.on{border-color:rgba(255,255,255,.14)}
-  .fit img{width:56px;height:70px;object-fit:contain;image-rendering:auto;border-radius:9px;
-    background:radial-gradient(circle at 50% 70%,color-mix(in srgb,var(--c) 22%,transparent),transparent 70%);
-    opacity:.75;transition:opacity .18s,transform .18s}
-  .fit:hover img,.fit.on img{opacity:1}
-  .fit.on img{transform:translateY(-1px)}
-  .fit b{font-weight:600;font-size:12px}
-  .fit small{font-size:10px;color:var(--mute)}
-  .reset{width:30px;padding:0!important;justify-content:center}
-  .reset svg{width:15px;height:15px}
-</style>
-<script type="importmap">
-{ "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-} }
-</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Patrick Bateman - 3D Vanilla+ Minecraft Model Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!--
+    Patrick Bateman (fan model, vanilla+ humanoid). Five outfits = the color-variant dots:
+    Overcoat (pistol), Raincoat (axe), Walkman (nail gun), Suspenders (brick phone), Shorts (gel eye mask).
+    - Shared UI from ../_shared/: viewer.css (look) + viewer.js (expression menu, MobViewer.face(dt)).
+    - Rig: head 8x8x8, body 8x12x4, 2-bone arms (arm_/forearm_) and legs (leg_/knee_), feet at y = 0.
+    - Face: the painted eyes, brows and mouth are thin planes on the head front (same pixels at rest),
+      so they blink, glance, frown and grin. Eyelids slide over the eyes.
+    - Animations (keys 1-3): Idle, Idle 2, Walk. Follow mouse (eye button), Show bones (B), reset camera (R).
+    - Test modes: #cliptest, #rest, #shot-<anim>-<variant>-<sec>[-<cam>[-<expression>]].
+  -->
+
+  <!-- Shared viewer UI: mobs/_shared/ -->
+  <link rel="stylesheet" href="../_shared/viewer.css">
+  <script src="../_shared/viewer.js"></script>
+
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
 </head>
-<body>
-<nav class="bar" aria-label="Viewer controls">
-  <div class="row fits" aria-label="Outfit">
-    <button class="fit on" data-fit="overcoat" style="--c:#c29a6a"><img alt=""><b>Overcoat</b><small>pistol</small></button>
-    <button class="fit" data-fit="raincoat" style="--c:#e6edf2"><img alt=""><b>Raincoat</b><small>axe</small></button>
-    <button class="fit" data-fit="walkman" style="--c:#f08a24"><img alt=""><b>Walkman</b><small>nail gun</small></button>
-    <button class="fit" data-fit="suspenders" style="--c:#2c3f78"><img alt=""><b>Suspenders</b><small>phone</small></button>
-    <button class="fit" data-fit="shorts" style="--c:#8fb8de"><img alt=""><b>Shorts</b><small>face mask</small></button>
-  </div>
-  <div class="row" aria-label="Animation">
-    <button data-anim="idle" class="on">Idle</button>
-    <button data-anim="walk">Walk</button>
-    <button data-anim="attack">Attack</button>
-    <button data-anim="special">Special</button>
-    <span class="sep"></span>
-    <button class="reset" title="Reset camera" aria-label="Reset camera">
+<body class="mv-ui">
+  <canvas id="viewport" tabindex="0"></canvas>
+
+  <!-- Top right: the expression menu (added by viewer.js) sits left of the reset button -->
+  <div id="topRight">
+    <button id="resetBtn" class="pill icon-btn" title="Reset camera (R)" aria-label="Reset camera">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
     </button>
   </div>
-</nav>
+
+  <!-- Bottom dock: animations, follow toggle, bones toggle, outfits (color variants) -->
+  <nav id="dock" class="pill">
+    <button class="anim-btn active" data-anim="idle"><kbd>1</kbd>Idle</button>
+    <button class="anim-btn" data-anim="idle2"><kbd>2</kbd>Idle 2</button>
+    <button class="anim-btn" data-anim="walk"><kbd>3</kbd>Walk</button>
+    <span class="sep"></span>
+    <button id="followBtn" class="icon-btn round-btn on" title="Head follows the mouse" aria-label="Follow mouse" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+    <button id="bonesBtn" class="icon-btn round-btn" title="Show bones (B)" aria-label="Show bones" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8 8l8 8"/></svg>
+    </button>
+    <span class="sep"></span>
+    <span id="dots"></span>
+  </nav>
 
 <script type="module">
 import * as THREE from 'three';
-window.THREE = THREE; // the Show bones block (bottom of the page) uses the global
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-/* =========================================================================
-   Educational fan model: blocky Vanilla+ character, 1 texel = 1/16 block.
-   Rig units are pixels; the root is scaled by 1/16 so 16 px = 1 block.
-   ========================================================================= */
+/* ───────── Setup ─────────
+   Rig units are texels; the mob root is scaled by 1/16 so 16 texels = 1 block. */
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const filt = (dt, rate) => 1 - Math.exp(-dt * rate);   // per-frame smoothing factor (frame-rate independent)
+const softLim = (x, l) => l * Math.tanh(x / l);        // soft limit: no hard corner at the edge
+const pos2 = (x) => (x > 0 ? x * x : 0);                // max(0, x)^2: smooth where it starts
 
-// ---------- colour + noise helpers ----------
+/* ───────── Colour + noise helpers ───────── */
 const _rgb = new Map();
 function rgb(h){ let v=_rgb.get(h); if(!v){ const n=parseInt(h.slice(1),16); v=[n>>16&255,n>>8&255,n&255]; _rgb.set(h,v);} return v; }
 function hex(r,g,b){ const f=v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0'); return '#'+f(r)+f(g)+f(b); }
@@ -88,13 +77,14 @@ function N(x,y,s){ let h=Math.imul(x+101,374761393)^Math.imul(y+211,668265263)^M
   h=Math.imul(h^(h>>>13),1274126177); return ((h^(h>>>16))>>>0)/4294967296; }
 function fab(c,x,y,s,a=0.06){ const n=N(x,y,s); return n>0.8?sh(c,1+a):n<0.18?sh(c,1-a):c; }
 
-// ---------- palettes ----------
+/* ───────── Palettes ───────── */
 const SK={l:'#e9bb98',b:'#d8a281',s:'#c08767',d:'#a06a4e',lip:'#9a5c4a'};
 const HR={d:'#1c120b',m:'#2c1d13',l:'#422c1c',h:'#5e412b',g:'#7a5638'};
 const SHOE={b:'#16171a',h:'#3d4047',d:'#0b0b0d'};
 const EYE={w:'#f1ebe4',i:'#3b2a1f',brow:'#22150d'};
+const MOUTH={teeth:'#f3efe6'};
 
-// ---------- texture + part factory ----------
+/* ───────── Texture + part factory ───────── */
 function makeTex(w,h,fn){
   const c=document.createElement('canvas'); c.width=w; c.height=h;
   const g=c.getContext('2d');
@@ -138,6 +128,7 @@ function part(spec){
   m.position.set(at[0]+w/2,at[1]+h/2,at[2]+d/2);
   if(rot) m.rotation.set(rot[0],rot[1],rot[2]);
   m.castShadow=mode!=='glass'&&spec.shadow!==false; m.receiveShadow=true;
+  m.userData.clipLo=spec.clipLo||0;          // clip test: see-through rows at the bottom of a shell (e.g. the hair layer)
   return m;
 }
 const inf=(at,size,i)=>({at:at.map(v=>v-i),size:size.map(v=>v+2*i),tx:size});
@@ -149,28 +140,28 @@ const solid=(c,o={})=>q=>{
   return fab(sh(c,k),x,y,q.s,o.n??0.05);
 };
 
-// ---------- renderer / scene ----------
+/* ───────── Renderer / scene ───────── */
 const BG=0x0f1115;
-const renderer=new THREE.WebGLRenderer({antialias:true});
+const canvas=document.getElementById('viewport');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:/^#(shot|rest)/.test(location.hash)});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
-document.body.prepend(renderer.domElement);
 
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(BG);
 scene.fog=new THREE.Fog(BG,8,17);
 
-const camera=new THREE.PerspectiveCamera(32,innerWidth/innerHeight,0.05,60);
+const camera=new THREE.PerspectiveCamera(32,1,0.05,60);
 const HOME={pos:new THREE.Vector3(2.75,1.7,4.7),tgt:new THREE.Vector3(0,1.02,0)};
 camera.position.copy(HOME.pos);
-const controls=new OrbitControls(camera,renderer.domElement);
+const controls=new OrbitControls(camera,canvas);
 controls.target.copy(HOME.tgt);
-Object.assign(controls,{enableDamping:true,dampingFactor:0.08,enablePan:false,minDistance:2.2,maxDistance:10,
+Object.assign(controls,{enableDamping:true,dampingFactor:0.08,enablePan:false,minDistance:1.2,maxDistance:10,
   maxPolarAngle:Math.PI*0.495,rotateSpeed:0.7,zoomSpeed:0.8});
 
+// Lights: soft fill, one shadow-casting key, a blue rim and a weak front fill
 scene.add(new THREE.HemisphereLight(0xdfe6ff,0x2a2420,1.25));
 const key=new THREE.DirectionalLight(0xfff0de,2.3);
 key.position.set(2.6,5.2,3.4); key.castShadow=true;
@@ -181,7 +172,7 @@ scene.add(key);
 const rim=new THREE.DirectionalLight(0x9db4ff,0.95); rim.position.set(-3,3.5,-4); scene.add(rim);
 const fill=new THREE.DirectionalLight(0xffffff,0.35); fill.position.set(-3.5,2,3); scene.add(fill);
 
-// floor: soft radial disc with a faint 1-block grid
+// Floor: soft radial disc with a faint 1-block grid
 {
   const S=512, c=document.createElement('canvas'); c.width=c.height=S;
   const g=c.getContext('2d');
@@ -194,7 +185,7 @@ const fill=new THREE.DirectionalLight(0xffffff,0.35); fill.position.set(-3.5,2,3
   const floor=new THREE.Mesh(new THREE.PlaneGeometry(8,8),new THREE.MeshLambertMaterial({map:t,transparent:true,depthWrite:false}));
   floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
 }
-// contact shadow blob
+// Contact shadow blob (follows the hips)
 const blob=(()=>{
   const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d');
   const rg=g.createRadialGradient(64,64,0,64,64,64); rg.addColorStop(0,'rgba(0,0,0,.55)'); rg.addColorStop(1,'rgba(0,0,0,0)');
@@ -203,60 +194,83 @@ const blob=(()=>{
   m.rotation.x=-Math.PI/2; m.position.y=0.002; scene.add(m); return m;
 })();
 
-// ---------- rig (pivot points in pixels, Blockbench style) ----------
-const root=new THREE.Group(); root.scale.setScalar(1/16); scene.add(root);
-const bone=(p,x,y,z)=>{ const g=new THREE.Group(); g.position.set(x,y,z); p.add(g); return g; };
-const R={};
-R.pelvis=bone(root,0,12,0);
-R.torso =bone(R.pelvis,0,0,0);
-R.head  =bone(R.torso,0,12,0);
-R.armR  =bone(R.torso,-5,10,0);
-R.armL  =bone(R.torso,5,10,0);
-R.legR  =bone(R.pelvis,-2,0,0);
-R.legL  =bone(R.pelvis,2,0,0);
-R.hand  =bone(R.armR,-1,-9,0);          // wrist pivot (animated)
-R.item  =bone(R.hand,0,0,0);             // item space: +Z barrel, +Y up, grip at origin
-R.item.rotation.x=Math.PI/2;
-R.skirtR=bone(R.legR,0,0,0);             // coat panels follow the legs (no clipping)
-R.skirtL=bone(R.legL,0,0,0);
-R.tie   =bone(R.torso,0,10.5,2);
-R.muzzle=bone(R.item,0,0,0);
-R.eject =bone(R.item,0,0,0);
+/* ───────── Rig ─────────
+   Every bone = a Group with its pivot at the joint (texels, Blockbench style); cubes hang from it.
+   Limbs: 2 bones each (arm_ shoulder -> forearm_ elbow, leg_ hip -> knee_ knee). Coat panels hang on the
+   thigh (coat_) and the shin (coat_low_), so the legs never cut through them. */
+const root=new THREE.Group(); root.name='bateman'; root.scale.setScalar(1/16); scene.add(root);
+const bones={}, R=bones;
+function bone(name,parent,x,y,z,rr=[0,0,0]){
+  const g=new THREE.Group(); g.name=name; g.position.set(x,y,z); g.rotation.order='ZYX';
+  g.userData.rest=g.position.clone(); g.userData.rr=rr; g.rotation.set(...rr);
+  parent.add(g); bones[name]=g; return g;
+}
+bone('body',root,0,12,0);                         // hips: the torso hangs up from here
+bone('head',R.body,0,13,0);                        // lifted 1.0 on a recessed neck block: turning never cuts the shoulders
+bone('tie',R.body,0,10.5,2);                       // suspenders tie blade (spring)
+bone('hair_lock',R.head,-1.5,8.3,4.15);            // messy fringe lock (spring)
+for(const [s,sx] of [['right',-1],['left',1]]){
+  bone(`arm_${s}`,R.body,sx*6,12,0);               // pivot on the arm's top edge, flush with the torso top (vanilla)
+  bone(`forearm_${s}`,R[`arm_${s}`],0,-6,0);       // elbow
+  bone(`leg_${s}`,root,sx*2,12,0);                 // hip
+  bone(`knee_${s}`,R[`leg_${s}`],0,-6,0);          // knee (the shoe is a cube on the shin)
+  bone(`coat_${s}`,R[`leg_${s}`],0,0,0);           // coat panel on the thigh (lags a little)
+  bone(`coat_low_${s}`,R[`knee_${s}`],0,0,0);      // coat panel below the knee
+}
+bone('prop',R.forearm_right,0,-5,0,[Math.PI/2,0,0]); // held item: +Z barrel/handle points down the arm, grip in the fist
 
-// muzzle flash (pixel star, additive)
-const flash=(()=>{
-  const P=['...y....','..yyy..y','.yywwy..','yywwwwy.','.ywwwwyy','..ywwy..','y..yyy..','....y...'];
-  const t=makeTex(8,8,(x,y)=>({y:'#ffb340',w:'#fff6d0'})[P[y][x]]||null);
-  const mat=new THREE.MeshBasicMaterial({map:t,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
-  const g=new THREE.Group();
-  for(const r of [0,Math.PI/2]){ const p=new THREE.Mesh(new THREE.PlaneGeometry(6,6),mat); p.rotation.z=r; p.rotation.y=Math.PI/2; p.position.z=2.6; g.add(p); }
-  const f=new THREE.Mesh(new THREE.PlaneGeometry(5,5),mat); f.position.z=0.6; g.add(f);
-  g.visible=false; R.muzzle.add(g); return g;
-})();
-const flashLight=new THREE.PointLight(0xffc06a,0,2.6,2); scene.add(flashLight);
+/* ───────── Face rig ─────────
+   The painted face pixels are moved onto thin planes just in front of the head (head front = z 4).
+   Rows from the top of the 8x8 face: brows row 3, eyes row 4, mouth row 6 (head-local y = 8 - row - 0.5).
+   At rest they show exactly the old painted pixels; pupils rest in the middle of the eye white. */
+const FZ=4;
+const faceMats={};
+const fmat=(c,tr=false)=>faceMats[c+tr]||(faceMats[c+tr]=new THREE.MeshLambertMaterial({color:c,transparent:tr}));
+function plane(parent,w,h,x,y,z,mat){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),mat);   // PlaneGeometry normals face +z (the front)
+  m.position.set(x,y,z); m.receiveShadow=true; m.userData.face=true; parent.add(m); return m;
+}
+const FACE={};
+for(const [s,x] of [['right',-2],['left',2]]){
+  const eye=bone(`eye_${s}`,R.head,x,3.5,FZ+0.04);                        // eye white, row 4
+  FACE['white_'+s]=plane(eye,2,1,0,0,0,fmat(EYE.w));
+  const pupil=bone(`pupil_${s}`,eye,0,0,0.03);
+  plane(pupil,1,1,0,0,0,fmat(EYE.i));
+  const lid=bone(`lid_${s}`,R.head,x,4,FZ+0.1);                            // pivot on the eye's top edge
+  FACE['lid_'+s]=plane(lid,2,1,0,-0.5,0,fmat(SK.b));
+  FACE['lash_'+s]=plane(lid,2,0.22,0,-0.89,0.01,fmat(SK.d));
+  const brow=bone(`brow_${s}`,R.head,x,4.5,FZ+0.12);                       // brow, row 3
+  plane(brow,2,1,0,0,0,fmat(EYE.brow));
+}
+// Mouth (row 6), standard mouth type (same as Homelander): one thin lip line that tilts and slides for the
+// one-sided smirk, thickens when the mouth opens and widens with a smile; a white teeth plate under the line
+// grows down for the grin (scale y 0 -> 1) and sits inside the head until he grins.
+// The mouth corners (u = 2 and 5) are painted skin shadow in the head texture.
+bone('mouth',R.head,0,1.6,FZ+0.05);
+FACE.line=plane(R.mouth,2,0.35,0,0,0.02,fmat(SK.lip));
+const teeth=bone('teeth',R.mouth,0,-0.1,-0.1);                          // hidden inside the head at rest
+FACE.teeth=plane(teeth,2,0.8,0,-0.4,0,fmat(MOUTH.teeth));
 
-// ---------- shared painters ----------
+/* ───────── Shared painters ───────── */
 const HAIR_TOP=[HR.m,HR.l,HR.m,HR.h,HR.l,HR.m,HR.l,HR.d];
-function faceF(u,y,closed){
+// Face texture: brows, eyes and mouth are plain skin here (the face planes draw them)
+function faceF(u,y){
   const S=SK;
   if(y===0) return [HR.m,HR.l,HR.m,HR.h,HR.l,HR.m,HR.l,HR.m][u];
   if(y===1) return (u===0||u===7)?HR.d:(u===1||u===6)?HR.m:(u===3?S.b:S.l);
   if(y===2) return (u===0||u===7)?S.s:(u===1||u===6)?S.b:S.l;
-  if(y===3) return (u===0||u===7)?S.s:(u===1||u===2||u===5||u===6)?EYE.brow:S.b;
-  if(y===4){
-    if(closed) return (u===0||u===7)?S.s:(u===1||u===2||u===5||u===6)?S.d:S.b;
-    return [S.s,EYE.w,EYE.i,S.b,S.b,EYE.i,EYE.w,S.s][u];
-  }
+  if(y===3) return (u===0||u===7)?S.s:S.b;
+  if(y===4) return (u===0||u===7)?S.s:S.b;
   if(y===5) return [S.s,S.s,S.b,S.l,S.s,S.b,S.s,S.s][u];
-  if(y===6) return [S.s,S.b,S.b,S.lip,S.lip,'#b47a62',S.b,S.s][u];
+  if(y===6) return [S.s,S.b,S.s,S.b,S.b,S.s,S.b,S.s][u];   // mouth corners in shadow; the lip line is the mouth plane
   return [S.d,S.s,S.b,S.l,S.b,S.b,S.s,S.d][u];
 }
 function hairSide(u,y,s){ return fab(y===0?HR.l:u>=6?HR.d:HR.m,u,y,s,0.1); }
-const headPaint=closed=>q=>{
+const headPaint=q=>{
   const {F,u,y,x}=q;
   if(F==='T') return fab(y>=6?sh(HAIR_TOP[x],1.08):y<=1?sh(HAIR_TOP[x],0.85):HAIR_TOP[x],x,y,q.s,0.08);
   if(F==='D') return y>=6?SK.d:SK.s;
-  if(F==='F') return faceF(u,y,closed);
+  if(F==='F') return faceF(u,y);
   if(F==='B'){
     if(y===7) return (u===0||u===7)?HR.d:SK.d;
     if(y===6) return (u===0||u===7)?SK.d:HR.d;
@@ -278,7 +292,7 @@ const hatPaint=style=>q=>{
   if(F==='T') return fab(sh(HAIR_TOP[(x+1)%8],y>=5?1.2:1.08),x,y,q.s+3,0.1);
   if(F==='F'){
     if(y===0) return sh([HR.l,HR.h,HR.l,HR.g,HR.h,HR.l,HR.h,HR.l][u],1);
-    if(style==='messy'&&((u===2&&y<=2)||(u===5&&y===1))) return y>=2?HR.d:HR.m;
+    if(style==='messy'&&u===5&&y===1) return HR.m;          // the u = 2 strand is the hair_lock part
     if(y===1&&(u===0||u===7)) return HR.m;
     return null;
   }
@@ -290,6 +304,9 @@ const hatPaint=style=>q=>{
   if(style==='messy'&&u===2&&y===2) return HR.m;
   return null;
 };
+// Messy fringe lock: same pixels as the old painted strand (2 mid-brown rows, a dark tip)
+const lockSpec={bone:'hair_lock',at:[-0.5,-2.9,0],size:[1,2.9,0.45],tx:[1,3,1],seed:30,
+  paint:q=>q.F==='T'?HR.l:q.F==='D'?HR.d:(q.y===2?HR.d:HR.m)};
 function legPaint(P){ return q=>{
   const {F,y,x}=q;
   if(F==='T') return P.c;
@@ -319,12 +336,12 @@ function armPaint(o){ return q=>{
   if(o.stripe&&o.stripe(q)) return o.stripeC;
   return fab(o.sl,x,y,q.s,0.07);
 };}
+// Wristwatch on the left wrist (arm space of the outfit specs below)
 const watch=bone=>({bone,at:[-1.2,-7.9,-2.2],size:[4.4,0.8,4.4],tx:[4,1,4],
   paint:q=>q.F==='L'&&q.x===1?'#efe2b8':q.F==='T'||q.F==='D'?'#8c6d27':'#bf9636'});
 
-/* =========================================================================
-   OUTFITS
-   ========================================================================= */
+/* ───────── Outfits ─────────
+   Specs use the one-piece limb spaces (see place()); item() = the held prop, +Z down the arm. */
 const FITS={};
 
 // ---- 1. Overcoat (camel coat, navy suit, gloves) · pistol ----
@@ -333,7 +350,7 @@ const FITS={};
   const NV={c:'#1f2738',l:'#2e3953',s:'#161c29'};
   const SB={c:'#a3c6e8',s:'#86aad0',l:'#c6def4'};
   const TN={c:'#26355e',l:'#4462a0',d:'#1a2443'};
-  FITS.overcoat={hair:'messy',weapon:'gun',parts(){
+  FITS.overcoat={hair:'messy',weapon:'gun',coatSleeves:true,parts(){
     const L=[];
     L.push({bone:'torso',at:[-4,0,-2],size:[8,12,4],seed:3,paint:q=>{
       const {F,u,y,x}=q;
@@ -398,14 +415,14 @@ const FITS={};
   // pistol, item space: +Z forward, +Y up, grip in the fist at origin
   item(){
     const G='#2b2d31',GH='#4b4f57',GD='#1b1c1f';
-    return {muzzle:[0,2.75,5.9],eject:[-0.8,3.2,1.2],parts:[
+    return [
       {at:[-0.75,1.75,-2.5],size:[1.5,2,8],tx:[2,2,8],paint:q=>q.F==='T'?(q.y%2?GH:G):q.F==='F'?GD:(q.y===0?GH:(q.x<2&&q.y===1?GD:G))},
       {at:[-0.6,1.1,1],size:[1.2,0.7,4.6],tx:[1,1,5],paint:solid(GD)},
       {at:[-0.7,-3.2,-2.4],size:[1.4,5,2],tx:[1,5,2],paint:q=>(q.y%2===0&&q.x>0)?'#2a2b2f':GD},
       {at:[-0.4,-0.2,0.9],size:[0.8,1.4,1.6],tx:[1,1,2],paint:solid(GD)},
       {at:[-0.25,3.75,4.9],size:[0.5,0.6,0.5],tx:[1,1,1],paint:()=>GH},
       {at:[-0.6,3.75,-2.4],size:[1.2,0.5,0.5],tx:[1,1,1],paint:()=>GD},
-    ]};
+    ];
   }};
 }
 
@@ -415,7 +432,7 @@ const FITS={};
   const CH={c:'#25272c',l:'#33363d',s:'#1b1c20'};
   const RT={c:'#b3222c',l:'#d24a4f',k:'#8f1a22'};
   const glassN=(c,x,y,s)=>N(x,y,s)>0.86?RC.s:c;
-  FITS.raincoat={hair:'slick',weapon:'axe',parts(){
+  FITS.raincoat={hair:'slick',weapon:'axe',coatSleeves:true,parts(){
     const L=[];
     L.push({bone:'torso',at:[-4,0,-2],size:[8,12,4],seed:3,paint:q=>{
       const {F,u,y,x}=q;
@@ -468,20 +485,20 @@ const FITS={};
   },
   item(){
     const W='#a67c4e',WG='#8a6238',WL='#c49968',ST='#9aa4ae',SE='#e3e8ec',SD='#6c747d';
-    return {muzzle:[0,-5,11],eject:[0,0,0],parts:[
+    return [
       {at:[-0.5,-0.5,-3],size:[1,1,15.5],tx:[1,1,16],paint:q=>(q.x+q.y)%5===0?WG:q.F==='T'?WL:W},
       {at:[-0.6,-0.6,-3.5],size:[1.2,1.2,0.6],tx:[1,1,1],paint:()=>WG},
       {at:[-0.75,-3,9.5],size:[1.5,3.6,3],tx:[2,4,3],paint:q=>q.y===0?SD:fab(ST,q.x,q.y,q.s,0.08)},
       {at:[-0.45,-5,8.6],size:[0.9,2.1,4.8],tx:[1,2,5],paint:q=>(q.F==='D'||q.y===1)?SE:ST},
       {at:[-0.75,0.5,10],size:[1.5,1.4,2],tx:[2,1,2],paint:solid(SD)},
-    ]};
+    ];
   }};
 }
 
 // ---- 3. Walkman (all-black suit, headphones, cassette player) · nail gun ----
 {
   const BK={c:'#1c1d22',l:'#30333a',s:'#131418',d:'#0c0c0e',sat:'#2a2c33'};
-  FITS.walkman={hair:'slick',weapon:'nail',parts(){
+  FITS.walkman={hair:'slick',weapon:'nail',headphones:true,parts(){
     const L=[];
     L.push({bone:'torso',at:[-4,0,-2],size:[8,12,4],seed:3,paint:q=>{
       const {F,u,y,x}=q;
@@ -498,12 +515,12 @@ const FITS={};
     L.push({bone:'torso',at:[-2.85,5.4,2],size:[1.6,6.6,0.55],tx:[2,7,1],rot:[0,0,0.34],seed:10,paint:q=>q.F==='F'?(q.x===0?'#3a3d45':BK.sat):BK.s});
     L.push({bone:'torso',at:[1.25,5.4,2],size:[1.6,6.6,0.55],tx:[2,7,1],rot:[0,0,-0.34],seed:11,paint:q=>q.F==='F'?(q.x===1?'#3a3d45':BK.sat):BK.s});
     // cassette player clipped on the belt + headphone cord
-    L.push({bone:'torso',at:[1.4,0.2,2],size:[3,4,1.3],tx:[3,4,1],seed:17,paint:q=>{
+    L.push({bone:'torso',at:[1.4,1.2,2],size:[3,4,1.3],tx:[3,4,1],seed:17,paint:q=>{
       if(q.F==='F') return q.y===1||q.y===2?(q.x===1?'#4d7cc0':'#2f5d9e'):q.y===0?'#c9ced5':'#9aa0a8';
       if(q.F==='T') return q.x===2?'#ff8a1e':'#c9ced5';
       return '#8d939b';
     }});
-    L.push({bone:'torso',at:[2.65,4.2,2.15],size:[0.5,7.2,0.5],tx:[1,7,1],paint:()=>'#2e3036'});
+    L.push({bone:'torso',at:[2.65,5.2,2.15],size:[0.5,6.2,0.5],tx:[1,6,1],paint:()=>'#2e3036'});
     // headphones
     const MET=q=>q.F==='T'?'#d7dbe0':'#a9aeb5', PAD=q=>(q.F==='L'||q.F==='R')&&q.x===1&&q.y>=1&&q.y<=2?'#b45d0f':q.F==='T'?'#ff9d3d':'#f08a24';
     L.push({bone:'head',at:[-5.3,8.55,-1.2],size:[10.6,0.8,1.6],tx:[11,1,2],paint:MET});
@@ -521,7 +538,7 @@ const FITS={};
   },
   item(){
     const GR='#8e959d',GL='#bcc2c9',GD='#3b3f45',BL='#141416',RD='#c8352b';
-    return {muzzle:[0,2.5,7.9],eject:[0,0,0],parts:[
+    return [
       {at:[-1.25,1.5,-3.5],size:[2.5,3,7.5],tx:[3,3,8],paint:q=>q.F==='T'?GL:(q.y===1&&(q.F==='L'||q.F==='R'))?RD:fab(GR,q.x,q.y,q.s,0.07)},
       {at:[-1.5,4.4,-3.6],size:[3,1,2.6],tx:[3,1,3],paint:solid(BL)},
       {at:[-0.8,1.7,4],size:[1.6,1.6,3.1],tx:[2,2,3],paint:solid(GD)},
@@ -529,7 +546,7 @@ const FITS={};
       {at:[-0.9,-2.6,-2.6],size:[1.8,4.6,2.2],tx:[2,5,2],paint:q=>q.y%2?'#1f2024':BL},
       {at:[-0.6,-2.9,0.3],size:[1.2,1.1,6.2],tx:[1,1,6],paint:q=>q.F==='L'||q.F==='R'?(q.x%2?'#c7cbd1':'#8b9097'):GD},
       {at:[-0.6,-1.8,5.4],size:[1.2,3.5,1],tx:[1,3,1],paint:solid(GD)},
-    ]};
+    ];
   }};
 }
 
@@ -581,14 +598,14 @@ const FITS={};
   },
   item(){
     const P='#c9c4b8',PD='#a19b8e',K='#5e5a52';
-    return {muzzle:[0,0,9],eject:[0,0,0],parts:[
+    return [
       {at:[-1.1,-0.9,-1.5],size:[2.2,1.8,8],tx:[2,2,8],paint:q=>{
         if(q.F==='T'){ if(q.y>=6) return '#7c8c6a'; return q.y>=1&&q.y<=4&&(q.y+q.x)%2===0?K:P; }
         return q.F==='D'?PD:fab(P,q.x,q.y,q.s,0.05);
       }},
       {at:[-0.3,-0.3,6.5],size:[0.6,0.6,3],tx:[1,1,3],paint:()=>'#1a1a1c'},
       {at:[-0.45,-0.45,9.3],size:[0.9,0.9,0.7],tx:[1,1,1],paint:()=>'#2a2a2d'},
-    ]};
+    ];
   }};
 }
 
@@ -619,7 +636,7 @@ const FITS={};
     }
     return y<=1?SK.b:fab(y>=7?SK.s:SK.b,q.x,y,q.s,0.04);
   };
-  FITS.shorts={hair:'messy',weapon:'none',toe:q=>q.F==='T'?(q.x===1||q.x===2?'#ffffff':'#e8e8e5'):q.F==='D'||q.y===1?SNK.sole:SNK.c,parts(){
+  FITS.shorts={hair:'messy',weapon:'none',hideBrows:true,toe:q=>q.F==='T'?(q.x===1||q.x===2?'#ffffff':'#e8e8e5'):q.F==='D'||q.y===1?SNK.sole:SNK.c,parts(){
     const L=[];
     L.push({bone:'torso',at:[-4,0,-2],size:[8,12,4],seed:3,paint:skinT});
     L.push({bone:'torso',at:[-4.35,-0.2,-2.35],size:[8.7,1.4,4.7],tx:[8,1,4],paint:q=>q.F==='T'||q.F==='D'?WH.s:(q.x%3===1?WH.s:WH.c)});
@@ -671,416 +688,570 @@ const FITS={};
     }
     return L;
   },
-  item(){ return {muzzle:[0,0,0],eject:[0,0,0],parts:[]}; }};
+  item(){ return []; }};
 }
 
-// ---------- fit building ----------
-const built=[]; let blink={mat:null,open:null,closed:null,next:2,until:0};
-function add(boneKey,spec){ const m=part(spec); R[boneKey].add(m); built.push(m); return m; }
+/* ───────── Fit building ─────────
+   The outfit specs above use the old one-piece limb spaces (arm pivot 2 below the arm top, legs 12 long).
+   place() moves them onto the 2-bone rig and cuts every limb part at the joint (y = -6): the top rows go
+   on the upper bone, the rest on the lower bone, same pixels. Inner cut faces of shells stay open. */
+const LIMB={armR:['arm_right','forearm_right',1,-2],armL:['arm_left','forearm_left',-1,-2],
+  legR:['leg_right','knee_right',0,0],legL:['leg_left','knee_left',0,0],
+  skirtR:['coat_right','coat_low_right',0,0],skirtL:['coat_left','coat_low_left',0,0]};
+const SIMPLE={torso:'body',head:'head',tie:'tie',hair_lock:'hair_lock'};
+const built=[];
+function add(boneName,spec){ const m=part(spec); R[boneName].add(m); built.push(m); return m; }
+function splitAt(spec,up,low,cut){
+  const [x,y,z]=spec.at,[w,h,d]=spec.size, tx=(spec.tx||spec.size).map(v=>Math.max(1,Math.round(v)));
+  const top=y+h, r=h/tx[1], rowsTop=Math.round((top-cut)/r), P=spec.paint;
+  const shell=spec.mode==='cut'||spec.mode==='glass';
+  if(rowsTop<=0) return add(low,{...spec,at:[x,y+6,z]});          // all below the joint
+  if(rowsTop>=tx[1]) return add(up,spec);                          // all above the joint
+  const hTop=rowsTop*r, sideF=F=>F!=='T'&&F!=='D';
+  add(up,{...spec,at:[x,top-hTop,z],size:[w,hTop,d],tx:[tx[0],rowsTop,tx[2]],
+    paint:q=>q.F==='D'?(shell?null:P({...q,F:'F',y:rowsTop-1,h:tx[1]})):P({...q,h:tx[1]})});
+  add(low,{...spec,at:[x,y+6,z],size:[w,h-hTop,d],tx:[tx[0],tx[1]-rowsTop,tx[2]],
+    paint:q=>q.F==='T'?(shell?null:P({...q,F:'F',y:rowsTop,h:tx[1]})):sideF(q.F)?P({...q,y:q.y+rowsTop,h:tx[1]}):P(q)});
+}
+function place(spec){
+  if(SIMPLE[spec.bone]) return add(SIMPLE[spec.bone],spec);
+  const [up,low,dx,dy]=LIMB[spec.bone];
+  const at=[spec.at[0]+dx,spec.at[1]+dy,spec.at[2]], size=[...spec.size];
+  // sleeve shells end flush with the shoulder pivot: a swinging arm never lifts cloth into the head
+  if(up.startsWith('arm_')&&at[1]+size[1]>0) size[1]=-at[1];
+  splitAt({...spec,at,size},up,low,-6);
+}
 let fitKey='overcoat', fit=FITS[fitKey];
 function buildFit(k){
   for(const m of built){ m.parent.remove(m); m.geometry.dispose(); for(const mt of m.material){ mt.map&&mt.map.dispose(); mt.dispose(); } }
-  built.length=0; if(blink.closed) blink.closed.dispose();
+  built.length=0;
   fitKey=k; fit=FITS[k];
-  const head=add('head',{at:[-4,0,-4],size:[8,8,8],paint:headPaint(false),seed:1});
-  blink.mat=head.material[4]; blink.open=blink.mat.map; blink.closed=makeTex(8,8,(x,y)=>faceF(x,y,true));
-  add('head',{...inf([-4,0,-4],[8,8,8],0.5),paint:hatPaint(fit.hair),mode:'cut',seed:2});
-  for(const s of fit.parts()) add(s.bone,s);
-  for(const k2 of ['legR','legL']) add(k2,{at:[-2,-12,2],size:[4,1.5,0.7],tx:[4,2,1],paint:fit.toe||toePaint,seed:8});
-  const it=fit.item();
-  it.parts.forEach((p,i)=>add('item',{...p,seed:40+i}));
-  R.muzzle.position.set(...it.muzzle); R.eject.position.set(...it.eject);
-  flash.scale.setScalar(fit.weapon==='nail'?0.6:1);
+  add('head',{at:[-4,0,-4],size:[8,8,8],paint:headPaint,seed:1});
+  // hair layer: its lower side rows are see-through (clipLo: only the hair part counts in the clip test)
+  add('head',{...inf([-4,0,-4],[8,8,8],0.5),paint:hatPaint(fit.hair),mode:'cut',seed:2,clipLo:2.9});
+  // recessed neck block under the lifted head (shadowed skin, mostly hidden by the collar)
+  add('body',{at:[-2.5,11.6,-1.5],size:[5,1.6,3],tx:[5,1,3],seed:31,paint:q=>q.F==='F'?SK.s:SK.d});
+  if(fit.hair==='messy') add('hair_lock',lockSpec);
+  for(const s of fit.parts()) place(s);
+  for(const s of ['right','left']) add(`knee_${s}`,{at:[-2,-6,2],size:[4,1.5,0.7],tx:[4,2,1],paint:fit.toe||toePaint,seed:8});
+  fit.item().forEach((p,i)=>add('prop',{...p,seed:40+i}));
+  // A mask over the eyes hides the eye and brow planes (they would peek out when raised)
+  for(const s of ['right','left']) R[`eye_${s}`].visible=R[`lid_${s}`].visible=R[`brow_${s}`].visible=!fit.hideBrows;
 }
 
-// ---------- animation ----------
-const E={lin:t=>t,inQ:t=>t*t,outQ:t=>1-(1-t)*(1-t),io:t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2,
-  inC:t=>t*t*t,outC:t=>1-Math.pow(1-t,3),outB:t=>{const c=1.70158;return 1+(c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2);}};
-function track(k,t){
-  if(t<=k[0][0]) return k[0][1];
-  for(let i=1;i<k.length;i++) if(t<=k[i][0]){ const p=k[i-1],f=(t-p[0])/(k[i][0]-p[0]); return p[1]+(k[i][1]-p[1])*E[k[i][2]||'io'](f); }
-  return k[k.length-1][1];
+/* ───────── Curves ─────────
+   Keyframe tracks [[t, v], ...] through a monotone cubic (Fritsch-Butland tangents): smooth, flows
+   through the keys, never overshoots (no surprise clipping), flat at the first/last key (seamless loop). */
+function curve(keys){
+  const n=keys.length, T=keys.map(k=>k[0]), V=keys.map(k=>k[1]), M=new Array(n).fill(0);
+  for(let i=1;i<n-1;i++){
+    const d0=(V[i]-V[i-1])/(T[i]-T[i-1]), d1=(V[i+1]-V[i])/(T[i+1]-T[i]);
+    M[i]=d0*d1<=0?0:2*d0*d1/(d0+d1);
+  }
+  return t=>{
+    if(t<=T[0]) return V[0];
+    if(t>=T[n-1]) return V[n-1];
+    let i=1; while(t>T[i]) i++;
+    const h=T[i]-T[i-1], u=(t-T[i-1])/h, u2=u*u, u3=u2*u;
+    return (2*u3-3*u2+1)*V[i-1]+(u3-2*u2+u)*h*M[i-1]+(-2*u3+3*u2)*V[i]+(u3-u2)*h*M[i];
+  };
 }
-const BONES=['pelvis','torso','head','armR','armL','legR','legL','hand'];
-const zeroPose=()=>{ const p={pos:[0,0,0]}; for(const b of BONES) p[b]=[0,0,0]; return p; };
-function compile(ch){ return Object.entries(ch).map(([k,keys])=>{ const [b,a]=k.split('.'); return {b,i:'xyz'.indexOf(a),keys}; }); }
-const seq=(len,vals,ease='io')=>vals.map((v,i)=>[i*len/(vals.length-1),v,ease]);
+// {'bone.x': keys, 'f.channel': keys, fw: keys} -> list of evaluators that write into a pose Q
+function tracks(spec){
+  return Object.entries(spec).map(([k,keys])=>{
+    const f=curve(keys), [b,a]=k.split('.');
+    if(b==='fw') return (t,Q)=>{ Q.fw=f(t); };
+    if(b==='f') return (t,Q)=>{ Q.f[a]+=f(t); };
+    const i='xyz'.indexOf(a);
+    return (t,Q)=>{ (Q.r[b]||(Q.r[b]=[0,0,0]))[i]+=f(t); };
+  });
+}
 
-const ATK={
-  gun:{len:2.3,shots:[0.66,1.1],recoil:1,ch:compile({
-    'armR.x':[[0,-0.08],[0.34,-1.6,'outB'],[1.8,-1.52],[2.3,-0.08]],
-    'armR.y':[[0,0],[0.34,-0.26,'outQ'],[1.8,-0.26],[2.3,0]],
-    'torso.y':[[0,0],[0.34,0.3,'outQ'],[1.8,0.3],[2.3,0]],
-    'head.y':[[0,0],[0.34,-0.3],[1.8,-0.3],[2.3,0]],
-    'head.x':[[0,0],[0.34,0.06],[1.8,0.06],[2.3,0]],
-    'armL.x':[[0,0],[0.34,0.16],[1.8,0.16],[2.3,0]],
-    'armL.z':[[0,0],[0.34,0.08],[1.8,0.08],[2.3,0]],
-    'legR.x':[[0,0],[0.34,-0.14],[1.8,-0.14],[2.3,0]],
-    'legL.x':[[0,0],[0.34,0.12],[1.8,0.12],[2.3,0]],
-    'pos.y':[[0,0],[0.34,-0.12],[1.8,-0.12],[2.3,0]]})},
-  axe:{len:2.1,shots:[],recoil:0,ch:compile({
-    'armR.x':[[0,-0.1],[0.55,-2.75],[0.66,-2.85,'outQ'],[0.82,-0.9,'inC'],[0.9,-1.0,'outQ'],[1.4,-0.95],[2.1,-0.1]],
-    'armL.x':[[0,0],[0.55,-2.7],[0.66,-2.8,'outQ'],[0.82,-1.0,'inC'],[0.9,-1.08,'outQ'],[1.4,-1.0],[2.1,0]],
-    'armR.z':[[0,-0.12],[0.55,-0.16],[0.66,-0.16],[0.82,0.22,'inC'],[1.4,0.2],[2.1,-0.12]],
-    'armL.z':[[0,0.03],[0.55,0.16],[0.66,0.16],[0.82,-0.32,'inC'],[1.4,-0.3],[2.1,0.03]],
-    'hand.x':[[0,0],[0.55,-1.0],[0.66,-1.2],[0.82,-0.45,'inC'],[0.9,-0.38],[1.4,-0.4],[2.1,0]],
-    'torso.x':[[0,0],[0.55,-0.14],[0.66,-0.16],[0.82,0.3,'inC'],[0.9,0.27],[1.4,0.24],[2.1,0]],
-    'head.x':[[0,0],[0.55,-0.12],[0.82,-0.06],[1.4,-0.06],[2.1,0]],
-    'legR.x':[[0,0],[0.55,0.05],[0.82,-0.34,'outQ'],[1.4,-0.32],[2.1,0]],
-    'legL.x':[[0,0],[0.55,-0.05],[0.82,0.3,'outQ'],[1.4,0.28],[2.1,0]],
-    'pos.y':[[0,0],[0.82,-0.62,'outQ'],[1.4,-0.58],[2.1,0]],
-    'pos.z':[[0,0],[0.82,0.9,'outQ'],[1.4,0.8],[2.1,0]]})},
-  nail:{len:1.9,shots:[0.55,0.8,1.05],recoil:0.6,ch:compile({
-    'armR.x':[[0,-0.1],[0.32,-1.36,'outB'],[1.5,-1.3],[1.9,-0.1]],
-    'armR.y':[[0,0],[0.32,0.1],[1.5,0.1],[1.9,0]],
-    'armL.x':[[0,0],[0.32,-1.1],[1.5,-1.05],[1.9,0]],
-    'armL.z':[[0,0],[0.32,-0.36],[1.5,-0.36],[1.9,0]],
-    'torso.y':[[0,0],[0.32,-0.12],[1.5,-0.12],[1.9,0]],
-    'torso.x':[[0,0],[0.32,0.06],[1.5,0.06],[1.9,0]],
-    'head.x':[[0,0],[0.32,0.12],[1.5,0.12],[1.9,0]],
-    'head.y':[[0,0],[0.32,0.1],[1.5,0.1],[1.9,0]],
-    'legR.x':[[0,0],[0.32,-0.12],[1.5,-0.12],[1.9,0]],
-    'legL.x':[[0,0],[0.32,0.1],[1.5,0.1],[1.9,0]],
-    'pos.y':[[0,0],[0.32,-0.1],[1.5,-0.1],[1.9,0]]})},
-  phone:{len:1.8,shots:[],recoil:0,ch:compile({
-    'armR.x':[[0,-0.1],[0.48,-2.55],[0.58,-2.65,'outQ'],[0.76,-0.5,'inC'],[0.84,-0.38,'outQ'],[1.25,-0.42],[1.8,-0.1]],
-    'armR.z':[[0,0],[0.48,-0.36],[0.58,-0.38],[0.76,0.26,'inC'],[1.25,0.22],[1.8,0]],
-    'hand.x':[[0,0],[0.48,-0.6],[0.76,-0.2,'inC'],[1.25,-0.2],[1.8,0]],
-    'torso.y':[[0,0],[0.48,-0.32],[0.58,-0.36],[0.76,0.3,'inC'],[1.25,0.26],[1.8,0]],
-    'torso.x':[[0,0],[0.48,-0.08],[0.76,0.18,'inC'],[1.25,0.14],[1.8,0]],
-    'head.y':[[0,0],[0.48,0.2],[0.76,-0.18,'inC'],[1.25,-0.15],[1.8,0]],
-    'armL.x':[[0,0],[0.48,-0.55],[0.76,0.35,'inC'],[1.25,0.3],[1.8,0]],
-    'armL.z':[[0,0],[0.48,0.3],[0.76,0.12],[1.8,0]],
-    'legR.x':[[0,0],[0.48,0.08],[0.76,-0.3,'outQ'],[1.25,-0.28],[1.8,0]],
-    'legL.x':[[0,0],[0.48,-0.06],[0.76,0.26,'outQ'],[1.25,0.24],[1.8,0]],
-    'pos.y':[[0,0],[0.76,-0.48,'outQ'],[1.25,-0.45],[1.8,0]]})},
-};
-// "Hip to be square" two-beat routine: fist pumps, then the high kick with arms out
-const DANCE={len:2,ch:compile({
-  'armR.x':seq(2,[-0.35,-2.6,-2.05,-2.65,-1.0,-0.3,-0.25,-0.3,-0.35]),
-  'armR.z':seq(2,[-0.1,-0.34,-0.3,-0.34,-0.6,-1.2,-1.25,-1.05,-0.1]),
-  'armL.x':seq(2,[-0.35,-0.75,-0.5,-0.75,-0.6,-0.3,-0.25,-0.3,-0.35]),
-  'armL.z':seq(2,[0.1,0.18,0.15,0.18,0.6,1.2,1.25,1.05,0.1]),
-  'legL.x':seq(2,[0,0.08,0,0.08,0,-0.85,-0.7,-0.1,0]),
-  'legL.z':seq(2,[0,0,0,0,0,0.25,0.3,0.05,0]),
-  'legR.x':seq(2,[0,-0.08,0,-0.08,0,0.1,0.1,0.02,0]),
-  'torso.x':seq(2,[0,0.05,0,0.05,0,-0.14,-0.12,0,0]),
-  'torso.y':seq(2,[0,0.12,0,0.12,0,-0.1,-0.12,0,0]),
-  'torso.z':seq(2,[0,-0.06,0,-0.06,0,0.1,0.12,0.04,0]),
-  'head.x':seq(2,[0,0.16,0,0.16,0,-0.08,-0.06,0.12,0]),
-  'head.z':seq(2,[0,0.08,0,0.08,0,-0.12,-0.14,0,0]),
-  'pelvis.z':seq(2,[0,0.03,0,0.03,0,-0.05,-0.06,0,0]),
-  'pos.y':seq(2,[0,0.55,0,0.55,0,0.25,0.2,0,0]),
-  'pos.x':seq(2,[0,-0.5,-0.7,-0.5,0,0.6,0.8,0.4,0])})};
-
-ATK.none={len:1.4,shots:[],recoil:0,ch:compile({                 // jab-cross combo
-  'armL.x':[[0,-0.2],[0.15,-0.9],[0.28,-1.6,'outQ'],[0.42,-0.9],[1.1,-0.9],[1.4,-0.2]],
-  'armL.z':[[0,0.05],[0.15,-0.12],[0.28,-0.06],[0.42,-0.12],[1.1,-0.12],[1.4,0.05]],
-  'armR.x':[[0,-0.2],[0.15,-0.9],[0.5,-0.9],[0.64,-1.65,'outQ'],[0.8,-0.9],[1.1,-0.9],[1.4,-0.2]],
-  'armR.z':[[0,-0.05],[0.15,0.12],[0.5,0.12],[0.64,0.06],[0.8,0.12],[1.1,0.12],[1.4,-0.05]],
-  'torso.y':[[0,0],[0.15,0],[0.28,-0.22,'outQ'],[0.42,0],[0.5,0],[0.64,0.34,'outQ'],[0.8,0.05],[1.1,0],[1.4,0]],
-  'head.y':[[0,0],[0.28,0.18],[0.42,0],[0.5,0],[0.64,-0.28],[0.8,-0.04],[1.4,0]],
-  'head.x':[[0,0],[0.15,0.12],[1.1,0.12],[1.4,0]],
-  'legR.x':[[0,0],[0.15,0.12],[1.1,0.12],[1.4,0]],
-  'legL.x':[[0,0],[0.15,-0.14],[1.1,-0.14],[1.4,0]],
-  'pos.y':[[0,0],[0.15,-0.1],[1.1,-0.1],[1.4,0]]})};
-const ARM_SWING={gun:0.6,axe:0.35,nail:0.55,phone:0.85,none:1};
+/* ───────── Animations ─────────
+   Each anim: fn(t, Q) fills bone rotations Q.r[bone] = [x, y, z] (rad), hip drift Q.root = [x, y, z]
+   (texels), face channels Q.f and the head-follow weight Q.fw. Lengths T are whole 1/120 s frames.
+   Signs: x + = limb back / head chin down, arm z outward (right -, left +), y + = turn to his left. */
+const FACE_KEYS=['brow','tilt','smile','open','teeth','squint','wide','glance','look'];
+const SWING={gun:0.6,axe:0.32,nail:0.55,phone:0.8,none:1};       // right arm swing per held item
+const idle2Tracks=tracks({
+  // Hair slick: the left arm twists and swings up beside the head, the forearm folds, the hand slides up
+  'arm_left.x':[[0,0.02],[0.5,0.02],[0.95,-0.3],[1.45,0],[2.7,0],[3.3,-0.25],[3.9,0.02],[4.4,0.02],[4.95,-0.68],[5.9,-0.66],[6.5,0.02],[8,0.02]],
+  'arm_left.y':[[0,0],[0.5,0],[1.45,1.5708],[2.7,1.5708],[3.6,0],[8,0]],
+  'arm_left.z':[[0,0.09],[0.5,0.09],[0.95,0.85],[1.45,1.92],[1.9,2.08],[2.35,2.2],[2.7,2.15],[3.3,1.05],[3.9,0.09],[4.4,0.1],[4.95,0.3],[5.9,0.3],[6.5,0.09],[8,0.09]],
+  'forearm_left.x':[[0,-0.08],[0.5,-0.1],[0.95,-0.6],[1.45,-1.5],[1.9,-1.64],[2.35,-1.75],[2.7,-1.7],[3.3,-0.75],[3.9,-0.1],[4.4,-0.1],[4.95,-1.35],[5.4,-1.42],[5.9,-1.35],[6.5,-0.1],[8,-0.08]],
+  'arm_right.x':[[0,-0.08],[4.95,-0.12],[5.9,-0.12],[6.5,-0.08],[8,-0.08]],
+  'arm_right.z':[[0,-0.05],[8,-0.05]],
+  'forearm_right.x':[[0,-0.12],[8,-0.12]],
+  // Head: leans away from the hand, chin up (smug); then turns down-left to the watch; then a grin to you
+  'head.x':[[0,0],[1.45,-0.03],[2.35,-0.08],[2.7,-0.06],[3.6,0],[4.4,0],[4.95,0.14],[5.9,0.14],[6.5,0],[6.9,-0.05],[7.4,-0.05],[8,0]],
+  'head.y':[[0,0],[0.95,0.08],[1.45,0.14],[2.35,-0.16],[2.7,-0.13],[3.6,0],[4.4,0.03],[4.95,0.14],[5.9,0.13],[6.5,0.03],[8,0]],
+  'head.z':[[0,0],[1.45,0.04],[2.35,0.06],[3.6,0],[6.4,0],[6.9,-0.06],[7.4,-0.07],[8,0]],
+  'body.x':[[0,0],[6.4,0],[6.9,-0.025],[7.4,-0.025],[8,0]],
+  'body.y':[[0,0],[4.4,0],[4.95,0.08],[5.9,0.08],[6.5,0],[8,0]],
+  'body.z':[[0,0],[1.45,0.02],[2.35,0.03],[3.6,0],[8,0]],
+  // Face
+  'f.smile':[[0,0.2],[0.95,0.25],[1.45,0.45],[2.35,0.55],[2.7,0.5],[3.6,0.2],[4.4,0.15],[4.95,0.3],[5.4,0.4],[5.9,0.35],[6.4,0.4],[6.9,1],[7.4,1],[7.8,0.3],[8,0.2]],
+  'f.open':[[0,0.02],[6.4,0.02],[6.9,0.35],[7.4,0.3],[7.8,0.03],[8,0.02]],
+  'f.teeth':[[0,0],[6.4,0],[6.9,1],[7.4,1],[7.8,0],[8,0]],
+  'f.squint':[[0,0],[0.95,0],[1.45,0.55],[2.35,0.7],[2.7,0.6],[3.3,0],[8,0]],
+  'f.wide':[[0,0],[6.4,0],[6.9,0.6],[7.4,0.5],[7.9,0],[8,0]],
+  'f.brow':[[0,0],[1.45,0.15],[2.35,0.25],[3.3,0],[4.95,0.35],[5.4,0.45],[5.9,0.35],[6.4,0],[6.9,0.5],[7.4,0.45],[7.9,0],[8,0]],
+  'f.tilt':[[0,0],[6.4,0],[6.9,0.15],[7.4,0.15],[7.9,0],[8,0]],
+  'f.glance':[[0,0],[1.45,-0.2],[2.35,-0.3],[3.3,0],[4.4,0],[4.95,0.65],[5.9,0.6],[6.4,0],[8,0]],
+  'f.look':[[0,0],[4.4,0],[4.95,-0.9],[5.9,-0.9],[6.4,0],[8,0]],
+  // Head-follow fades out before the arm comes up beside the head, back in for the grin
+  'fw':[[0,1],[0.35,1],[0.9,0],[6.3,0],[6.8,1],[8,1]],
+});
 const ANIMS={
-  idle(p,T){
-    const br=Math.sin(T*Math.PI*2/3.6), brl=Math.sin(T*Math.PI*2/3.6-0.7), ws=Math.sin(T*Math.PI*2/7.5);
-    p.torso[0]=0.014*br; p.head[0]=-0.012*br+0.025*Math.sin(T*0.6);
-    p.armR[2]=-0.04-0.022*brl; p.armL[2]=0.04+0.022*brl;
-    p.armR[0]=0.03*Math.sin(T*Math.PI*2/3.6-1.2); p.armL[0]=-p.armR[0]*0.8;
-    p.pos[0]=0.28*ws; p.pelvis[2]=0.018*ws; p.legR[2]=-0.018*ws; p.legL[2]=-0.018*ws; p.torso[2]=-0.03*ws;
-    if(fit.weapon==='axe'){ p.armR[2]-=0.1; p.armR[0]-=0.06; }
-    else p.armR[0]-=0.08;
-  },
-  walk(p,T){
-    const ph=T/1.05*Math.PI*2, s=Math.sin(ph), sl=Math.sin(ph-0.35), a=ARM_SWING[fit.weapon];
-    p.legR[0]=0.62*s; p.legL[0]=-0.62*s;
-    p.armR[0]=-0.55*a*sl-(fit.weapon==='axe'?0.06:0.05); p.armL[0]=0.55*sl;
-    p.armR[2]=fit.weapon==='axe'?-0.15:-0.05; p.armL[2]=0.05;
-    p.pos[1]=0.65*Math.abs(Math.cos(ph))-0.3;
-    p.torso[1]=0.07*s; p.torso[0]=0.06+0.02*Math.cos(2*ph);
-    p.head[1]=-0.06*s; p.head[0]=-0.05+0.025*Math.cos(2*ph);
-    p.pelvis[1]=-0.04*s;
-  },
-  attack(p,T){
-    const A=ATK[fit.weapon], t=T%A.len;
-    for(const c of A.ch) (c.b==='pos'?p.pos:p[c.b])[c.i]=track(c.keys,t);
-    let r=0; for(const s of A.shots) if(t>=s) r+=Math.exp(-(t-s)*16);
-    r*=A.recoil; p.armR[0]-=0.32*r; p.hand[0]-=0.25*r; p.torso[0]-=0.05*r;
-  },
-  special(p,T){
-    const t=T%DANCE.len;
-    for(const c of DANCE.ch) (c.b==='pos'?p.pos:p[c.b])[c.i]=track(c.keys,t);
-  },
+  // 1 · Idle: composed and still. Slow breathing, hips drift over planted feet, a cold half-smirk now and then
+  idle:{T:8,fn(t,Q){
+    const br=Math.sin(TAU*t/4), brl=Math.sin(TAU*t/4-0.7), ws=Math.sin(TAU*t/8);
+    const sx=0.3*ws;                                           // hip drift (texels); legs lean back to keep the feet put
+    Q.root=[sx,0,0];
+    Q.r.leg_right=[0,0,-sx/12]; Q.r.leg_left=[0,0,-sx/12];
+    Q.r.body=[0.014*br,0.02*ws,-0.022*ws];
+    Q.r.head=[-0.012*br+0.02*Math.sin(TAU*t*3/8),0.05*Math.sin(TAU*t/8+2),0.02*ws];
+    Q.r.arm_right=[-0.08+0.025*brl,0,-0.05-0.02*brl-(fit.weapon==='axe'?0.1:0)];
+    Q.r.arm_left=[0.02-0.02*brl,0,0.09+0.02*brl];             // a bit wider: the watch clears the coat
+    Q.r.forearm_right=[-0.12-0.02*br,0,0]; Q.r.forearm_left=[-0.08-0.03*br,0,0];
+    const smirk=pos2(Math.sin(TAU*t/8-1))**2;                 // one slow smirk per loop
+    Q.f.smile=0.18+0.45*smirk; Q.f.brow=0.1*br+0.12*smirk; Q.f.open=0.03+0.03*pos2(br);
+    Q.f.glance=0.55*Math.sin(TAU*t*2/8+0.3)**3; Q.f.squint=0.18*smirk;
+  }},
+  // 2 · Idle 2: vain self-check. Slicks his hair back, checks his watch, then the wide "Hip to be square" grin
+  idle2:{T:8,fn(t,Q){
+    for(const f of idle2Tracks) f(t,Q);
+    // headphones (Walkman) or a thick coat sleeve: the hand stays a bit wider during the hair slick
+    const wider=fit.headphones?0.3:fit.coatSleeves?0.14:0;
+    Q.r.forearm_left[0]+=wider*Q.r.arm_left[1]/1.5708;
+    if(fit.headphones) Q.r.arm_left[2]+=0.12*Q.r.arm_left[1]/1.5708;   // and the elbow goes wider
+    const br=Math.sin(TAU*t/4);
+    Q.r.body[0]+=0.012*br; Q.f.brow+=0.05*br;
+  }},
+  // 3 · Walk: brisk executive stride. Chest up, chin up, shoulders counter the hips, heel strike and toe off
+  walk:{T:1.1,fn(t,Q){
+    const p=TAU*t/1.1, s=Math.sin(p), sl=Math.sin(p-0.3), a=SWING[fit.weapon];
+    const hip=x=>-0.44*Math.sin(x);                                       // + = thigh back
+    const knee=x=>0.05+0.78*pos2(Math.cos(x+0.55))+0.4*pos2(Math.sin(x))*Math.max(0,-Math.cos(x));  // swing flex + loading
+    Q.r.leg_right=[hip(p),0,0]; Q.r.knee_right=[knee(p),0,0];
+    Q.r.leg_left=[hip(p+Math.PI),0,0]; Q.r.knee_left=[knee(p+Math.PI),0,0];
+    const sway=-0.35*Math.sin(p-Math.PI/2);                               // hips over the stance foot (texels)
+    Q.root=[sway,0,0];
+    Q.r.leg_right[2]=-sway/12; Q.r.leg_left[2]=-sway/12;
+    Q.r.body=[0.05+0.015*Math.cos(2*p),-0.08*s,0.03*Math.sin(p-Math.PI/2)];
+    Q.r.head=[-0.03-0.012*Math.cos(2*p),0.06*s,-0.025*Math.sin(p-Math.PI/2)];
+    // arms swing evenly, a little out to the side (z): the shoulder edges stay under the head
+    const amp=fit.coatSleeves?0.31:0.34;                                  // thick coat sleeves swing a bit less
+    Q.r.arm_right=[amp*a*sl,0,-0.1-(fit.weapon==='axe'?0.1:0)];
+    Q.r.arm_left=[-amp*sl,0,0.1];
+    Q.r.forearm_right=[-0.22-0.3*a*pos2(-sl),0,0];
+    Q.r.forearm_left=[-0.22-0.3*pos2(sl),0,0];
+    Q.f.smile=0.3; Q.f.brow=0.08+0.04*Math.cos(2*p); Q.f.open=0.03; Q.f.squint=0.12;
+    Q.fw=0.35;                                                             // eyes ahead: the head turns less while walking
+  }},
 };
-const TRACK_W={idle:1,walk:0.6,attack:0.2,special:0.25};
-const ANIM_LEN={idle:0,walk:0,special:DANCE.len};
+const ANIM_ORDER=Object.keys(ANIMS);
 
-let anim='idle', animT=0, prev=null, prevT=0, blend=1, lastAtkT=0;
-function setAnim(a){
-  prev=anim; prevT=animT; blend=0; anim=a; animT=0; lastAtkT=0;
-  document.querySelectorAll('[data-anim]').forEach(b=>b.classList.toggle('on',b.dataset.anim===a));
+/* ───────── Sim (state) ───────── */
+const S={
+  anim:'idle', t:0, prev:null, prevT:0, blend:1, time:0, frozen:false,
+  face:Object.fromEntries(FACE_KEYS.map(k=>[k,0])),
+  blink:{t:-1,wait:1.6,again:false},
+  sacc:{v:0,target:0,wait:1.2},                                   // small random eye glances (saccades)
+  follow:{on:true,has:false,tYaw:0,tPitch:0,yaw:0,pitch:0,eye:0,w:1},
+  spring:{lockX:{a:0,v:0},lockZ:{a:0,v:0},tieX:{a:0,v:0},tieZ:{a:0,v:0}},
+  lag:{right:0,left:0}, prevLeg:{right:0,left:0}, prevHead:[0,0], prevRootY:0, prevBodyX:0, prevRootX:0, prevRootV:0,
+};
+const mkPose=()=>({r:{},f:Object.fromEntries(FACE_KEYS.map(k=>[k,0])),root:[0,0,0],fw:1});
+const poseA=mkPose(), poseB=mkPose();
+function evalAnim(name,t,Q){
+  for(const k in Q.r) delete Q.r[k];
+  for(const k of FACE_KEYS) Q.f[k]=0;
+  Q.root=[0,0,0]; Q.fw=1;
+  ANIMS[name].fn(t%ANIMS[name].T,Q);
 }
-function setFit(k){
-  buildFit(k);
-  document.querySelectorAll('[data-fit]').forEach(b=>b.classList.toggle('on',b.dataset.fit===k));
+function selectAnim(name){
+  if(!ANIMS[name]||name===S.anim) return;
+  S.prev=S.anim; S.prevT=S.t; S.anim=name; S.t=0; S.blend=0;
+  document.querySelectorAll('.anim-btn').forEach(b=>b.classList.toggle('active',b.dataset.anim===name));
 }
-
-// ---------- secondary motion ----------
-const spring=()=>({a:0,v:0});
 function stepSpring(s,target,dt,k,d){ s.v+=((target-s.a)*k-s.v*d)*dt; s.a+=s.v*dt; }
-const tieX=spring(), tieZ=spring();
-const lag={R:0,L:0}, prevLeg={R:0,L:0};
-let prevTorsoX=0, prevPosX=0, prevPosXv=0;
-const look={yaw:0,pitch:0};
 
-// ---------- effects (nails, casings) ----------
-const fx=[];
-const nailGeo=new THREE.BoxGeometry(0.03,0.03,0.15), nailMat=new THREE.MeshLambertMaterial({color:0xb7bcc3});
-const caseGeo=new THREE.BoxGeometry(0.035,0.035,0.06), caseMat=new THREE.MeshLambertMaterial({color:0xd9b14a});
-let flashUntil=0;
-const _v=new THREE.Vector3(), _d=new THREE.Vector3(), _q=new THREE.Quaternion();
-function shoot(now){
-  flash.visible=true; flash.rotation.z=Math.random()*Math.PI; flashUntil=now+0.055;
-  R.muzzle.getWorldPosition(_v); R.muzzle.getWorldDirection(_d);
-  if(fit.weapon==='nail'){
-    const m=new THREE.Mesh(nailGeo,nailMat); m.position.copy(_v); m.lookAt(_v.clone().add(_d)); m.castShadow=true; scene.add(m);
-    fx.push({m,vel:_d.clone().multiplyScalar(9),life:0.32,grav:0,spin:0});
-  } else {
-    R.eject.getWorldPosition(_v); R.item.getWorldQuaternion(_q);
-    const side=new THREE.Vector3(-1,0.9,-0.3).applyQuaternion(_q).normalize();
-    const m=new THREE.Mesh(caseGeo,caseMat); m.position.copy(_v); m.castShadow=true; scene.add(m);
-    fx.push({m,vel:side.multiplyScalar(1.6),life:0.9,grav:9.8,spin:18});
+/* ───────── Ground ─────────
+   The hip height comes from the leg angles: the lowest shoe corner (smooth min over heel/toe corners of
+   both feet) is put on the floor, so feet never sink or float, without hard clamps. */
+const FOOT=[[-2,-6,-2],[2,-6,-2],[-2,-6,2.7],[2,-6,2.7]];      // shoe bottom corners in knee space (toe cap to z 2.7)
+const _c=new THREE.Vector3();
+function footLow(){
+  root.updateMatrixWorld(true);
+  const ys=[];
+  for(const s of ['right','left']) for(const c of FOOT){ _c.set(...c).applyMatrix4(R[`knee_${s}`].matrixWorld); ys.push(_c.y*16); }
+  const m=Math.min(...ys); let sum=0;
+  for(const y of ys) sum+=Math.exp(-(y-m)/0.015);
+  return m-0.015*Math.log(sum);                                 // smooth min (k = 0.015 texel: heel/toe hand-over without a corner)
+}
+let groundRest=0;                                               // footLow() of the rest pose: rest stays at exactly y = 0
+
+/* ───────── Step: pose, follow, expression, springs, face ───────── */
+function step(dt){
+  S.time+=dt; S.t+=dt; S.prevT+=dt;
+  S.blend=Math.min(1,S.blend+dt/0.3);
+  const w=S.blend*S.blend*(3-2*S.blend), mixing=S.prev&&w<1;     // smooth crossfade between animations
+  evalAnim(S.anim,S.t,poseA);
+  if(mixing) evalAnim(S.prev,S.prevT,poseB);
+  const k=mixing?w:1, lerp=(b,a)=>b+(a-b)*k;
+  for(const n in bones){ const b=bones[n]; b.position.copy(b.userData.rest); b.rotation.set(...b.userData.rr); }
+  const names=new Set([...Object.keys(poseA.r),...(mixing?Object.keys(poseB.r):[])]);
+  for(const n of names){
+    const a=poseA.r[n]||[0,0,0], b=(mixing&&poseB.r[n])||[0,0,0];
+    bones[n].rotation.set(lerp(b[0],a[0]),lerp(b[1],a[1]),lerp(b[2],a[2]));
+  }
+  const rb=mixing?poseB.root:poseA.root;
+  root.position.set(lerp(rb[0],poseA.root[0])/16,0,lerp(rb[2],poseA.root[2])/16);
+  const fo={};
+  for(const f of FACE_KEYS) fo[f]=lerp(mixing?poseB.f[f]:poseA.f[f],poseA.f[f]);
+  const fw=lerp(mixing?poseB.fw:poseA.fw,poseA.fw);
+
+  // Feet on the floor: hip height from the leg angles
+  root.position.y=(groundRest-footLow()+lerp(rb[1],poseA.root[1]))/16;
+
+  // Head + eyes follow the mouse; off -> they ease back to the animation's pose (never snap)
+  const F=S.follow, on=F.on&&F.has;
+  F.w+=((on?fw:0)-F.w)*filt(dt,5);
+  F.yaw+=(F.tYaw-F.yaw)*filt(dt,6); F.pitch+=(F.tPitch-F.pitch)*filt(dt,6);
+  F.eye+=((on?F.tYaw/0.85:0)*fw-F.eye)*filt(dt,10);
+  const H=R.head.rotation;
+  H.y+=F.yaw*F.w; H.x+=F.pitch*F.w;
+
+  // Forced expression from the shared menu: eases over the animation's face + head pose
+  const xf=window.MobViewer?window.MobViewer.face(dt):null;
+  if(xf&&xf.w>1e-4){
+    const mix=(c,v)=>{ fo[c]+=(v-fo[c])*xf.w; };
+    mix('brow',0.9*xf.brow); mix('tilt',xf.tilt); mix('smile',xf.smile); mix('open',0.8*xf.open);
+    mix('teeth',0.9*Math.max(0,xf.smile)); mix('squint',0.7*Math.max(0,-xf.eyes));
+    mix('wide',Math.max(0,xf.eyes)); mix('glance',0); mix('look',0.6*xf.look);
+    H.x+=window.MobViewer.head.pitch; H.z+=window.MobViewer.head.roll;
+  }
+  // Short recessed neck: soft tilt limits keep the chin out of the collar (chin down 0.1, up 0.1, roll 0.07)
+  H.x=softLim(H.x,0.1); H.z=softLim(H.z,0.07);
+
+  springs(dt,fw);
+  updateFace(dt,fo,F);
+
+  // Contact shadow follows the hips
+  blob.position.x=root.position.x; blob.position.z=root.position.z;
+}
+
+/* ───────── Physics: hair lock, tie, coat panels ─────────
+   Springs driven by the body's motion, always clamped (soft limits, never through the face or legs). */
+function springs(dt,fw){
+  if(dt<=0) return;
+  const sp=S.spring, n=Math.max(1,Math.ceil(dt*240)), h=dt/n;
+  // head angular speed + hip bob speed drive the fringe lock; a faint sway keeps it alive in idle
+  const hx=R.head.rotation.x+R.body.rotation.x, hy=R.head.rotation.y+R.body.rotation.y;
+  const wx=(hx-S.prevHead[0])/dt, wy=(hy-S.prevHead[1])/dt; S.prevHead=[hx,hy];
+  const vy=(root.position.y*16-S.prevRootY)/dt; S.prevRootY=root.position.y*16;
+  sp.lockX.v+=clamp(wx*0.5-vy*0.012,-3,3); sp.lockZ.v+=clamp(-wy*0.35,-3,3);
+  const breeze=0.025*Math.sin(S.time*1.7)+0.015*Math.sin(S.time*2.9+1);
+  for(let i=0;i<n;i++){ stepSpring(sp.lockX,-0.04+breeze,h,140,9); stepSpring(sp.lockZ,breeze*0.6,h,120,8); }
+  // only swings outward, away from the forehead (x < 0): softplus floor, soft limit 0.45 rad
+  const out=0.03*Math.log1p(Math.exp(Math.min(50,-sp.lockX.a/0.03)));
+  R.hair_lock.rotation.set(-softLim(out,0.45),0,softLim(sp.lockZ.a,0.22));
+
+  // tie: hangs with gravity (cancels the torso lean), swings on hip drift
+  const tx=R.body.rotation.x, tv=(tx-S.prevBodyX)/dt; S.prevBodyX=tx;
+  const rx=root.position.x*16, rv=(rx-S.prevRootX)/dt, racc=(rv-S.prevRootV)/dt; S.prevRootX=rx; S.prevRootV=rv;
+  sp.tieX.v-=tv*0.6; sp.tieZ.v+=clamp(racc,-400,400)*0.0006;
+  const lean=0.05*Math.log1p(Math.exp(tx/0.05));               // soft max(0, lean)
+  for(let i=0;i<n;i++){ stepSpring(sp.tieX,-lean,h,90,9); stepSpring(sp.tieZ,-R.body.rotation.z,h,80,8); }
+  const fwd=0.02*Math.log1p(Math.exp(Math.min(50,-sp.tieX.a/0.02)));   // only swings away from the shirt
+  R.tie.rotation.set(-softLim(fwd,0.9),0,softLim(sp.tieZ.a,0.35));
+
+  // coat panels lag behind the thighs (follow-through), soft-limited so they never cut the legs
+  for(const s of ['right','left']){
+    const lx2=R[`leg_${s}`].rotation.x, wv=(lx2-S.prevLeg[s])/dt; S.prevLeg[s]=lx2;
+    S.lag[s]+=(softLim(-wv*0.03,0.07)-S.lag[s])*filt(dt,10);
+    R[`coat_${s}`].rotation.x=S.lag[s];
   }
 }
-function updateFx(dt){
-  for(let i=fx.length-1;i>=0;i--){
-    const f=fx[i]; f.life-=dt; f.vel.y-=f.grav*dt; f.m.position.addScaledVector(f.vel,dt);
-    if(f.spin){ f.m.rotation.x+=f.spin*dt; f.m.rotation.y+=f.spin*0.6*dt; }
-    if(f.m.position.y<0.02&&f.grav){ f.m.position.y=0.02; f.vel.multiplyScalar(0.3); f.vel.y=Math.abs(f.vel.y)*0.4; f.spin*=0.5; }
-    if(f.life<=0){ scene.remove(f.m); fx.splice(i,1); }
+
+/* ───────── Face ─────────
+   All channels run through the per-frame smoothing filter (keyframe jumps, loop wraps and crossfades never
+   snap). Blinks: the lid slides down and up from its top edge (~0.18 s sine bump), sometimes a double blink. */
+function updateFace(dt,fo,F){
+  for(const f of FACE_KEYS) S.face[f]+=(fo[f]-S.face[f])*filt(dt,16);
+  const fc=S.face, bl=S.blink;
+  let blinkV=0;
+  if(bl.t<0){ bl.wait-=dt; if(bl.wait<=0){ bl.t=0; bl.again=Math.random()<0.18; } }
+  if(bl.t>=0){
+    bl.t+=dt;
+    if(bl.t>=0.18){ bl.t=-1; bl.wait=bl.again?0.12:1.8+Math.random()*3.4; bl.again=false; }
+    else blinkV=Math.sin(Math.PI*bl.t/0.18);
   }
+  // saccades: every 1-3.5 s a new small glance target, eyes glide there
+  const sc=S.sacc; sc.wait-=dt;
+  if(sc.wait<=0){ sc.target=Math.random()<0.4?0:(Math.random()*2-1)*0.45; sc.wait=1+Math.random()*2.5; }
+  sc.v+=(sc.target-sc.v)*filt(dt,14);
+  applyFace(fc,blinkV,clamp(fc.glance+sc.v*(1-Math.abs(F.eye))+F.eye*0.7,-1,1));
+}
+function applyFace(fc,blinkV,glance){
+  const wide=clamp(fc.wide+0.3*Math.max(0,fc.look),0,1);
+  const look=Math.min(0,fc.look);                               // looking down lowers the lids
+  const closed=clamp(Math.max(blinkV,fc.squint*0.5-look*0.35),0,1);
+  for(const s of ['right','left']){
+    const sg=s==='right'?1:-1;                                  // inner end of the right brow is toward +x
+    FACE['white_'+s].scale.y=1+0.35*wide;
+    R[`pupil_${s}`].position.x=glance*0.5;
+    const lid=R[`lid_${s}`], top=4+0.175*wide, hgt=1+0.35*wide;
+    lid.position.y=top; lid.visible=closed>0.004&&!fit.hideBrows;
+    FACE['lid_'+s].scale.y=Math.max(0.001,closed*hgt); FACE['lid_'+s].position.y=-0.5*closed*hgt;
+    FACE['lash_'+s].scale.y=Math.min(1,closed*5); FACE['lash_'+s].position.y=-closed*hgt+0.11*Math.min(1,closed*5);
+    const brow=R[`brow_${s}`];
+    brow.position.y=4.5+clamp(0.5*fc.brow+0.25*Math.max(0,fc.look)-0.12*Math.max(0,-fc.tilt),-0.35,0.6);
+    brow.rotation.z=sg*0.32*clamp(fc.tilt,-1,1);
+  }
+  // mouth (standard type, as Homelander): grin = teeth plate, smirk = a smile without teeth tilts the line up
+  // on his left; open thickens the line; a smile widens it, a sad face (smile < 0) narrows it
+  const open=clamp(fc.open,0,1), sm=clamp(fc.smile,-1,1), grin=clamp(fc.teeth,0,1);
+  const smirk=Math.max(0,sm)*(1-grin), mw=0.4*sm+0.2*open;
+  R.mouth.scale.y=1+open*1.5;
+  R.mouth.scale.x=1+mw*0.4+grin*0.3;
+  R.mouth.rotation.z=0.14*smirk;
+  R.mouth.position.x=0.25*smirk;
+  R.teeth.scale.y=Math.max(0.001,grin);
+  R.teeth.position.z=-0.1+0.11*clamp(grin*10,0,1);                    // steps out of the head only while grinning
 }
 
-// ---------- head tracking target ----------
-const ptr=new THREE.Vector2(); let ptrT=-1e9;
-const ray=new THREE.Raycaster(), _t=new THREE.Vector3(), _h=new THREE.Vector3();
-addEventListener('pointermove',e=>{ if(e.target!==renderer.domElement) return; ptr.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1); ptrT=performance.now(); });
+/* ───────── Show bones (B): a dot on every pivot, a line to its parent, updated every frame ───────── */
+const rigView=new THREE.Group(); rigView.visible=false; scene.add(rigView);
+const boneList=Object.values(bones);
+const dotGeo=new THREE.SphereGeometry(0.012,8,6), dotMat=new THREE.MeshBasicMaterial({color:0x60a5fa,depthTest:false});
+const dots=boneList.map(()=>{ const m=new THREE.Mesh(dotGeo,dotMat); m.renderOrder=10; rigView.add(m); return m; });
+const linePos=new Float32Array(boneList.length*6);
+const lineGeo=new THREE.BufferGeometry(); lineGeo.setAttribute('position',new THREE.BufferAttribute(linePos,3));
+const lines=new THREE.LineSegments(lineGeo,new THREE.LineBasicMaterial({color:0x93c5fd,depthTest:false}));
+lines.renderOrder=9; rigView.add(lines);
+const vA=new THREE.Vector3(), vB=new THREE.Vector3();
+function updateRigView(){
+  if(!rigView.visible) return;
+  root.updateMatrixWorld(true);
+  boneList.forEach((b,i)=>{
+    b.getWorldPosition(vA); dots[i].position.copy(vA);
+    if(b.parent&&b.parent!==root) b.parent.getWorldPosition(vB); else vB.copy(vA);
+    linePos[i*6]=vA.x; linePos[i*6+1]=vA.y; linePos[i*6+2]=vA.z; linePos[i*6+3]=vB.x; linePos[i*6+4]=vB.y; linePos[i*6+5]=vB.z;
+  });
+  lineGeo.attributes.position.needsUpdate=true;
+}
+function toggleBones(){
+  rigView.visible=!rigView.visible;
+  const b=document.getElementById('bonesBtn'); b.classList.toggle('on',rigView.visible); b.setAttribute('aria-pressed',String(rigView.visible));
+}
 
-// ---------- camera reset ----------
+/* ───────── UI ───────── */
+const VARIANTS=[
+  {key:'overcoat',name:'Overcoat · pistol',c:'#c29a6a'},
+  {key:'raincoat',name:'Raincoat · axe',c:'#e6edf2'},
+  {key:'walkman',name:'Walkman · nail gun',c:'#f08a24'},
+  {key:'suspenders',name:'Suspenders · phone',c:'#2c3f78'},
+  {key:'shorts',name:'Shorts · face mask',c:'#8fb8de'},
+];
+function setVariant(i){
+  buildFit(VARIANTS[i].key);
+  document.querySelectorAll('.dot').forEach((d,k)=>d.classList.toggle('active',k===i));
+}
+document.querySelectorAll('.anim-btn').forEach(b=>b.addEventListener('click',()=>selectAnim(b.dataset.anim)));
+const dotsEl=document.getElementById('dots');
+VARIANTS.forEach((v,i)=>{
+  const d=document.createElement('button'); d.className='dot'; d.title=v.name; d.setAttribute('aria-label',v.name);
+  d.style.background=v.c; d.addEventListener('click',()=>setVariant(i)); dotsEl.appendChild(d);
+});
+const followBtn=document.getElementById('followBtn');
+followBtn.addEventListener('click',()=>{
+  S.follow.on=!S.follow.on; followBtn.classList.toggle('on',S.follow.on); followBtn.setAttribute('aria-pressed',String(S.follow.on));
+});
+document.getElementById('bonesBtn').addEventListener('click',toggleBones);
 let camTween=null;
-function resetCam(){ camTween={t:0,p0:camera.position.clone(),t0:controls.target.clone()}; }
-
-// ---------- UI ----------
-document.querySelectorAll('[data-anim]').forEach(b=>b.addEventListener('click',()=>setAnim(b.dataset.anim)));
-document.querySelectorAll('[data-fit]').forEach(b=>b.addEventListener('click',()=>setFit(b.dataset.fit)));
-document.querySelector('.reset').addEventListener('click',resetCam);
+const resetCam=()=>{ camTween={t:0,p:camera.position.clone(),q:controls.target.clone()}; };
+document.getElementById('resetBtn').addEventListener('click',resetCam);
 addEventListener('keydown',e=>{
-  const a=['idle','walk','attack','special'][+e.key-1]; if(a) setAnim(a);
-  if(e.key==='f'){ const ks=Object.keys(FITS); setFit(ks[(ks.indexOf(fitKey)+1)%ks.length]); }
-  if(e.key==='r') resetCam();
+  const n=parseInt(e.key,10);
+  if(n>=1&&n<=ANIM_ORDER.length) selectAnim(ANIM_ORDER[n-1]);
+  else if(e.key==='r'||e.key==='R') resetCam();
+  else if(e.key==='b'||e.key==='B') toggleBones();
 });
 function resize(){
   const a=innerWidth/innerHeight;
   camera.aspect=a; camera.fov=a<0.8?44:32; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
+  renderer.setSize(innerWidth,innerHeight,false);
 }
 addEventListener('resize',resize); resize();
 
-// deep link / still frame: ?fit=raincoat&anim=attack&t=0.8
-const Q=new URLSearchParams(location.search);
-// outfit card previews: render every fit once, at rest pose, into its picker card
-{
-  const tr=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});
-  tr.setPixelRatio(1); tr.setSize(112,140); tr.outputColorSpace=THREE.SRGBColorSpace;
-  const cam=new THREE.PerspectiveCamera(30,112/140,0.1,20);
-  cam.position.set(1.25,1.35,3.9); cam.lookAt(0,1.0,0);
-  const bg=scene.background, fog=scene.fog; scene.background=null; scene.fog=null;
-  const env=scene.children.filter(c=>c.isMesh); env.forEach(c=>c.visible=false);   // floor + blob
-  for(const k of Object.keys(FITS)){
-    buildFit(k); root.updateMatrixWorld(true); tr.render(scene,cam);
-    const img=document.querySelector(`[data-fit="${k}"] img`); if(img) img.src=tr.domElement.toDataURL();
-  }
-  scene.background=bg; scene.fog=fog; env.forEach(c=>c.visible=true); tr.dispose(); tr.forceContextLoss();
-}
-setFit(FITS[Q.get('fit')]?Q.get('fit'):'overcoat');
-if(ANIMS[Q.get('anim')]) { setAnim(Q.get('anim')); blend=1; }
-const freeze=Q.has('t')?parseFloat(Q.get('t')):null;
-if(Q.has('yaw')){ const y=parseFloat(Q.get('yaw')), r=HOME.pos.clone().sub(HOME.tgt); r.applyAxisAngle(new THREE.Vector3(0,1,0),y); camera.position.copy(HOME.tgt).add(r); }
-
-// ---------- locked 60 FPS delta-time loop ----------
-const STEP=1000/60; let last=performance.now()-STEP, clock=0;
-const pa=zeroPose, lerp=(a,b,t)=>a+(b-a)*t;
-function evalPose(name,T){ const p=pa(); ANIMS[name](p,T); return p; }
-function frame(now){
-  requestAnimationFrame(frame);
-  const el=now-last; if(el<STEP-1) return;
-  last=now-(el%STEP); let dt=Math.min(el,100)/1000;
-  if(freeze!==null){ dt=0; animT=freeze; }
-  clock+=dt; animT+=dt; prevT+=dt; blend=Math.min(1,blend+dt/0.3);
-
-  // pose = crossfade(prev, current)
-  const cur=evalPose(anim,animT);
-  let P=cur;
-  if(blend<1&&prev){ const o=evalPose(prev,prevT), k=E.io(blend); P=pa();
-    for(const b of [...BONES,'pos']) for(let i=0;i<3;i++) P[b][i]=lerp(o[b][i],cur[b][i],k); }
-  // breathing layer on everything
-  P.torso[0]+=0.008*Math.sin(clock*Math.PI*2/3.6);
-
-  R.pelvis.position.set(P.pos[0],12+P.pos[1],P.pos[2]);
-  for(const b of BONES) R[b].rotation.set(P[b][0],P[b][1],P[b][2]);
-
-  // head tracking toward pointer (or camera when idle pointer)
-  const tw=lerp(TRACK_W[prev]??0,TRACK_W[anim],blend);
+// Pointer -> head-follow target: the point under the pointer at head distance, in torso space.
+// No pointer yet (or idle 4 s): he looks at the camera.
+const ptr=new THREE.Vector2(); let ptrT=-1e9;
+const ray=new THREE.Raycaster(), _t=new THREE.Vector3(), _h=new THREE.Vector3();
+addEventListener('pointermove',e=>{ ptr.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1); ptrT=performance.now(); S.follow.has=true; });
+function followTarget(now){
+  const F=S.follow; F.has=true;
   R.head.getWorldPosition(_h);
   if(now-ptrT<4000){ ray.setFromCamera(ptr,camera); ray.ray.at(camera.position.distanceTo(_h),_t); } else _t.copy(camera.position);
-  R.torso.worldToLocal(_t); _t.y-=16;
+  R.body.worldToLocal(_t); _t.y-=17;                             // head pivot (13) + eye height (4)
   let yaw=Math.atan2(_t.x,_t.z), pitch=-Math.atan2(_t.y,Math.hypot(_t.x,_t.z));
-  if(Math.abs(yaw)>1.75){ yaw=0; pitch=0; }
-  yaw=THREE.MathUtils.clamp(yaw,-0.85,0.85); pitch=THREE.MathUtils.clamp(pitch,-0.45,0.4);
-  const kk=1-Math.exp(-dt*6); look.yaw+=(yaw-look.yaw)*kk; look.pitch+=(pitch-look.pitch)*kk;
-  R.head.rotation.y+=look.yaw*tw; R.head.rotation.x+=look.pitch*tw;
+  if(Math.abs(yaw)>1.75){ yaw=0; pitch=0; }                      // behind him: look ahead
+  F.tYaw=clamp(yaw,-0.85,0.85); F.tPitch=clamp(pitch,-0.45,0.4);
+}
 
-  // coat panels lag behind the legs (follow-through, clamped so they never cut the legs)
-  if(dt>0) for(const s of ['R','L']){
-    const lx=R['leg'+s].rotation.x, w=(lx-prevLeg[s])/dt; prevLeg[s]=lx;
-    const tgt=THREE.MathUtils.clamp(-w*0.03,-0.07,0.07);
-    lag[s]+=(tgt-lag[s])*(1-Math.exp(-dt*10));
-    R['skirt'+s].rotation.x=lag[s];
+/* ───────── Rest pose + sim reset (tests) ───────── */
+function restPose(){
+  for(const n in bones){ const b=bones[n]; b.position.copy(b.userData.rest); b.rotation.set(...b.userData.rr); }
+  root.position.set(0,0,0);
+  applyFace(Object.fromEntries(FACE_KEYS.map(k=>[k,0])),0,0);
+  root.updateMatrixWorld(true);
+}
+function resetSim(anim,mx=0,my=0){
+  Object.assign(S,{anim,t:0,prev:null,prevT:0,blend:1,time:0,prevHead:[0,0],prevRootY:0,prevBodyX:0,prevRootX:0,prevRootV:0});
+  for(const k of FACE_KEYS) S.face[k]=0;
+  for(const s of Object.values(S.spring)){ s.a=0; s.v=0; }
+  S.lag={right:0,left:0}; S.prevLeg={right:0,left:0};
+  Object.assign(S.follow,{on:true,has:true,tYaw:mx*0.85,tPitch:my*0.4,yaw:mx*0.85,pitch:my*0.4,eye:0,w:1});
+  S.blink.wait=1e9; S.sacc.wait=1e9; S.sacc.v=0;
+  document.querySelectorAll('.anim-btn').forEach(b=>b.classList.toggle('active',b.dataset.anim===anim));
+}
+
+/* ───────── Clip test (#cliptest[-<variant>]) ─────────
+   Per frame (20 Hz, one full loop after a warm-up loop), every outfit, every animation, mouse at the center,
+   edges and corners: a 5x5 grid of points on every face of cube A goes into cube B's local space; points
+   deeper than 0.06 texel inside B count. Parts already layered at rest (shells, collars) may only go
+   0.15 deeper than at rest. Joint pairs (shoulder, elbow, hip, knee) are listed apart. */
+const pairKey=(a,b)=>a<b?`${a}|${b}`:`${b}|${a}`;
+const JOINTS=new Set([['body','head'],['body','tie'],['head','hair_lock'],['forearm_right','prop'],
+  ...['right','left'].flatMap(s=>[[`arm_${s}`,'body'],[`arm_${s}`,`forearm_${s}`],['body',`leg_${s}`],['body',`coat_${s}`],[`coat_${s}`,`leg_${s}`],
+    [`knee_${s}`,`leg_${s}`],[`coat_low_${s}`,`knee_${s}`],[`coat_${s}`,`coat_low_${s}`],[`coat_${s}`,`knee_${s}`],[`coat_low_${s}`,`leg_${s}`]])]
+  .map(([a,b])=>pairKey(a,b)));
+const isJoint=(a,b)=>JOINTS.has(pairKey(a,b));
+function clipTest(only){
+  const EPS=0.06, LAYER=0.15, report={variants:{}};
+  const wp=new THREE.Vector3(), lp=new THREE.Vector3(), ca=new THREE.Vector3(), cb=new THREE.Vector3();
+  const mice=[[0,0],[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,1]];
+  VARIANTS.forEach((v,vi)=>{
+    if(only!=null&&only!==vi) return;
+    setVariant(vi);
+    const list=built.map(m=>{ const g=m.geometry.parameters;
+      const lo=m.userData.clipLo;                    // see-through bottom rows: the box starts lo higher
+      return {m,bone:m.parent.name,oy:lo/2,half:[g.width/2,(g.height-lo)/2,g.depth/2],name:`${m.parent.name}[${g.width}x${g.height}x${g.depth}]`.replace(/(\.\d)\d+/g,'$1')}; });
+    const pts=list.map(c=>{ const [hx,hy,hz]=c.half, out=[];
+      for(let u=0;u<=4;u++) for(let w=0;w<=4;w++){ const a=u/2-1, b=w/2-1;
+        out.push([hx,a*hy,b*hz],[-hx,a*hy,b*hz],[a*hx,hy,b*hz],[a*hx,-hy,b*hz],[a*hx,b*hy,hz],[a*hx,b*hy,-hz]); }
+      return out.map(p=>new THREE.Vector3(p[0],p[1]+c.oy,p[2])); });
+    const rad=list.map(c=>Math.hypot(...c.half));
+    const inv=list.map(()=>new THREE.Matrix4());
+    function measure(){
+      root.updateMatrixWorld(true);
+      list.forEach((c,i)=>inv[i].copy(c.m.matrixWorld).invert());
+      const res=new Map();
+      for(let i=0;i<list.length;i++){
+        ca.setFromMatrixPosition(list[i].m.matrixWorld);
+        for(let j=0;j<list.length;j++){
+          if(i===j||list[i].bone===list[j].bone) continue;
+          cb.setFromMatrixPosition(list[j].m.matrixWorld);
+          if(ca.distanceTo(cb)*16>rad[i]+rad[j]) continue;
+          const [hx,hy,hz]=list[j].half; let worst=0;
+          for(const p of pts[i]){
+            lp.copy(wp.copy(p).applyMatrix4(list[i].m.matrixWorld)).applyMatrix4(inv[j]);
+            const d=Math.min(hx-Math.abs(lp.x),hy-Math.abs(lp.y-list[j].oy),hz-Math.abs(lp.z));
+            if(d>worst) worst=d;
+          }
+          if(worst>0) res.set(i+':'+j,worst);
+        }
+      }
+      return res;
+    }
+    restPose();
+    const base=measure(), rv={clips:{},joints:{},ground:{}};
+    for(const name of ANIM_ORDER){
+      const T=ANIMS[name].T; let low=99, high=-99;
+      for(const [mx,my] of mice){
+        resetSim(name,mx,my);
+        const dt=1/120;
+        for(let t=0;t<T;t+=dt) step(dt);
+        let since=1;
+        for(let t=0;t<T;t+=dt){
+          step(dt); since+=dt;
+          if(since<1/20) continue; since=0;
+          for(const [key,d] of measure()){
+            const [i,j]=key.split(':').map(Number), b0=base.get(key)||0, a=list[i], b=list[j];
+            const joint=isJoint(a.bone,b.bone);
+            if(!joint&&d<=(b0>EPS?b0+LAYER:EPS)) continue;
+            if(joint&&d<=b0+EPS) continue;
+            const bucket=joint?rv.joints:rv.clips, id=`${a.name} in ${b.name}`;
+            if(!bucket[id]||bucket[id].depth<d) bucket[id]={depth:+d.toFixed(3),rest:+b0.toFixed(3),anim:name,t:+(S.t%T).toFixed(2),mouse:[mx,my]};
+          }
+          let m=99;
+          for(const s of ['right','left']) for(const c of FOOT){ _c.set(...c).applyMatrix4(R[`knee_${s}`].matrixWorld); m=Math.min(m,_c.y*16); }
+          low=Math.min(low,m); high=Math.max(high,m);
+        }
+      }
+      rv.ground[name]={lowest:+low.toFixed(3),highestLowPoint:+high.toFixed(3)};
+    }
+    rv.clipCount=Object.keys(rv.clips).length;
+    report.variants[v.key]=rv;
+  });
+  report.bones=Object.keys(bones).length;
+  const out=document.createElement('pre'); out.id='cliptest'; out.textContent=JSON.stringify(report,null,1);
+  document.body.appendChild(out);
+}
+
+/* ───────── Still frames (#rest, #shot-<anim>-<variant>-<sec>[-<cam>[-<expression>]]) ─────────
+   The picture goes into <pre id="shot"> as a PNG data URL; the loop stops so a screenshot sees the same. */
+const CAMS={full:[HOME.pos,HOME.tgt],face:[new THREE.Vector3(0.3,1.86,2.0),new THREE.Vector3(0,1.79,0)],
+  bust:[new THREE.Vector3(0.9,1.6,3.0),new THREE.Vector3(0,1.4,0)],
+  side:[new THREE.Vector3(4.9,1.3,0.3),new THREE.Vector3(0,1.0,0)],back:[new THREE.Vector3(-2.6,1.7,-4.6),new THREE.Vector3(0,1.02,0)],
+  front:[new THREE.Vector3(0,1.25,5.2),new THREE.Vector3(0,1.02,0)]};
+function dumpFrame(cam='full'){
+  const [p,t]=CAMS[cam]||CAMS.full; camera.position.copy(p); controls.target.copy(t); controls.update();
+  renderer.render(scene,camera);
+  const out=document.createElement('pre'); out.id='shot'; out.textContent=canvas.toDataURL('image/png');
+  document.body.appendChild(out);
+}
+
+/* ───────── Start ───────── */
+setVariant(0);
+restPose(); groundRest=footLow();
+window.batemanDebug={S,bones,FACE,ANIMS,setVariant,selectAnim,step,restPose,resetSim,clipTest,camera,controls,toggleBones,rigView};
+const hash=decodeURIComponent(location.hash.slice(1));
+if(hash.startsWith('cliptest')){ const v=hash.split('-')[1]; S.frozen=true; setTimeout(()=>clipTest(v!=null?+v:null),0); }
+else if(hash==='rest'){ S.frozen=true; restPose(); dumpFrame('full'); }
+else if(hash.startsWith('shot-')){
+  const [,anim,vi,sec,cam,expr]=hash.split('-');
+  document.head.insertAdjacentHTML('beforeend','<style>#dock,#topRight,#expr{display:none!important}</style>'); // clean still: no UI
+  setVariant(+vi||0); resetSim(ANIMS[anim]?anim:'idle',0.18,0.1);
+  if(expr&&window.MobViewer) window.MobViewer.set(expr);
+  for(let t=0;t<(+sec||0);t+=1/120) step(1/120);
+  S.frozen=true; dumpFrame(cam||'full');
+}
+
+/* ───────── Loop: 120 FPS when the screen can (measured over ~30 frames), else 60 ───────── */
+let last=performance.now(), acc=0, rate=60, probe=[], lastRaf=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  if(probe.length<30){ if(lastRaf) probe.push(now-lastRaf); lastRaf=now; if(probe.length===30){ probe.sort((a,b)=>a-b); rate=1000/probe[15]>=110?120:60; } }
+  acc+=now-last; last=now;
+  if(acc<1000/rate-1) return;                       // lock to the chosen rate
+  const dt=Math.min(acc/1000,0.1); acc=0;
+  if(S.frozen) return;
+  followTarget(now);
+  step(dt);
+  if(camTween){
+    camTween.t=Math.min(1,camTween.t+dt/0.7);
+    const k=1-(1-camTween.t)**3;
+    camera.position.lerpVectors(camTween.p,HOME.pos,k); controls.target.lerpVectors(camTween.q,HOME.tgt,k);
+    if(camTween.t>=1) camTween=null;
   }
-  // tie spring (hangs with gravity, swings on torso motion)
-  if(dt>0){
-    const tx=R.torso.rotation.x+R.pelvis.rotation.x, tv=(tx-prevTorsoX)/dt; prevTorsoX=tx;
-    const pv=(P.pos[0]-prevPosX)/dt, pacc=(pv-prevPosXv)/dt; prevPosX=P.pos[0]; prevPosXv=pv;
-    tieX.v-=tv*0.6; stepSpring(tieX,-Math.max(0,tx),dt,90,9);
-    tieX.a=THREE.MathUtils.clamp(tieX.a,-0.9,0);
-    tieZ.v+=THREE.MathUtils.clamp(pacc,-400,400)*0.0006; stepSpring(tieZ,-R.torso.rotation.z,dt,80,8);
-    tieZ.a=THREE.MathUtils.clamp(tieZ.a,-0.35,0.35);
-    R.tie.rotation.set(tieX.a,0,tieZ.a);
-  }
-
-  // attack events
-  if(anim==='attack'&&freeze===null){
-    const A=ATK[fit.weapon], t=animT%A.len, t0=lastAtkT;
-    for(const s of A.shots) if((t0<s&&t>=s)||(t<t0&&(s>t0||s<=t))) shoot(clock);
-    lastAtkT=t;
-  }
-  if(flash.visible&&clock>flashUntil) flash.visible=false;
-  R.muzzle.getWorldPosition(flashLight.position);
-  flashLight.intensity=flash.visible?(fit.weapon==='nail'?1.2:3.2):0;
-  updateFx(dt);
-
-  // blink
-  if(clock>blink.next){ blink.mat.map=blink.closed; blink.until=clock+0.11; blink.next=clock+2.2+Math.random()*3.5; }
-  if(blink.until&&clock>blink.until){ blink.mat.map=blink.open; blink.until=0; }
-
-  // contact shadow follows the body
-  R.pelvis.getWorldPosition(_v); blob.position.x=_v.x; blob.position.z=_v.z;
-  const hop=Math.max(0,P.pos[1]); blob.material.opacity=1-hop*0.35; blob.scale.setScalar(1-hop*0.12);
-
-  if(camTween){ camTween.t=Math.min(1,camTween.t+dt/0.7); const k=E.outC(camTween.t);
-    camera.position.lerpVectors(camTween.p0,HOME.pos,k); controls.target.lerpVectors(camTween.t0,HOME.tgt,k);
-    if(camTween.t>=1) camTween=null; }
   controls.update();
+  updateRigView();
   renderer.render(scene,camera);
 }
 requestAnimationFrame(frame);
 </script>
-  <script>
-    /* ───────── Rig overlay ("Show bones" button, key B) ─────────
-       Same block in every mob (rule 10). A dot on every bone pivot (yellow) and a line to its
-       parent bone (cyan), drawn on top of the model and updated live in every animation.
-       Waits for window.THREE (module pages set it after their import).
-       Bones = the group nodes of the mob (the scene child with the most meshes).
-       It wraps renderer.render, so it needs none of the page's own variables. */
-    (function waitThree() {
-      if (!window.THREE) return setTimeout(waitThree, 50); // module pages: THREE arrives later
-      const ANCHOR = '.bar .reset'; // a button in the dock: the bones button goes right after it
-      const rig = { on: false, scene: null, root: null, list: [], parentIdx: [], lines: null, dots: null, linePos: null, dotPos: null, checkAt: 0 };
-      const va = new THREE.Vector3(), vb = new THREE.Vector3();
-      const isBone = (o) => !o.isMesh && !o.isLight && !o.isCamera && !o.isLine && !o.isPoints && !o.isSprite && o.children.length > 0;
-
-      // Find the mob root and its bones; (re)make the buffers only when the bone count changes.
-      function build(scene) {
-        let best = 0; rig.root = null;
-        for (const c of scene.children) {
-          if (c === rig.lines || c === rig.dots || c.isLight || c.isCamera) continue;
-          let n = 0; c.traverse((x) => { if (x.isMesh) n++; });
-          if (n > best) { best = n; rig.root = c; }
-        }
-        rig.list = [];
-        if (rig.root) rig.root.traverse((x) => { if (x !== rig.root && isBone(x)) rig.list.push(x); });
-        const idx = new Map(rig.list.map((g, i) => [g, i]));
-        rig.parentIdx = rig.list.map((g) => { let p = g.parent; while (p && p !== rig.root && !idx.has(p)) p = p.parent; return idx.has(p) ? idx.get(p) : -1; });
-        const n = rig.list.length;
-        if (!rig.lines || rig.dotPos.length !== n * 3) {
-          if (rig.lines) { scene.remove(rig.lines, rig.dots); rig.lines.geometry.dispose(); rig.dots.geometry.dispose(); }
-          rig.linePos = new Float32Array(n * 6); rig.dotPos = new Float32Array(n * 3);
-          const lg = new THREE.BufferGeometry(), dg = new THREE.BufferGeometry();
-          lg.setAttribute('position', new THREE.BufferAttribute(rig.linePos, 3));
-          dg.setAttribute('position', new THREE.BufferAttribute(rig.dotPos, 3));
-          rig.lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x67e8f9, depthTest: false, transparent: true, opacity: 0.9 }));
-          rig.dots = new THREE.Points(dg, new THREE.PointsMaterial({ color: 0xfacc15, size: 6, sizeAttenuation: false, depthTest: false, transparent: true }));
-          for (const o of [rig.lines, rig.dots]) { o.renderOrder = 999; o.frustumCulled = false; }
-        }
-        if (rig.lines.parent !== scene) scene.add(rig.lines, rig.dots);
-        rig.lines.visible = rig.dots.visible = rig.on;
-        rig.scene = scene;
-      }
-
-      // Plain writes into the buffers: no new objects per frame.
-      function update(now) {
-        if (now > rig.checkAt) { rig.checkAt = now + 1000; build(rig.scene); } // variants may rebuild parts
-        if (!rig.root) return;
-        rig.list.forEach((g, i) => { // world matrices are fresh: the scene was just updated
-          va.setFromMatrixPosition(g.matrixWorld);
-          const p = rig.parentIdx[i];
-          if (p >= 0) vb.setFromMatrixPosition(rig.list[p].matrixWorld); else vb.copy(va);
-          const j = i * 6, k = i * 3;
-          rig.linePos[j] = vb.x; rig.linePos[j + 1] = vb.y; rig.linePos[j + 2] = vb.z;
-          rig.linePos[j + 3] = va.x; rig.linePos[j + 4] = va.y; rig.linePos[j + 5] = va.z;
-          rig.dotPos[k] = va.x; rig.dotPos[k + 1] = va.y; rig.dotPos[k + 2] = va.z;
-        });
-        rig.lines.geometry.attributes.position.needsUpdate = true;
-        rig.dots.geometry.attributes.position.needsUpdate = true;
-      }
-
-      // The renderer calls scene.updateMatrixWorld() at the start of every render: hook it there
-      // (r128 sets render() per renderer instance, so wrapping render on the prototype would miss it).
-      const baseUpdate = THREE.Object3D.prototype.updateMatrixWorld;
-      THREE.Object3D.prototype.updateMatrixWorld = function (force) {
-        baseUpdate.call(this, force);
-        if (rig.on && this.isScene) { if (rig.scene !== this) { rig.checkAt = 0; rig.scene = this; } update(performance.now()); }
-      };
-
-      // Bones button: copies the look of the anchor button, without its role classes.
-      const anchor = document.querySelector(ANCHOR);
-      const btn = document.createElement('button');
-      btn.id = 'bonesBtn'; btn.type = 'button'; btn.title = 'Show bones (B)'; btn.setAttribute('aria-pressed', 'false');
-      btn.className = anchor ? anchor.className.split(/\s+/).filter((c) => !/^(anim-btn|variant-btn|toggle-btn|active.*)$/.test(c)).join(' ') : '';
-      btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;';
-      if (!anchor) btn.style.cssText += 'position:fixed;right:16px;bottom:16px;z-index:50;width:36px;height:36px;border-radius:999px;background:#1a1d24;color:#cbd5e1;border:1px solid #2a2f3a;';
-      btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><circle cx="7" cy="12" r="1.6"/><circle cx="17" cy="12" r="1.6"/><circle cx="9" cy="20" r="1.6"/><circle cx="15" cy="20" r="1.6"/><path d="M12 6v8M12 8l-5 4M12 8l5 4M12 14l-3 6M12 14l3 6"/></svg>';
-      if (anchor) anchor.insertAdjacentElement('afterend', btn); else document.body.appendChild(btn);
-
-      function toggleBones() {
-        rig.on = !rig.on;
-        if (rig.lines) rig.lines.visible = rig.dots.visible = rig.on;
-        rig.checkAt = 0; // rebuild on the next frame
-        btn.setAttribute('aria-pressed', String(rig.on));
-        btn.style.background = rig.on ? 'rgba(250, 204, 21, 0.18)' : (anchor ? '' : '#1a1d24');
-        btn.style.color = rig.on ? '#facc15' : '';
-      }
-      btn.addEventListener('click', toggleBones);
-      window.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
-        if (e.key === 'b' || e.key === 'B') toggleBones();
-      });
-      window.rigOverlay = { toggle: toggleBones, get bones() { return rig.list.length; } }; // test handle
-    })();
-  </script>
 </body>
 </html>

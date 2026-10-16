@@ -1,9 +1,33 @@
 # Changelog
 
+## 2026-10-16 14:49
+- Repo cleanup: PR #31 (Patrick Bateman rework, standard mouth rule, archive + reference renames) merged into `main`; worktree and branch removed; scan found no leftovers (root, names, sizes, `docs/working_on.md`).
+
+## 2026-10-16 14:47
+- Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`): mouth rebuilt as the standard Homelander type (thin lip line that tilts for the smirk, thicker when open, wider with a smile; teeth plate grows down for the grin); mouth corners painted skin shadow.
+- Template (`mobs/_shared/viewer_template.html`): same standard mouth (`grin`, `smirk` face channels, teeth plate).
+- Rule (`CLAUDE.md`, Face): the Homelander-type mouth is the default for every mob with a face.
+
+## 2026-10-16 14:38
+- Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`):
+  - Mouth: one connected pixel shape; corners step up (smile) / down (frown) beside the lip ends, mouth widens in a grin, teeth fill the opening, lips thin when open, no seam at rest.
+  - Arms: shoulder pivots flush with the torso top (were 0.4 lower); head on a 1.0 neck lift, softer up-tilt, even walk arm swing (0 clips, all outfits).
+  - Test stills (`#shot-...`) hide the UI; new `bust` camera.
+
 ## 2026-10-16 14:37
 - Updater (`mod/src/main/java/com/custommobs/update/UpdateClient.java`, `UpdateScreen.java`): a new version found by the 5-minute check pops up a toast + a clickable chat line (`/sindicate update`, new client command) that opens the changelog with "Update and Close Game"; restart hint on the update screen; scroll arrow; toast cleared when the screen opens. Lang `en_us` + `nl_nl`.
 - Test (`mod/testworld/homelandertest/.../timeline.mcfunction`, `CMTEST ui`): also shoots the update notice and the changelog screen.
 - Version `0.0.3-alpha` (`mod/gradle.properties`, `mod/release_notes.md`, README).
+
+## 2026-10-16 14:24
+- Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`, still one file):
+  - UI: shared viewer UI (`mobs/_shared/`): dock with Idle / Idle 2 / Walk, follow-mouse, show bones, 5 outfit dots; expression menu + reset top right.
+  - Rig: 2-bone arms and legs, coat panels split at the knee, prop on the forearm, head on a short recessed neck (no shoulder clipping).
+  - Face: painted eyes, brows and mouth are now moving planes (same pixels at rest): blinks with eyelids, glances, brows, smile/frown corners, jaw, toothy grin; pupils centred (no cross-eye).
+  - Animations: new Idle, Idle 2 (hair slick, watch check, "Hip to be square" grin) and Walk; Attack and Special (dance) removed. Springs: fringe lock, tie, coat panels.
+  - Tests: `#cliptest` (0 clips, all outfits), `#rest`, `#shot-...` modes.
+- Cleanup: old viewer copies `mobs/<mob>/<mob>-old.html` -> `archive/<mob>/<mob>_old.html` (bane, darth_vader, ghostface, pennywise, victor_perkins); hash-named reference images renamed by what they show (bane, black_noir, darth_vader, ghostface, michael_myers, pennywise, victor_perkins, the_king).
+- README: mobs table lists Bane, Davy Jones, Ghostface, Pennywise, Victor Perkins.
 
 ## 2026-10-16 14:09
 - Homelander: Smash attack removed everywhere (viewer `mobs/homelander/homelander.html`: button, animation, victim pose; mod: `HomelanderEntity`, `HomelanderAttackGoal`, `HomelanderVictims`, `HomelanderClientState`, `HomelanderData`, `SindicateConfig` option `groundSmash`, mods.toml text, test timeline).
