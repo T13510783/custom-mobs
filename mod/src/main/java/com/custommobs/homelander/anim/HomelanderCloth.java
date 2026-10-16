@@ -200,7 +200,7 @@ public final class HomelanderCloth {
         double[] M = col;
         double mg = cfg.margin;
         hb[0] = hb[2] = hb[4] = 1e9; hb[1] = hb[3] = hb[5] = -1e9;
-        boolean any = false;
+        boolean inR = false, inL = false;
         for (int c = 0; c < cfg.colliders.length; c++) {
             handIn[c] = false;
             HomelanderData.Collider cd = cfg.colliders[c];
@@ -217,11 +217,14 @@ public final class HomelanderCloth {
                 lo0 = Math.min(lo0, x); hi0 = Math.max(hi0, x); lo1 = Math.min(lo1, y); hi1 = Math.max(hi1, y); lo2 = Math.min(lo2, z); hi2 = Math.max(hi2, z);
             }
             if (lo2 >= cfg.top[2] - mg) continue;          // not behind the cape's plane
-            handIn[c] = true; any = true;
+            handIn[c] = true;
+            if (cd.name.endsWith("_right")) inR = true; else inL = true;
             hb[0] = Math.min(hb[0], lo0); hb[1] = Math.max(hb[1], hi0); hb[2] = Math.min(hb[2], lo1); hb[3] = Math.max(hb[3], hi1); hb[4] = Math.min(hb[4], lo2);
         }
+        // only with BOTH hands behind the back (viewer): one arm swung back keeps its real boxes (no flat shelf)
+        if (!(inR && inL)) { java.util.Arrays.fill(handIn, false); return false; }
         hb[0] -= mg; hb[1] += mg; hb[2] -= mg; hb[3] += mg; hb[4] -= mg; hb[5] = cfg.top[2];
-        return any;
+        return true;
     }
 
     // Push every point out of every body box (shortest way out) and above the floor; the old position moves along.

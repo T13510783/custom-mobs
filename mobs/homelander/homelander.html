@@ -1787,7 +1787,7 @@ const handIn = new Uint8Array(CLOTH_COL.length), hb = new Float64Array(6), cv = 
 function handsBlock(C) {
   const M = C.col, mg = CLOTH.margin;
   hb[0] = hb[2] = hb[4] = 1e9; hb[1] = hb[3] = hb[5] = -1e9;
-  let any = false;
+  let inR = false, inL = false;
   for (let c = 0; c < CLOTH_COL.length; c++) {
     handIn[c] = 0;
     if (!HAND_COL[c]) continue;
@@ -1803,11 +1803,15 @@ function handsBlock(C) {
       lo0 = Math.min(lo0, x); hi0 = Math.max(hi0, x); lo1 = Math.min(lo1, y); hi1 = Math.max(hi1, y); lo2 = Math.min(lo2, z); hi2 = Math.max(hi2, z);
     }
     if (lo2 >= CAPE_TOP[2] - mg) continue;                // not behind the cape's plane
-    handIn[c] = 1; any = true;
+    handIn[c] = 1;
+    if (cube.name.endsWith('_right')) inR = true; else inL = true;
     hb[0] = Math.min(hb[0], lo0); hb[1] = Math.max(hb[1], hi0); hb[2] = Math.min(hb[2], lo1); hb[3] = Math.max(hb[3], hi1); hb[4] = Math.min(hb[4], lo2);
   }
+  // only with BOTH hands behind the back: one arm swung back (walk, run) keeps its real boxes, so the cape lies
+  // along that arm instead of on a flat shelf (the block's top) that stuck out sideways
+  if (!(inR && inL)) { handIn.fill(0); return false; }
   hb[0] -= mg; hb[1] += mg; hb[2] -= mg; hb[3] += mg; hb[4] -= mg; hb[5] = CAPE_TOP[2];
-  return any;
+  return true;
 }
 function clothCollide(C, hands) {
   const P = C.P, Q = C.Q, M = C.col, mg = CLOTH.margin;

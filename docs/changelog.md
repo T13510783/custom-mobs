@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-10-16 12:09
+- Homelander cape (`mobs/homelander/homelander.html`, `mod/.../anim/HomelanderCloth.java`): the "hands behind the back" block now only forms when both hands are behind the back. One arm swung back (walk, run, attacks) no longer lifts the cape into a flat shelf that sticks out sideways; the cape lies along that arm. 1:1 trace test green.
+
 ## 2026-10-16 11:58
 - Homelander mod port of the new viewer work (`mod/src/main/java/com/custommobs/homelander/`):
   - Run: he sprints when the target is farther than 5 blocks (~10-11 blocks/s, `homelander.runSpeed`), clients play the Run loop at his real speed (`client/HomelanderClientState.java`).
