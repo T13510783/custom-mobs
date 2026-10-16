@@ -1,12 +1,12 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 20:21
-**Request:** Joker v2: never always sad, varied idles, cigarette mouth/hand/away, maniac laugh, normal/blank/angry faces, all-white face, more hair (2 side + 1 back, straight), several walks, better attack, more dance faces, realistic mouth.
+**Date:** 2026-10-16 20:29
+**Request:** Joker: hair like the first version but better, fix clipping; mouth as the standard square line (Homelander / Bateman), 1 pixel higher.
 
 **Done:**
-- PR #37 merged first (the file on main was still the old version).
-- `mobs/the_joker/the_joker.html`: white face + references smile, new mouth, new hair, cigarette toggle (C) with smoke, new Idle / Idle 2 / Walk (3 styles) / Attack, Dance faces, 6 Laugh, Normal + Blank expressions.
-- Checked: `#cliptest` (mouth + hand) max 0.38 texel, feet on the floor, step probe, renders, live page UI.
+- `mobs/the_joker/the_joker.html`: wavy hair restored + improved (lock, flare, temple strand per side; back curtain + wave), small shoulder lift instead of flipping back.
+- Mouth: standard line + teeth plate at y 2.0 (right under the nose); painted smile moved up one row.
+- Checked: `#cliptest` (mouth + hand) max 0.38 texel, hair vs arms max 0.32, step probe, renders.
 
 **Files:** `mobs/the_joker/the_joker.html`, docs.
 
