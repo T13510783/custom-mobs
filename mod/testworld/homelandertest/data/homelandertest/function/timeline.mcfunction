@@ -49,19 +49,6 @@ execute if score #t ht matches 560 run tag @e[type=homelander:homelander] add hl
 execute if score #t ht matches 582 run tellraw @a "HLSHOT hl_laser_a"
 execute if score #t ht matches 600 run tellraw @a "HLSHOT hl_laser_b"
 execute if score #t ht matches 620 run tellraw @a "HLSHOT hl_laser_c"
-# 34 s: Smash (hit 0.6, grab 1.45, drag 1.9-3.4, release 4.3 s): side camera far back, the villager flies toward +z
-execute if score #t ht matches 678 run tp @a 5 101.5 -4.5 90 14
-execute if score #t ht matches 750 run tp @a 12 102.5 2 90 8
-execute if score #t ht matches 680 run function homelandertest:victim
-execute if score #t ht matches 680 run tp @e[type=homelander:homelander] 0 100 -6 0 0
-execute if score #t ht matches 680 run tp @e[type=minecraft:villager] 0 100 -4.9 180 0
-execute if score #t ht matches 680 run tag @e[type=homelander:homelander] add hl_smash
-execute if score #t ht matches 694 run tellraw @a "HLSHOT hl_smash_a"
-execute if score #t ht matches 706 run tellraw @a "HLSHOT hl_smash_b"
-execute if score #t ht matches 730 run tellraw @a "HLSHOT hl_smash_c"
-execute if score #t ht matches 760 run tellraw @a "HLSHOT hl_smash_d"
-execute if score #t ht matches 772 run tellraw @a "HLSHOT hl_smash_e"
-execute if score #t ht matches 790 run tellraw @a "HLSHOT hl_smash_f"
 # 42 s: Run: a villager 14 blocks away, he chases it (sprinting; the log prints his speed every second)
 execute if score #t ht matches 860 run kill @e[type=minecraft:villager]
 execute if score #t ht matches 860 run tp @e[type=homelander:homelander] -14 100 0 -90 0

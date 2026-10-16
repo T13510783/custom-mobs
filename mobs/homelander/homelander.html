@@ -134,7 +134,6 @@
     <button class="anim-btn" data-anim="throw"><kbd>7</kbd>Throw</button>
     <button class="anim-btn" data-anim="clap"><kbd>8</kbd>Clap</button>
     <button class="anim-btn" data-anim="throatLaser"><kbd>9</kbd>Throat Laser</button>
-    <button class="anim-btn" data-anim="smash"><kbd>0</kbd>Smash</button>
     <span class="sep"></span>
     <!-- Walk while attacking: the legs keep walking under every attack (the mod does this when he moves). Key W. -->
     <button id="walkAtkBtn" class="icon-btn" title="Walk while attacking (W): on = he walks, and keeps walking during every attack you pick" aria-pressed="false">
@@ -1111,32 +1110,6 @@ const CL_HIT  = [[0, 0], [1.18, 0], [1.22, 1], [1.37, 0], [3.8, 0]];            
 const CL_STANCE = [[0, 0], [0.4, 1], [2.6, 1], [3.8, 0]];
 const CL_SMUG = [[0, 0], [1.6, 0], [1.9, 1], [3.4, 1], [3.8, 0]];                                           // smirk while the victim falls
 
-// Smash (5.6 s): hammer-fist from overhead onto the victim's head/shoulders, smashing it flat onto its back;
-// bends down, grabs its ankles (right hand), turns his back to it and walks off dragging it BEHIND him over the
-// floor, then spins back around (the victim swings out around his right side) and flings it forward-up as far as
-// he can. Victim stands 14 texels in front of him.
-//  0.0-0.5 wind (arm overhead, up on his toes) · 0.5-0.62 strike (0.6 = hit) · 0.62-0.9 follow-through
-//  0.9-1.5 bends down to its feet (1.45 = grab) · 1.5-2.1 stands up and turns around, its legs in his hand
-//  1.9-3.4 drags it behind him (walks forward, 2 steps per 0.75 s, arm back) · 3.4-4.32 spins back around with a
-//  twist wind-up, whip (4.3 = release) · 4.35-5.6 watches it fly, smirks, back to his stance
-// (after the release the arm ends up and OUT to his right side, never across his face)
-const SM_AX   = [[0, 0], [0.5, -2.75], [0.62, -1.55], [0.9, -1.0], [1.3, -0.9], [1.5, -0.9], [2.1, 0.3], [3.4, 0.3], [4.0, 0.55], [4.32, -1.9], [4.5, -1.7], [5.6, 0]];
-// (arm z: out = negative while the arm points down/forward, POSITIVE while it is overhead, see TH_AZ)
-const SM_AZ   = [[0, 0], [0.5, 0.3], [0.62, -0.1], [1.5, -0.1], [2.1, -0.38], [3.4, -0.38], [4.0, -0.7], [4.32, -0.9], [4.5, -0.85], [5.6, 0]];
-const SM_FX   = [[0, 0], [0.5, -0.6], [0.62, -0.2], [0.9, -0.15], [1.5, -0.1], [1.9, -0.3], [3.4, -0.3], [4.0, -0.15], [4.32, -0.05], [5.6, 0]];
-const SM_RISE = [[0, 0], [0.4, 1], [0.55, 1], [0.62, 0], [5.6, 0]];                     // up on his toes in the wind
-const SM_HIT  = [[0, 0], [0.55, 0], [0.62, 1], [0.9, 0.6], [1.0, 0], [5.6, 0]];          // strike crouch + chest snap
-const SM_BEND = [[0, 0], [0.9, 0], [1.4, 1], [1.5, 1], [1.9, 0], [5.6, 0]];              // bent down to the feet
-const SM_HOLD = [[0, 0], [1.4, 0], [1.5, 1], [4.3, 1], [4.4, 0], [5.6, 0]];              // has its ankles
-const SM_DRAG = [[0, 0], [1.8, 0], [2.0, 1], [3.25, 1], [3.45, 0], [5.6, 0]];            // walking off, victim behind
-const SM_TURN = [[0, 0], [1.5, 0], [2.1, 1], [3.4, 1], [4.3, 0], [5.6, 0]];              // back to the victim (root yaw PI)
-const SM_PEEK = [[0, 0], [2.4, 0], [2.65, 1], [2.95, 1], [3.2, 0], [5.6, 0]];            // grins back over his right shoulder
-// how much a dragged victim trails straight behind him (instead of out from his body axis), viewer + mod
-const SMASH_TRAIL = (t) => smooth01((t - 1.9) / 0.3) * (1 - smooth01((t - 3.4) / 0.3));
-const SM_WIND = [[0, 0], [3.4, 0], [4.0, 1], [4.32, 0], [5.6, 0]];                        // twist back-right
-const SM_WHIP = [[0, 0], [4.0, 0], [4.32, 1], [4.6, 1], [5.6, 0]];                        // swung through to the front
-const SM_WATCH = [[0, 0], [4.3, 0], [4.5, 1], [5.1, 1], [5.6, 0]];                       // looks after it
-
 // Throat laser (3.4 s): grabs the throat and lifts, holds 1 s while his eyes heat up,
 // then burns the victim's face point-blank, drops them and smirks.
 const TL_AX   = [[0, 0], [0.3, -1.05], [0.45, -1.0], [0.8, -1.85], [2.75, -1.9], [3.0, -1.1], [3.4, 0]];
@@ -1566,64 +1539,6 @@ const ANIMS = {
       Q.f.browUp = 0.15 * hold * (1 - laser);
       Q.f.glance = 0;
     }
-  },
-
-  // 10 · Smash: hammer-fist smashes the victim flat onto its back, he grabs its ankles, turns around and drags it
-  // behind him over the floor, spins back and flings it forward-up as far as he can (see SM_*). Works on any mob;
-  // the mod lays the victim down, drags it behind his hand and throws it far.
-  smash: {
-    T: 5.6, yawLimit: 0.05, follow: 0,
-    events: { swing: 0.5, hit: 0.6, grab: 1.45, release: 4.3 },
-    fn(t, Q) {
-      const rise = kf(t, SM_RISE), hit = kf(t, SM_HIT), bend = kf(t, SM_BEND), hold = kf(t, SM_HOLD);
-      const drag = kf(t, SM_DRAG), wind = kf(t, SM_WIND), whip = kf(t, SM_WHIP), watch = kf(t, SM_WATCH);
-      const turn = kf(t, SM_TURN), peek = kf(t, SM_PEEK);
-
-      // Legs: up on the toes in the wind, crouch on the strike, deep squat to reach the feet, walk FORWARD while
-      // dragging (0.75 s per cycle: the thigh swings forward with the knee lifted), wide stance for the throw
-      const ph = (t - 1.9) / 0.75, wc = Math.cos(TAU * ph);
-      const stride = (o) => { const sp = Math.sin(TAU * (ph + o)), sw = sp * sp; return [0.3 * Math.cos(TAU * (ph + o)), (sp > 0 ? 0.8 : 0.06) * sw]; };
-      const [dhR, dkR] = stride(0), [dhL, dkL] = stride(0.5);
-      const sq = 0.25 * hit + 1.25 * bend + 0.3 * wind;
-      legs(Q,
-        -0.25 * sq + 0.1 * rise + drag * dhR + 0.15 * whip, 0.55 * sq + drag * dkR + 0.1 * whip,
-        -0.25 * sq - 0.15 * rise + drag * dhL - 0.3 * whip, 0.55 * sq + drag * dkL + 0.25 * whip,
-        0.8 * rise + 0.14 * (wind + whip), 0.03 + 0.06 * (wind + whip));   // (+lift: the wider splay tips the boots' outer edges down)
-
-      // Whole body (root yaw): turns his back to the victim after the grab (PI), spins back around for the throw:
-      // back-right in the wind, through to the left on the whip
-      // (the root carries most of the twist: a fast chest twist would sweep the torso through the cape)
-      rot(Q, 'root', 0, Math.PI * turn - 0.45 * wind + 0.15 * whip, 0);
-      // Chest: arches back in the wind, snaps forward on the strike, bends far down to the feet, leans forward
-      // pulling the weight while dragging, twists hard right and whips left for the throw
-      rot(Q, 'chest', -0.12 * rise + 0.35 * hit + 0.65 * bend + 0.16 * drag + 0.1 * wind - 0.08 * whip,
-          -0.4 * wind + 0.25 * whip + 0.06 * drag * wc, 0);
-      pos(Q, 'chest', 0, 0, 0.4 * hit + 0.6 * bend);
-
-      // Right arm: overhead -> hammer down -> reach the ankles -> hold them low behind him -> swing back -> fling up
-      rot(Q, 'arm_right', kf(t, SM_AX), 0, kf(t, SM_AZ));
-      rot(Q, 'forearm_right', kf(t, SM_FX), 0, 0);
-      // Left arm: back for balance in the wind (clear of the victim's raised arms), out to the side while dragging / throwing
-      rot(Q, 'arm_left', 0.15 * rise + 0.3 * hit - 0.4 * bend - 0.25 * drag * wc + 0.15 * wind - 0.6 * whip, 0, 0.12 + 0.2 * rise + 0.25 * hold + 0.5 * wind);
-      rot(Q, 'forearm_left', -0.3 * rise - 0.3 * hit - 0.3 * bend - 0.35 * drag, 0, 0);
-
-      // Head: eyes on the victim (down while bent), ahead while dragging with a grin back over his right shoulder,
-      // up after it as it flies (tilts toward his left, away from the raised right arm, in the wind and the fling)
-      const hx = 0.12 * hit + 0.25 * bend - 0.05 * drag - 0.3 * watch - 0.05 * rise;
-      const hz = -0.14 * rise - 0.12 * whip;
-      rot(Q, 'head', hx, 0.3 * wind - 0.25 * whip - 0.7 * peek, hz);
-
-      // Face: snarl + red eyes on the strike, cruel grin while dragging, shout on the throw, smirk watching
-      Q.f.frown = 0.6 * rise + 0.9 * hit + 0.4 * drag + 0.7 * wind;
-      Q.f.grin = 0.7 * hit + 0.6 * drag + 0.4 * wind;
-      Q.f.open = 0.35 * hit + 0.7 * whip * (1 - watch);
-      Q.f.squint = 0.3 * hit + 0.25 * drag + 0.3 * wind;
-      Q.f.glow = 0.6 * rise + 0.5 * hit + 0.3 * wind;
-      Q.f.smirk = 0.8 * watch + 0.3 * drag;
-      Q.f.browUp = 0.25 * watch;
-      Q.f.wide = 0.15 + 0.25 * whip;
-      Q.f.glance = 0;
-    }
   }
 };
 
@@ -1634,11 +1549,10 @@ const SFX_EVENTS = {
   special: { laserOn: 'laser', laserOff: '-laser' },
   throw: { grab: 'grab', release: 'whoosh' },
   clap: { swing: 'whoosh', hit: 'slap' },
-  throatLaser: { grab: 'grab', burnOn: 'laser', burnOff: '-laser' },
-  smash: { swing: 'whoosh', hit: 'punch', grab: 'grab', release: 'whoosh' }
+  throatLaser: { grab: 'grab', burnOn: 'laser', burnOff: '-laser' }
 };
 
-const ANIM_ORDER = ['idle', 'idle2', 'walk', 'run', 'attack', 'special', 'throw', 'clap', 'throatLaser', 'smash'];   // dock buttons / keys 1-9, 0
+const ANIM_ORDER = ['idle', 'idle2', 'walk', 'run', 'attack', 'special', 'throw', 'clap', 'throatLaser'];   // dock buttons / keys 1-9
 const ALL_ANIMS = [...ANIM_ORDER, 'hover'];                           // + hidden ones (tests, export)
 
 /* ───────── Cloth physics (the cape) ─────────
@@ -2563,8 +2477,7 @@ function modExport() {
         glowColors: [col(glowMat), col(glowCoreMat), col(glowHaloMat)], beamZ: 4.1, beamR: [0.7, 0.28], beamSides: [8, 6],
         beamColors: [col(laserMat), col(laserCoreMat)], laserLen: LASER_LEN
       },
-      victim: { hand: HAND_PT, neck: DUMMY_NECK, scale: DUMMY_SCALE, hangUp: HANG_UP, hangOut: HANG_OUT, throwVy: THROW_VY, grabLift: GRAB_LIFT, spots: VICTIM,
-        smashVz: SMASH_VZ, smashVy: SMASH_VY, len: DUMMY_LEN },
+      victim: { hand: HAND_PT, neck: DUMMY_NECK, scale: DUMMY_SCALE, hangUp: HANG_UP, hangOut: HANG_OUT, throwVy: THROW_VY, grabLift: GRAB_LIFT, spots: VICTIM },
       // Walk while attacking: the bones the Walk drives under an attack (+ the root's height)
       walkLayer: { bones: WALK_BONES, root: B.root },
       voice: VOICE_LINES.map((v) => ({ id: v.id, env: v.env, zcr: v.zcr })),
@@ -2580,7 +2493,7 @@ function modExport() {
 function modTrace() {
   const S = makeSim(7), dt = 1 / 120, out = [], fx = [];
   const plan = [[0, 'idle'], [3, 'idle2'], [6, 'walk'], [8, 'run'], [9.4, 'attack'], [11.4, 'special'], [15.6, 'throw'], [19, 'clap'],
-                [23, 'throatLaser'], [26.6, 'smash'], [32.4, 'idle']];
+                [23, 'throatLaser'], [26.6, 'idle']];
   const end = 56; // seconds recorded (the Java test reads it); the last Idle runs into a Hover and settles after it
   const WALK_ATK = [9.4, 15.6];   // walk while attacking during Attack + Special (the layer is tested too)
   S.follow.on = true; S.follow.has = true; S.follow.inject = { yaw: 0, pitch: 0 };
@@ -2697,12 +2610,8 @@ const VICTIM = {
   special: { spot: [0, 0, 56] },            // 3.5 blocks: the beams come down onto its chest
   throw: { grab: true },                    // spot = under the hand at events.grab (computed below)
   clap: { spot: [0, 0, 12] },               // head between his palms (they smack its ears)
-  throatLaser: { grab: true },
-  smash: { spot: [0, 0, 14], feet: true }   // smashed onto its back right there; then held by the ANKLES (release computed below)
+  throatLaser: { grab: true }
 };
-// Smash throw: speed of the fling (blocks/s, forward + up in his facing at the release; the mod uses it too)
-const SMASH_VZ = 26, SMASH_VY = 14;
-const DUMMY_LEN = 32 * DUMMY_SCALE;         // 30 texels: soles to the top of its head
 
 /* ───────── Dummy model ─────────
    A plain player-shaped mannequin (8x8x8 head, 8x12x4 body, arms and legs 4x12x4 split in two), burlap colors.
@@ -2753,14 +2662,7 @@ const EAR_POSE = { arm: -1.911, elbow: -2.461 };
    Fills DS: feet position (texels), lean back (rad), spin, arms up 0..1, cower, flail, hands on its ears 0..1,
    legs kick / knees buckle, head tilt / jolt, mouth gape, burn 0..1, blood puffs (time since the hit + where). */
 const DS = { x: 0, y: 0, z: 0, lean: 0, spin: 0, arms: 0, cower: 0, kick: 0, burn: 0, faceBurn: 0, headBack: 0, gape: 0, flail: 0,
-             ears: 0, buckle: 0, jolt: 0, puff: -1, puffAt: [0, 0, 0], puffEars: false, yaw: NaN };   // yaw NaN = faces him
-// Lay the victim along direction (dx, dy, dz) from its soles (held by the ankles): sets DS.lean + DS.yaw
-// (root rotation Y then X: body axis = (sin yaw * sin lean, cos lean, cos yaw * sin lean)).
-function aimBody(dx, dy, dz) {
-  const l = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
-  DS.lean = -Math.acos(clamp(dy / l, -1, 1));
-  DS.yaw = Math.atan2(-dx, -dz);
-}
+             ears: 0, buckle: 0, jolt: 0, puff: -1, puffAt: [0, 0, 0], puffEars: false };
 const smooth01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
 const vHand = new THREE.Vector3();
 
@@ -2792,18 +2694,12 @@ function handWorld(out) {
     VICTIM[name].spot = [s[0], 0, s[2]];
     VICTIM[name].release = [r[0], Math.max(0, r[1]), r[2]];
   }
-  // Smash: the hand itself at the release (the victim hangs from it by the ankles, not by the neck)
-  const S = makeSim(1); S.events = false; S.anim = 'smash'; S.follow.on = false;
-  for (let k = 0; k < Math.round(ANIMS.smash.events.release * 120); k++) step(S, 1 / 120);
-  mobRoot.updateMatrixWorld(true);
-  handWorld(h);
-  VICTIM.smash.release = [h.x, h.y, h.z];
 })();
 const hTmp = new THREE.Vector3(), aTmp = [0, 0, 0];   // reused every frame
 
 function victimPose(name, t, S) {
   Object.assign(DS, { lean: 0, spin: 0, arms: 0, cower: 0, kick: 0, burn: 0, faceBurn: 0, headBack: 0, gape: 0, flail: 0,
-                      ears: 0, buckle: 0, jolt: 0, puff: -1, puffEars: false, yaw: NaN });
+                      ears: 0, buckle: 0, jolt: 0, puff: -1, puffEars: false });
   const sp = VICTIM[name].spot, ev = ANIMS[name].events || {};
   [DS.x, DS.y, DS.z] = sp;
   if (name === 'attack') {
@@ -2867,54 +2763,6 @@ function victimPose(name, t, S) {
       DS.kick = down * Math.sin(TAU * 2.1 * u);                          // legs kick while it writhes
       DS.puff = u; DS.puffAt[0] = 0; DS.puffAt[1] = 26; DS.puffAt[2] = sp[2]; DS.puffEars = true;
     }
-  } else if (name === 'smash') {
-    // Shields its head while he winds up; the hammer-fist smashes it flat onto its back (fast fall, dust/blood
-    // puff, limbs flop); lies dazed; he grabs its ankles: the soles go to his hand, the body lies along the floor
-    // behind him (head end scraping the floor, dust) while he drags it; in the throw it swings out flat around
-    // him, then flies forward-up, tumbling, far out of sight.
-    const u = t - ev.hit, low = 2 * DUMMY_SCALE;                       // lying: soles / back this high above the floor
-    const pre = 1 - smooth01(u / 0.08);
-    DS.arms = 0.5 * smooth01((t - 0.15) / 0.3) * pre;
-    DS.cower = 0.6 * smooth01((t - 0.25) / 0.25) * pre;
-    if (u > 0 && t < ev.grab) {
-      const f = smooth01(u / 0.22);                                    // smashed down onto its back
-      DS.lean = -Math.PI / 2 * f; DS.y = low * f;
-      DS.buckle = smooth01(u / 0.1) * (1 - 0.8 * f);
-      DS.jolt = Math.exp(-u * 8) * Math.sin(TAU * 6 * u);
-      DS.flail = 0.7 * smooth01(u / 0.08) * (1 - smooth01((u - 0.2) / 0.3));
-      DS.gape = 0.8 * smooth01(u / 0.1) * (1 - 0.5 * smooth01((u - 0.4) / 0.3));
-      DS.headBack = 0.3 * f;
-      DS.puff = u; DS.puffAt[0] = sp[0]; DS.puffAt[1] = 28; DS.puffAt[2] = sp[2] - 2;
-    } else if (t >= ev.grab && t < ev.release) {
-      handWorld(hTmp);
-      const k = smooth01((t - ev.grab) / 0.35);                        // ankles lifted from the floor into his hand
-      DS.x = sp[0] + (hTmp.x - sp[0]) * k; DS.y = low + (hTmp.y - low) * k; DS.z = sp[2] + (hTmp.z - sp[2]) * k;
-      // away from him (horizontal, from his body axis through the soles); while dragged it trails straight behind
-      // him (+z: he faces -z then); the head end rests on the floor, swings out nearly flat in the throw
-      // (centrifugal), never into the floor
-      const rl = Math.hypot(DS.x, DS.z) || 1, dw = SMASH_TRAIL(t);
-      let rx = DS.x / rl * (1 - dw), rz = DS.z / rl * (1 - dw) + dw;
-      const dl = Math.hypot(rx, rz) || 1; rx /= dl; rz /= dl;
-      const swing = smooth01((t - 3.5) / 0.3);
-      const eG = Math.asin(clamp((DS.y - low) / DUMMY_LEN, 0, 1)), e = eG + (0.18 - eG) * swing;
-      aimBody(rx * Math.cos(e), -Math.sin(e), rz * Math.cos(e));
-      // dust where its head scrapes over the floor (a new puff every 0.35 s while he walks)
-      if (kf(t, SM_DRAG) > 0.5) {
-        DS.puff = (t - 2.0) % 0.35; DS.puffAt[0] = DS.x + rx * DUMMY_LEN; DS.puffAt[1] = 2; DS.puffAt[2] = DS.z + rz * DUMMY_LEN;
-      }
-      DS.gape = 0.75 + 0.15 * Math.sin(TAU * 7 * t);                    // screams the whole time
-      DS.flail = 0.5 + 0.4 * swing;                                    // arms trail / flail
-      DS.headBack = 0.4;
-      DS.kick = 0.25 * Math.sin(TAU * 1.7 * t) * (1 - swing);
-    } else if (t >= ev.release) {
-      const r = VICTIM.smash.release, u2 = t - ev.release;            // flung: ballistic arc, tumbling end over end
-      DS.x = r[0]; DS.z = r[2] + 16 * SMASH_VZ * u2;
-      DS.y = r[1] + 16 * (SMASH_VY * u2 - 0.5 * GRAVITY_B * u2 * u2);
-      const rl = Math.hypot(r[0], r[2]) || 1;
-      aimBody(r[0] / rl, -0.2, r[2] / rl);
-      DS.lean -= 1.6 * TAU * u2;                                      // ~1.6 turns per second
-      DS.gape = 0.9; DS.flail = 1;
-    }
   }
   return DS;
 }
@@ -2936,7 +2784,7 @@ function updateDummy(S, dt) {
   mobRoot.updateMatrixWorld(true);              // the hand's world matrix of this frame's pose
   const v = victimPose(D.shown, S.t % ANIMS[D.shown].T, S);
   D.root.position.set(v.x * TEXEL, v.y * TEXEL, v.z * TEXEL);
-  D.root.rotation.set(v.lean, Number.isNaN(v.yaw) ? Math.atan2(-v.x, -v.z) : v.yaw, v.spin);   // faces him (or aimBody), leans back, rolls
+  D.root.rotation.set(v.lean, Math.atan2(-v.x, -v.z), v.spin);   // faces him, leans back, rolls
   // Arms (right; left mirrored): flail = out to the sides and back, elbows bent (clear of his arms in front);
   // cower = out a little; arms = raised in front of the face; ears = hands on its own ears.
   const fl = v.flail * (1 + 0.12 * Math.sin(TAU * 5 * S.t)), e = v.ears;
@@ -3115,8 +2963,8 @@ document.getElementById('resetBtn').addEventListener('click', () => { resetting 
 
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return; // the volume slider keeps the keys
-  const i = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].indexOf(e.key);
-  if (i >= 0) selectAnim(ANIM_ORDER[i]);
+  const i = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].indexOf(e.key);
+  if (i >= 0 && ANIM_ORDER[i]) selectAnim(ANIM_ORDER[i]);
   if (e.key === 'r' || e.key === 'R') resetting = true;
   if (e.key === 'b' || e.key === 'B') toggleBones();
   if (e.key === 'd' || e.key === 'D') toggleDummy();

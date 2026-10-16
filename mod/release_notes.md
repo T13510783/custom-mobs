@@ -1,15 +1,11 @@
 ## Added
-- Sindicate: one mod for all custom mobs (The King + Homelander)
-- Homelander mob: 1:1 copy of the HTML viewer (model, physics cape, moving face, red eye glow, all animations)
-- Homelander attacks on players, villagers and every other mob: punch, heat vision, throat grab + throw, throat laser, head clap with "I am god" (victim falls and lies screaming), ground smash (drags the victim by the ankles and flings it far)
-- Homelander runs at about twice player speed when his target is far away, and keeps walking while he punches or lasers
-- Homelander: 75 HP, diamond-armor protection, neutral (only fights back when hurt), boss bar, American-flag spawn egg
-- Homelander creative tab, sounds, subtitles (English + Dutch)
-- Config screen (Mods -> Sindicate -> Config, or key K): Client and Server tabs, hover help on every option, server option to let operators edit settings
-- In-game updater: "Check for Updates" button, automatic check every 5 minutes, changelog screen, "Update and Close Game"
+- Homelander mixes all his attacks in a fight (throat grab, throw, throat laser, head clap, heat vision, punch) instead of mostly punching
+- Homelander can grab creative-mode players too (they see every attack, no damage)
 
 ## Removed
-- Nothing
+- Homelander's ground smash attack (slam, ankle drag and fling) with its config option
 
 ## Fixed
-- Nothing
+- Homelander's hands behind his back now rest on the cape, the cape stays flat on his back
+- Homelander has no neck any more: his head sits right on his body
+- Spawn egg no longer looks dark

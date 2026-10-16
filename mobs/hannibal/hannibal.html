@@ -1,0 +1,2162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hannibal Lecter — 16x16 Vanilla+ 3D Model Viewer</title>
+  <style>
+    :root {
+      --bg-dark: #0f1115;
+      --pill-bg: rgba(18, 21, 27, 0.86);
+      --pill-border: rgba(255, 255, 255, 0.09);
+      --text-main: #e6e9f0;
+      --text-dim: #8a93a6;
+      --accent: #9e2a3b;
+      --accent-glow: rgba(158, 42, 59, 0.42);
+      --outfit-accent: #c78d52;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      color: var(--text-main);
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at 50% 42%, #1b171b 0%, #0f1115 74%);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    /* Ultra-minimal floating bottom pill bar */
+    .hud-bottom {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      background: var(--pill-bg);
+      border: 1px solid var(--pill-border);
+      border-radius: 999px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+      z-index: 20;
+      max-width: calc(100vw - 24px);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .hud-bottom::-webkit-scrollbar {
+      display: none;
+    }
+
+    .anim-btn,
+    .outfit-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 12.5px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      padding: 7px 13px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .anim-btn:hover,
+    .outfit-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .anim-btn:active,
+    .outfit-btn:active {
+      transform: scale(0.96);
+    }
+
+    .anim-btn.active {
+      color: #ffffff;
+      background: linear-gradient(135deg, #8c2232 0%, #59141f 100%);
+      box-shadow: 0 2px 14px var(--accent-glow), 0 0 0 1px rgba(255, 160, 175, 0.24) inset;
+    }
+
+    .outfit-btn.active {
+      color: #fff6eb;
+      background: rgba(199, 141, 82, 0.22);
+      box-shadow: 0 0 0 1px rgba(218, 165, 110, 0.42) inset;
+    }
+
+    .swatch-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28);
+      flex-shrink: 0;
+    }
+
+    .divider {
+      width: 1px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.10);
+      margin: 0 2px;
+      flex-shrink: 0;
+    }
+
+    .icon-btn {
+      appearance: none;
+      border: none;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-dim);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+      flex-shrink: 0;
+    }
+
+    .icon-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.11);
+      transform: rotate(-18deg);
+    }
+
+    .icon-btn:active {
+      transform: scale(0.92);
+    }
+
+    .icon-btn svg {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  </style>
+
+  <!-- Error tracker for headless verification -->
+  <script>
+    window.__errors = [];
+    window.addEventListener('error', (e) => {
+      window.__errors.push(e.message || String(e));
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      window.__errors.push(e.reason ? (e.reason.message || String(e.reason)) : 'unhandled rejection');
+    });
+  </script>
+
+  <!-- Three.js r128 + OrbitControls with local fallback -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"
+    onerror="var s=document.createElement('script');s.src='../../mod/build/viewer-libs/three.min.js';document.head.appendChild(s);"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"
+    onerror="var s=document.createElement('script');s.src='../../mod/build/viewer-libs/OrbitControls.js';document.head.appendChild(s);"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div class="hud-bottom" role="toolbar" aria-label="Animation, outfit, and camera controls">
+    <!-- 4 Selectable Animations -->
+    <button class="anim-btn active" data-anim="idle" type="button">Idle</button>
+    <button class="anim-btn" data-anim="walk" type="button">Walk</button>
+    <button class="anim-btn" data-anim="attack" type="button">Attack</button>
+    <button class="anim-btn" data-anim="special" type="button">Special</button>
+
+    <div class="divider"></div>
+
+    <!-- 4 Reference-Accurate Outfits -->
+    <button class="outfit-btn active" data-outfit="plaid" type="button" title="Plaid 3-Piece Suit (Ref 1)">
+      <span class="swatch-dot" style="background:#5a2626"></span>Plaid Suit
+    </button>
+    <button class="outfit-btn" data-outfit="killsuit" type="button" title="Clear Vinyl Kill Suit & Scalpel (Ref 2 & 5)">
+      <span class="swatch-dot" style="background:#a5d8ff"></span>Kill Suit
+    </button>
+    <button class="outfit-btn" data-outfit="chef" type="button" title="Master Chef Flambé & Apron (Ref 3)">
+      <span class="swatch-dot" style="background:#f0f2f6"></span>Chef Flambé
+    </button>
+    <button class="outfit-btn" data-outfit="waistcoat" type="button" title="Rust Shirt & Slate Waistcoat (Ref 4)">
+      <span class="swatch-dot" style="background:#9e472a"></span>Psychiatrist
+    </button>
+
+    <div class="divider"></div>
+
+    <button class="icon-btn" id="reset-camera" type="button" title="Reset Camera (R)" aria-label="Reset Camera">
+      <svg viewBox="0 0 24 24">
+        <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+        <path d="M3 3v5h5" />
+      </svg>
+    </button>
+  </div>
+
+  <script>
+    window.onload = function () {
+      const container = document.getElementById('canvas-container');
+
+      /* ───────── Scene, Camera, Renderer (1 unit = 1 texel, 16 texels = 1 block) ───────── */
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f1115);
+      scene.fog = new THREE.FogExp2(0x0f1115, 0.0055);
+
+      const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 400);
+      const DEFAULT_CAM_POS = new THREE.Vector3(24, 24, 52);
+      const DEFAULT_TARGET = new THREE.Vector3(0, 15.5, 0);
+      camera.position.copy(DEFAULT_CAM_POS);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.12;
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.075;
+      controls.target.copy(DEFAULT_TARGET);
+      controls.minDistance = 18;
+      controls.maxDistance = 125;
+      controls.maxPolarAngle = Math.PI * 0.505;
+      controls.update();
+
+      /* ───────── Refined Baltimore Dining Room & Surgical Studio Lighting ───────── */
+      const hemiLight = new THREE.HemisphereLight(0xdbe4f3, 0x241a18, 0.78);
+      hemiLight.position.set(0, 50, 0);
+      scene.add(hemiLight);
+
+      // Warm chandelier / gallery key light casting soft ground shadow
+      const keyLight = new THREE.DirectionalLight(0xfff1e0, 1.32);
+      keyLight.position.set(24, 44, 30);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.width = 2048;
+      keyLight.shadow.mapSize.height = 2048;
+      keyLight.shadow.camera.near = 8;
+      keyLight.shadow.camera.far = 120;
+      const d = 26;
+      keyLight.shadow.camera.left = -d;
+      keyLight.shadow.camera.right = d;
+      keyLight.shadow.camera.top = d;
+      keyLight.shadow.camera.bottom = -d;
+      keyLight.shadow.bias = -0.0005;
+      scene.add(keyLight);
+
+      // Cool clinical surgical steel rim light
+      const rimLight = new THREE.DirectionalLight(0x88b4e6, 0.72);
+      rimLight.position.set(-28, 28, -24);
+      scene.add(rimLight);
+
+      // Subtle warm burgundy fill from front-left
+      const fillLight = new THREE.DirectionalLight(0xd98f76, 0.40);
+      fillLight.position.set(-18, 14, 24);
+      scene.add(fillLight);
+
+      // Dynamic Flambé Fire PointLight (illuminates Hannibal's face & white shirt during cooking flambé!)
+      const flambeLight = new THREE.PointLight(0xff7b24, 0.0, 38, 1.8);
+      flambeLight.position.set(2, 18, 8);
+      scene.add(flambeLight);
+
+      // Soft ground shadow catcher at y = 0
+      const groundGeo = new THREE.PlaneGeometry(180, 180);
+      const groundMat = new THREE.ShadowMaterial({ opacity: 0.44 });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = 0;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      /* ───────── Deterministic 16x16 Pixel-Art Texture Engine ───────── */
+      function hash2D(x, y, seed = 1) {
+        let n = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(seed, 1442695041);
+        n = (n ^ (n >>> 13)) >>> 0;
+        n = Math.imul(n, 1274126177) >>> 0;
+        return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
+      }
+
+      function hexToRgb(hex) {
+        const clean = hex.replace('#', '');
+        const num = parseInt(clean, 16);
+        return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+      }
+
+      function shadeHex(hex, delta) {
+        const [r, g, b] = hexToRgb(hex);
+        const clamp = (v) => Math.max(0, Math.min(255, Math.round(v + delta)));
+        return `rgb(${clamp(r)},${clamp(g)},${clamp(b)})`;
+      }
+
+      function fillTexturedRect(ctx, x, y, w, h, baseHex, variance = 8, seed = 1) {
+        for (let py = y; py < y + h; py++) {
+          for (let px = x; px < x + w; px++) {
+            const n = (hash2D(px, py, seed) - 0.5) * 2 * variance;
+            ctx.fillStyle = shadeHex(baseHex, n);
+            ctx.fillRect(px, py, 1, 1);
+          }
+        }
+      }
+
+      // Draws bespoke windowpane / glen-plaid tailoring pattern (Ref 1, 2, 4, 5)
+      function drawPlaidFabric(ctx, w, h, baseHex, checkHex1, checkHex2, seed = 10) {
+        fillTexturedRect(ctx, 0, 0, w, h, baseHex, 6, seed);
+        ctx.fillStyle = checkHex1;
+        for (let y = 1; y < h; y += 3) {
+          ctx.fillRect(0, y, w, 1);
+        }
+        for (let x = 1; x < w; x += 3) {
+          ctx.fillRect(x, 0, 1, h);
+        }
+        if (checkHex2) {
+          ctx.fillStyle = checkHex2;
+          for (let y = 2; y < h; y += 4) {
+            for (let x = 0; x < w; x += 2) {
+              ctx.fillRect(x, y, 1, 1);
+            }
+          }
+        }
+      }
+
+      // Draws Clear Vinyl Kill Suit texture (Ref 2 & Ref 5: translucent glossy plastic + white zipper trim)
+      function drawKillSuitVinyl(ctx, w, h, opts = {}) {
+        ctx.clearRect(0, 0, w, h);
+        // Translucent plastic sheen base
+        ctx.fillStyle = 'rgba(210, 228, 245, 0.34)';
+        ctx.fillRect(0, 0, w, h);
+
+        // Diagonal specular vinyl crinkles
+        ctx.fillStyle = 'rgba(248, 252, 255, 0.65)';
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            if ((x + y * 2) % 7 === 0) {
+              ctx.fillRect(x, y, 1, 1);
+            } else if ((x * 2 - y + 16) % 9 === 0) {
+              ctx.fillStyle = 'rgba(155, 180, 205, 0.38)';
+              ctx.fillRect(x, y, 1, 1);
+              ctx.fillStyle = 'rgba(248, 252, 255, 0.65)';
+            }
+          }
+        }
+
+        // Reinforced plastic seam borders
+        ctx.fillStyle = 'rgba(235, 244, 252, 0.58)';
+        ctx.fillRect(0, 0, w, 1);
+        ctx.fillRect(0, h - 1, w, 1);
+
+        // Double vertical white zipper tape down center front (exact Ref 2 & Ref 5 hallmark!)
+        if (opts.frontZipper && w >= 6) {
+          const mid = Math.floor(w / 2);
+          ctx.fillStyle = 'rgba(246, 248, 252, 0.94)';
+          ctx.fillRect(mid - 1, 0, 1, h - 2);
+          ctx.fillRect(mid, 0, 1, h - 2);
+          // Bottom zipper flare where coverall parts slightly at waist (Ref 2!)
+          ctx.fillRect(mid - 2, h - 2, 1, 2);
+          ctx.fillRect(mid + 1, h - 2, 1, 2);
+          // Dark zipper teeth line between white tapes
+          ctx.fillStyle = 'rgba(40, 48, 58, 0.72)';
+          for (let y = 1; y < h - 2; y += 2) {
+            ctx.fillRect(mid - 1, y, 1, 1);
+          }
+        }
+      }
+
+      function makeCanvasTex(wTex, hTex, drawFn) {
+        const cw = Math.max(1, Math.round(wTex));
+        const ch = Math.max(1, Math.round(hTex));
+        const c = document.createElement('canvas');
+        c.width = cw;
+        c.height = ch;
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        drawFn(ctx, cw, ch);
+        const tex = new THREE.CanvasTexture(c);
+        tex.magFilter = THREE.NearestFilter;
+        tex.minFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        tex.needsUpdate = true;
+        return tex;
+      }
+
+      function createPixelBox(w, h, d, faceDrawMap, matOpts = {}) {
+        const geo = new THREE.BoxGeometry(w, h, d);
+        const order = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+        const dims = [
+          [d, h], [d, h],
+          [w, d], [w, d],
+          [w, h], [w, h]
+        ];
+        const isGlass = matOpts.mode === 'glass';
+        const materials = order.map((face, i) => {
+          const fn = faceDrawMap[face] || faceDrawMap.sides || faceDrawMap.all;
+          const tex = makeCanvasTex(dims[i][0], dims[i][1], (ctx, cw, ch) => {
+            if (fn) fn(ctx, cw, ch, face);
+          });
+          if (isGlass) {
+            return new THREE.MeshStandardMaterial({
+              map: tex,
+              transparent: true,
+              opacity: matOpts.opacity !== undefined ? matOpts.opacity : 0.48,
+              roughness: 0.14,
+              metalness: 0.08,
+              depthWrite: false,
+              side: THREE.DoubleSide
+            });
+          }
+          return new THREE.MeshStandardMaterial({
+            map: tex,
+            roughness: matOpts.roughness !== undefined ? matOpts.roughness : 0.78,
+            metalness: matOpts.metalness !== undefined ? matOpts.metalness : 0.08,
+            transparent: !!matOpts.transparent,
+            alphaTest: matOpts.alphaTest || 0
+          });
+        });
+        const mesh = new THREE.Mesh(geo, materials);
+        mesh.castShadow = !isGlass;
+        mesh.receiveShadow = !isGlass;
+        return mesh;
+      }
+
+      /* ───────── Color Palette — Mads Mikkelsen's Hannibal Lecter (All 5 Reference Photos) ───────── */
+      const PAL = {
+        // Mads Mikkelsen Nordic sculpted skin & facial structure
+        skinBase: '#d6a488',
+        skinLight: '#e4b89d',
+        skinMid: '#c49074',
+        skinHollow: '#9e6b52',   // Outer sub-malar cheekbone hollow
+        skinShadow: '#85543e',
+        lipUpper: '#854b42',
+        lipLower: '#9e5e52',
+        eyeWhite: '#d8d2cc',     // Slightly shadowed realistic sclera
+        eyeIris: '#241712',      // Deep dark espresso-amber eyes
+        eyeBrow: '#b88368',      // Overhanging bone brow ridge (faint/browless Nordic look)
+
+        // Hair: Cool dark ash-brown / sandy-taupe with silver-ash temples (Ref 1, 2, 3, 4)
+        hairBase: '#42372e',
+        hairLight: '#594b3f',
+        hairSilver: '#73685d',
+        hairDark: '#2a221c',
+
+        // Outfit 1: Plaid Suit (`hannibal_plaid_suit_full.png`)
+        plaidSuitBase: '#2b201c',
+        plaidCheckRust: '#4f3127',
+        plaidCheckTeal: '#202d30',
+        plaidShirtPink: '#ebd7d7',
+        plaidTieBurgundy: '#6e1c2a',
+        plaidTiePattern: '#b8b0be',
+        oxbloodShoe: '#301512',
+
+        // Outfit 2: Kill Suit (`hannibal_kill_suit_scalpel.png` & `hannibal_kill_suit_dark.png`)
+        killSuitCharcoal: '#33373e',
+        killCheckLight: '#494f59',
+        killCheckWine: '#4a2630',
+        killShirtBlue: '#56728c',
+        killTiePlum: '#3d1926',
+        killTieDot: '#7a4959',
+
+        // Outfit 3: Master Chef Flambé (`hannibal_cooking_flambe.png`)
+        chefShirtWhite: '#f0f2f6',
+        chefShirtShade: '#d5dce6',
+        chefApronBase: '#e4e7ed',
+        chefApronStripe: '#c8d0dc',
+        chefPantsDark: '#1c1f24',
+
+        // Outfit 4: Psychiatrist Waistcoat (`hannibal_waistcoat_portrait.png`)
+        psychShirtRust: '#8f4428',
+        psychShirtDark: '#6e311b',
+        psychShirtLight: '#a85536',
+        psychVestTeal: '#202e34',
+        psychVestCheck: '#344850',
+        psychTieTeal: '#274850',
+        psychTieCopper: '#965638',
+
+        // Props: Scalpel, Skillet, Brandy Bottle, Wine Glass, Carving Knife
+        steelBright: '#dce3ec',
+        steelMid: '#9aa4b2',
+        steelDark: '#525a66',
+        copperBase: '#b8683c',
+        bottleGlass: '#26170d',
+        bottleAmber: '#8c4318',
+        bottleGold: '#d4af37',
+        wineCrimson: '#5e0f1c'
+      };
+
+      /* ───────── Root & Hierarchical 2-Bone Skeleton (Rule 12) ───────── */
+      const characterRoot = new THREE.Group();
+      characterRoot.name = 'hannibalRoot';
+      scene.add(characterRoot);
+
+      // Pelvis / Hips root pivot at y = 12 so 12-texel legs plant cleanly at y = 0
+      const bodyPivot = new THREE.Group();
+      bodyPivot.name = 'bodyPivot';
+      bodyPivot.position.set(0, 12, 0);
+      characterRoot.add(bodyPivot);
+
+      // Torso pivot at waist (y = 0 relative to bodyPivot)
+      const torsoPivot = new THREE.Group();
+      torsoPivot.name = 'torso';
+      torsoPivot.position.set(0, 0, 0);
+      bodyPivot.add(torsoPivot);
+
+      // Neck / Head pivot at top of torso (y = 12 relative to torsoPivot)
+      const headPivot = new THREE.Group();
+      headPivot.name = 'head';
+      headPivot.position.set(0, 12, 0);
+      torsoPivot.add(headPivot);
+
+      /* ───────── 1. Head: Mads Mikkelsen Likeness + Pixel-Aligned Swept Hair Curtain ───────── */
+      // Exact 8x8 front pixel map modeled after `hannibal_waistcoat_portrait.png` & `hannibal_kill_suit_scalpel.png`
+      const FACE_GRID = [
+        // y=0: Hairline with side-part on character's right (viewer left u=1..2)
+        ['#2a221c', '#594b3f', '#352b23', '#42372e', '#594b3f', '#42372e', '#352b23', '#2a221c'],
+        // y=1: Broad Nordic forehead exposed on left/center (u=1..4), diagonal ash-brown hair sweep on right (u=5..7)
+        ['#352b23', '#cfa085', '#e4b89d', '#e4b89d', '#d6a488', '#42372e', '#352b23', '#2a221c'],
+        // y=2: Upper forehead & temple, diagonal hair curtain tapering down on right (u=6..7)
+        ['#b88469', '#d6a488', '#e0b296', '#d9aa8e', '#cfa085', '#c28e73', '#42372e', '#352b23'],
+        // y=3: Heavy overhanging bone brow ridge (faint browless Nordic look) & glabellar crease (u=3..4)
+        ['#ad7a60', '#9e6950', '#ab765c', '#be8a6f', '#c79378', '#ab765c', '#96624a', '#2a221c'],
+        // y=4: Deep-set hooded dark eyes (sclera outer u=1,6; dark espresso iris inner u=2,5) & straight nose bridge
+        ['#a8755b', '#d8d2cc', '#241712', '#dca98d', '#cfa084', '#241712', '#d8d2cc', '#a8755b'],
+        // y=5: High sharp malar cheekbones (u=1,6), tear-trough eye bags (u=2,5), sculpted nose tip (u=3,4)
+        ['#9c6950', '#e2b59a', '#a67258', '#e4b89d', '#c49074', '#a67258', '#e2b59a', '#9c6950'],
+        // y=6: Outer sub-malar gaunt cheek hollows (u=0,1 & 6,7) + defined Cupid's-bow mouth (u=3,4) & corner creases (u=2,5)
+        ['#8a5841', '#ad795f', '#996052', '#7d433b', '#874a41', '#996052', '#ad795f', '#8a5841'],
+        // y=7: Tapered jaw & lit chin with subtle shadow contour
+        ['#754834', '#96634b', '#ba866c', '#d4a387', '#cca084', '#ba866c', '#96634b', '#754834']
+      ];
+
+      const headBox = createPixelBox(8, 8, 8, {
+        front: (ctx) => {
+          for (let y = 0; y < 8; y++) {
+            for (let x = 0; x < 8; x++) {
+              ctx.fillStyle = FACE_GRID[y][x];
+              ctx.fillRect(x, y, 1, 1);
+            }
+          }
+        },
+        right: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, PAL.skinBase, 3, 12);
+          // Swept-back ash-brown hair & subtle silver-taupe temple sideburn
+          fillTexturedRect(ctx, 0, 0, w, 2, PAL.hairBase, 4, 13);
+          fillTexturedRect(ctx, 0, 2, 5, 2, PAL.hairLight, 4, 14);
+          fillTexturedRect(ctx, 0, 4, 3, 2, PAL.hairDark, 4, 14);
+          ctx.fillStyle = PAL.hairSilver;
+          ctx.fillRect(3, 3, 2, 1);
+          // Ear & sub-malar cheekbone contour
+          ctx.fillStyle = PAL.skinHollow;
+          ctx.fillRect(5, 5, 2, 2);
+          ctx.fillStyle = PAL.skinShadow;
+          ctx.fillRect(0, 7, w, 1);
+        },
+        left: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, PAL.skinBase, 3, 15);
+          // Longer swept curtain hair over left temple (viewer right side, Ref 4)
+          fillTexturedRect(ctx, 0, 0, w, 3, PAL.hairBase, 4, 16);
+          fillTexturedRect(ctx, 3, 3, 5, 2, PAL.hairBase, 4, 17);
+          fillTexturedRect(ctx, 5, 5, 3, 2, PAL.hairDark, 4, 17);
+          ctx.fillStyle = PAL.hairSilver;
+          ctx.fillRect(3, 4, 2, 1);
+          ctx.fillStyle = PAL.skinHollow;
+          ctx.fillRect(1, 5, 2, 2);
+          ctx.fillStyle = PAL.skinShadow;
+          ctx.fillRect(0, 7, w, 1);
+        },
+        back: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, PAL.hairBase, 5, 18);
+          ctx.fillStyle = PAL.hairLight;
+          ctx.fillRect(1, 1, 6, 3);
+          ctx.fillStyle = PAL.hairDark;
+          ctx.fillRect(0, 6, w, 2);
+        },
+        top: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, PAL.hairBase, 5, 19);
+          // Clean side-part line on viewer left (x = 1) and ash highlights sweeping right
+          ctx.fillStyle = PAL.hairDark;
+          ctx.fillRect(1, 0, 1, h);
+          ctx.fillStyle = PAL.hairLight;
+          ctx.fillRect(2, 1, 4, 6);
+          ctx.fillStyle = PAL.hairSilver;
+          ctx.fillRect(3, 2, 2, 4);
+        },
+        bottom: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PAL.skinShadow, 4, 20)
+      });
+      headBox.position.set(0, 4.0, 0);
+      headPivot.add(headBox);
+
+      // Deep-Set Hooded Eyes at row y=4 (center y = 3.5 in headPivot) + Smooth Blinking Eyelids
+      const scleraMat = new THREE.MeshStandardMaterial({ color: 0xd8d2cc, roughness: 0.45 });
+      const pupilMat = new THREE.MeshStandardMaterial({ color: 0x1c110d, roughness: 0.25 });
+      const hoodMat = new THREE.MeshStandardMaterial({ color: 0x99654d, roughness: 0.78 });
+      const lidMat = new THREE.MeshStandardMaterial({ color: 0xb58066, roughness: 0.75 });
+
+      const scleraR = new THREE.Mesh(new THREE.BoxGeometry(1.92, 0.78, 0.06), scleraMat);
+      scleraR.position.set(-2.0, 3.5, 4.01);
+      const scleraL = new THREE.Mesh(new THREE.BoxGeometry(1.92, 0.78, 0.06), scleraMat);
+      scleraL.position.set(2.0, 3.5, 4.01);
+      headPivot.add(scleraR, scleraL);
+
+      // Dark espresso-amber irises positioned on the inner half of each eye (u=2 and u=5, like Patrick Bateman)
+      const pupilR = new THREE.Mesh(new THREE.BoxGeometry(1.02, 0.78, 0.08), pupilMat);
+      pupilR.position.set(-1.52, 3.5, 4.02);
+      const pupilL = new THREE.Mesh(new THREE.BoxGeometry(1.02, 0.78, 0.08), pupilMat);
+      pupilL.position.set(1.52, 3.5, 4.02);
+      headPivot.add(pupilR, pupilL);
+
+      // Permanent upper hooded orbital fold (gives Mads Mikkelsen's narrow, calculating gaze)
+      const upperHoodR = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.22, 0.10), hoodMat);
+      upperHoodR.position.set(-2.0, 3.86, 4.03);
+      const upperHoodL = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.22, 0.10), hoodMat);
+      upperHoodL.position.set(2.0, 3.86, 4.03);
+      headPivot.add(upperHoodR, upperHoodL);
+
+      const eyelidR = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.84, 0.12), lidMat);
+      eyelidR.position.set(-2.0, 3.5, 4.04);
+      eyelidR.scale.y = 0.01;
+      const eyelidL = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.84, 0.12), lidMat);
+      eyelidL.position.set(2.0, 3.5, 4.04);
+      eyelidL.scale.y = 0.01;
+      headPivot.add(eyelidR, eyelidL);
+
+      // 3D Pixel-Aligned Hair Cap & Side-Swept Curtain (Modeled directly on `hannibal_waistcoat_portrait.png`)
+      // Top crown volume with left side-part groove
+      const hairCrown = createPixelBox(8.5, 1.35, 8.5, {
+        all: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, PAL.hairBase, 5, 24);
+          ctx.fillStyle = PAL.hairDark;
+          ctx.fillRect(1, 0, 1, h); // Crisp side-part line on viewer left
+          ctx.fillStyle = PAL.hairLight;
+          ctx.fillRect(2, 0, 4, h);
+          ctx.fillStyle = PAL.hairSilver;
+          ctx.fillRect(3, 0, 2, h);
+        }
+      });
+      hairCrown.position.set(0, 7.65, -0.05);
+      headPivot.add(hairCrown);
+
+      // Back & sleek temple side hair
+      const hairBackLayer = createPixelBox(8.45, 5.6, 1.2, {
+        all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PAL.hairDark, 5, 25)
+      });
+      hairBackLayer.position.set(0, 4.6, -3.72);
+      headPivot.add(hairBackLayer);
+
+      const hairSideR = createPixelBox(0.42, 3.4, 5.8, {
+        all: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, PAL.hairBase, 4, 26);
+          ctx.fillStyle = PAL.hairLight;
+          ctx.fillRect(0, h - 1, w, 1);
+        }
+      });
+      hairSideR.position.set(-4.10, 5.8, -0.8);
+      headPivot.add(hairSideR);
+
+      const hairSideL = createPixelBox(0.45, 3.8, 6.2, {
+        all: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, PAL.hairBase, 4, 27);
+          ctx.fillStyle = PAL.hairLight;
+          ctx.fillRect(0, h - 1, w, 1);
+        }
+      });
+      hairSideL.position.set(4.12, 5.6, -0.6);
+      headPivot.add(hairSideL);
+
+      // Stepped Pixel-Aligned Diagonal Curtain Fringe sweeping from part (viewer left) across to right temple (+X)
+      const foreheadStrandPivot = new THREE.Group();
+      foreheadStrandPivot.name = 'foreheadStrands';
+      foreheadStrandPivot.position.set(0, 7.2, 4.12);
+      headPivot.add(foreheadStrandPivot);
+
+      // Upper hairline sweep across top of forehead (leaves viewer-left forehead high & open)
+      const fringeStep1 = createPixelBox(5.2, 0.95, 0.36, {
+        all: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, PAL.hairBase, 4, 28);
+          ctx.fillStyle = PAL.hairLight;
+          ctx.fillRect(0, 0, 3, 1);
+        }
+      });
+      fringeStep1.position.set(1.5, -0.15, 0);
+      foreheadStrandPivot.add(fringeStep1);
+
+      // Mid diagonal curtain lock sweeping toward viewer-right (+X)
+      const fringeStep2 = createPixelBox(3.4, 1.0, 0.38, {
+        all: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, PAL.hairBase, 4, 29);
+          ctx.fillStyle = PAL.hairSilver;
+          ctx.fillRect(0, 0, 2, 1);
+        }
+      });
+      fringeStep2.position.set(2.4, -1.0, 0.02);
+      foreheadStrandPivot.add(fringeStep2);
+
+      // Lower tapered temple lock above his left eye (viewer right, exact match to `hannibal_waistcoat_portrait.png`)
+      const fringeStep3 = createPixelBox(2.0, 1.05, 0.36, {
+        all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PAL.hairDark, 4, 30)
+      });
+      fringeStep3.position.set(3.1, -1.85, 0.02);
+      foreheadStrandPivot.add(fringeStep3);
+
+      /* ───────── 2. Outfit-Driven Torso, Lapels, Tie, Apron & Clear Vinyl Kill Suit ───────── */
+      // We build dedicated outfit layer groups and swap textures/visibility cleanly when switching outfits.
+      const outfitMeshes = {
+        plaid: [],
+        killsuit: [],
+        chef: [],
+        waistcoat: []
+      };
+
+      // Helper to build a full outfit's torso + arm sleeves + leg trousers + skirt flaps
+      const armBoneR = new THREE.Group();
+      armBoneR.name = 'armR';
+      armBoneR.position.set(-6.0, 11.5, 0);
+      torsoPivot.add(armBoneR);
+
+      const forearmBoneR = new THREE.Group();
+      forearmBoneR.name = 'forearmR';
+      forearmBoneR.position.set(0, -6.0, 0);
+      armBoneR.add(forearmBoneR);
+
+      const armBoneL = new THREE.Group();
+      armBoneL.name = 'armL';
+      armBoneL.position.set(6.0, 11.5, 0);
+      torsoPivot.add(armBoneL);
+
+      const forearmBoneL = new THREE.Group();
+      forearmBoneL.name = 'forearmL';
+      forearmBoneL.position.set(0, -6.0, 0);
+      armBoneL.add(forearmBoneL);
+
+      const legBoneR = new THREE.Group();
+      legBoneR.name = 'legR';
+      legBoneR.position.set(-2.0, 0, 0);
+      bodyPivot.add(legBoneR);
+
+      const kneeBoneR = new THREE.Group();
+      kneeBoneR.name = 'kneeR';
+      kneeBoneR.position.set(0, -6.0, 0);
+      legBoneR.add(kneeBoneR);
+
+      const legBoneL = new THREE.Group();
+      legBoneL.name = 'legL';
+      legBoneL.position.set(2.0, 0, 0);
+      bodyPivot.add(legBoneL);
+
+      const kneeBoneL = new THREE.Group();
+      kneeBoneL.name = 'kneeL';
+      kneeBoneL.position.set(0, -6.0, 0);
+      legBoneL.add(kneeBoneL);
+
+      // Spring-driven Suit Coat / Butcher Apron Skirt Flaps at waist
+      const skirtPivotR = new THREE.Group();
+      skirtPivotR.name = 'skirtR';
+      skirtPivotR.position.set(-2.1, 0.4, 0);
+      torsoPivot.add(skirtPivotR);
+
+      const skirtPivotL = new THREE.Group();
+      skirtPivotL.name = 'skirtL';
+      skirtPivotL.position.set(2.1, 0.4, 0);
+      torsoPivot.add(skirtPivotL);
+
+      function registerOutfitMesh(outfitKey, parent, mesh) {
+        parent.add(mesh);
+        outfitMeshes[outfitKey].push(mesh);
+        return mesh;
+      }
+
+      // Build each of the 4 reference outfits on the shared 2-bone skeleton:
+      function buildSuitOutfit(key, cfg) {
+        // 1) Torso core (8x12x4)
+        const torsoCore = createPixelBox(8, 12, 4, {
+          front: (ctx, w, h) => {
+            if (cfg.isChef) {
+              // Crisp white dress shirt with vertical button placket & open spread collar
+              fillTexturedRect(ctx, 0, 0, w, h, PAL.chefShirtWhite, 5, 30);
+              ctx.fillStyle = PAL.chefShirtShade;
+              ctx.fillRect(3, 2, 2, h - 2);
+              // Open V-neck skin at throat (Ref 3)
+              ctx.fillStyle = PAL.skinBase;
+              ctx.fillRect(3, 0, 2, 2);
+              ctx.fillStyle = PAL.skinShadow;
+              ctx.fillRect(3, 1, 2, 1);
+              // Apron waist tie band across bottom 2 rows
+              ctx.fillStyle = PAL.chefApronStripe;
+              ctx.fillRect(0, 9, w, 1);
+              fillTexturedRect(ctx, 0, 10, w, 2, PAL.chefApronBase, 4, 31);
+            } else if (cfg.isWaistcoatOnly) {
+              // Rust shirt collar & dark slate-teal check waistcoat (Ref 4)
+              drawPlaidFabric(ctx, w, h, cfg.vestBase, cfg.vestCheck, null, 32);
+              // Rust dress shirt V-zone at top
+              ctx.fillStyle = cfg.shirtHex;
+              ctx.fillRect(2, 0, 4, 4);
+              // Ornate teal & copper paisley silk tie down center
+              ctx.fillStyle = cfg.tieBase;
+              ctx.fillRect(3, 1, 2, 8);
+              ctx.fillStyle = cfg.tieAccent;
+              ctx.fillRect(3, 2, 1, 1);
+              ctx.fillRect(4, 4, 1, 1);
+              ctx.fillRect(3, 6, 1, 1);
+              // Waistcoat buttons
+              ctx.fillStyle = '#111619';
+              ctx.fillRect(3, 8, 1, 1);
+              ctx.fillRect(3, 10, 1, 1);
+            } else {
+              // 3-Piece Plaid Suit (Ref 1 & Ref 2/5): Suit jacket sides, waistcoat inner V, dress shirt & silk tie
+              drawPlaidFabric(ctx, w, h, cfg.suitBase, cfg.suitCheck1, cfg.suitCheck2, 33);
+              // Inner waistcoat V
+              ctx.fillStyle = shadeHex(cfg.suitBase, -8);
+              ctx.fillRect(2, 3, 4, 7);
+              // Dress shirt collar triangle at top
+              ctx.fillStyle = cfg.shirtHex;
+              ctx.fillRect(2, 0, 4, 4);
+              // Patterned silk tie
+              ctx.fillStyle = cfg.tieBase;
+              ctx.fillRect(3, 1, 2, 6);
+              ctx.fillStyle = cfg.tieAccent;
+              ctx.fillRect(3, 2, 1, 1);
+              ctx.fillRect(4, 4, 1, 1);
+              // Burgundy silk pocket square on left chest (Ref 1 & Ref 2)
+              ctx.fillStyle = '#7d1e2e';
+              ctx.fillRect(5, 3, 2, 1);
+              ctx.fillStyle = '#a83246';
+              ctx.fillRect(6, 2, 1, 1);
+            }
+          },
+          back: (ctx, w, h) => {
+            if (cfg.isChef) {
+              fillTexturedRect(ctx, 0, 0, w, h, PAL.chefShirtWhite, 5, 34);
+              ctx.fillStyle = PAL.chefShirtShade;
+              ctx.fillRect(0, 9, w, 1);
+            } else if (cfg.isWaistcoatOnly) {
+              fillTexturedRect(ctx, 0, 0, w, h, '#192226', 4, 35);
+            } else {
+              drawPlaidFabric(ctx, w, h, cfg.suitBase, cfg.suitCheck1, cfg.suitCheck2, 36);
+            }
+          },
+          sides: (ctx, w, h) => {
+            if (cfg.isChef) {
+              fillTexturedRect(ctx, 0, 0, w, h, PAL.chefShirtWhite, 5, 37);
+            } else if (cfg.isWaistcoatOnly) {
+              fillTexturedRect(ctx, 0, 0, w, h, '#192226', 4, 38);
+            } else {
+              drawPlaidFabric(ctx, w, h, cfg.suitBase, cfg.suitCheck1, cfg.suitCheck2, 39);
+            }
+          },
+          top: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, cfg.shirtHex, 4, 40),
+          bottom: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, cfg.pantsBase, 4, 41)
+        });
+        torsoCore.position.set(0, 6.0, 0);
+        registerOutfitMesh(key, torsoPivot, torsoCore);
+
+        // 2) 3D Extruded Collar, Silk Tie Knot & Suit Lapels
+        const collarL = createPixelBox(1.8, 1.3, 4.45, {
+          all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, cfg.shirtHex, 3, 42)
+        });
+        collarL.position.set(1.7, 11.45, 0.05);
+        collarL.rotation.z = -0.18;
+        registerOutfitMesh(key, torsoPivot, collarL);
+
+        const collarR = createPixelBox(1.8, 1.3, 4.45, {
+          all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, cfg.shirtHex, 3, 43)
+        });
+        collarR.position.set(-1.7, 11.45, 0.05);
+        collarR.rotation.z = 0.18;
+        registerOutfitMesh(key, torsoPivot, collarR);
+
+        if (!cfg.isChef) {
+          // 3D Windsor Tie Knot & Blade
+          const tieKnot = createPixelBox(1.4, 1.3, 0.55, {
+            all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, cfg.tieBase, 4, 44)
+          });
+          tieKnot.position.set(0, 10.9, 2.2);
+          registerOutfitMesh(key, torsoPivot, tieKnot);
+
+          const tieBlade = createPixelBox(1.55, 5.2, 0.42, {
+            all: (ctx, w, h) => {
+              fillTexturedRect(ctx, 0, 0, w, h, cfg.tieBase, 4, 45);
+              ctx.fillStyle = cfg.tieAccent;
+              ctx.fillRect(0, 1, 1, 1);
+              ctx.fillRect(1, 3, 1, 1);
+            }
+          });
+          tieBlade.position.set(0, 7.9, 2.18);
+          registerOutfitMesh(key, torsoPivot, tieBlade);
+        }
+
+        if (!cfg.isChef && !cfg.isWaistcoatOnly) {
+          // 3D Tailored Peaked Suit Lapels & Pocket Square
+          const lapelR = createPixelBox(1.65, 7.6, 0.45, {
+            all: (ctx, w, h) => drawPlaidFabric(ctx, w, h, cfg.suitBase, cfg.suitCheck1, cfg.suitCheck2, 46)
+          });
+          lapelR.position.set(-2.15, 7.6, 2.18);
+          lapelR.rotation.z = -0.14;
+          registerOutfitMesh(key, torsoPivot, lapelR);
+
+          const lapelL = createPixelBox(1.65, 7.6, 0.45, {
+            all: (ctx, w, h) => drawPlaidFabric(ctx, w, h, cfg.suitBase, cfg.suitCheck1, cfg.suitCheck2, 47)
+          });
+          lapelL.position.set(2.15, 7.6, 2.18);
+          lapelL.rotation.z = 0.14;
+          registerOutfitMesh(key, torsoPivot, lapelL);
+
+          const pocketSquare3D = createPixelBox(1.5, 0.85, 0.48, {
+            all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, '#8c2032', 4, 48)
+          });
+          pocketSquare3D.position.set(2.45, 8.75, 2.2);
+          pocketSquare3D.rotation.z = 0.12;
+          registerOutfitMesh(key, torsoPivot, pocketSquare3D);
+        }
+
+        // 3) Upper Arms & Forearms (2-Bone Rig)
+        [true, false].forEach((isRight) => {
+          const armBone = isRight ? armBoneR : armBoneL;
+          const forearmBone = isRight ? forearmBoneR : forearmBoneL;
+          const s = isRight ? 1 : 2;
+
+          // Upper arm sleeve (4x6x4)
+          const upperSleeve = createPixelBox(4, 6, 4, {
+            all: (ctx, w, h) => {
+              if (cfg.isChef) {
+                fillTexturedRect(ctx, 0, 0, w, h, PAL.chefShirtWhite, 5, 50 + s);
+                ctx.fillStyle = PAL.chefShirtShade;
+                ctx.fillRect(0, h - 1, w, 1);
+              } else if (cfg.isWaistcoatOnly) {
+                fillTexturedRect(ctx, 0, 0, w, h, PAL.psychShirtRust, 6, 52 + s);
+                ctx.fillStyle = PAL.psychShirtDark;
+                ctx.fillRect(0, h - 1, w, 1);
+              } else {
+                drawPlaidFabric(ctx, w, h, cfg.suitBase, cfg.suitCheck1, cfg.suitCheck2, 54 + s);
+              }
+            }
+          });
+          upperSleeve.position.set(0, -3.0, 0);
+          registerOutfitMesh(key, armBone, upperSleeve);
+
+          if (cfg.isChef) {
+            // Rolled-up white shirt cuff at the elbow (Ref 3 `hannibal_cooking_flambe.png`)
+            const rolledCuff = createPixelBox(4.42, 1.65, 4.42, {
+              all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PAL.chefShirtWhite, 4, 56 + s)
+            });
+            rolledCuff.position.set(0, -0.7, 0);
+            registerOutfitMesh(key, forearmBone, rolledCuff);
+          }
+
+          // Forearm + Hand (4x6x4)
+          const forearmMesh = createPixelBox(4, 6, 4, {
+            all: (ctx, w, h) => {
+              if (cfg.isChef) {
+                // Bare muscular forearm & hand in Chef outfit (Ref 3)
+                fillTexturedRect(ctx, 0, 0, w, h, PAL.skinBase, 4, 58 + s);
+                ctx.fillStyle = PAL.skinMid;
+                ctx.fillRect(0, h - 1, w, 1);
+              } else {
+                // Tailored sleeve top 4 rows + shirt cuff + hand bottom 2 rows
+                if (cfg.isWaistcoatOnly) {
+                  fillTexturedRect(ctx, 0, 0, w, 4, PAL.psychShirtRust, 5, 60 + s);
+                } else {
+                  drawPlaidFabric(ctx, w, 4, cfg.suitBase, cfg.suitCheck1, cfg.suitCheck2, 62 + s);
+                }
+                ctx.fillStyle = cfg.shirtHex;
+                ctx.fillRect(0, 3, w, 1);
+                fillTexturedRect(ctx, 0, 4, w, 2, PAL.skinBase, 4, 64 + s);
+                ctx.fillStyle = PAL.skinMid;
+                ctx.fillRect(0, 5, w, 1);
+              }
+            },
+            bottom: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PAL.skinMid, 4, 66)
+          });
+          forearmMesh.position.set(0, -3.0, 0);
+          registerOutfitMesh(key, forearmBone, forearmMesh);
+
+          // Left-wrist dress watch (visible in Kill Suit & Chef, Ref 5 `hannibal_kill_suit_dark.png`)
+          if (!isRight && (cfg.hasKillVinyl || cfg.isChef)) {
+            const watchBand = createPixelBox(4.25, 0.75, 4.25, {
+              all: (ctx, w, h) => {
+                ctx.fillStyle = '#1e1612';
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = '#d8e2ec';
+                ctx.fillRect(1, 0, 2, 1);
+              }
+            });
+            watchBand.position.set(0, -3.85, 0);
+            registerOutfitMesh(key, forearmBone, watchBand);
+          }
+        });
+
+        // 4) Skirt Flaps (Suit Jacket Tail or White Striped Butcher's Waist Apron in Chef outfit)
+        [true, false].forEach((isRight) => {
+          const pivot = isRight ? skirtPivotR : skirtPivotL;
+          const flapH = cfg.isChef ? 6.2 : 3.2;
+          const flap = createPixelBox(4.15, flapH, 4.35, {
+            all: (ctx, w, h) => {
+              if (cfg.isChef) {
+                fillTexturedRect(ctx, 0, 0, w, h, PAL.chefApronBase, 4, 70);
+                ctx.fillStyle = PAL.chefApronStripe;
+                for (let y = 1; y < h; y += 2) {
+                  ctx.fillRect(0, y, w, 1);
+                }
+              } else if (cfg.isWaistcoatOnly) {
+                drawPlaidFabric(ctx, w, h, cfg.vestBase, cfg.vestCheck, null, 71);
+              } else {
+                drawPlaidFabric(ctx, w, h, cfg.suitBase, cfg.suitCheck1, cfg.suitCheck2, 72);
+              }
+            }
+          });
+          flap.position.set(0, -flapH * 0.5, 0);
+          registerOutfitMesh(key, pivot, flap);
+        });
+
+        // 5) Two-Bone Legs (Thigh `legR`/`legL` + Shin/Shoe `kneeR`/`kneeL`)
+        [true, false].forEach((isRight) => {
+          const legBone = isRight ? legBoneR : legBoneL;
+          const kneeBone = isRight ? kneeBoneR : kneeBoneL;
+          const s = isRight ? 1 : 2;
+
+          const thigh = createPixelBox(4, 6, 4, {
+            all: (ctx, w, h) => {
+              if (cfg.hasPlaidPants) {
+                drawPlaidFabric(ctx, w, h, cfg.pantsBase, cfg.suitCheck1, cfg.suitCheck2, 74 + s);
+              } else {
+                fillTexturedRect(ctx, 0, 0, w, h, cfg.pantsBase, 5, 76 + s);
+              }
+            }
+          });
+          thigh.position.set(0, -3.0, 0);
+          registerOutfitMesh(key, legBone, thigh);
+
+          const shin = createPixelBox(4, 6, 4, {
+            all: (ctx, w, h) => {
+              if (cfg.hasPlaidPants) {
+                drawPlaidFabric(ctx, w, 4, cfg.pantsBase, cfg.suitCheck1, cfg.suitCheck2, 78 + s);
+              } else {
+                fillTexturedRect(ctx, 0, 0, w, 4, cfg.pantsBase, 5, 80 + s);
+              }
+              // Bespoke Italian oxblood / dark leather Oxford dress shoes (bottom 2 rows)
+              fillTexturedRect(ctx, 0, 4, w, 2, cfg.shoeHex, 4, 82 + s);
+              ctx.fillStyle = shadeHex(cfg.shoeHex, 18);
+              ctx.fillRect(1, 4, 2, 1);
+            },
+            bottom: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, '#140d0b', 3, 84)
+          });
+          shin.position.set(0, -3.0, 0);
+          registerOutfitMesh(key, kneeBone, shin);
+
+          const shoeToe = createPixelBox(4.12, 1.65, 4.65, {
+            all: (ctx, w, h) => {
+              fillTexturedRect(ctx, 0, 0, w, h, cfg.shoeHex, 4, 85 + s);
+              ctx.fillStyle = '#120b09';
+              ctx.fillRect(0, h - 1, w, 1);
+            }
+          });
+          shoeToe.position.set(0, -5.18, 0.28);
+          registerOutfitMesh(key, kneeBone, shoeToe);
+        });
+
+        // 6) Translucent Clear Plastic Murder Suit Overlay ("Kill Suit", Ref 2 & Ref 5!)
+        if (cfg.hasKillVinyl) {
+          // Clear vinyl coverall torso shell with double vertical white zipper tape down the front
+          const vinylTorso = createPixelBox(8.75, 12.35, 4.75, {
+            front: (ctx, w, h) => drawKillSuitVinyl(ctx, w, h, { frontZipper: true }),
+            all: (ctx, w, h) => drawKillSuitVinyl(ctx, w, h, { frontZipper: false })
+          }, { mode: 'glass', opacity: 0.46 });
+          vinylTorso.position.set(0, 6.05, 0);
+          registerOutfitMesh(key, torsoPivot, vinylTorso);
+
+          // Crisp 3D White Zipper-Tape Trim down the front of the Kill Suit (Ref 2 & Ref 5 hallmark!)
+          const zipTapeMat = new THREE.MeshStandardMaterial({ color: 0xf2f5fa, roughness: 0.45, metalness: 0.05 });
+          const zipTapeR = new THREE.Mesh(new THREE.BoxGeometry(0.42, 10.6, 0.14), zipTapeMat);
+          zipTapeR.position.set(-0.34, 6.8, 2.42);
+          registerOutfitMesh(key, torsoPivot, zipTapeR);
+
+          const zipTapeL = new THREE.Mesh(new THREE.BoxGeometry(0.42, 10.6, 0.14), zipTapeMat);
+          zipTapeL.position.set(0.34, 6.8, 2.42);
+          registerOutfitMesh(key, torsoPivot, zipTapeL);
+
+          // Flared lower zipper hem where the clear coverall parts slightly at the waist (Ref 2!)
+          const zipFlareR = new THREE.Mesh(new THREE.BoxGeometry(0.42, 2.2, 0.14), zipTapeMat);
+          zipFlareR.position.set(-0.68, 0.8, 2.42);
+          zipFlareR.rotation.z = 0.28;
+          registerOutfitMesh(key, torsoPivot, zipFlareR);
+
+          const zipFlareL = new THREE.Mesh(new THREE.BoxGeometry(0.42, 2.2, 0.14), zipTapeMat);
+          zipFlareL.position.set(0.68, 0.8, 2.42);
+          zipFlareL.rotation.z = -0.28;
+          registerOutfitMesh(key, torsoPivot, zipFlareL);
+
+          // High upturned translucent plastic collar around neck (Ref 2 `hannibal_kill_suit_scalpel.png`!)
+          const vinylCollarBack = createPixelBox(6.6, 1.9, 0.35, {
+            all: (ctx, w, h) => drawKillSuitVinyl(ctx, w, h)
+          }, { mode: 'glass', opacity: 0.52 });
+          vinylCollarBack.position.set(0, 12.6, -2.15);
+          registerOutfitMesh(key, torsoPivot, vinylCollarBack);
+
+          const vinylCollarR = createPixelBox(0.35, 2.0, 4.5, {
+            all: (ctx, w, h) => drawKillSuitVinyl(ctx, w, h)
+          }, { mode: 'glass', opacity: 0.54 });
+          vinylCollarR.position.set(-3.25, 12.55, 0.1);
+          vinylCollarR.rotation.z = 0.16;
+          registerOutfitMesh(key, torsoPivot, vinylCollarR);
+
+          const vinylCollarL = createPixelBox(0.35, 2.0, 4.5, {
+            all: (ctx, w, h) => drawKillSuitVinyl(ctx, w, h)
+          }, { mode: 'glass', opacity: 0.54 });
+          vinylCollarL.position.set(3.25, 12.55, 0.1);
+          vinylCollarL.rotation.z = -0.16;
+          registerOutfitMesh(key, torsoPivot, vinylCollarL);
+
+          // Clear vinyl sleeve covers on upper arms & forearms
+          [armBoneR, armBoneL].forEach((ab) => {
+            const vUpper = createPixelBox(4.56, 6.15, 4.56, {
+              all: (ctx, w, h) => drawKillSuitVinyl(ctx, w, h)
+            }, { mode: 'glass', opacity: 0.44 });
+            vUpper.position.set(0, -3.0, 0);
+            registerOutfitMesh(key, ab, vUpper);
+          });
+
+          [forearmBoneR, forearmBoneL].forEach((fb) => {
+            const vFore = createPixelBox(4.52, 4.5, 4.52, {
+              all: (ctx, w, h) => drawKillSuitVinyl(ctx, w, h)
+            }, { mode: 'glass', opacity: 0.44 });
+            vFore.position.set(0, -2.25, 0);
+            registerOutfitMesh(key, fb, vFore);
+          });
+
+          // Clear vinyl skirt tails over hips
+          [skirtPivotR, skirtPivotL].forEach((sp) => {
+            const vSkirt = createPixelBox(4.45, 3.6, 4.65, {
+              all: (ctx, w, h) => drawKillSuitVinyl(ctx, w, h)
+            }, { mode: 'glass', opacity: 0.42 });
+            vSkirt.position.set(0, -1.8, 0);
+            registerOutfitMesh(key, sp, vSkirt);
+          });
+        }
+      }
+
+      // Instantiate all 4 reference outfits
+      buildSuitOutfit('plaid', {
+        suitBase: PAL.plaidSuitBase,
+        suitCheck1: PAL.plaidCheckRust,
+        suitCheck2: PAL.plaidCheckTeal,
+        shirtHex: PAL.plaidShirtPink,
+        tieBase: PAL.plaidTieBurgundy,
+        tieAccent: PAL.plaidTiePattern,
+        pantsBase: PAL.plaidSuitBase,
+        hasPlaidPants: true,
+        shoeHex: PAL.oxbloodShoe
+      });
+
+      buildSuitOutfit('killsuit', {
+        suitBase: PAL.killSuitCharcoal,
+        suitCheck1: PAL.killCheckLight,
+        suitCheck2: PAL.killCheckWine,
+        shirtHex: PAL.killShirtBlue,
+        tieBase: PAL.killTiePlum,
+        tieAccent: PAL.killTieDot,
+        pantsBase: PAL.killSuitCharcoal,
+        hasPlaidPants: true,
+        shoeHex: '#181a1f',
+        hasKillVinyl: true
+      });
+
+      buildSuitOutfit('chef', {
+        isChef: true,
+        shirtHex: PAL.chefShirtWhite,
+        pantsBase: PAL.chefPantsDark,
+        shoeHex: '#17191d'
+      });
+
+      buildSuitOutfit('waistcoat', {
+        isWaistcoatOnly: true,
+        vestBase: PAL.psychVestTeal,
+        vestCheck: PAL.psychVestCheck,
+        shirtHex: PAL.psychShirtRust,
+        tieBase: PAL.psychTieTeal,
+        tieAccent: PAL.psychTieCopper,
+        pantsBase: '#1b1f24',
+        shoeHex: PAL.oxbloodShoe
+      });
+
+      /* ───────── 3. Signature Props (Surgical Scalpel, Flambé Skillet & Brandy Bottle, Wine Glass) ───────── */
+      // A) Surgical #10 Scalpel held in Right Hand (Ref 2 `hannibal_kill_suit_scalpel.png`)
+      const scalpelGroup = new THREE.Group();
+      scalpelGroup.name = 'scalpel';
+      scalpelGroup.position.set(0, -5.2, 1.3);
+      forearmBoneR.add(scalpelGroup);
+
+      const scalpelHandle = createPixelBox(0.48, 0.72, 5.2, {
+        all: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, '#cfd8e3', 5, 90);
+          ctx.fillStyle = '#8b95a3';
+          ctx.fillRect(1, 0, 2, 1);
+        }
+      }, { roughness: 0.35, metalness: 0.35 });
+      scalpelHandle.position.set(0, 0, 0.8);
+      scalpelGroup.add(scalpelHandle);
+
+      const scalpelBlade = createPixelBox(0.32, 0.88, 2.9, {
+        all: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, '#f0f5fa', 4, 91);
+          ctx.fillStyle = '#a81822';
+          ctx.fillRect(0, h - 1, w, 1);
+        }
+      }, { roughness: 0.25, metalness: 0.30 });
+      scalpelBlade.position.set(0, -0.08, 4.65);
+      scalpelGroup.add(scalpelBlade);
+
+      const scalpelTipAnchor = new THREE.Group();
+      scalpelTipAnchor.position.set(0, 0, 6.2);
+      scalpelGroup.add(scalpelTipAnchor);
+
+      // B) Dark Amber Brandy / Cognac Bottle in Right Hand (Ref 3 `hannibal_cooking_flambe.png`)
+      const bottleGroup = new THREE.Group();
+      bottleGroup.name = 'brandyBottle';
+      bottleGroup.position.set(0, -5.1, 1.4);
+      forearmBoneR.add(bottleGroup);
+
+      const bottleBody = createPixelBox(2.4, 5.6, 2.4, {
+        all: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, PAL.bottleGlass, 5, 92);
+          ctx.fillStyle = PAL.bottleAmber;
+          ctx.fillRect(0, 3, w, 2);
+          // Vintage white & black brandy label (Ref 3!)
+          ctx.fillStyle = '#e8e4dc';
+          ctx.fillRect(0, 1, w, 2);
+          ctx.fillStyle = '#1b1918';
+          ctx.fillRect(1, 2, w - 1, 1);
+        }
+      }, { roughness: 0.22, metalness: 0.15 });
+      bottleBody.position.set(0, -1.2, 2.2);
+      bottleBody.rotation.x = Math.PI / 2;
+      bottleGroup.add(bottleBody);
+
+      const bottleNeck = createPixelBox(1.1, 3.0, 1.1, {
+        all: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, PAL.bottleGlass, 4, 93);
+          ctx.fillStyle = PAL.bottleGold;
+          ctx.fillRect(0, 0, w, 1);
+        }
+      }, { roughness: 0.25, metalness: 0.35 });
+      bottleNeck.position.set(0, -1.2, 5.8);
+      bottleNeck.rotation.x = Math.PI / 2;
+      bottleGroup.add(bottleNeck);
+
+      // C) Heavy Stainless-Steel & Copper Skillet + 3D Animated Flambé Flames in Left Hand (Ref 3!)
+      const skilletGroup = new THREE.Group();
+      skilletGroup.name = 'skillet';
+      skilletGroup.position.set(0, -5.2, 1.2);
+      skilletGroup.rotation.x = 1.32; // Keeps pan horizontal in world space when arm + forearm extend forward
+      forearmBoneL.add(skilletGroup);
+
+      const skilletHandle = createPixelBox(0.85, 0.65, 5.8, {
+        all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PAL.steelMid, 4, 94)
+      }, { roughness: 0.32, metalness: 0.75 });
+      skilletHandle.position.set(0, 0, 2.2);
+      skilletGroup.add(skilletHandle);
+
+      const skilletPan = createPixelBox(6.8, 1.5, 6.8, {
+        top: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, h, '#2b1812', 6, 95); // Rich reduction sauce & tenderloin sear
+          ctx.fillStyle = '#7a281b';
+          ctx.fillRect(2, 2, 3, 3);
+        },
+        bottom: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PAL.copperBase, 5, 96),
+        sides: (ctx, w, h) => {
+          fillTexturedRect(ctx, 0, 0, w, 1, PAL.steelBright, 4, 97);
+          fillTexturedRect(ctx, 0, 1, w, 1, PAL.copperBase, 4, 98);
+        }
+      }, { roughness: 0.35, metalness: 0.68 });
+      skilletPan.position.set(0, 0.1, 7.8);
+      skilletGroup.add(skilletPan);
+
+      // Multi-layered 3D Voxel Flambé Fire rising out of the Skillet (Ref 3 `hannibal_cooking_flambe.png`!)
+      const flambeFireGroup = new THREE.Group();
+      flambeFireGroup.position.set(0, 0.9, 7.8);
+      skilletGroup.add(flambeFireGroup);
+
+      const flameOuterMat = new THREE.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: 0.88 });
+      const flameMidMat = new THREE.MeshBasicMaterial({ color: 0xffae2b, transparent: true, opacity: 0.92 });
+      const flameCoreMat = new THREE.MeshBasicMaterial({ color: 0xfff099, transparent: true, opacity: 0.95 });
+
+      const flameTongues = [];
+      const tongueSpecs = [
+        { x: 0.0, z: 0.0, w: 3.4, h: 6.8, mat: flameMidMat, speed: 11.0, phase: 0.0 },
+        { x: -1.2, z: 0.6, w: 2.4, h: 5.4, mat: flameOuterMat, speed: 13.5, phase: 1.2 },
+        { x: 1.3, z: -0.5, w: 2.5, h: 5.8, mat: flameOuterMat, speed: 12.2, phase: 2.5 },
+        { x: 0.2, z: 0.3, w: 1.8, h: 4.2, mat: flameCoreMat, speed: 15.0, phase: 0.7 },
+        { x: -0.6, z: -0.9, w: 2.0, h: 4.8, mat: flameMidMat, speed: 14.1, phase: 3.8 }
+      ];
+      for (const sp of tongueSpecs) {
+        const g = new THREE.BoxGeometry(sp.w, sp.h, sp.w);
+        g.translate(0, sp.h * 0.5, 0);
+        const m = new THREE.Mesh(g, sp.mat);
+        m.position.set(sp.x, 0, sp.z);
+        flambeFireGroup.add(m);
+        flameTongues.push({ mesh: m, spec: sp });
+      }
+
+      // D) Crystal Red-Wine Glass (Chianti) in Left Hand (for Plaid Suit / Psychiatrist outfits)
+      const wineGlassGroup = new THREE.Group();
+      wineGlassGroup.name = 'wineGlass';
+      wineGlassGroup.position.set(0, -5.2, 1.4);
+      forearmBoneL.add(wineGlassGroup);
+
+      const glassBase = createPixelBox(1.8, 0.3, 1.8, {
+        all: (ctx, w, h) => drawKillSuitVinyl(ctx, w, h)
+      }, { mode: 'glass', opacity: 0.55 });
+      glassBase.position.set(0, -1.6, 1.6);
+      wineGlassGroup.add(glassBase);
+
+      const glassStem = createPixelBox(0.35, 1.8, 0.35, {
+        all: (ctx, w, h) => drawKillSuitVinyl(ctx, w, h)
+      }, { mode: 'glass', opacity: 0.55 });
+      glassStem.position.set(0, -0.6, 1.6);
+      wineGlassGroup.add(glassStem);
+
+      const wineLiquid = createPixelBox(1.9, 1.3, 1.9, {
+        all: (ctx, w, h) => fillTexturedRect(ctx, 0, 0, w, h, PAL.wineCrimson, 4, 99)
+      }, { roughness: 0.2, metalness: 0.1 });
+      wineLiquid.position.set(0, 0.85, 1.6);
+      wineGlassGroup.add(wineLiquid);
+
+      const glassBowl = createPixelBox(2.3, 2.4, 2.3, {
+        all: (ctx, w, h) => drawKillSuitVinyl(ctx, w, h)
+      }, { mode: 'glass', opacity: 0.45 });
+      glassBowl.position.set(0, 1.25, 1.6);
+      wineGlassGroup.add(glassBowl);
+
+      /* ───────── Outfit Switcher Logic ───────── */
+      let currentOutfit = 'plaid';
+
+      function updatePropVisibility(animName) {
+        const isChef = currentOutfit === 'chef';
+        const isSpecial = animName === 'special';
+
+        // In Chef outfit OR during the Special Gourmet Flambé animation, show Skillet + Brandy Bottle
+        const showFlambeSet = isChef || isSpecial;
+        skilletGroup.visible = showFlambeSet;
+        bottleGroup.visible = showFlambeSet;
+
+        // Otherwise: Right hand holds the Surgical Scalpel; Left hand holds Chianti Wine Glass in Plaid/Psychiatrist
+        scalpelGroup.visible = !showFlambeSet;
+        wineGlassGroup.visible = !showFlambeSet && (currentOutfit === 'plaid' || currentOutfit === 'waistcoat') && animName !== 'attack';
+      }
+
+      function applyOutfit(outfitKey) {
+        if (!outfitMeshes[outfitKey]) return;
+        currentOutfit = outfitKey;
+        for (const k of Object.keys(outfitMeshes)) {
+          const vis = k === outfitKey;
+          for (const m of outfitMeshes[k]) {
+            m.visible = vis;
+          }
+        }
+        document.querySelectorAll('.outfit-btn').forEach((b) => {
+          b.classList.toggle('active', b.getAttribute('data-outfit') === outfitKey);
+        });
+        updatePropVisibility(currentAnim);
+      }
+
+      /* ───────── Ember / Crimson Slash Particle Pool ───────── */
+      const particlePool = [];
+      const partGeo = new THREE.BoxGeometry(0.42, 0.42, 0.42);
+      for (let i = 0; i < 20; i++) {
+        const mat = new THREE.MeshBasicMaterial({
+          color: i % 2 === 0 ? 0xff8c24 : 0x9e1b24,
+          transparent: true,
+          opacity: 0
+        });
+        const m = new THREE.Mesh(partGeo, mat);
+        m.visible = false;
+        scene.add(m);
+        particlePool.push({ mesh: m, vel: new THREE.Vector3(), age: 0, maxAge: 0.5, active: false });
+      }
+
+      function spawnParticles(worldPos, count = 8, isFire = false) {
+        let spawned = 0;
+        for (let i = 0; i < particlePool.length && spawned < count; i++) {
+          const p = particlePool[i];
+          if (!p.active) {
+            p.active = true;
+            p.age = 0;
+            p.maxAge = 0.35 + Math.random() * 0.25;
+            p.mesh.position.copy(worldPos);
+            p.mesh.material.color.setHex(isFire ? (spawned % 2 === 0 ? 0xffae2b : 0xff5511) : 0x9e1b24);
+            p.vel.set(
+              (Math.random() - 0.5) * (isFire ? 10 : 16),
+              (isFire ? 10 : 4) + Math.random() * 12,
+              (Math.random() - 0.5) * (isFire ? 10 : 16)
+            );
+            p.mesh.visible = true;
+            p.mesh.material.opacity = 0.92;
+            p.mesh.scale.setScalar(1.0);
+            spawned++;
+          }
+        }
+      }
+
+      /* ───────── Pointer Head/Eye Tracking & Smooth Blink State ───────── */
+      const pointer = new THREE.Vector2(0, 0);
+      let lastPointerMove = -1e9;
+      window.addEventListener('pointermove', (e) => {
+        if (e.target !== renderer.domElement) return;
+        pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+        pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        lastPointerMove = performance.now();
+      });
+
+      const lookFilter = { yaw: 0, pitch: 0, eyeX: 0 };
+      const blinkState = { nextBlink: 1.6, blinkStart: -10, doublePending: false };
+
+      function smoothStep(x) {
+        const t = THREE.MathUtils.clamp(x, 0, 1);
+        return t * t * (3 - 2 * t);
+      }
+
+      // Solves pelvis Y height so the lowest shoe stays cleanly grounded at y = 0 (Rule 12)
+      function solvePelvisGroundY(hipRxR, kneeRxR, hipRxL, kneeRxL) {
+        const yR = 6.0 * Math.cos(hipRxR) + 6.0 * Math.cos(hipRxR + kneeRxR);
+        const yL = 6.0 * Math.cos(hipRxL) + 6.0 * Math.cos(hipRxL + kneeRxL);
+        const k = 6.0;
+        const m = Math.min(yR, yL);
+        const smoothMin = m - Math.log(Math.exp(-k * (yR - m)) + Math.exp(-k * (yL - m))) / k;
+        return Math.max(9.6, Math.min(12.2, smoothMin));
+      }
+
+      /* ───────── 4 Selectable Animations + Outfit-Aware Poses ───────── */
+      let currentAnim = 'idle';
+      let prevAnim = 'idle';
+      let animTime = 0;
+      let prevAnimTime = 0;
+      let blendWeight = 1.0;
+      let lastTriggerStep = -1;
+
+      const BONE_KEYS = [
+        'torso', 'head',
+        'armR', 'forearmR',
+        'armL', 'forearmL',
+        'legR', 'kneeR',
+        'legL', 'kneeL'
+      ];
+
+      function createZeroPose() {
+        return {
+          pos: [0, 12, 0],
+          bodyRotY: 0,
+          torso: [0, 0, 0],
+          head: [0, 0, 0],
+          armR: [0, 0, 0],
+          forearmR: [0, 0, 0],
+          armL: [0, 0, 0],
+          forearmL: [0, 0, 0],
+          legR: [0, 0, 0],
+          kneeR: [0, 0, 0],
+          legL: [0, 0, 0],
+          kneeL: [0, 0, 0],
+          flambeIntensity: 0
+        };
+      }
+
+      function evaluateAnimPose(name, t) {
+        const P = createZeroPose();
+
+        if (name === 'idle') {
+          const breath = Math.sin(t * 2.1);
+          const poise = Math.sin(t * 0.85);
+
+          // Upright aristocratic posture with subtle breathing & calculating head tilt
+          P.torso[0] = 0.02 + breath * 0.018;
+          P.torso[1] = poise * 0.055;
+          P.torso[2] = Math.sin(t * 1.05) * 0.012;
+
+          P.head[0] = 0.03 - breath * 0.015;
+          P.head[1] = poise * 0.14;
+          P.head[2] = 0.055 + Math.sin(t * 0.9) * 0.03;
+
+          if (currentOutfit === 'killsuit') {
+            // Exact Ref 2 (`hannibal_kill_suit_scalpel.png`) stance:
+            // Right hand raised to chest level delicately holding the surgical #10 scalpel; left hand poised near chest
+            P.armR[0] = -0.58 + breath * 0.025;
+            P.armR[1] = -0.26;
+            P.armR[2] = -0.12;
+            P.forearmR[0] = -0.88 + Math.sin(t * 1.8) * 0.04;
+            P.forearmR[2] = -0.22;
+
+            P.armL[0] = -0.34 - breath * 0.02;
+            P.armL[1] = 0.22;
+            P.armL[2] = 0.12;
+            P.forearmL[0] = -0.72;
+          } else if (currentOutfit === 'chef') {
+            // Exact Ref 3 (`hannibal_cooking_flambe.png`) stance:
+            // Left hand holds the flaming skillet forward; right hand holds the brandy bottle poised above
+            P.armL[0] = -0.52 + breath * 0.02;
+            P.armL[1] = 0.16;
+            P.armL[2] = 0.10;
+            P.forearmL[0] = -0.82 + Math.sin(t * 3.2) * 0.04;
+
+            P.armR[0] = -0.68 + breath * 0.03;
+            P.armR[1] = -0.24;
+            P.armR[2] = -0.14;
+            P.forearmR[0] = -0.78 + Math.cos(t * 2.4) * 0.05;
+            P.flambeIntensity = 0.85 + 0.25 * Math.sin(t * 9.5);
+          } else {
+            // Ref 1 (`hannibal_plaid_suit_full.png`) & Ref 4 (`hannibal_waistcoat_portrait.png`):
+            // Poised gentleman host holding Chianti wine glass in left hand & welcoming/inspecting with right
+            P.armR[0] = -0.22 + breath * 0.02;
+            P.armR[1] = -0.14;
+            P.armR[2] = -0.22 - Math.sin(t * 1.2) * 0.04;
+            P.forearmR[0] = -0.45 + Math.sin(t * 1.6) * 0.05;
+
+            P.armL[0] = -0.38 - breath * 0.02;
+            P.armL[1] = 0.18;
+            P.armL[2] = 0.14;
+            P.forearmL[0] = -0.78 + Math.cos(t * 1.6) * 0.03;
+          }
+
+          P.legR[0] = -0.04;
+          P.legR[2] = -0.025;
+          P.kneeR[0] = 0.06;
+
+          P.legL[0] = 0.05;
+          P.legL[2] = 0.025;
+          P.kneeL[0] = 0.06;
+
+          P.pos[1] = solvePelvisGroundY(P.legR[0], P.kneeR[0], P.legL[0], P.kneeL[0]) + breath * 0.06;
+
+        } else if (name === 'walk') {
+          // Measured, aristocratic predatory stride with 2-bone knee/elbow articulation
+          const w = t * 3.6;
+          const s = Math.sin(w);
+          const c = Math.cos(w);
+
+          const swingR = Math.max(0, -c);
+          const swingL = Math.max(0, c);
+          P.legR[0] = s * 0.48;
+          P.kneeR[0] = 0.06 + swingR * swingR * 0.54;
+
+          P.legL[0] = -s * 0.48;
+          P.kneeL[0] = 0.06 + swingL * swingL * 0.54;
+
+          P.pos[0] = c * 0.28;
+          P.pos[1] = solvePelvisGroundY(P.legR[0], P.kneeR[0], P.legL[0], P.kneeL[0]);
+          P.bodyRotY = -s * 0.07;
+
+          P.torso[0] = 0.05 + c * c * 0.025;
+          P.torso[1] = s * 0.14;
+          P.torso[2] = -c * 0.03;
+
+          P.head[0] = 0.03;
+          P.head[1] = -s * 0.10;
+          P.head[2] = 0.04 + c * 0.025;
+
+          P.armR[0] = -0.22 - s * 0.28;
+          P.armR[2] = -0.10;
+          P.forearmR[0] = -0.46 - Math.sin(w - 0.5) * 0.14;
+
+          P.armL[0] = -0.18 + s * 0.26;
+          P.armL[2] = 0.10;
+          P.forearmL[0] = -0.52 + Math.max(0, -s) * 0.16;
+
+          if (currentOutfit === 'chef') {
+            P.flambeIntensity = 0.55 + 0.2 * Math.sin(t * 11.0);
+          }
+
+        } else if (name === 'attack') {
+          // Surgical Precision Lunge & Arterial carotid slash combo
+          const dur = 1.9;
+          const phase = (t % dur) / dur;
+
+          if (phase < 0.26) {
+            // Phase 1: Coiled surgical preparation — raises scalpel to chest/chin level (Ref 2 pose)
+            const k = smoothStep(phase / 0.26);
+            P.bodyRotY = k * 0.34;
+            P.torso[0] = THREE.MathUtils.lerp(0.02, -0.10, k);
+            P.torso[1] = THREE.MathUtils.lerp(0, 0.32, k);
+            P.head[0] = THREE.MathUtils.lerp(0.03, 0.10, k);
+            P.head[1] = THREE.MathUtils.lerp(0, -0.26, k);
+            P.head[2] = 0.08 * k;
+
+            P.armR[0] = THREE.MathUtils.lerp(-0.35, -1.35, k);
+            P.armR[1] = THREE.MathUtils.lerp(-0.15, 0.38, k);
+            P.armR[2] = -0.18;
+            P.forearmR[0] = THREE.MathUtils.lerp(-0.65, -0.95, k);
+
+            P.armL[0] = -0.28 * k;
+            P.armL[2] = 0.24 * k;
+            P.forearmL[0] = -0.55;
+
+            P.legR[0] = 0.20 * k;
+            P.kneeR[0] = 0.18 * k;
+            P.legL[0] = -0.24 * k;
+            P.kneeL[0] = 0.22 * k;
+            P.pos[2] = k * 1.1;
+
+          } else if (phase < 0.48) {
+            // Phase 2: Lightning-fast diagonal surgical incision across the target
+            const k = smoothStep((phase - 0.26) / 0.22);
+            P.bodyRotY = THREE.MathUtils.lerp(0.34, -0.32, k);
+            P.torso[0] = THREE.MathUtils.lerp(-0.10, 0.26, k);
+            P.torso[1] = THREE.MathUtils.lerp(0.32, -0.38, k);
+            P.head[0] = 0.12;
+            P.head[1] = THREE.MathUtils.lerp(-0.26, 0.28, k);
+
+            P.armR[0] = THREE.MathUtils.lerp(-1.35, -0.72, k);
+            P.armR[1] = THREE.MathUtils.lerp(0.38, -0.68, k);
+            P.armR[2] = THREE.MathUtils.lerp(-0.18, -0.52, k);
+            P.forearmR[0] = THREE.MathUtils.lerp(-0.95, -0.18, k);
+
+            P.armL[0] = THREE.MathUtils.lerp(-0.28, 0.35, k);
+            P.armL[2] = 0.30;
+            P.forearmL[0] = -0.45;
+
+            P.legR[0] = THREE.MathUtils.lerp(0.20, 0.34, k);
+            P.kneeR[0] = 0.28;
+            P.legL[0] = THREE.MathUtils.lerp(-0.24, -0.38, k);
+            P.kneeL[0] = 0.34;
+            P.pos[2] = THREE.MathUtils.lerp(1.1, 2.7, k);
+
+          } else if (phase < 0.72) {
+            // Phase 3: Reverse precision thrust & calm head tilt inspection
+            const k = smoothStep((phase - 0.48) / 0.24);
+            P.bodyRotY = THREE.MathUtils.lerp(-0.32, 0.18, k);
+            P.torso[0] = THREE.MathUtils.lerp(0.26, 0.10, k);
+            P.torso[1] = THREE.MathUtils.lerp(-0.38, 0.24, k);
+            P.head[1] = THREE.MathUtils.lerp(0.28, -0.16, k);
+            P.head[2] = 0.12 * Math.sin(k * Math.PI);
+
+            P.armR[0] = THREE.MathUtils.lerp(-0.72, -1.18, Math.sin(k * Math.PI));
+            P.armR[1] = THREE.MathUtils.lerp(-0.68, -0.12, k);
+            P.armR[2] = THREE.MathUtils.lerp(-0.52, -0.22, k);
+            P.forearmR[0] = THREE.MathUtils.lerp(-0.18, -0.78, k);
+
+            P.legR[0] = THREE.MathUtils.lerp(0.34, 0.10, k);
+            P.kneeR[0] = 0.16;
+            P.legL[0] = THREE.MathUtils.lerp(-0.38, -0.14, k);
+            P.kneeL[0] = 0.18;
+            P.pos[2] = THREE.MathUtils.lerp(2.7, 1.2, k);
+
+          } else {
+            // Phase 4: Composed return to aristocratic idle
+            const k = smoothStep((phase - 0.72) / 0.28);
+            P.bodyRotY = THREE.MathUtils.lerp(0.18, 0, k);
+            P.torso[0] = THREE.MathUtils.lerp(0.10, 0.02, k);
+            P.torso[1] = THREE.MathUtils.lerp(0.24, 0, k);
+            P.head[1] = THREE.MathUtils.lerp(-0.16, 0, k);
+            P.head[2] = THREE.MathUtils.lerp(0.10, 0.05, k);
+
+            P.armR[0] = THREE.MathUtils.lerp(-0.72, -0.35, k);
+            P.armR[1] = THREE.MathUtils.lerp(-0.12, -0.15, k);
+            P.armR[2] = THREE.MathUtils.lerp(-0.22, -0.14, k);
+            P.forearmR[0] = THREE.MathUtils.lerp(-0.78, -0.65, k);
+
+            P.legR[0] = THREE.MathUtils.lerp(0.10, -0.04, k);
+            P.kneeR[0] = THREE.MathUtils.lerp(0.16, 0.06, k);
+            P.legL[0] = THREE.MathUtils.lerp(-0.14, 0.05, k);
+            P.kneeL[0] = THREE.MathUtils.lerp(0.18, 0.06, k);
+            P.pos[2] = THREE.MathUtils.lerp(1.2, 0, k);
+          }
+
+          if (currentOutfit === 'chef') {
+            P.flambeIntensity = 0.95;
+          }
+          P.pos[1] = solvePelvisGroundY(P.legR[0], P.kneeR[0], P.legL[0], P.kneeL[0]);
+
+        } else if (name === 'special') {
+          // 4. SPECIAL: "Haute Cuisine Flambé" (Exact Reference #3 `hannibal_cooking_flambe.png`!)
+          // Hannibal pours Brandy from the right-hand bottle into the left-hand skillet, tossing the pan
+          // to ignite a towering column of golden-orange flambé fire while watching with quiet satisfaction.
+          const dur = 3.2;
+          const phase = (t % dur) / dur;
+
+          if (phase < 0.34) {
+            // Phase 1: Tilts the Brandy Bottle in right hand to pour into the Skillet held in left hand
+            const k = smoothStep(phase / 0.34);
+            P.torso[0] = 0.06 * k;
+            P.torso[1] = -0.08 * k;
+            P.head[0] = 0.14 * k;
+            P.head[1] = 0.08 * k;
+            P.head[2] = 0.06 * k;
+
+            // Left arm extends the skillet forward at waist/chest height
+            P.armL[0] = THREE.MathUtils.lerp(-0.35, -0.58, k);
+            P.armL[1] = THREE.MathUtils.lerp(0.12, 0.22, k);
+            P.forearmL[0] = THREE.MathUtils.lerp(-0.65, -0.86, k);
+
+            // Right arm raises and tilts the Brandy Bottle over the skillet
+            P.armR[0] = THREE.MathUtils.lerp(-0.35, -0.92, k);
+            P.armR[1] = THREE.MathUtils.lerp(-0.14, -0.36, k);
+            P.armR[2] = THREE.MathUtils.lerp(-0.12, -0.22, k);
+            P.forearmR[0] = THREE.MathUtils.lerp(-0.60, -0.95, k);
+            P.forearmR[2] = -0.38 * k;
+
+            P.flambeIntensity = 0.35 + k * 0.45;
+
+          } else if (phase < 0.72) {
+            // Phase 2: Signature wrist-flick pan toss & towering Flambé Fire eruption (Exact Ref 3 photo!)
+            const sub = (phase - 0.34) / 0.38;
+            const toss = Math.sin(sub * Math.PI * 2);
+            const flare = Math.sin(sub * Math.PI);
+
+            P.torso[0] = 0.06 - flare * 0.08;
+            P.torso[1] = -0.08 + toss * 0.05;
+            P.head[0] = 0.12 - flare * 0.10;
+            P.head[1] = 0.06;
+            P.head[2] = 0.07;
+
+            // Left forearm flicks the skillet to aerate the flames
+            P.armL[0] = -0.58 - toss * 0.12;
+            P.armL[1] = 0.20;
+            P.forearmL[0] = -0.86 - Math.max(0, toss) * 0.26;
+
+            // Right hand holds the brandy bottle poised at chest height (exact Ref 3 position!)
+            P.armR[0] = -0.74;
+            P.armR[1] = -0.28;
+            P.armR[2] = -0.16;
+            P.forearmR[0] = -0.84;
+            P.forearmR[2] = -0.18;
+
+            P.flambeIntensity = 1.0 + flare * 0.95;
+
+          } else {
+            // Phase 3: Flame settles to a warm simmer; Hannibal gives a subtle appreciative nod
+            const k = smoothStep((phase - 0.72) / 0.28);
+            P.torso[0] = THREE.MathUtils.lerp(0.06, 0.02, k);
+            P.torso[1] = THREE.MathUtils.lerp(-0.08, 0, k);
+            P.head[0] = THREE.MathUtils.lerp(0.14, 0.03, k) + Math.sin(k * Math.PI) * 0.08;
+            P.head[1] = THREE.MathUtils.lerp(0.06, 0, k);
+            P.head[2] = THREE.MathUtils.lerp(0.07, 0.05, k);
+
+            P.armL[0] = THREE.MathUtils.lerp(-0.58, -0.45, k);
+            P.armL[1] = THREE.MathUtils.lerp(0.20, 0.16, k);
+            P.forearmL[0] = THREE.MathUtils.lerp(-0.86, -0.78, k);
+
+            P.armR[0] = THREE.MathUtils.lerp(-0.74, -0.52, k);
+            P.armR[1] = THREE.MathUtils.lerp(-0.28, -0.20, k);
+            P.forearmR[0] = THREE.MathUtils.lerp(-0.84, -0.72, k);
+
+            P.flambeIntensity = THREE.MathUtils.lerp(1.1, 0.55, k);
+          }
+
+          P.legR[0] = -0.04;
+          P.kneeR[0] = 0.06;
+          P.legL[0] = 0.05;
+          P.kneeL[0] = 0.06;
+          P.pos[1] = solvePelvisGroundY(P.legR[0], P.kneeR[0], P.legL[0], P.kneeL[0]);
+        }
+
+        return P;
+      }
+
+      /* ───────── Secondary Spring Physics (Suit Skirt / Apron & Forehead Hair Strands) ───────── */
+      let prevPelvisY = 12;
+      let prevTorsoX = 0;
+      const skirtSpringR = { a: 0, v: 0 };
+      const skirtSpringL = { a: 0, v: 0 };
+      const hairSpring = { a: 0, v: 0 };
+
+      function stepSpring(s, target, dt, k = 85, d = 10) {
+        const acc = -k * (s.a - target) - d * s.v;
+        s.v += acc * dt;
+        s.a += s.v * dt;
+      }
+
+      const _worldPos = new THREE.Vector3();
+      const _headWorld = new THREE.Vector3();
+      const _targetLocal = new THREE.Vector3();
+      const raycaster = new THREE.Raycaster();
+
+      function updateAnimation(dt, totalTime) {
+        animTime += dt;
+        prevAnimTime += dt;
+        blendWeight = Math.min(1.0, blendWeight + dt / 0.26);
+
+        const curPose = evaluateAnimPose(currentAnim, animTime);
+        let P = curPose;
+
+        if (blendWeight < 1.0 && prevAnim !== currentAnim) {
+          const oldPose = evaluateAnimPose(prevAnim, prevAnimTime);
+          const w = smoothStep(blendWeight);
+          P = createZeroPose();
+          for (let i = 0; i < 3; i++) {
+            P.pos[i] = THREE.MathUtils.lerp(oldPose.pos[i], curPose.pos[i], w);
+          }
+          P.bodyRotY = THREE.MathUtils.lerp(oldPose.bodyRotY, curPose.bodyRotY, w);
+          P.flambeIntensity = THREE.MathUtils.lerp(oldPose.flambeIntensity, curPose.flambeIntensity, w);
+          for (const key of BONE_KEYS) {
+            for (let i = 0; i < 3; i++) {
+              P[key][i] = THREE.MathUtils.lerp(oldPose[key][i], curPose[key][i], w);
+            }
+          }
+        }
+
+        bodyPivot.position.set(P.pos[0], P.pos[1], P.pos[2]);
+        bodyPivot.rotation.y = P.bodyRotY;
+
+        torsoPivot.rotation.set(P.torso[0], P.torso[1], P.torso[2]);
+        headPivot.rotation.set(P.head[0], P.head[1], P.head[2]);
+
+        armBoneR.rotation.set(P.armR[0], P.armR[1], P.armR[2]);
+        forearmBoneR.rotation.set(P.forearmR[0], P.forearmR[1], P.forearmR[2]);
+
+        armBoneL.rotation.set(P.armL[0], P.armL[1], P.armL[2]);
+        forearmBoneL.rotation.set(P.forearmL[0], P.forearmL[1], P.forearmL[2]);
+
+        legBoneR.rotation.set(P.legR[0], P.legR[1], P.legR[2]);
+        kneeBoneR.rotation.set(P.kneeR[0], P.kneeR[1], P.kneeR[2]);
+
+        legBoneL.rotation.set(P.legL[0], P.legL[1], P.legL[2]);
+        kneeBoneL.rotation.set(P.kneeL[0], P.kneeL[1], P.kneeL[2]);
+
+        // Smooth Pointer Head & Eye Tracking (Rules 6, 7, 11)
+        const nowMs = performance.now();
+        let targetYaw = 0;
+        let targetPitch = 0;
+        if (nowMs - lastPointerMove < 4000) {
+          headPivot.getWorldPosition(_headWorld);
+          raycaster.setFromCamera(pointer, camera);
+          raycaster.ray.at(camera.position.distanceTo(_headWorld), _targetLocal);
+          torsoPivot.worldToLocal(_targetLocal);
+          _targetLocal.y -= 16.0;
+          targetYaw = THREE.MathUtils.clamp(Math.atan2(_targetLocal.x, _targetLocal.z), -0.45, 0.45);
+          targetPitch = THREE.MathUtils.clamp(-Math.atan2(_targetLocal.y, Math.hypot(_targetLocal.x, _targetLocal.z)), -0.08, 0.08);
+        }
+        const trackAlpha = 1 - Math.exp(-dt * 8);
+        lookFilter.yaw += (targetYaw - lookFilter.yaw) * trackAlpha;
+        lookFilter.pitch += (targetPitch - lookFilter.pitch) * trackAlpha;
+        lookFilter.eyeX += (THREE.MathUtils.clamp(targetYaw * 0.42 + Math.sin(totalTime * 0.85) * 0.07, -0.22, 0.22) - lookFilter.eyeX) * (1 - Math.exp(-dt * 12));
+
+        headPivot.rotation.y += lookFilter.yaw;
+        headPivot.rotation.x = THREE.MathUtils.clamp(headPivot.rotation.x + lookFilter.pitch, -0.22, 0.25);
+        pupilR.position.x = -1.52 + lookFilter.eyeX;
+        pupilL.position.x = 1.52 + lookFilter.eyeX;
+
+        // Smooth Natural Blink (~0.18s sine bump on eyelids, occasional double blink)
+        if (totalTime > blinkState.nextBlink) {
+          blinkState.blinkStart = totalTime;
+          if (blinkState.doublePending) {
+            blinkState.doublePending = false;
+            blinkState.nextBlink = totalTime + 2.5 + Math.random() * 3.0;
+          } else if (Math.random() < 0.25) {
+            blinkState.doublePending = true;
+            blinkState.nextBlink = totalTime + 0.26;
+          } else {
+            blinkState.nextBlink = totalTime + 2.5 + Math.random() * 3.0;
+          }
+        }
+        const blinkElapsed = totalTime - blinkState.blinkStart;
+        const blinkAmt = (blinkElapsed >= 0 && blinkElapsed < 0.18)
+          ? Math.sin((blinkElapsed / 0.18) * Math.PI)
+          : 0.01;
+        eyelidR.scale.y = Math.max(0.01, blinkAmt);
+        eyelidL.scale.y = Math.max(0.01, blinkAmt);
+
+        // Secondary Spring Physics: Skirt/Apron Flaps & Diagonal Forehead Hair Strands
+        if (dt > 0) {
+          const vy = (P.pos[1] - prevPelvisY) / dt;
+          const vTorso = (P.torso[0] - prevTorsoX) / dt;
+          prevPelvisY = P.pos[1];
+          prevTorsoX = P.torso[0];
+
+          skirtSpringR.v += (-vy * 0.06 - vTorso * 0.30);
+          skirtSpringL.v += (-vy * 0.06 - vTorso * 0.30);
+          hairSpring.v += (-vy * 0.05 + vTorso * 0.35);
+
+          const targetFlapR = Math.min(0, P.legR[0] * 0.42) - 0.05;
+          const targetFlapL = Math.min(0, P.legL[0] * 0.42) - 0.05;
+          stepSpring(skirtSpringR, targetFlapR, dt, 90, 10);
+          stepSpring(skirtSpringL, targetFlapL, dt, 90, 10);
+          stepSpring(hairSpring, 0.04, dt, 80, 9);
+
+          skirtPivotR.rotation.x = THREE.MathUtils.clamp(skirtSpringR.a, -0.38, 0.04);
+          skirtPivotL.rotation.x = THREE.MathUtils.clamp(skirtSpringL.a, -0.38, 0.04);
+          foreheadStrandPivot.rotation.x = THREE.MathUtils.clamp(hairSpring.a, 0.01, 0.18);
+        }
+
+        // Animated 3D Flambé Fire Tongues & Dynamic Warm Firelight
+        const showFire = P.flambeIntensity > 0.05 && skilletGroup.visible;
+        flambeFireGroup.visible = showFire;
+        if (showFire) {
+          scene.updateMatrixWorld();
+          flambeFireGroup.getWorldPosition(_worldPos);
+          flambeLight.position.set(_worldPos.x, _worldPos.y + 3.5, _worldPos.z + 1.5);
+          flambeLight.intensity = P.flambeIntensity * (1.55 + 0.35 * Math.sin(totalTime * 17.0));
+
+          for (const ft of flameTongues) {
+            const wave = Math.sin(totalTime * ft.spec.speed + ft.spec.phase);
+            ft.mesh.scale.y = Math.max(0.2, P.flambeIntensity * (0.78 + 0.28 * wave));
+            ft.mesh.scale.x = 0.85 + 0.15 * Math.cos(totalTime * (ft.spec.speed * 0.8) + ft.spec.phase);
+            ft.mesh.scale.z = ft.mesh.scale.x;
+            ft.mesh.rotation.z = wave * 0.14;
+          }
+        } else {
+          flambeLight.intensity = 0;
+        }
+
+        // Trigger slash / flambé ember particles
+        if (currentAnim === 'attack') {
+          const cycle = Math.floor(animTime / 1.9);
+          const phase = (animTime % 1.9) / 1.9;
+          if (phase >= 0.36 && phase < 0.44 && lastTriggerStep !== cycle) {
+            lastTriggerStep = cycle;
+            scene.updateMatrixWorld();
+            scalpelTipAnchor.getWorldPosition(_worldPos);
+            spawnParticles(_worldPos, 8, currentOutfit === 'chef');
+          }
+        } else if (currentAnim === 'special') {
+          const cycle = Math.floor(animTime / 3.2);
+          const phase = (animTime % 3.2) / 3.2;
+          if (phase >= 0.46 && phase < 0.54 && lastTriggerStep !== 1000 + cycle) {
+            lastTriggerStep = 1000 + cycle;
+            scene.updateMatrixWorld();
+            flambeFireGroup.getWorldPosition(_worldPos);
+            _worldPos.y += 4.0;
+            spawnParticles(_worldPos, 12, true);
+          }
+        }
+
+        for (let i = 0; i < particlePool.length; i++) {
+          const p = particlePool[i];
+          if (p.active) {
+            p.age += dt;
+            if (p.age >= p.maxAge) {
+              p.active = false;
+              p.mesh.visible = false;
+            } else {
+              p.vel.y -= 24 * dt;
+              p.mesh.position.addScaledVector(p.vel, dt);
+              const life = 1 - p.age / p.maxAge;
+              p.mesh.material.opacity = life * 0.9;
+              p.mesh.scale.setScalar(0.45 + life * 0.65);
+            }
+          }
+        }
+      }
+
+      /* ───────── UI & Keyboard Controls ───────── */
+      function switchAnimation(nextAnim) {
+        if (!nextAnim || nextAnim === currentAnim) return;
+        prevAnim = currentAnim;
+        prevAnimTime = animTime;
+        currentAnim = nextAnim;
+        animTime = 0;
+        blendWeight = 0;
+        lastTriggerStep = -1;
+        document.querySelectorAll('.anim-btn').forEach((b) => {
+          b.classList.toggle('active', b.getAttribute('data-anim') === nextAnim);
+        });
+        updatePropVisibility(nextAnim);
+      }
+
+      document.querySelectorAll('.anim-btn').forEach((btn) => {
+        btn.addEventListener('click', () => switchAnimation(btn.getAttribute('data-anim')));
+      });
+
+      document.querySelectorAll('.outfit-btn').forEach((btn) => {
+        btn.addEventListener('click', () => applyOutfit(btn.getAttribute('data-outfit')));
+      });
+
+      let isResettingCamera = false;
+      const resetBtn = document.getElementById('reset-camera');
+      resetBtn.addEventListener('click', () => {
+        isResettingCamera = true;
+      });
+
+      controls.addEventListener('start', () => {
+        isResettingCamera = false;
+      });
+
+      const OUTFIT_ORDER = ['plaid', 'killsuit', 'chef', 'waistcoat'];
+      window.addEventListener('keydown', (e) => {
+        if (e.key === '1') switchAnimation('idle');
+        else if (e.key === '2') switchAnimation('walk');
+        else if (e.key === '3') switchAnimation('attack');
+        else if (e.key === '4') switchAnimation('special');
+        else if (e.key === '5') applyOutfit('plaid');
+        else if (e.key === '6') applyOutfit('killsuit');
+        else if (e.key === '7') applyOutfit('chef');
+        else if (e.key === '8') applyOutfit('waistcoat');
+        else if (e.key === 'o' || e.key === 'O') {
+          const nextIdx = (OUTFIT_ORDER.indexOf(currentOutfit) + 1) % OUTFIT_ORDER.length;
+          applyOutfit(OUTFIT_ORDER[nextIdx]);
+        } else if (e.key === 'r' || e.key === 'R') {
+          isResettingCamera = true;
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Initialize default outfit
+      applyOutfit('plaid');
+
+      // Expose debug handle for automated inspection
+      window.hannibalDebug = {
+        scene,
+        camera,
+        renderer,
+        characterRoot,
+        switchAnimation,
+        applyOutfit,
+        get currentAnim() { return currentAnim; },
+        get currentOutfit() { return currentOutfit; }
+      };
+
+      /* ───────── Locked 60 FPS Delta-Time Render Loop ───────── */
+      const STEP_MS = 1000 / 60;
+      let lastFrameMs = performance.now() - STEP_MS;
+      let totalElapsed = 0;
+
+      function animate(nowMs) {
+        requestAnimationFrame(animate);
+
+        const elapsedMs = nowMs - lastFrameMs;
+        if (elapsedMs < STEP_MS - 1) return;
+        lastFrameMs = nowMs - (elapsedMs % STEP_MS);
+
+        const dt = Math.min(elapsedMs, 50) / 1000;
+        totalElapsed += dt;
+
+        if (isResettingCamera) {
+          camera.position.lerp(DEFAULT_CAM_POS, 0.12);
+          controls.target.lerp(DEFAULT_TARGET, 0.12);
+          if (
+            camera.position.distanceTo(DEFAULT_CAM_POS) < 0.08 &&
+            controls.target.distanceTo(DEFAULT_TARGET) < 0.08
+          ) {
+            camera.position.copy(DEFAULT_CAM_POS);
+            controls.target.copy(DEFAULT_TARGET);
+            isResettingCamera = false;
+          }
+        }
+
+        updateAnimation(dt, totalElapsed);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      requestAnimationFrame(animate);
+    };
+  </script>
+
+  <script>
+    /* ───────── Rig overlay ("Show bones" button, key B) ─────────
+       Same block in every mob (rule 10). A dot on every bone pivot (yellow) and a line to its
+       parent bone (cyan), drawn on top of the model and updated live in every animation.
+       Waits for window.THREE (module pages set it after their import).
+       Bones = the group nodes of the mob (the scene child with the most meshes).
+       It wraps renderer.render, so it needs none of the page's own variables. */
+    (function waitThree() {
+      if (!window.THREE) return setTimeout(waitThree, 50);
+      const ANCHOR = '#reset-camera';
+      const rig = { on: false, scene: null, root: null, list: [], parentIdx: [], lines: null, dots: null, linePos: null, dotPos: null, checkAt: 0 };
+      const va = new THREE.Vector3(), vb = new THREE.Vector3();
+      const isBone = (o) => !o.isMesh && !o.isLight && !o.isCamera && !o.isLine && !o.isPoints && !o.isSprite && o.children.length > 0;
+
+      function build(scene) {
+        let best = 0; rig.root = null;
+        for (const c of scene.children) {
+          if (c === rig.lines || c === rig.dots || c.isLight || c.isCamera) continue;
+          let n = 0; c.traverse((x) => { if (x.isMesh) n++; });
+          if (n > best) { best = n; rig.root = c; }
+        }
+        rig.list = [];
+        if (rig.root) rig.root.traverse((x) => { if (x !== rig.root && isBone(x)) rig.list.push(x); });
+        const idx = new Map(rig.list.map((g, i) => [g, i]));
+        rig.parentIdx = rig.list.map((g) => { let p = g.parent; while (p && p !== rig.root && !idx.has(p)) p = p.parent; return idx.has(p) ? idx.get(p) : -1; });
+        const n = rig.list.length;
+        if (!rig.lines || rig.dotPos.length !== n * 3) {
+          if (rig.lines) { scene.remove(rig.lines, rig.dots); rig.lines.geometry.dispose(); rig.dots.geometry.dispose(); }
+          rig.linePos = new Float32Array(n * 6); rig.dotPos = new Float32Array(n * 3);
+          const lg = new THREE.BufferGeometry(), dg = new THREE.BufferGeometry();
+          lg.setAttribute('position', new THREE.BufferAttribute(rig.linePos, 3));
+          dg.setAttribute('position', new THREE.BufferAttribute(rig.dotPos, 3));
+          rig.lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x67e8f9, depthTest: false, transparent: true, opacity: 0.9 }));
+          rig.dots = new THREE.Points(dg, new THREE.PointsMaterial({ color: 0xfacc15, size: 6, sizeAttenuation: false, depthTest: false, transparent: true }));
+          for (const o of [rig.lines, rig.dots]) { o.renderOrder = 999; o.frustumCulled = false; }
+        }
+        if (rig.lines.parent !== scene) scene.add(rig.lines, rig.dots);
+        rig.lines.visible = rig.dots.visible = rig.on;
+        rig.scene = scene;
+      }
+
+      function update(now) {
+        if (now > rig.checkAt) { rig.checkAt = now + 1000; build(rig.scene); }
+        if (!rig.root) return;
+        rig.list.forEach((g, i) => {
+          va.setFromMatrixPosition(g.matrixWorld);
+          const p = rig.parentIdx[i];
+          if (p >= 0) vb.setFromMatrixPosition(rig.list[p].matrixWorld); else vb.copy(va);
+          const j = i * 6, k = i * 3;
+          rig.linePos[j] = vb.x; rig.linePos[j + 1] = vb.y; rig.linePos[j + 2] = vb.z;
+          rig.linePos[j + 3] = va.x; rig.linePos[j + 4] = va.y; rig.linePos[j + 5] = va.z;
+          rig.dotPos[k] = va.x; rig.dotPos[k + 1] = va.y; rig.dotPos[k + 2] = va.z;
+        });
+        rig.lines.geometry.attributes.position.needsUpdate = true;
+        rig.dots.geometry.attributes.position.needsUpdate = true;
+      }
+
+      const baseUpdate = THREE.Object3D.prototype.updateMatrixWorld;
+      THREE.Object3D.prototype.updateMatrixWorld = function (force) {
+        baseUpdate.call(this, force);
+        if (rig.on && this.isScene) { if (rig.scene !== this) { rig.checkAt = 0; rig.scene = this; } update(performance.now()); }
+      };
+
+      const anchor = document.querySelector(ANCHOR);
+      const btn = document.createElement('button');
+      btn.id = 'bonesBtn'; btn.type = 'button'; btn.title = 'Show bones (B)'; btn.setAttribute('aria-pressed', 'false');
+      btn.className = anchor ? anchor.className.split(/\s+/).filter((c) => !/^(anim-btn|variant-btn|toggle-btn|active.*)$/.test(c)).join(' ') : '';
+      btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;';
+      if (!anchor) btn.style.cssText += 'position:fixed;right:16px;bottom:16px;z-index:50;width:36px;height:36px;border-radius:999px;background:#1a1d24;color:#cbd5e1;border:1px solid #2a2f3a;';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><circle cx="7" cy="12" r="1.6"/><circle cx="17" cy="12" r="1.6"/><circle cx="9" cy="20" r="1.6"/><circle cx="15" cy="20" r="1.6"/><path d="M12 6v8M12 8l-5 4M12 8l5 4M12 14l-3 6M12 14l3 6"/></svg>';
+      if (anchor) anchor.insertAdjacentElement('afterend', btn); else document.body.appendChild(btn);
+
+      function toggleBones() {
+        rig.on = !rig.on;
+        if (rig.lines) rig.lines.visible = rig.dots.visible = rig.on;
+        rig.checkAt = 0;
+        btn.setAttribute('aria-pressed', String(rig.on));
+        btn.style.background = rig.on ? 'rgba(250, 204, 21, 0.18)' : (anchor ? '' : '#1a1d24');
+        btn.style.color = rig.on ? '#facc15' : '';
+      }
+      btn.addEventListener('click', toggleBones);
+      window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+        if (e.key === 'b' || e.key === 'B') toggleBones();
+      });
+      window.rigOverlay = { toggle: toggleBones, get bones() { return rig.list.length; } };
+    })();
+  </script>
+</body>
+</html>
+

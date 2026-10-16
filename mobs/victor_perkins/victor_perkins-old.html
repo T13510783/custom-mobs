@@ -1,0 +1,1872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Victor "Vector" Perkins — Vanilla+ 16x16 3D Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        :root {
+            --bg: #0f1115;
+            --pill-bg: rgba(20, 23, 30, 0.82);
+            --pill-border: rgba(255, 255, 255, 0.08);
+            --text-muted: #8b93a6;
+            --text-active: #ffffff;
+            --accent-orange: #f2741f;
+            --accent-blue: #32a8c4;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: var(--text-active);
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+
+        /* Ultra-minimal floating bottom pill bar */
+        .bottom-ui {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 10;
+            max-width: calc(100vw - 24px);
+        }
+
+        .pill-bar {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px;
+            background: var(--pill-bg);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid var(--pill-border);
+            border-radius: 9999px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        .pill-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .pill-divider {
+            width: 1px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.12);
+            margin: 0 4px;
+            flex-shrink: 0;
+        }
+
+        .pill-btn {
+            appearance: none;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 12.5px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            padding: 7px 14px;
+            border-radius: 9999px;
+            cursor: pointer;
+            transition: all 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pill-btn:hover {
+            color: var(--text-active);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .pill-btn.active {
+            color: var(--text-active);
+            background: rgba(242, 116, 31, 0.22);
+            box-shadow: inset 0 0 0 1px rgba(242, 116, 31, 0.5);
+        }
+
+        .pill-btn.variant-btn.active[data-variant="piranha"] {
+            background: rgba(242, 116, 31, 0.24);
+            box-shadow: inset 0 0 0 1px rgba(242, 116, 31, 0.6);
+        }
+
+        .pill-btn.variant-btn.active[data-variant="shrinkray"] {
+            background: rgba(50, 168, 196, 0.25);
+            box-shadow: inset 0 0 0 1px rgba(50, 168, 196, 0.65);
+        }
+
+        .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .dot-piranha {
+            background: #f4f6f9;
+            box-shadow: 0 0 6px #f2741f;
+        }
+
+        .dot-shrink {
+            background: #42b7d4;
+            box-shadow: 0 0 6px #65ff95;
+        }
+
+        .reset-btn {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            border: 1px solid var(--pill-border);
+            background: var(--pill-bg);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+            flex-shrink: 0;
+        }
+
+        .reset-btn:hover {
+            color: var(--text-active);
+            border-color: rgba(255, 255, 255, 0.22);
+            transform: rotate(-25deg) scale(1.05);
+        }
+
+        .reset-btn svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        @media (max-width: 640px) {
+            .bottom-ui {
+                bottom: 14px;
+            }
+            .pill-btn {
+                padding: 6px 10px;
+                font-size: 11.5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div class="bottom-ui">
+        <div class="pill-bar" role="toolbar" aria-label="Model Controls">
+            <!-- 2 Skin Variants -->
+            <button class="pill-btn variant-btn active" data-variant="piranha" title="Skin Variant 1: White Piranha Gun (Pic 1 & 5)">
+                <span class="dot dot-piranha"></span>Piranha Gun
+            </button>
+            <button class="pill-btn variant-btn" data-variant="shrinkray" title="Skin Variant 2: Blue SR-6 Shrink Ray (Pic 2 & 4)">
+                <span class="dot dot-shrink"></span>Shrink Ray
+            </button>
+
+            <div class="pill-divider"></div>
+
+            <!-- 4 Animations -->
+            <button class="pill-btn anim-btn active" data-anim="idle">Idle</button>
+            <button class="pill-btn anim-btn" data-anim="walk">Walk</button>
+            <button class="pill-btn anim-btn" data-anim="attack">Attack</button>
+            <button class="pill-btn anim-btn" data-anim="special">Special</button>
+        </div>
+
+        <button class="reset-btn" id="reset-camera" title="Reset Camera">
+            <svg viewBox="0 0 24 24">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+            </svg>
+        </button>
+    </div>
+
+    <script>
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f1115);
+        scene.fog = new THREE.FogExp2(0x0f1115, 0.0085);
+
+        const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 500);
+        const DEFAULT_CAM_POS = new THREE.Vector3(24, 24, 42);
+        const DEFAULT_TARGET = new THREE.Vector3(0, 15.5, 0);
+        camera.position.copy(DEFAULT_CAM_POS);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.copy(DEFAULT_TARGET);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.065;
+        controls.maxPolarAngle = Math.PI / 2 + 0.06;
+        controls.minDistance = 14;
+        controls.maxDistance = 95;
+        controls.update();
+
+        // Balanced Vanilla+ studio lighting
+        const hemiLight = new THREE.HemisphereLight(0xdde6ff, 0x1b1e26, 0.72);
+        hemiLight.position.set(0, 50, 0);
+        scene.add(hemiLight);
+
+        const keyLight = new THREE.DirectionalLight(0xfff7ed, 0.92);
+        keyLight.position.set(26, 44, 32);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.width = 2048;
+        keyLight.shadow.mapSize.height = 2048;
+        keyLight.shadow.camera.near = 5;
+        keyLight.shadow.camera.far = 110;
+        const d = 26;
+        keyLight.shadow.camera.left = -d;
+        keyLight.shadow.camera.right = d;
+        keyLight.shadow.camera.top = d;
+        keyLight.shadow.camera.bottom = -d;
+        keyLight.shadow.bias = -0.0005;
+        scene.add(keyLight);
+
+        const rimLight = new THREE.DirectionalLight(0x63b3ed, 0.42);
+        rimLight.position.set(-28, 26, -24);
+        scene.add(rimLight);
+
+        const bounceLight = new THREE.DirectionalLight(0xf6ad55, 0.22);
+        bounceLight.position.set(16, -12, 18);
+        scene.add(bounceLight);
+
+        // Soft shadow-receiving ground plane
+        const shadowPlaneGeo = new THREE.PlaneGeometry(160, 160);
+        const shadowPlaneMat = new THREE.ShadowMaterial({ opacity: 0.42 });
+        const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
+        shadowPlane.rotation.x = -Math.PI / 2;
+        shadowPlane.position.y = 0;
+        shadowPlane.receiveShadow = true;
+        scene.add(shadowPlane);
+
+        // Subtle dark studio grid ring under feet
+        const pedCanvas = document.createElement('canvas');
+        pedCanvas.width = 64;
+        pedCanvas.height = 64;
+        const pCtx = pedCanvas.getContext('2d');
+        const grad = pCtx.createRadialGradient(32, 32, 2, 32, 32, 30);
+        grad.addColorStop(0, 'rgba(255,255,255,0.06)');
+        grad.addColorStop(0.6, 'rgba(255,255,255,0.02)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        pCtx.fillStyle = grad;
+        pCtx.fillRect(0, 0, 64, 64);
+        const pedTex = new THREE.CanvasTexture(pedCanvas);
+        const pedMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(30, 30),
+            new THREE.MeshBasicMaterial({ map: pedTex, transparent: true, depthWrite: false })
+        );
+        pedMesh.rotation.x = -Math.PI / 2;
+        pedMesh.position.y = 0.01;
+        scene.add(pedMesh);
+
+        const PALETTE = {
+            orangeBase: '#e86f1c',
+            orangeLight: '#f68634',
+            orangeMid: '#db6212',
+            orangeDark: '#bd4c08',
+            orangeDeep: '#963804',
+            stripeWhite: '#f3f5f8',
+            stripeShade: '#d9dfe8',
+            zipperSilver: '#c6cdd6',
+            zipperDark: '#7b8491',
+            zipperHighlight: '#eef2f7',
+            skinBase: '#f3bfa1',
+            skinLight: '#fad0b6',
+            skinShade: '#e09f7d',
+            skinDeep: '#c98260',
+            skinBlush: '#e39076',
+            hairDark: '#26150a',
+            hairBase: '#3b2213',
+            hairMid: '#4c2d1a',
+            hairLight: '#613b23',
+            frameBlack: '#141619',
+            frameHighlight: '#333842',
+            shoeWhite: '#f0f3f7',
+            shoeShade: '#cfd6e0',
+            shoeSole: '#373b44',
+            // Piranha Gun Palette
+            gunWhite: '#f2f5f9',
+            gunWhiteShade: '#d5dce6',
+            gunWhiteDeep: '#b4bfce',
+            piranhaOrange: '#f06e24',
+            piranhaLip: '#eb7d3c',
+            piranhaPink: '#d15863',
+            domeCyan: '#6bd4e0',
+            domeDeep: '#3b96a6',
+            // Shrink Ray (SR-6) Palette
+            srTealBase: '#34899e',
+            srTealLight: '#58b4c9',
+            srTealHighlight: '#8be1f2',
+            srTealDark: '#225e6e',
+            srTealDeep: '#16424f',
+            srGreenGlow: '#78ff9c',
+            srGreenCore: '#d9ffe4',
+            srMetalDark: '#1d2229',
+            srMetalMid: '#37404c',
+            srRedBtn: '#ff3b30'
+        };
+
+        /**
+         * Creates a crisp pixel-art THREE.CanvasTexture with NearestFilter.
+         */
+        function makePixelTexture(w, h, drawFn) {
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(w));
+            canvas.height = Math.max(1, Math.round(h));
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = false;
+            drawFn(ctx, canvas.width, canvas.height);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestFilter;
+            tex.generateMipmaps = false;
+            tex.encoding = THREE.sRGBEncoding;
+            tex.needsUpdate = true;
+            return tex;
+        }
+
+        /**
+         * Helper to fill pixel-art ribbed knit texture (Vector's tracksuit fabric)
+         */
+        function fillTracksuitFabric(ctx, w, h, base = PALETTE.orangeBase) {
+            ctx.fillStyle = base;
+            ctx.fillRect(0, 0, w, h);
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    // Subtle vertical ribbed knit + Vanilla+ top-to-bottom shading
+                    const isRib = (x % 2 === 0);
+                    const edgeDark = (x === 0 || x === w - 1 || y === h - 1);
+                    const topHighlight = (y === 0);
+                    if (topHighlight) {
+                        ctx.fillStyle = PALETTE.orangeLight;
+                        ctx.fillRect(x, y, 1, 1);
+                    } else if (edgeDark) {
+                        ctx.fillStyle = PALETTE.orangeDark;
+                        ctx.fillRect(x, y, 1, 1);
+                    } else if (isRib && (x + y) % 3 === 0) {
+                        ctx.fillStyle = PALETTE.orangeMid;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            }
+        }
+
+        /**
+         * Helper to fill brushed cyan-blue metallic surface for the SR-6 Shrink Ray
+         */
+        function fillShrinkRayMetal(ctx, w, h, darkMode = false) {
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    let col = darkMode ? PALETTE.srTealDark : PALETTE.srTealBase;
+                    const normY = y / Math.max(1, h - 1);
+                    if (!darkMode) {
+                        if (normY < 0.22) col = PALETTE.srTealLight;
+                        else if (normY < 0.35 && (x + y) % 2 === 0) col = PALETTE.srTealHighlight;
+                        else if (normY > 0.78) col = PALETTE.srTealDark;
+                        else if ((x + y) % 5 === 0) col = PALETTE.srTealLight;
+                    } else {
+                        if (normY < 0.2) col = PALETTE.srTealBase;
+                        else if (normY > 0.8) col = PALETTE.srTealDeep;
+                    }
+                    ctx.fillStyle = col;
+                    ctx.fillRect(x, y, 1, 1);
+                }
+            }
+            // Subtle border bevel
+            ctx.fillStyle = PALETTE.srTealDeep;
+            ctx.fillRect(0, h - 1, w, 1);
+        }
+
+        /**
+         * Helper to fill sleek white polymer surface for the Piranha Gun
+         */
+        function fillPiranhaWhite(ctx, w, h) {
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const normY = y / Math.max(1, h - 1);
+                    let col = PALETTE.gunWhite;
+                    if (normY > 0.75) col = PALETTE.gunWhiteDeep;
+                    else if (normY > 0.52) col = PALETTE.gunWhiteShade;
+                    else if ((x + y) % 7 === 0) col = '#ffffff';
+                    ctx.fillStyle = col;
+                    ctx.fillRect(x, y, 1, 1);
+                }
+            }
+        }
+
+        /**
+         * Builds a 6-material Blockbench-aligned voxel box with per-face pixel resolution.
+         * Face order: [right(+X), left(-X), top(+Y), bottom(-Y), front(+Z), back(-Z)]
+         */
+        function createVoxelBox(w, h, d, faceDrawers, options = {}) {
+            const inflate = options.inflate || 0;
+            const pxScale = options.pxScale || 2; // 2x crisp pixel grid aligned to 16x16 aesthetics
+            const roughness = options.roughness !== undefined ? options.roughness : 0.72;
+            const metalness = options.metalness !== undefined ? options.metalness : 0.08;
+            const transparent = !!options.transparent;
+            const opacity = options.opacity !== undefined ? options.opacity : 1.0;
+
+            const geo = new THREE.BoxGeometry(w + inflate * 2, h + inflate * 2, d + inflate * 2);
+            const dims = [
+                [d * pxScale, h * pxScale], // 0: +X (Right face)
+                [d * pxScale, h * pxScale], // 1: -X (Left face)
+                [w * pxScale, d * pxScale], // 2: +Y (Top face)
+                [w * pxScale, d * pxScale], // 3: -Y (Bottom face)
+                [w * pxScale, h * pxScale], // 4: +Z (Front face)
+                [w * pxScale, h * pxScale]  // 5: -Z (Back face)
+            ];
+
+            const names = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+            const materials = names.map((faceName, idx) => {
+                const [fw, fh] = dims[idx];
+                const drawFn = faceDrawers[faceName] || faceDrawers.all || ((ctx, cw, ch) => {
+                    ctx.fillStyle = '#ff00ff';
+                    ctx.fillRect(0, 0, cw, ch);
+                });
+                const tex = makePixelTexture(fw, fh, drawFn);
+                return new THREE.MeshStandardMaterial({
+                    map: tex,
+                    roughness,
+                    metalness,
+                    transparent,
+                    opacity
+                });
+            });
+
+            const mesh = new THREE.Mesh(geo, materials);
+            mesh.castShadow = options.castShadow !== undefined ? options.castShadow : true;
+            mesh.receiveShadow = options.receiveShadow !== undefined ? options.receiveShadow : true;
+            return mesh;
+        }
+
+        const characterRoot = new THREE.Group();
+        scene.add(characterRoot);
+
+        // Main hierarchical rig pivots
+        const hipsPivot = new THREE.Group();
+        hipsPivot.position.set(0, 12, 0);
+        characterRoot.add(hipsPivot);
+
+        const torsoPivot = new THREE.Group();
+        torsoPivot.position.set(0, 0, 0);
+        hipsPivot.add(torsoPivot);
+
+        const headPivot = new THREE.Group();
+        headPivot.position.set(0, 12, 0);
+        torsoPivot.add(headPivot);
+
+        const rightArmPivot = new THREE.Group();
+        rightArmPivot.position.set(-5.5, 11, 0);
+        torsoPivot.add(rightArmPivot);
+
+        const leftArmPivot = new THREE.Group();
+        leftArmPivot.position.set(5.5, 11, 0);
+        torsoPivot.add(leftArmPivot);
+
+        const rightLegPivot = new THREE.Group();
+        rightLegPivot.position.set(-2.1, 12, 0);
+        characterRoot.add(rightLegPivot);
+
+        const leftLegPivot = new THREE.Group();
+        leftLegPivot.position.set(2.1, 12, 0);
+        characterRoot.add(leftLegPivot);
+
+        // --- 1. LEGS & ADIDAS-STYLE WHITE/ORANGE SNEAKERS (Pic 1) ---
+        function buildLeg(isRightLeg) {
+            const legGroup = new THREE.Group();
+
+            const legMesh = createVoxelBox(4, 12, 4, {
+                all: (ctx, w, h) => {
+                    fillTracksuitFabric(ctx, w, h);
+                    // Bottom 5 pixels = White athletic sneaker
+                    const shoeTop = h - 5;
+                    ctx.fillStyle = PALETTE.shoeWhite;
+                    ctx.fillRect(0, shoeTop, w, 5);
+                    ctx.fillStyle = PALETTE.shoeShade;
+                    ctx.fillRect(0, h - 2, w, 1);
+                    ctx.fillStyle = PALETTE.shoeSole;
+                    ctx.fillRect(0, h - 1, w, 1);
+                },
+                front: (ctx, w, h) => {
+                    fillTracksuitFabric(ctx, w, h);
+                    // Pant crease shading
+                    ctx.fillStyle = PALETTE.orangeDark;
+                    ctx.fillRect( isRightLeg ? w - 1 : 0, 0, 1, h - 5);
+                    // Cuffed ankle
+                    ctx.fillStyle = PALETTE.orangeDeep;
+                    ctx.fillRect(0, h - 6, w, 1);
+                    // White shoe front + orange tongue stripe
+                    ctx.fillStyle = PALETTE.shoeWhite;
+                    ctx.fillRect(0, h - 5, w, 4);
+                    ctx.fillStyle = PALETTE.orangeBase;
+                    ctx.fillRect(2, h - 5, w - 4, 2);
+                    ctx.fillStyle = PALETTE.shoeSole;
+                    ctx.fillRect(0, h - 1, w, 1);
+                },
+                // Outer side gets the crisp white tracksuit stripe + 3 orange shoe stripes
+                [isRightLeg ? 'left' : 'right']: (ctx, w, h) => {
+                    fillTracksuitFabric(ctx, w, h);
+                    // White vertical track stripe down the leg
+                    ctx.fillStyle = PALETTE.stripeWhite;
+                    ctx.fillRect(Math.floor(w / 2) - 1, 0, 2, h - 5);
+                    ctx.fillStyle = PALETTE.stripeShade;
+                    ctx.fillRect(Math.floor(w / 2), 0, 1, h - 5);
+
+                    // Sneaker side with 3 orange stripes (Pic 1 reference)
+                    ctx.fillStyle = PALETTE.shoeWhite;
+                    ctx.fillRect(0, h - 5, w, 4);
+                    ctx.fillStyle = PALETTE.orangeBase;
+                    ctx.fillRect(1, h - 4, 1, 3);
+                    ctx.fillRect(3, h - 4, 1, 3);
+                    ctx.fillRect(5, h - 4, 1, 3);
+                    ctx.fillStyle = PALETTE.shoeSole;
+                    ctx.fillRect(0, h - 1, w, 1);
+                },
+                top: (ctx, w, h) => fillTracksuitFabric(ctx, w, h),
+                bottom: (ctx, w, h) => {
+                    ctx.fillStyle = PALETTE.shoeSole;
+                    ctx.fillRect(0, 0, w, h);
+                }
+            });
+            legMesh.position.set(0, -6, 0);
+            legGroup.add(legMesh);
+
+            // Extruded sneaker toe cap (Pic 1 shows sleek long white sneakers with 3 orange stripes)
+            const toeCap = createVoxelBox(4, 2, 2.2, {
+                all: (ctx, w, h) => {
+                    ctx.fillStyle = PALETTE.shoeWhite;
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = PALETTE.shoeSole;
+                    ctx.fillRect(0, h - 1, w, 1);
+                },
+                top: (ctx, w, h) => {
+                    ctx.fillStyle = PALETTE.shoeWhite;
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = PALETTE.orangeBase;
+                    ctx.fillRect(1, 1, 1, h - 2);
+                    ctx.fillRect(3, 1, 2, h - 2);
+                    ctx.fillRect(6, 1, 1, h - 2);
+                }
+            });
+            toeCap.position.set(0, -11, 2.6);
+            legGroup.add(toeCap);
+
+            return legGroup;
+        }
+
+        rightLegPivot.add(buildLeg(true));
+        leftLegPivot.add(buildLeg(false));
+
+        // --- 2. TORSO + POTBELLY OVERLAY + HIGH POPPED V-COLLAR (Pics 1, 2, 3) ---
+        const torsoMesh = createVoxelBox(8, 12, 4, {
+            front: (ctx, w, h) => {
+                fillTracksuitFabric(ctx, w, h);
+                // Center metallic zipper track
+                const zx = Math.floor(w / 2) - 1;
+                ctx.fillStyle = PALETTE.orangeDeep;
+                ctx.fillRect(zx - 1, 0, 4, h);
+                for (let y = 0; y < h; y++) {
+                    ctx.fillStyle = (y % 2 === 0) ? PALETTE.zipperSilver : PALETTE.zipperDark;
+                    ctx.fillRect(zx, y, 2, 1);
+                }
+                // Ribbed bottom waistband
+                ctx.fillStyle = PALETTE.orangeDark;
+                ctx.fillRect(0, h - 2, w, 2);
+            },
+            back: (ctx, w, h) => {
+                fillTracksuitFabric(ctx, w, h);
+                ctx.fillStyle = PALETTE.orangeDark;
+                ctx.fillRect(0, h - 2, w, 2);
+            },
+            left: (ctx, w, h) => {
+                fillTracksuitFabric(ctx, w, h);
+                ctx.fillStyle = PALETTE.stripeWhite;
+                ctx.fillRect(Math.floor(w / 2) - 1, 0, 2, h);
+            },
+            right: (ctx, w, h) => {
+                fillTracksuitFabric(ctx, w, h);
+                ctx.fillStyle = PALETTE.stripeWhite;
+                ctx.fillRect(Math.floor(w / 2) - 1, 0, 2, h);
+            },
+            top: (ctx, w, h) => {
+                fillTracksuitFabric(ctx, w, h);
+                ctx.fillStyle = PALETTE.skinShade;
+                ctx.fillRect(4, 2, w - 8, h - 4);
+            },
+            bottom: (ctx, w, h) => fillTracksuitFabric(ctx, w, h)
+        });
+        torsoMesh.position.set(0, 6, 0);
+        torsoPivot.add(torsoMesh);
+
+        // Vector's rounded tracksuit belly layer (Vanilla+ 3D volume matching Pic 1 & Pic 2)
+        const bellyMesh = createVoxelBox(8.4, 6.8, 2.0, {
+            front: (ctx, w, h) => {
+                fillTracksuitFabric(ctx, w, h);
+                const zx = Math.floor(w / 2) - 1;
+                ctx.fillStyle = PALETTE.orangeDeep;
+                ctx.fillRect(zx - 1, 0, 4, h);
+                for (let y = 0; y < h; y++) {
+                    ctx.fillStyle = (y % 2 === 0) ? PALETTE.zipperSilver : PALETTE.zipperDark;
+                    ctx.fillRect(zx, y, 2, 1);
+                }
+                // Bottom ribbed hem
+                ctx.fillStyle = PALETTE.orangeDark;
+                ctx.fillRect(0, h - 2, w, 2);
+            },
+            left: (ctx, w, h) => fillTracksuitFabric(ctx, w, h),
+            right: (ctx, w, h) => fillTracksuitFabric(ctx, w, h),
+            top: (ctx, w, h) => fillTracksuitFabric(ctx, w, h, PALETTE.orangeLight),
+            bottom: (ctx, w, h) => fillTracksuitFabric(ctx, w, h, PALETTE.orangeDeep),
+            back: (ctx, w, h) => fillTracksuitFabric(ctx, w, h)
+        });
+        bellyMesh.position.set(0, 3.6, 1.5);
+        torsoPivot.add(bellyMesh);
+
+        // 3D Silver Zipper Pull Tab at top of chest (clearly visible in Pic 2 & Pic 3)
+        const zipperPull = createVoxelBox(1.3, 2.2, 0.7, {
+            all: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.zipperHighlight;
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = PALETTE.zipperDark;
+                ctx.fillRect(1, Math.floor(h / 2), Math.max(1, w - 2), Math.max(1, Math.floor(h / 3)));
+            }
+        }, { metalness: 0.6, roughness: 0.3 });
+        zipperPull.position.set(0, 10.3, 2.35);
+        zipperPull.rotation.x = -0.18;
+        torsoPivot.add(zipperPull);
+
+        // Iconic High Popped V-Collar (Orange outside, bright white inside - Pics 1, 2, 3)
+        const collarGroup = new THREE.Group();
+        collarGroup.position.set(0, 11.6, 0);
+        torsoPivot.add(collarGroup);
+
+        function createCollarWing(side) {
+            // side: -1 for Right (-X), +1 for Left (+X)
+            const wingPivot = new THREE.Group();
+            wingPivot.position.set(side * 3.2, 0, 0.2);
+            wingPivot.rotation.z = -side * 0.58; // Dramatic outward flare like Pic 3
+            wingPivot.rotation.y = side * 0.22;
+
+            const wingMesh = createVoxelBox(0.9, 5.6, 5.2, {
+                // Inner face towards neck is bright white
+                [side > 0 ? 'left' : 'right']: (ctx, w, h) => {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = PALETTE.stripeShade;
+                    ctx.fillRect(0, h - 2, w, 2);
+                    // Orange trim border
+                    ctx.fillStyle = PALETTE.orangeBase;
+                    ctx.fillRect(0, 0, w, 1);
+                    ctx.fillRect(w - 1, 0, 1, h);
+                },
+                // Outer face is tracksuit orange
+                [side > 0 ? 'right' : 'left']: (ctx, w, h) => {
+                    fillTracksuitFabric(ctx, w, h);
+                },
+                front: (ctx, w, h) => {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = PALETTE.orangeBase;
+                    ctx.fillRect(0, 0, 1, h);
+                },
+                back: (ctx, w, h) => fillTracksuitFabric(ctx, w, h),
+                top: (ctx, w, h) => {
+                    ctx.fillStyle = PALETTE.orangeLight;
+                    ctx.fillRect(0, 0, w, h);
+                },
+                bottom: (ctx, w, h) => fillTracksuitFabric(ctx, w, h)
+            });
+            wingMesh.position.set(0, 2.4, 0.3);
+            wingPivot.add(wingMesh);
+            return wingPivot;
+        }
+
+        collarGroup.add(createCollarWing(-1));
+        collarGroup.add(createCollarWing(1));
+
+        // Back collar bridge
+        const backCollar = createVoxelBox(6.8, 4.2, 0.9, {
+            front: (ctx, w, h) => {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = PALETTE.orangeBase;
+                ctx.fillRect(0, 0, w, 1);
+            },
+            back: (ctx, w, h) => fillTracksuitFabric(ctx, w, h),
+            all: (ctx, w, h) => fillTracksuitFabric(ctx, w, h)
+        });
+        backCollar.position.set(0, 1.9, -2.1);
+        backCollar.rotation.x = -0.32;
+        collarGroup.add(backCollar);
+
+        // --- 3. HEAD WITH 2 SWAPPABLE FACIAL VARIANTS (Pic 1/3 Smug vs Pic 2 Maniacal Grin) ---
+        function drawHeadCommonSides(ctx, w, h) {
+            ctx.fillStyle = PALETTE.skinBase;
+            ctx.fillRect(0, 0, w, h);
+            // Jaw shading
+            ctx.fillStyle = PALETTE.skinShade;
+            ctx.fillRect(0, h - 2, w, 2);
+            // Bowl-cut hair covering top 7 pixels (of 16x16 grid)
+            for (let y = 0; y < 7; y++) {
+                for (let x = 0; x < w; x++) {
+                    ctx.fillStyle = (x % 3 === 0) ? PALETTE.hairMid : (x % 2 === 0 ? PALETTE.hairBase : PALETTE.hairDark);
+                    ctx.fillRect(x, y, 1, 1);
+                }
+            }
+            ctx.fillStyle = PALETTE.hairDark;
+            ctx.fillRect(0, 6, w, 1);
+        }
+
+        // Face Texture 1: Smug / Unimpressed Smirk (Pic 1 & Pic 3)
+        const faceTexSmug = makePixelTexture(16, 16, (ctx, w, h) => {
+            ctx.fillStyle = PALETTE.skinBase;
+            ctx.fillRect(0, 0, w, h);
+
+            // Subtle rosy cheeks & chin shadow
+            ctx.fillStyle = PALETTE.skinBlush;
+            ctx.fillRect(2, 9, 3, 2);
+            ctx.fillRect(11, 9, 3, 2);
+            ctx.fillStyle = PALETTE.skinShade;
+            ctx.fillRect(2, 14, 12, 2);
+
+            // Bowl cut fringe at top
+            for (let y = 0; y < 5; y++) {
+                for (let x = 0; x < w; x++) {
+                    ctx.fillStyle = (x % 3 === 0) ? PALETTE.hairLight : (x % 2 === 0 ? PALETTE.hairBase : PALETTE.hairDark);
+                    ctx.fillRect(x, y, 1, 1);
+                }
+            }
+
+            // Eyebrows (furrowed / smug)
+            ctx.fillStyle = PALETTE.hairDark;
+            ctx.fillRect(2, 5, 4, 1);
+            ctx.fillRect(10, 5, 4, 1);
+
+            // Half-lidded side-glancing eyes (Pic 1 & Pic 3)
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(2, 7, 4, 2);
+            ctx.fillRect(10, 7, 4, 2);
+            // Eyelids
+            ctx.fillStyle = PALETTE.skinShade;
+            ctx.fillRect(2, 6, 4, 1);
+            ctx.fillRect(10, 6, 4, 1);
+            // Dark brown irises looking slightly side-eye
+            ctx.fillStyle = '#3b2010';
+            ctx.fillRect(4, 7, 2, 2);
+            ctx.fillRect(11, 7, 2, 2);
+            ctx.fillStyle = '#120904';
+            ctx.fillRect(4, 7, 1, 2);
+            ctx.fillRect(11, 7, 1, 2);
+            // Eye catchlight
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(5, 7, 1, 1);
+            ctx.fillRect(12, 7, 1, 1);
+
+            // Asymmetrical smug frown/smirk (Pic 3 & Pic 1)
+            ctx.fillStyle = '#b56952';
+            ctx.fillRect(5, 13, 4, 1);
+            ctx.fillRect(9, 12, 3, 1);
+            ctx.fillStyle = PALETTE.skinLight;
+            ctx.fillRect(5, 14, 5, 1);
+        });
+
+        // Face Texture 2: Wide Open Laughing / Grinning Face (Pic 2 with Shrink Ray)
+        const faceTexGrin = makePixelTexture(16, 16, (ctx, w, h) => {
+            ctx.fillStyle = PALETTE.skinBase;
+            ctx.fillRect(0, 0, w, h);
+
+            // Cheek creases
+            ctx.fillStyle = PALETTE.skinBlush;
+            ctx.fillRect(1, 9, 3, 3);
+            ctx.fillRect(12, 9, 3, 3);
+            ctx.fillStyle = PALETTE.skinShade;
+            ctx.fillRect(2, 15, 12, 1);
+
+            // Bowl cut fringe
+            for (let y = 0; y < 5; y++) {
+                for (let x = 0; x < w; x++) {
+                    ctx.fillStyle = (x % 3 === 0) ? PALETTE.hairLight : (x % 2 === 0 ? PALETTE.hairBase : PALETTE.hairDark);
+                    ctx.fillRect(x, y, 1, 1);
+                }
+            }
+
+            // Excited arched eyebrows
+            ctx.fillStyle = PALETTE.hairDark;
+            ctx.fillRect(2, 5, 4, 1);
+            ctx.fillRect(10, 5, 4, 1);
+
+            // Wide excited eyes (Pic 2)
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(2, 6, 4, 3);
+            ctx.fillRect(10, 6, 4, 3);
+            ctx.fillStyle = '#3b2010';
+            ctx.fillRect(3, 6, 2, 3);
+            ctx.fillRect(11, 6, 2, 3);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(3, 6, 1, 1);
+            ctx.fillRect(11, 6, 1, 1);
+
+            // Big open laughing mouth with upper/lower teeth & tongue (Pic 2)
+            ctx.fillStyle = '#290f10';
+            ctx.fillRect(4, 11, 8, 4);
+            // Upper teeth row
+            ctx.fillStyle = '#f7f9fc';
+            ctx.fillRect(4, 11, 8, 1);
+            // Pink tongue
+            ctx.fillStyle = '#d96c75';
+            ctx.fillRect(6, 13, 5, 1);
+            // Lower teeth row
+            ctx.fillStyle = '#e6ecf2';
+            ctx.fillRect(5, 14, 6, 1);
+        });
+
+        const headMesh = createVoxelBox(8, 8, 8, {
+            front: (ctx, w, h) => {
+                ctx.drawImage(faceTexSmug.image, 0, 0);
+            },
+            back: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.skinBase;
+                ctx.fillRect(0, 0, w, h);
+                for (let y = 0; y < 11; y++) {
+                    for (let x = 0; x < w; x++) {
+                        ctx.fillStyle = (x % 3 === 0) ? PALETTE.hairMid : (x % 2 === 0 ? PALETTE.hairBase : PALETTE.hairDark);
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            },
+            left: drawHeadCommonSides,
+            right: drawHeadCommonSides,
+            top: (ctx, w, h) => {
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const dist = Math.abs(x - w / 2) + Math.abs(y - h / 2);
+                        ctx.fillStyle = dist < 3 ? PALETTE.hairLight : ((x + y) % 2 === 0 ? PALETTE.hairBase : PALETTE.hairDark);
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            },
+            bottom: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.skinDeep;
+                ctx.fillRect(0, 0, w, h);
+            }
+        });
+        headMesh.position.set(0, 4, 0);
+        headPivot.add(headMesh);
+
+        // 3D Extruded Bowl-Cut Hair Cap (Vanilla+ outer layer)
+        const hairCap = createVoxelBox(8.5, 4.2, 8.5, {
+            all: (ctx, w, h) => {
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        ctx.fillStyle = (x % 3 === 0) ? PALETTE.hairLight : ((x % 2 === 0) ? PALETTE.hairBase : PALETTE.hairDark);
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+                ctx.fillStyle = PALETTE.hairDark;
+                ctx.fillRect(0, h - 1, w, 1);
+            },
+            top: (ctx, w, h) => {
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        ctx.fillStyle = ((x + y) % 3 === 0) ? PALETTE.hairLight : PALETTE.hairBase;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            }
+        });
+        hairCap.position.set(0, 6.3, 0);
+        headPivot.add(hairCap);
+
+        // Vector's Prominent 3D Nose (Pic 1, 2, 3)
+        const noseMesh = createVoxelBox(2.2, 2.7, 2.2, {
+            all: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.skinBase;
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = PALETTE.skinBlush;
+                ctx.fillRect(0, h - 2, w, 2);
+            },
+            front: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.skinLight;
+                ctx.fillRect(0, 0, w, h - 1);
+                ctx.fillStyle = PALETTE.skinBlush;
+                ctx.fillRect(0, h - 2, w, 2);
+            },
+            bottom: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.skinDeep;
+                ctx.fillRect(0, 0, w, h);
+            }
+        });
+        noseMesh.position.set(0, 3.3, 4.65);
+        noseMesh.rotation.x = 0.14;
+        headPivot.add(noseMesh);
+
+        // Sticking-Out 3D Ears (Pic 1, 2, 3)
+        function createEar(side) {
+            const ear = createVoxelBox(1.6, 2.5, 1.0, {
+                all: (ctx, w, h) => {
+                    ctx.fillStyle = PALETTE.skinBase;
+                    ctx.fillRect(0, 0, w, h);
+                },
+                front: (ctx, w, h) => {
+                    ctx.fillStyle = PALETTE.skinBase;
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = PALETTE.skinDeep;
+                    ctx.fillRect(1, 1, Math.max(1, w - 2), Math.max(1, h - 2));
+                }
+            });
+            ear.position.set(side * 4.6, 3.6, 0.2);
+            ear.rotation.y = -side * 0.28;
+            return ear;
+        }
+        headPivot.add(createEar(-1));
+        headPivot.add(createEar(1));
+
+        // 3D Thick Black Square Glasses (Pic 1, 2, 3)
+        const glassesGroup = new THREE.Group();
+        glassesGroup.position.set(0, 4.3, 4.3);
+        headPivot.add(glassesGroup);
+
+        const frameMat = new THREE.MeshStandardMaterial({
+            color: 0x15171c,
+            roughness: 0.28,
+            metalness: 0.2
+        });
+
+        function createLensRim(xOffset) {
+            const rimGroup = new THREE.Group();
+            rimGroup.position.set(xOffset, 0, 0);
+
+            // Top & Bottom bars
+            const topBar = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.65, 0.65), frameMat);
+            topBar.position.y = 1.35;
+            const botBar = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.65, 0.65), frameMat);
+            botBar.position.y = -1.35;
+            // Left & Right bars
+            const leftBar = new THREE.Mesh(new THREE.BoxGeometry(0.65, 3.3, 0.65), frameMat);
+            leftBar.position.x = -1.5;
+            const rightBar = new THREE.Mesh(new THREE.BoxGeometry(0.65, 3.3, 0.65), frameMat);
+            rightBar.position.x = 1.5;
+
+            // Pixel-art reflective lens plane
+            const lensTex = makePixelTexture(6, 5, (ctx, w, h) => {
+                ctx.fillStyle = 'rgba(210, 235, 255, 0.18)';
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+                ctx.fillRect(1, 1, 1, 1);
+                ctx.fillRect(2, 2, 1, 1);
+            });
+            const lensMesh = new THREE.Mesh(
+                new THREE.PlaneGeometry(2.5, 2.2),
+                new THREE.MeshBasicMaterial({ map: lensTex, transparent: true, depthWrite: false })
+            );
+            lensMesh.position.z = 0.2;
+
+            rimGroup.add(topBar, botBar, leftBar, rightBar, lensMesh);
+            return rimGroup;
+        }
+
+        glassesGroup.add(createLensRim(-2.25));
+        glassesGroup.add(createLensRim(2.25));
+
+        // Glasses center bridge + side temple arms
+        const bridgeMesh = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.65, 0.65), frameMat);
+        bridgeMesh.position.set(0, 0.35, 0);
+        glassesGroup.add(bridgeMesh);
+
+        const leftTemple = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.6, 4.6), frameMat);
+        leftTemple.position.set(4.1, 0.3, -2.1);
+        const rightTemple = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.6, 4.6), frameMat);
+        rightTemple.position.set(-4.1, 0.3, -2.1);
+        glassesGroup.add(leftTemple, rightTemple);
+
+        // --- 4. ARMS (3x12x3 Vanilla+ proportions with white sleeve stripe & orange cuffs) ---
+        function buildArm(isRightArm) {
+            const armGroup = new THREE.Group();
+            const armMesh = createVoxelBox(3, 12, 3, {
+                all: (ctx, w, h) => {
+                    fillTracksuitFabric(ctx, w, h);
+                    // Ribbed orange cuff
+                    ctx.fillStyle = PALETTE.orangeDeep;
+                    ctx.fillRect(0, h - 5, w, 1);
+                    // Hand skin at bottom 4 pixels
+                    ctx.fillStyle = PALETTE.skinBase;
+                    ctx.fillRect(0, h - 4, w, 4);
+                    ctx.fillStyle = PALETTE.skinShade;
+                    ctx.fillRect(0, h - 1, w, 1);
+                },
+                [isRightArm ? 'left' : 'right']: (ctx, w, h) => {
+                    fillTracksuitFabric(ctx, w, h);
+                    // White vertical track stripe down outer sleeve
+                    ctx.fillStyle = PALETTE.stripeWhite;
+                    ctx.fillRect(Math.floor(w / 2) - 1, 0, 2, h - 5);
+                    ctx.fillStyle = PALETTE.orangeDeep;
+                    ctx.fillRect(0, h - 5, w, 1);
+                    ctx.fillStyle = PALETTE.skinBase;
+                    ctx.fillRect(0, h - 4, w, 4);
+                },
+                top: (ctx, w, h) => fillTracksuitFabric(ctx, w, h),
+                bottom: (ctx, w, h) => {
+                    ctx.fillStyle = PALETTE.skinDeep;
+                    ctx.fillRect(0, 0, w, h);
+                }
+            });
+            armMesh.position.set(0, -5, 0);
+            armGroup.add(armMesh);
+            return armGroup;
+        }
+
+        rightArmPivot.add(buildArm(true));
+        leftArmPivot.add(buildArm(false));
+
+        // Weapon attachment socket at right hand
+        const weaponSocket = new THREE.Group();
+        weaponSocket.position.set(0, -9.5, 1.5);
+        rightArmPivot.add(weaponSocket);
+
+        // ============================================================================
+        // WEAPON 1: WHITE PIRANHA GUN (Reference: Pic 1 & Pic 5)
+        // ============================================================================
+        const piranhaGunGroup = new THREE.Group();
+        weaponSocket.add(piranhaGunGroup);
+
+        // Main White Receiver & Tapered Barrel
+        const pgBody = createVoxelBox(2.8, 3.2, 9.5, {
+            all: (ctx, w, h) => {
+                fillPiranhaWhite(ctx, w, h);
+                // Panel seam lines
+                ctx.fillStyle = PALETTE.gunWhiteDeep;
+                ctx.fillRect(Math.floor(w * 0.3), 0, 1, h);
+                ctx.fillRect(Math.floor(w * 0.72), 0, 1, h);
+            },
+            top: (ctx, w, h) => fillPiranhaWhite(ctx, w, h),
+            bottom: (ctx, w, h) => fillPiranhaWhite(ctx, w, h)
+        }, { roughness: 0.35, metalness: 0.12 });
+        pgBody.position.set(0, 2.2, 2.2);
+        piranhaGunGroup.add(pgBody);
+
+        // Rear Pointed Tail Cone (Pic 5 right side)
+        const pgTailCone = createVoxelBox(2.0, 2.0, 3.2, {
+            all: (ctx, w, h) => fillPiranhaWhite(ctx, w, h)
+        }, { roughness: 0.35 });
+        pgTailCone.position.set(0, 2.3, -3.6);
+        piranhaGunGroup.add(pgTailCone);
+
+        const pgTailTip = createVoxelBox(1.1, 1.1, 1.8, {
+            all: (ctx, w, h) => fillPiranhaWhite(ctx, w, h)
+        }, { roughness: 0.35 });
+        pgTailTip.position.set(0, 2.3, -5.8);
+        piranhaGunGroup.add(pgTailTip);
+
+        // Front Cylindrical Collar before Piranha Muzzle
+        const pgFrontCollar = createVoxelBox(2.5, 2.6, 2.4, {
+            all: (ctx, w, h) => {
+                fillPiranhaWhite(ctx, w, h);
+                ctx.fillStyle = PALETTE.gunWhiteDeep;
+                ctx.fillRect(0, 0, w, 1);
+            }
+        }, { roughness: 0.35 });
+        pgFrontCollar.position.set(0, 2.1, 7.6);
+        piranhaGunGroup.add(pgFrontCollar);
+
+        // White Dorsal Fin on top of Front Barrel (Pic 1 & Pic 5)
+        const pgDorsalFin = createVoxelBox(0.6, 3.6, 2.6, {
+            all: (ctx, w, h) => {
+                fillPiranhaWhite(ctx, w, h);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, w, 2);
+            }
+        }, { roughness: 0.3 });
+        pgDorsalFin.position.set(0, 4.8, 6.6);
+        pgDorsalFin.rotation.x = -0.28;
+        piranhaGunGroup.add(pgDorsalFin);
+
+        // Translucent Piranha Dome Tank on Top (Pic 1 & Pic 5: packed with orange piranhas & big blue eyes!)
+        const pgDomeGroup = new THREE.Group();
+        pgDomeGroup.position.set(0, 4.6, 1.6);
+        piranhaGunGroup.add(pgDomeGroup);
+
+        function drawPiranhaTankPattern(ctx, w, h) {
+            // Cyan water backdrop
+            ctx.fillStyle = PALETTE.domeCyan;
+            ctx.fillRect(0, 0, w, h);
+            // Packed orange piranha bodies inside the dome
+            ctx.fillStyle = PALETTE.piranhaOrange;
+            ctx.fillRect(1, 1, w - 2, h - 2);
+            ctx.fillStyle = '#c94e10';
+            ctx.fillRect(2, 2, w - 4, h - 4);
+
+            // Multiple bulging eyeballs (light blue iris + black pupil) like Pic 5
+            const eyes = [
+                [2, 2], [6, 2], [4, 5], [7, 6], [2, 6]
+            ];
+            eyes.forEach(([ex, ey]) => {
+                if (ex + 2 <= w && ey + 2 <= h) {
+                    ctx.fillStyle = '#b8f2ff';
+                    ctx.fillRect(ex, ey, 2, 2);
+                    ctx.fillStyle = '#11161c';
+                    ctx.fillRect(ex + 1, ey + 1, 1, 1);
+                }
+            });
+
+            // Glass specular highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.65)';
+            ctx.fillRect(1, 1, 2, 1);
+        }
+
+        const pgDome = createVoxelBox(4.2, 3.8, 4.8, {
+            all: drawPiranhaTankPattern,
+            top: drawPiranhaTankPattern
+        }, { roughness: 0.15, metalness: 0.1 });
+        pgDomeGroup.add(pgDome);
+
+        // Piranha Muzzle Head at Front Tip (Bulging eyes + Open jaws with sharp teeth - Pic 1 & Pic 5)
+        const pgMuzzleHead = new THREE.Group();
+        pgMuzzleHead.position.set(0, 2.0, 9.0);
+        piranhaGunGroup.add(pgMuzzleHead);
+
+        // Upper Snout + Bulging Eyes
+        const pgUpperJaw = createVoxelBox(2.4, 1.5, 2.5, {
+            all: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.piranhaLip;
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = '#b89886';
+                ctx.fillRect(0, 0, w, 2);
+            },
+            bottom: (ctx, w, h) => {
+                // Dark mouth roof + white sharp teeth
+                ctx.fillStyle = '#3d161a';
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = '#ffffff';
+                for (let x = 0; x < w; x += 2) {
+                    ctx.fillRect(x, 0, 1, h);
+                }
+            }
+        });
+        pgUpperJaw.position.set(0, 0.55, 1.0);
+        pgMuzzleHead.add(pgUpperJaw);
+
+        // Bulging Piranha Eyes on top of Muzzle (Pic 1 & Pic 5)
+        function createPiranhaEye(xOff) {
+            return createVoxelBox(1.05, 1.15, 1.05, {
+                all: (ctx, w, h) => {
+                    ctx.fillStyle = '#f5f7fa';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = '#c45b4b';
+                    ctx.fillRect(0, h - 1, w, 1);
+                },
+                front: (ctx, w, h) => {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = '#82d8e6';
+                    ctx.fillRect(1, 1, w - 1, h - 1);
+                    ctx.fillStyle = '#111317';
+                    ctx.fillRect(1, 1, 1, 1);
+                }
+            });
+        }
+        const pEyeL = createPiranhaEye();
+        pEyeL.position.set(0.65, 1.55, 0.55);
+        const pEyeR = createPiranhaEye();
+        pEyeR.position.set(-0.65, 1.55, 0.55);
+        pgMuzzleHead.add(pEyeL, pEyeR);
+
+        // Articulated Lower Jaw with Sharp Teeth & Thick Orange Lip (Pic 5)
+        const pgLowerJawPivot = new THREE.Group();
+        pgLowerJawPivot.position.set(0, -0.1, 0.2);
+        pgMuzzleHead.add(pgLowerJawPivot);
+
+        const pgLowerJaw = createVoxelBox(2.5, 1.2, 2.7, {
+            all: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.piranhaOrange;
+                ctx.fillRect(0, 0, w, h);
+                // White sharp teeth along top edge
+                ctx.fillStyle = '#ffffff';
+                for (let x = 0; x < w; x += 2) {
+                    ctx.fillRect(x, 0, 1, 2);
+                }
+            },
+            top: (ctx, w, h) => {
+                ctx.fillStyle = '#4a191e';
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = '#ffffff';
+                for (let x = 0; x < w; x += 2) {
+                    ctx.fillRect(x, h - 2, 1, 2);
+                }
+            }
+        });
+        pgLowerJaw.position.set(0, -0.35, 1.1);
+        pgLowerJawPivot.rotation.x = 0.35;
+        pgLowerJawPivot.add(pgLowerJaw);
+
+        // Swept White Handle + Orange Trigger & Rear Fin + Flat Pedestal Base (Pic 1 & Pic 5)
+        const pgHandle = createVoxelBox(1.6, 5.2, 1.8, {
+            all: (ctx, w, h) => fillPiranhaWhite(ctx, w, h)
+        }, { roughness: 0.35 });
+        pgHandle.position.set(0, -1.2, 0.2);
+        pgHandle.rotation.x = 0.25;
+        piranhaGunGroup.add(pgHandle);
+
+        // Orange Front Trigger Fin & Rear Serrated Fin on Handle (Pic 5)
+        const pgOrangeTrigger = createVoxelBox(0.8, 2.4, 1.3, {
+            all: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.piranhaOrange;
+                ctx.fillRect(0, 0, w, h);
+            }
+        });
+        pgOrangeTrigger.position.set(0, -0.6, 1.3);
+        pgOrangeTrigger.rotation.x = 0.25;
+        piranhaGunGroup.add(pgOrangeTrigger);
+
+        const pgRearFin = createVoxelBox(0.8, 3.2, 1.2, {
+            all: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.piranhaOrange;
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = PALETTE.orangeDark;
+                for (let y = 0; y < h; y += 2) ctx.fillRect(0, y, w, 1);
+            }
+        });
+        pgRearFin.position.set(0, -1.1, -0.9);
+        pgRearFin.rotation.x = 0.25;
+        piranhaGunGroup.add(pgRearFin);
+
+        // Wide Pedestal Foot at Bottom of Handle (Pic 1 & Pic 5)
+        const pgPedestal = createVoxelBox(3.4, 0.9, 4.2, {
+            all: (ctx, w, h) => fillPiranhaWhite(ctx, w, h)
+        }, { roughness: 0.35 });
+        pgPedestal.position.set(0, -3.7, -0.4);
+        piranhaGunGroup.add(pgPedestal);
+
+        // Animated Voxel Piranha Projectile (launches during Variant 1 Attack/Special!)
+        const piranhaProjectile = new THREE.Group();
+        piranhaProjectile.visible = false;
+        piranhaGunGroup.add(piranhaProjectile);
+
+        const projBody = createVoxelBox(2.2, 2.4, 3.2, {
+            all: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.piranhaOrange;
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, h - 2, 2, 2);
+                ctx.fillStyle = '#111';
+                ctx.fillRect(1, h - 2, 1, 1);
+            },
+            front: (ctx, w, h) => {
+                ctx.fillStyle = '#3b1114';
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = '#ffffff';
+                for (let x = 0; x < w; x += 2) {
+                    ctx.fillRect(x, 0, 1, 2);
+                    ctx.fillRect(x, h - 2, 1, 2);
+                }
+            }
+        });
+        piranhaProjectile.add(projBody);
+
+        // ============================================================================
+        // WEAPON 2: BLUE SHRINK RAY "SR-6" (Reference: Pic 2 & Pic 4)
+        // ============================================================================
+        const shrinkRayGroup = new THREE.Group();
+        shrinkRayGroup.visible = false;
+        weaponSocket.add(shrinkRayGroup);
+
+        // 1. Massive Metallic Cyan/Blue Rear Drum with "SR-6" Stencil (Pic 2 & Pic 4)
+        function drawSR6DrumSide(ctx, w, h) {
+            fillShrinkRayMetal(ctx, w, h, false);
+            // Glowing green vertical energy slot near front of drum (Pic 4)
+            ctx.fillStyle = PALETTE.srTealDeep;
+            ctx.fillRect(1, 2, 2, h - 4);
+            ctx.fillStyle = PALETTE.srGreenGlow;
+            ctx.fillRect(1, 3, 1, h - 6);
+
+            // Crisp white "SR-6" stencil pixel art (Pic 4 & Pic 2)
+            ctx.fillStyle = '#e8f9ff';
+            const sx = 5;
+            const sy = Math.floor(h / 2) - 3;
+            // 'S'
+            ctx.fillRect(sx, sy, 3, 1);
+            ctx.fillRect(sx, sy + 1, 1, 1);
+            ctx.fillRect(sx, sy + 2, 3, 1);
+            ctx.fillRect(sx + 2, sy + 3, 1, 1);
+            ctx.fillRect(sx, sy + 4, 3, 1);
+            // 'R'
+            ctx.fillRect(sx + 4, sy, 3, 1);
+            ctx.fillRect(sx + 4, sy, 1, 5);
+            ctx.fillRect(sx + 6, sy + 1, 1, 1);
+            ctx.fillRect(sx + 4, sy + 2, 2, 1);
+            ctx.fillRect(sx + 6, sy + 3, 1, 2);
+            // '-'
+            ctx.fillRect(sx + 8, sy + 2, 1, 1);
+            // '6'
+            ctx.fillRect(sx + 10, sy, 2, 1);
+            ctx.fillRect(sx + 10, sy, 1, 5);
+            ctx.fillRect(sx + 10, sy + 2, 2, 1);
+            ctx.fillRect(sx + 11, sy + 3, 1, 2);
+            ctx.fillRect(sx + 10, sy + 4, 2, 1);
+        }
+
+        const srDrum = createVoxelBox(6.8, 6.8, 8.2, {
+            left: drawSR6DrumSide,
+            right: drawSR6DrumSide,
+            top: (ctx, w, h) => fillShrinkRayMetal(ctx, w, h, false),
+            bottom: (ctx, w, h) => fillShrinkRayMetal(ctx, w, h, true),
+            front: (ctx, w, h) => fillShrinkRayMetal(ctx, w, h, true),
+            back: (ctx, w, h) => {
+                // Dark turbine backplate with glowing center (Pic 2 top-left corner)
+                ctx.fillStyle = PALETTE.srMetalDark;
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = PALETTE.srMetalMid;
+                ctx.fillRect(2, 2, w - 4, h - 4);
+                ctx.fillStyle = PALETTE.srGreenCore;
+                ctx.fillRect(Math.floor(w / 2) - 2, Math.floor(h / 2) - 2, 4, 4);
+            }
+        }, { roughness: 0.28, metalness: 0.55 });
+        srDrum.position.set(0, 3.8, -2.8);
+        shrinkRayGroup.add(srDrum);
+
+        // Extruded Cooling Fins & Rear Probe Pins around the SR-6 Drum (Pic 2 & Pic 4)
+        for (let i = 0; i < 6; i++) {
+            const angle = (i / 6) * Math.PI * 2 + Math.PI / 6;
+            const fin = createVoxelBox(0.8, 0.9, 5.2, {
+                all: (ctx, w, h) => {
+                    fillShrinkRayMetal(ctx, w, h, false);
+                    ctx.fillStyle = PALETTE.srMetalDark;
+                    ctx.fillRect(0, 0, w, 2);
+                }
+            }, { roughness: 0.25, metalness: 0.6 });
+            fin.position.set(
+                Math.cos(angle) * 3.55,
+                3.8 + Math.sin(angle) * 3.55,
+                -3.6
+            );
+            fin.rotation.z = angle;
+            shrinkRayGroup.add(fin);
+        }
+
+        // 2. Central Spherical Orb Chamber with Glowing Green Side Portals (Pic 4)
+        function drawOrbPortalSide(ctx, w, h) {
+            fillShrinkRayMetal(ctx, w, h, false);
+            // Dark mechanical ring
+            ctx.fillStyle = PALETTE.srMetalDark;
+            ctx.fillRect(2, 2, w - 4, h - 4);
+            // Glowing neon green lens core
+            ctx.fillStyle = PALETTE.srGreenGlow;
+            ctx.fillRect(3, 3, w - 6, h - 6);
+            ctx.fillStyle = PALETTE.srGreenCore;
+            ctx.fillRect(4, 4, Math.max(1, w - 8), Math.max(1, h - 8));
+        }
+
+        const srOrbCore = createVoxelBox(5.2, 5.2, 5.0, {
+            left: drawOrbPortalSide,
+            right: drawOrbPortalSide,
+            top: (ctx, w, h) => {
+                fillShrinkRayMetal(ctx, w, h, false);
+                // 3 small vent holes seen in Pic 4
+                ctx.fillStyle = PALETTE.srMetalDark;
+                ctx.fillRect(2, 2, 1, 1);
+                ctx.fillRect(w - 3, 2, 1, 1);
+                ctx.fillRect(Math.floor(w / 2), 4, 1, 1);
+            },
+            bottom: (ctx, w, h) => fillShrinkRayMetal(ctx, w, h, true),
+            front: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.srMetalDark;
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = PALETTE.srGreenGlow;
+                ctx.fillRect(3, 3, w - 6, h - 6);
+            },
+            back: (ctx, w, h) => fillShrinkRayMetal(ctx, w, h, true)
+        }, { roughness: 0.28, metalness: 0.55 });
+        srOrbCore.position.set(0, 3.2, 3.6);
+        shrinkRayGroup.add(srOrbCore);
+
+        // 3. Top Circular Spotlight / Scope on SR-6 (Pic 4)
+        const srSpotlight = createVoxelBox(2.4, 2.4, 3.2, {
+            all: (ctx, w, h) => fillShrinkRayMetal(ctx, w, h, false),
+            front: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.srTealDark;
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(1, 1, w - 2, h - 2);
+            }
+        }, { roughness: 0.25, metalness: 0.5 });
+        srSpotlight.position.set(0, 6.4, 3.8);
+        shrinkRayGroup.add(srSpotlight);
+
+        // 4. Pointed Front Beak Emitter Jaws (Pic 4 left side)
+        const srUpperBeak = createVoxelBox(3.4, 1.8, 5.2, {
+            all: (ctx, w, h) => fillShrinkRayMetal(ctx, w, h, false),
+            bottom: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.srMetalDark;
+                ctx.fillRect(0, 0, w, h);
+            }
+        }, { roughness: 0.25, metalness: 0.6 });
+        srUpperBeak.position.set(0, 3.9, 8.2);
+        srUpperBeak.rotation.x = 0.16;
+        shrinkRayGroup.add(srUpperBeak);
+
+        const srLowerBeak = createVoxelBox(3.0, 1.3, 4.6, {
+            all: (ctx, w, h) => {
+                fillShrinkRayMetal(ctx, w, h, true);
+                // Side vent slots (Pic 4)
+                ctx.fillStyle = PALETTE.srMetalDark;
+                ctx.fillRect(2, 0, 1, h);
+                ctx.fillRect(4, 0, 1, h);
+                ctx.fillRect(6, 0, 1, h);
+            }
+        }, { roughness: 0.25, metalness: 0.6 });
+        srLowerBeak.position.set(0, 2.2, 7.9);
+        srLowerBeak.rotation.x = -0.1;
+        shrinkRayGroup.add(srLowerBeak);
+
+        // 5. Dual Tactical Handles (Rear Black Grip + Front Articulated Grip with Red Button - Pic 2 & Pic 4)
+        const srFrontArm = createVoxelBox(1.4, 1.4, 4.2, {
+            all: (ctx, w, h) => fillShrinkRayMetal(ctx, w, h, false)
+        }, { roughness: 0.3, metalness: 0.5 });
+        srFrontArm.position.set(0, 0.2, 3.6);
+        srFrontArm.rotation.x = 0.35;
+        shrinkRayGroup.add(srFrontArm);
+
+        const srFrontGrip = createVoxelBox(1.3, 3.8, 1.5, {
+            all: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.srMetalDark;
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = PALETTE.srMetalMid;
+                for (let y = 1; y < h - 1; y += 2) ctx.fillRect(0, y, w, 1);
+            },
+            bottom: (ctx, w, h) => {
+                // Bright Red Trigger Button at bottom tip (Pic 4!)
+                ctx.fillStyle = PALETTE.srRedBtn;
+                ctx.fillRect(0, 0, w, h);
+            }
+        });
+        srFrontGrip.position.set(0, -1.4, 5.4);
+        srFrontGrip.rotation.x = -0.45;
+        shrinkRayGroup.add(srFrontGrip);
+
+        const srRearGrip = createVoxelBox(1.4, 4.0, 1.6, {
+            all: (ctx, w, h) => {
+                ctx.fillStyle = PALETTE.srMetalDark;
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = PALETTE.srTealBase;
+                ctx.fillRect(0, 0, w, 2);
+            }
+        });
+        srRearGrip.position.set(0, -0.8, -0.8);
+        srRearGrip.rotation.x = 0.32;
+        shrinkRayGroup.add(srRearGrip);
+
+        // Glowing Shrink Ray Beam + Shrinking Target Voxel (active during Variant 2 Attack/Special!)
+        const shrinkBeamGroup = new THREE.Group();
+        shrinkBeamGroup.position.set(0, 3.1, 10.8);
+        shrinkBeamGroup.visible = false;
+        shrinkRayGroup.add(shrinkBeamGroup);
+
+        const beamMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(1.1, 1.1, 13),
+            new THREE.MeshBasicMaterial({ color: 0x6dff9e, transparent: true, opacity: 0.78 })
+        );
+        beamMesh.position.z = 6.5;
+        shrinkBeamGroup.add(beamMesh);
+
+        const beamCoreMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(0.45, 0.45, 13),
+            new THREE.MeshBasicMaterial({ color: 0xeafff0 })
+        );
+        beamCoreMesh.position.z = 6.5;
+        shrinkBeamGroup.add(beamCoreMesh);
+
+        // Floating Voxel Target Cube that gets shrunk by the SR-6 beam!
+        const shrinkTargetBlock = createVoxelBox(4, 4, 4, {
+            all: (ctx, w, h) => {
+                ctx.fillStyle = '#8b94a3';
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = '#68707d';
+                ctx.fillRect(1, 1, w - 2, h - 2);
+                ctx.fillStyle = '#6dff9e';
+                ctx.fillRect(0, 0, w, 1);
+                ctx.fillRect(0, h - 1, w, 1);
+            }
+        });
+        shrinkTargetBlock.position.set(0, 0, 14.5);
+        shrinkBeamGroup.add(shrinkTargetBlock);
+
+        // ============================================================================
+        // SKIN VARIANT & ANIMATION CONTROLLER
+        // ============================================================================
+        let currentVariant = 'piranha'; // 'piranha' | 'shrinkray'
+        let currentAnim = 'idle';       // 'idle' | 'walk' | 'attack' | 'special'
+        let animTime = 0;
+
+        function setSkinVariant(variant) {
+            currentVariant = variant;
+            const isPiranha = (variant === 'piranha');
+
+            // Toggle weapons
+            piranhaGunGroup.visible = isPiranha;
+            shrinkRayGroup.visible = !isPiranha;
+
+            // Swap Vector's facial expression texture (Pic 1/3 Smug vs Pic 2 Laughing Grin)
+            // BoxGeometry material index 4 is +Z (front face)
+            headMesh.material[4].map = isPiranha ? faceTexSmug : faceTexGrin;
+            headMesh.material[4].needsUpdate = true;
+
+            // Update UI buttons
+            document.querySelectorAll('.variant-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.variant === variant);
+            });
+        }
+
+        function setAnimation(animName) {
+            currentAnim = animName;
+            animTime = 0;
+            document.querySelectorAll('.anim-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.anim === animName);
+            });
+        }
+
+        // Smooth interpolation helper
+        function damp(current, target, lambda, dt) {
+            return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-lambda * dt));
+        }
+
+        function updateAnimations(dt) {
+            animTime += dt;
+            const t = animTime;
+            const isPiranha = (currentVariant === 'piranha');
+
+            // Default pose targets
+            let rootY = 0, rootRotY = 0;
+            let hipsRotX = 0, hipsRotY = 0, hipsRotZ = 0;
+            let torsoRotX = 0, torsoRotY = 0, torsoRotZ = 0;
+            let headRotX = 0, headRotY = 0, headRotZ = 0;
+            let rArmRotX = 0, rArmRotY = 0, rArmRotZ = 0;
+            let lArmRotX = 0, lArmRotY = 0, lArmRotZ = 0;
+            let rLegRotX = 0, rLegRotZ = 0;
+            let lLegRotX = 0, lLegRotZ = 0;
+
+            // Weapon local transform targets
+            let weapPosX = 0, weapPosY = -9.5, weapPosZ = 1.5;
+            let weapRotX = 0, weapRotY = 0, weapRotZ = 0;
+
+            // Secondary motion effects
+            piranhaProjectile.visible = false;
+            shrinkBeamGroup.visible = false;
+            pgLowerJawPivot.rotation.x = 0.32 + Math.sin(t * 5) * 0.12;
+            pgDome.rotation.y = Math.sin(t * 2.5) * 0.08;
+
+            if (currentAnim === 'idle') {
+                const breath = Math.sin(t * 2.2);
+                const slowLook = Math.sin(t * 1.1);
+
+                if (isPiranha) {
+                    // Variant 1 Idle: Pic 1 signature pose! Slouchy confident lean, holding Piranha Gun up in front
+                    hipsRotX = -0.06;
+                    torsoRotX = 0.06 + breath * 0.025;
+                    torsoRotY = -0.18;
+                    headRotY = 0.22 + slowLook * 0.12;
+                    headRotX = 0.05 + Math.cos(t * 2.2) * 0.03;
+                    headRotZ = -0.05;
+
+                    // Right arm holds Piranha Gun handle up
+                    rArmRotX = -1.25 + breath * 0.05;
+                    rArmRotY = 0.28;
+                    rArmRotZ = -0.12;
+
+                    // Left arm cradles the Piranha Gun barrel/tank (like Pic 1!)
+                    lArmRotX = -1.35 + breath * 0.05;
+                    lArmRotY = -0.48;
+                    lArmRotZ = 0.15;
+
+                    weapRotX = 0.22;
+                    weapRotY = 0.15;
+                    rLegRotZ = -0.03;
+                    lLegRotZ = 0.03;
+                } else {
+                    // Variant 2 Idle: Pic 2 signature pose! Hefts the massive Blue SR-6 Shrink Ray over right shoulder, left hand on hip!
+                    hipsRotZ = 0.06;
+                    torsoRotZ = -0.08;
+                    torsoRotX = -0.05 + breath * 0.03;
+                    torsoRotY = 0.15;
+
+                    // Enthusiastic head tilt (Pic 2!)
+                    headRotZ = -0.16 + Math.sin(t * 2.2) * 0.04;
+                    headRotY = -0.12 + slowLook * 0.14;
+                    headRotX = -0.06;
+
+                    // Right arm raised holding SR-6 on shoulder
+                    rArmRotX = -1.65 + breath * 0.04;
+                    rArmRotY = -0.15;
+                    rArmRotZ = -0.22;
+
+                    // Left arm akimbo on hip (Pic 2!)
+                    lArmRotX = -0.35;
+                    lArmRotY = 0.65;
+                    lArmRotZ = 0.58 + breath * 0.03;
+
+                    // Angle SR-6 so the drum rests right over his shoulder
+                    weapPosY = -9.2;
+                    weapPosZ = 0.6;
+                    weapRotX = -0.58;
+                    weapRotY = 0.12;
+
+                    rLegRotZ = -0.08;
+                    lLegRotZ = 0.08;
+                }
+            } else if (currentAnim === 'walk') {
+                // Vector's bouncy swaggering villain strut
+                const speed = 6.2;
+                const swing = Math.sin(t * speed);
+                const bounce = Math.abs(Math.cos(t * speed));
+
+                rootY = bounce * 1.15;
+                hipsRotY = swing * 0.16;
+                hipsRotZ = Math.cos(t * speed) * 0.06;
+                torsoRotX = 0.08 + bounce * 0.05;
+                torsoRotY = -swing * 0.14;
+
+                headRotY = swing * 0.08;
+                headRotX = Math.cos(t * speed * 2) * 0.05;
+
+                rLegRotX = swing * 0.68;
+                lLegRotX = -swing * 0.68;
+
+                if (isPiranha) {
+                    rArmRotX = -1.05 + swing * 0.22;
+                    rArmRotY = 0.18;
+                    lArmRotX = -swing * 0.52;
+                    lArmRotZ = 0.12;
+                    weapRotX = 0.35;
+                } else {
+                    // Carrying the heavy SR-6 on shoulder while strutting
+                    rArmRotX = -1.55 + bounce * 0.08;
+                    rArmRotZ = -0.18;
+                    lArmRotX = -swing * 0.55;
+                    lArmRotZ = 0.18;
+                    weapRotX = -0.52;
+                }
+            } else if (currentAnim === 'attack') {
+                // Dynamic firing loop (period ~1.6s)
+                const cycle = (t * 2.4) % (Math.PI * 2);
+                const firePulse = Math.max(0, Math.sin(cycle));
+                const recoil = Math.pow(firePulse, 3);
+
+                torsoRotX = -0.08 - recoil * 0.22;
+                torsoRotY = 0.05;
+                headRotX = -recoil * 0.14;
+
+                // Both arms aim forward and absorb recoil kick
+                rArmRotX = -1.48 - recoil * 0.28;
+                rArmRotY = 0.12;
+                lArmRotX = -1.42 - recoil * 0.28;
+                lArmRotY = -0.38;
+
+                rLegRotX = 0.14;
+                lLegRotX = -0.18;
+
+                weapRotX = 0.08;
+                weapRotY = 0.05;
+
+                if (isPiranha) {
+                    // Piranha Gun snaps jaw wide open and shoots a swimming chomping piranha!
+                    pgLowerJawPivot.rotation.x = 0.2 + firePulse * 0.65;
+                    if (cycle < Math.PI) {
+                        const prog = cycle / Math.PI; // 0..1
+                        piranhaProjectile.visible = true;
+                        piranhaProjectile.position.set(
+                            Math.sin(prog * 18) * 0.6,
+                            2.0 + Math.sin(prog * Math.PI) * 1.4,
+                            11.0 + prog * 18.0
+                        );
+                        piranhaProjectile.rotation.y = Math.sin(prog * 24) * 0.35;
+                    }
+                } else {
+                    // Shrink Ray fires pulsing green beam & shrinks the target voxel block!
+                    shrinkBeamGroup.visible = true;
+                    const pulseScale = 0.85 + Math.sin(t * 28) * 0.22;
+                    beamMesh.scale.set(pulseScale, pulseScale, 1);
+
+                    // Target cube shrinks down and spins!
+                    const shrinkFactor = 1.0 - 0.72 * (0.5 - 0.5 * Math.cos(cycle));
+                    shrinkTargetBlock.scale.setScalar(shrinkFactor);
+                    shrinkTargetBlock.rotation.x = t * 3.5;
+                    shrinkTargetBlock.rotation.y = t * 4.8;
+                }
+            } else if (currentAnim === 'special') {
+                // Vector's iconic "OH YEAH!" Boogie Dance & Gadget Celebration!
+                const beat = t * 7.5;
+                const thrust = Math.sin(beat);
+                const sideBoogie = Math.cos(beat * 0.5);
+
+                rootY = Math.abs(thrust) * 1.6;
+                rootRotY = Math.sin(t * 1.8) * 0.45;
+
+                // Classic Vector pelvis thrust + shoulder shimmy
+                hipsRotX = -thrust * 0.28;
+                hipsRotZ = sideBoogie * 0.16;
+                torsoRotX = thrust * 0.24;
+                torsoRotZ = -sideBoogie * 0.14;
+
+                headRotX = -thrust * 0.18;
+                headRotZ = sideBoogie * 0.2;
+                headRotY = Math.sin(beat * 0.5) * 0.25;
+
+                // Raise weapon triumphantly overhead & pump!
+                rArmRotX = -2.45 + thrust * 0.32;
+                rArmRotZ = -0.35;
+                lArmRotX = -2.25 - thrust * 0.32;
+                lArmRotZ = 0.45;
+
+                rLegRotX = thrust * 0.35;
+                lLegRotX = -thrust * 0.35;
+                rLegRotZ = -0.14;
+                lLegRotZ = 0.14;
+
+                weapRotX = -0.25;
+                if (!isPiranha) {
+                    shrinkBeamGroup.visible = true;
+                    const s = 0.35 + 0.25 * Math.sin(t * 8);
+                    shrinkTargetBlock.scale.setScalar(s);
+                    shrinkTargetBlock.rotation.y = t * 6;
+                } else {
+                    pgLowerJawPivot.rotation.x = 0.45 + Math.sin(t * 16) * 0.35;
+                }
+            }
+
+            // Apply damped transforms to rig hierarchy
+            const k = 14;
+            characterRoot.position.y = damp(characterRoot.position.y, rootY, k, dt);
+            characterRoot.rotation.y = damp(characterRoot.rotation.y, rootRotY, k, dt);
+
+            hipsPivot.rotation.x = damp(hipsPivot.rotation.x, hipsRotX, k, dt);
+            hipsPivot.rotation.y = damp(hipsPivot.rotation.y, hipsRotY, k, dt);
+            hipsPivot.rotation.z = damp(hipsPivot.rotation.z, hipsRotZ, k, dt);
+
+            torsoPivot.rotation.x = damp(torsoPivot.rotation.x, torsoRotX, k, dt);
+            torsoPivot.rotation.y = damp(torsoPivot.rotation.y, torsoRotY, k, dt);
+            torsoPivot.rotation.z = damp(torsoPivot.rotation.z, torsoRotZ, k, dt);
+
+            // Collar secondary follow-through bounce
+            collarGroup.rotation.x = damp(collarGroup.rotation.x, -torsoRotX * 0.35, 10, dt);
+
+            headPivot.rotation.x = damp(headPivot.rotation.x, headRotX, k, dt);
+            headPivot.rotation.y = damp(headPivot.rotation.y, headRotY, k, dt);
+            headPivot.rotation.z = damp(headPivot.rotation.z, headRotZ, k, dt);
+
+            rightArmPivot.rotation.x = damp(rightArmPivot.rotation.x, rArmRotX, k, dt);
+            rightArmPivot.rotation.y = damp(rightArmPivot.rotation.y, rArmRotY, k, dt);
+            rightArmPivot.rotation.z = damp(rightArmPivot.rotation.z, rArmRotZ, k, dt);
+
+            leftArmPivot.rotation.x = damp(leftArmPivot.rotation.x, lArmRotX, k, dt);
+            leftArmPivot.rotation.y = damp(leftArmPivot.rotation.y, lArmRotY, k, dt);
+            leftArmPivot.rotation.z = damp(leftArmPivot.rotation.z, lArmRotZ, k, dt);
+
+            rightLegPivot.rotation.x = damp(rightLegPivot.rotation.x, rLegRotX, k, dt);
+            rightLegPivot.rotation.z = damp(rightLegPivot.rotation.z, rLegRotZ, k, dt);
+            leftLegPivot.rotation.x = damp(leftLegPivot.rotation.x, lLegRotX, k, dt);
+            leftLegPivot.rotation.z = damp(leftLegPivot.rotation.z, lLegRotZ, k, dt);
+
+            weaponSocket.position.set(
+                damp(weaponSocket.position.x, weapPosX, k, dt),
+                damp(weaponSocket.position.y, weapPosY, k, dt),
+                damp(weaponSocket.position.z, weapPosZ, k, dt)
+            );
+            weaponSocket.rotation.x = damp(weaponSocket.rotation.x, weapRotX, k, dt);
+            weaponSocket.rotation.y = damp(weaponSocket.rotation.y, weapRotY, k, dt);
+            weaponSocket.rotation.z = damp(weaponSocket.rotation.z, weapRotZ, k, dt);
+        }
+
+        // UI Event Listeners
+        document.querySelectorAll('.variant-btn').forEach(btn => {
+            btn.addEventListener('click', () => setSkinVariant(btn.dataset.variant));
+        });
+
+        document.querySelectorAll('.anim-btn').forEach(btn => {
+            btn.addEventListener('click', () => setAnimation(btn.dataset.anim));
+        });
+
+        document.getElementById('reset-camera').addEventListener('click', () => {
+            camera.position.copy(DEFAULT_CAM_POS);
+            controls.target.copy(DEFAULT_TARGET);
+            controls.update();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Locked 60 FPS delta-time accumulator loop
+        let lastTime = performance.now();
+        const STEP = 1 / 60;
+        let accumulator = 0;
+
+        function animateLoop(now) {
+            requestAnimationFrame(animateLoop);
+
+            let frameDt = (now - lastTime) / 1000;
+            lastTime = now;
+            if (frameDt > 0.1) frameDt = 0.1;
+
+            accumulator += frameDt;
+            while (accumulator >= STEP) {
+                updateAnimations(STEP);
+                accumulator -= STEP;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            setSkinVariant('piranha');
+            setAnimation('idle');
+            requestAnimationFrame(animateLoop);
+        };
+    </script>
+</body>
+</html>

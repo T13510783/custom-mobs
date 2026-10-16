@@ -1,0 +1,2362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Injustice 2 Bane — Vanilla+ 16x16 Model Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap');
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0b0d12;
+      font-family: 'Inter', sans-serif;
+      color: #f3f4f6;
+    }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      cursor: grab;
+    }
+
+    #canvas-container:active {
+      cursor: grabbing;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    .pill-bar {
+      background: rgba(14, 17, 23, 0.88);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(78, 255, 43, 0.2);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.75), 0 0 24px rgba(57, 255, 20, 0.07);
+    }
+
+    .anim-btn {
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      color: #9ca3af;
+    }
+
+    .anim-btn:hover {
+      color: #ecfdf5;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .anim-btn.active {
+      background: rgba(57, 255, 20, 0.16);
+      color: #4eff2b;
+      border: 1px solid rgba(78, 255, 43, 0.48);
+      box-shadow: 0 0 16px rgba(57, 255, 20, 0.25);
+      text-shadow: 0 0 8px rgba(78, 255, 43, 0.45);
+    }
+
+    .hud-icon-btn {
+      background: rgba(14, 17, 23, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      transition: all 0.2s ease;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    }
+
+    .hud-icon-btn:hover {
+      border-color: rgba(78, 255, 43, 0.45);
+      color: #4eff2b;
+      transform: translateY(-1px);
+    }
+
+    .hud-icon-btn.active {
+      border-color: rgba(78, 255, 43, 0.55);
+      color: #4eff2b;
+      background: rgba(57, 255, 20, 0.13);
+      box-shadow: 0 0 16px rgba(57, 255, 20, 0.2);
+    }
+
+    .hud-icon-btn:active {
+      transform: translateY(0px) scale(0.96);
+    }
+
+    .venom-tier-badge {
+      transition: all 0.25s ease;
+    }
+
+    .venom-tier-badge[data-tier="1"] {
+      border-color: rgba(78, 255, 43, 0.32);
+      color: #86efac;
+    }
+
+    .venom-tier-badge[data-tier="2"] {
+      border-color: rgba(78, 255, 43, 0.65);
+      color: #4eff2b;
+      background: rgba(57, 255, 20, 0.14);
+      box-shadow: 0 0 16px rgba(57, 255, 20, 0.25);
+    }
+
+    .venom-tier-badge[data-tier="3"] {
+      border-color: rgba(168, 255, 120, 0.9);
+      color: #d9ffe0;
+      background: rgba(57, 255, 20, 0.26);
+      box-shadow: 0 0 24px rgba(78, 255, 43, 0.5);
+      text-shadow: 0 0 10px rgba(78, 255, 43, 0.8);
+    }
+  </style>
+  <!-- Load Three.js and OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- Top-Left Minimal Model Badge -->
+  <div class="fixed top-5 left-5 z-20 pointer-events-none hidden sm:flex items-center gap-2.5 px-3.5 py-2 rounded-full pill-bar">
+    <span id="status-dot" class="w-2 h-2 rounded-full bg-[#4eff2b] shadow-[0_0_8px_#4eff2b] transition-all duration-300"></span>
+    <span class="text-[11px] font-bold tracking-widest uppercase text-gray-200">
+      Bane <span id="status-subtext" class="text-[#4eff2b]/80 font-semibold">• Injustice 2 Accurate</span>
+    </span>
+  </div>
+
+  <!-- Top-Right Compact Controls (Venom Dosage Level, Auto-Rotate, Reset Camera) -->
+  <div class="fixed top-5 right-5 z-20 flex items-center gap-2">
+    <button
+      id="venom-tier-btn"
+      data-tier="1"
+      title="Cycle Venom Dosage (Key: V)"
+      class="hud-icon-btn venom-tier-badge h-10 px-3.5 rounded-full flex items-center gap-2 text-xs font-bold tracking-wider uppercase cursor-pointer"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+      <span id="venom-tier-label">Venom Lv.1</span>
+    </button>
+
+    <button
+      id="turntable-btn"
+      title="Toggle Turntable Rotation (Key: Space)"
+      aria-label="Toggle Turntable Rotation"
+      class="hud-icon-btn w-10 h-10 rounded-full flex items-center justify-center text-gray-400 cursor-pointer"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9"/>
+      </svg>
+    </button>
+
+    <button
+      id="reset-cam-btn"
+      title="Reset Camera (Key: R)"
+      aria-label="Reset Camera"
+      class="hud-icon-btn w-10 h-10 rounded-full flex items-center justify-center text-gray-400 cursor-pointer"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Bottom Animation Switcher Pill -->
+  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-20">
+    <div class="pill-bar flex items-center gap-1.5 p-1.5 rounded-full">
+      <button data-anim="idle" title="Key: 1" class="anim-btn active px-4 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase border border-transparent cursor-pointer">
+        Idle
+      </button>
+      <button data-anim="walk" title="Key: 2" class="anim-btn px-4 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase border border-transparent cursor-pointer">
+        Walk
+      </button>
+      <button data-anim="attack" title="Key: 3" class="anim-btn px-4 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase border border-transparent cursor-pointer">
+        Attack
+      </button>
+      <button data-anim="special" title="Key: 4" class="anim-btn px-4 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase border border-transparent cursor-pointer">
+        Special
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b0d12);
+    scene.fog = new THREE.FogExp2(0x0b0d12, 0.011);
+
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 260);
+    const DEFAULT_CAM_POS = new THREE.Vector3(18, 19.5, 38);
+    const DEFAULT_CAM_TARGET = new THREE.Vector3(0, 14.2, 0);
+    camera.position.copy(DEFAULT_CAM_POS);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.16;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.copy(DEFAULT_CAM_TARGET);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.065;
+    controls.maxPolarAngle = Math.PI / 2 - 0.01;
+    controls.minDistance = 11;
+    controls.maxDistance = 80;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 1.6;
+    controls.update();
+
+    const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x111827, 0.58);
+    scene.add(hemiLight);
+
+    const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.48);
+    keyLight.position.set(20, 42, 30);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    keyLight.shadow.camera.near = 5;
+    keyLight.shadow.camera.far = 95;
+    const shadowBounds = 22;
+    keyLight.shadow.camera.left = -shadowBounds;
+    keyLight.shadow.camera.right = shadowBounds;
+    keyLight.shadow.camera.top = shadowBounds;
+    keyLight.shadow.camera.bottom = -shadowBounds;
+    keyLight.shadow.bias = -0.0005;
+    scene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0x7dd3fc, 0.85);
+    rimLight.position.set(-26, 22, -22);
+    scene.add(rimLight);
+
+    const fillLight = new THREE.DirectionalLight(0xe2e8f0, 0.42);
+    fillLight.position.set(-18, 16, 20);
+    scene.add(fillLight);
+
+    const venomLight = new THREE.PointLight(0x4eff2b, 1.15, 36);
+    venomLight.position.set(0, 19, 3);
+    scene.add(venomLight);
+
+    const floorCyanLight = new THREE.PointLight(0x38bdf8, 0.55, 18);
+    floorCyanLight.position.set(-6.5, 1.2, 3.5);
+    scene.add(floorCyanLight);
+
+    function pixelNoise(x, y, seed = 1) {
+      const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 43.123) * 43758.5453;
+      return n - Math.floor(n);
+    }
+
+    function shadeHex(hex, amount) {
+      const num = parseInt(hex.replace('#', ''), 16);
+      const r = Math.min(255, Math.max(0, ((num >> 16) & 0xff) + amount));
+      const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + amount));
+      const b = Math.min(255, Math.max(0, (num & 0xff) + amount));
+      return `rgb(${r},${g},${b})`;
+    }
+
+    const emissiveMaterials = [];
+
+    function createPixelFaceMaterial(w, h, drawFn, options = {}) {
+      const res = options.res || 2;
+      const pw = Math.max(1, Math.round(w * res));
+      const ph = Math.max(1, Math.round(h * res));
+      const canvas = document.createElement('canvas');
+      canvas.width = pw;
+      canvas.height = ph;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+
+      const api = {
+        w: pw,
+        h: ph,
+        ctx,
+        fill(color, noiseAmt = 5, seed = 1) {
+          for (let y = 0; y < ph; y++) {
+            for (let x = 0; x < pw; x++) {
+              const delta = Math.round((pixelNoise(x, y, seed) - 0.5) * 2 * noiseAmt);
+              ctx.fillStyle = shadeHex(color, delta);
+              ctx.fillRect(x, y, 1, 1);
+            }
+          }
+        },
+        fillCamo(baseHex, midHex, darkHex, lightHex, seed = 10) {
+          for (let y = 0; y < ph; y++) {
+            for (let x = 0; x < pw; x++) {
+              const bx = Math.floor(x / 2);
+              const by = Math.floor(y / 2);
+              const n = pixelNoise(bx, by, seed);
+              let c = baseHex;
+              if (n < 0.26) c = darkHex;
+              else if (n < 0.55) c = midHex;
+              else if (n > 0.82) c = lightHex;
+              const micro = Math.round((pixelNoise(x, y, seed + 3) - 0.5) * 8);
+              ctx.fillStyle = shadeHex(c, micro);
+              ctx.fillRect(x, y, 1, 1);
+            }
+          }
+        },
+        px(x, y, color) {
+          const ix = Math.floor(x);
+          const iy = Math.floor(y);
+          if (ix >= 0 && ix < pw && iy >= 0 && iy < ph) {
+            ctx.fillStyle = color;
+            ctx.fillRect(ix, iy, 1, 1);
+          }
+        },
+        rect(x, y, rw, rh, color, noiseAmt = 0, seed = 7) {
+          const sx = Math.round(x);
+          const sy = Math.round(y);
+          const sw = Math.round(rw);
+          const sh = Math.round(rh);
+          for (let iy = sy; iy < sy + sh; iy++) {
+            for (let ix = sx; ix < sx + sw; ix++) {
+              if (ix >= 0 && ix < pw && iy >= 0 && iy < ph) {
+                const delta = noiseAmt ? Math.round((pixelNoise(ix, iy, seed) - 0.5) * 2 * noiseAmt) : 0;
+                ctx.fillStyle = delta ? shadeHex(color, delta) : color;
+                ctx.fillRect(ix, iy, 1, 1);
+              }
+            }
+          }
+        },
+        line(x0, y0, x1, y1, color, thickness = 1) {
+          const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
+          for (let i = 0; i <= steps; i++) {
+            const lx = Math.round(x0 + ((x1 - x0) * i) / steps);
+            const ly = Math.round(y0 + ((y1 - y0) * i) / steps);
+            this.rect(lx, ly, thickness, thickness, color);
+          }
+        },
+        border(color, thickness = 1) {
+          ctx.fillStyle = color;
+          ctx.fillRect(0, 0, pw, thickness);
+          ctx.fillRect(0, ph - thickness, pw, thickness);
+          ctx.fillRect(0, 0, thickness, ph);
+          ctx.fillRect(pw - thickness, 0, thickness, ph);
+        }
+      };
+
+      drawFn(api);
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.generateMipmaps = false;
+      tex.needsUpdate = true;
+
+      const matConfig = {
+        map: tex,
+        roughness: options.roughness !== undefined ? options.roughness : 0.68,
+        metalness: options.metalness !== undefined ? options.metalness : 0.2,
+      };
+
+      if (options.emissive) {
+        const emCanvas = document.createElement('canvas');
+        emCanvas.width = pw;
+        emCanvas.height = ph;
+        const emCtx = emCanvas.getContext('2d');
+        const imgData = ctx.getImageData(0, 0, pw, ph);
+        const emData = emCtx.createImageData(pw, ph);
+
+        for (let i = 0; i < imgData.data.length; i += 4) {
+          const r = imgData.data[i];
+          const g = imgData.data[i + 1];
+          const b = imgData.data[i + 2];
+          const isNeonGreen = g > 135 && g > r * 1.25;
+          const isGlowingRed = r > 170 && r > g * 1.6 && r > b * 1.6;
+          const isCyanGlow = b > 190 && g > 150 && r < 140;
+          if (isNeonGreen || isGlowingRed || isCyanGlow) {
+            emData.data[i] = r;
+            emData.data[i + 1] = g;
+            emData.data[i + 2] = b;
+            emData.data[i + 3] = 255;
+          } else {
+            emData.data[i] = 0;
+            emData.data[i + 1] = 0;
+            emData.data[i + 2] = 0;
+            emData.data[i + 3] = 255;
+          }
+        }
+        emCtx.putImageData(emData, 0, 0);
+        const emTex = new THREE.CanvasTexture(emCanvas);
+        emTex.magFilter = THREE.NearestFilter;
+        emTex.minFilter = THREE.NearestFilter;
+        emTex.generateMipmaps = false;
+
+        matConfig.emissive = new THREE.Color(0xffffff);
+        matConfig.emissiveMap = emTex;
+        matConfig.emissiveIntensity = options.emissiveIntensity || 1.05;
+      }
+
+      const mat = new THREE.MeshStandardMaterial(matConfig);
+      if (options.emissive && !options.skipGlobalTrack) {
+        emissiveMaterials.push({
+          mat,
+          baseIntensity: matConfig.emissiveIntensity,
+          tag: options.tag || 'general'
+        });
+      }
+      return mat;
+    }
+
+    function createPixelBox(w, h, d, facePainters, matOptions = {}) {
+      const geo = new THREE.BoxGeometry(w, h, d);
+      const defaultPainter = (p) => p.fill('#252729', 5);
+      const materials = [
+        createPixelFaceMaterial(d, h, facePainters.right || facePainters.side || defaultPainter, matOptions),
+        createPixelFaceMaterial(d, h, facePainters.left || facePainters.side || defaultPainter, matOptions),
+        createPixelFaceMaterial(w, d, facePainters.top || facePainters.cap || defaultPainter, matOptions),
+        createPixelFaceMaterial(w, d, facePainters.bottom || facePainters.cap || defaultPainter, matOptions),
+        createPixelFaceMaterial(w, h, facePainters.front || facePainters.side || defaultPainter, matOptions),
+        createPixelFaceMaterial(w, h, facePainters.back || facePainters.side || defaultPainter, matOptions),
+      ];
+      const mesh = new THREE.Mesh(geo, materials);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    const PAL = {
+      maskBlack: '#1c1e21',
+      maskCarbon: '#2d3034',
+      maskHighlight: '#3d4147',
+      respiratorSilver: '#767378',
+      respiratorLight: '#918e94',
+      respiratorDark: '#3f3d41',
+      gillSlot: '#151618',
+      suitQuiltLight: '#49474b',
+      suitQuiltMid: '#373539',
+      suitQuiltDark: '#232225',
+      suitCarbonSide: '#2c2e30',
+      zipperBlack: '#141517',
+      armorGunmetal: '#4c4648',
+      armorLight: '#635c5e',
+      armorDark: '#2e2a2c',
+      rivetSilver: '#b8bec4',
+      strapCharcoal: '#2c2e30',
+      strapBorder: '#1b1c1e',
+      buckleSteel: '#8c9298',
+      buckleFrame: '#323538',
+      venomBright: '#4eff2b',
+      venomCore: '#b8ffa1',
+      venomMid: '#26cc12',
+      eyeRed: '#ff2222',
+      eyeCore: '#ff8888',
+      skinTan: '#b88162',
+      skinShadow: '#8f5d43',
+      camoBase: '#3c3735',
+      camoMid: '#2f2b29',
+      camoDark: '#1f1d1c',
+      camoLight: '#4d4743',
+      leatherChap: '#473e3c',
+      leatherEdge: '#5b504d',
+      bootDark: '#222021',
+      bootSole: '#141314'
+    };
+
+    // Platform top is placed cleanly at Y = 0.0, while grid sits at the base level (Y = -0.58) so they never Z-fight
+    const platformPad = createPixelBox(18, 0.6, 16, {
+      top: (p) => {
+        p.fill('#1b1f26', 4, 91);
+        p.border('#2d333f', 2);
+        for (let y = 6; y <= 24; y += 4) {
+          p.rect(10, y, 22, 2, '#111419');
+        }
+        p.rect(2, 18, 6, 8, '#0ea5e9');
+        p.rect(3, 19, 4, 6, '#bae6fd');
+      },
+      side: (p) => {
+        p.fill('#1f242d', 3);
+        p.rect(0, 0, p.w, 1, '#333b48');
+      }
+    }, { emissive: true, emissiveIntensity: 0.65, roughness: 0.6, metalness: 0.45, tag: 'platform' });
+    platformPad.position.set(0, -0.3, 0);
+    scene.add(platformPad);
+
+    const shadowPlaneGeo = new THREE.PlaneGeometry(140, 140);
+    const shadowPlaneMat = new THREE.ShadowMaterial({
+      opacity: 0.48,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -2
+    });
+    const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
+    shadowPlane.rotation.x = -Math.PI / 2;
+    shadowPlane.position.y = 0.003;
+    shadowPlane.receiveShadow = true;
+    scene.add(shadowPlane);
+
+    const gridHelper = new THREE.GridHelper(68, 17, 0x222936, 0x151922);
+    gridHelper.position.y = -0.58;
+    scene.add(gridHelper);
+
+    const characterRoot = new THREE.Group();
+    scene.add(characterRoot);
+
+    const pelvisPivot = new THREE.Group();
+    pelvisPivot.position.set(0, 12, 0);
+    characterRoot.add(pelvisPivot);
+
+    const torsoPivot = new THREE.Group();
+    torsoPivot.position.set(0, 2, 0);
+    pelvisPivot.add(torsoPivot);
+
+    const headPivot = new THREE.Group();
+    headPivot.position.set(0, 11.2, 0);
+    torsoPivot.add(headPivot);
+
+    // Extended neck height so it stays socketed inside both the head and collar with no gap
+    const neckBlock = createPixelBox(5.1, 2.8, 4.7, {
+      front: (p) => {
+        p.fill(PAL.suitCarbonSide, 4);
+        p.rect(4, 0, 2, 6, PAL.zipperBlack);
+      },
+      left: (p) => {
+        p.fill(PAL.suitCarbonSide, 4);
+        p.rect(2, 0, 5, 2, PAL.skinTan, 3);
+      },
+      right: (p) => {
+        p.fill(PAL.suitCarbonSide, 4);
+        p.rect(2, 0, 5, 2, PAL.skinShadow, 3);
+      },
+      back: (p) => p.fill(PAL.suitCarbonSide, 4)
+    });
+    neckBlock.position.set(0, 0.0, 0);
+    headPivot.add(neckBlock);
+
+    const headMesh = createPixelBox(8.0, 8.0, 8.0, {
+      front: (p) => {
+        p.fill(PAL.maskCarbon, 4, 11);
+
+        for (let y = 0; y < 8; y++) {
+          for (let x = 0; x < 16; x++) {
+            if ((x < 3 || x > 12) && (x + y) % 2 === 0) {
+              p.px(x, y, '#22252a');
+            }
+          }
+        }
+
+        p.rect(3, 0, 10, 6, PAL.maskBlack, 2);
+        p.rect(1, 6, 14, 10, '#15171a', 2);
+
+        p.rect(7, 3, 2, 4, '#101214');
+        p.px(6, 5, '#25282c');
+        p.px(9, 5, '#25282c');
+
+        // Left V-stripe
+        p.px(3, 0, PAL.venomBright);
+        p.px(3, 1, PAL.venomBright);
+        p.px(2, 2, PAL.venomBright);
+        p.px(3, 2, PAL.venomCore);
+        p.px(3, 3, PAL.venomBright);
+        p.px(4, 4, PAL.venomBright);
+        p.px(5, 5, PAL.venomBright);
+        p.px(6, 6, PAL.venomCore);
+
+        // Right V-stripe
+        p.px(12, 0, PAL.venomBright);
+        p.px(12, 1, PAL.venomBright);
+        p.px(13, 2, PAL.venomBright);
+        p.px(12, 2, PAL.venomCore);
+        p.px(12, 3, PAL.venomBright);
+        p.px(11, 4, PAL.venomBright);
+        p.px(10, 5, PAL.venomBright);
+        p.px(9, 6, PAL.venomCore);
+
+        p.rect(1, 6, 5, 1, '#0d0e11');
+        p.rect(10, 6, 5, 1, '#0d0e11');
+        p.rect(5, 7, 6, 1, '#0d0e11');
+
+        p.rect(1, 7, 5, 2, '#07080a');
+        p.rect(10, 7, 5, 2, '#07080a');
+
+        p.px(2, 7, PAL.eyeRed);
+        p.rect(2, 8, 4, 1, PAL.eyeRed);
+        p.rect(3, 8, 2, 1, PAL.eyeCore);
+
+        p.px(13, 7, PAL.eyeRed);
+        p.rect(10, 8, 4, 1, PAL.eyeRed);
+        p.rect(11, 8, 2, 1, PAL.eyeCore);
+
+        p.rect(1, 9, 5, 1, '#26292e');
+        p.rect(10, 9, 5, 1, '#26292e');
+
+        p.rect(3, 9, 10, 7, PAL.respiratorDark);
+        p.rect(4, 10, 8, 6, PAL.respiratorSilver);
+        p.rect(7, 8, 2, 8, PAL.respiratorLight);
+        p.rect(4, 10, 2, 1, PAL.gillSlot);
+        p.rect(10, 10, 2, 1, PAL.gillSlot);
+        p.rect(4, 12, 2, 1, PAL.gillSlot);
+        p.rect(10, 12, 2, 1, PAL.gillSlot);
+        p.rect(4, 14, 2, 1, PAL.gillSlot);
+        p.rect(10, 14, 2, 1, PAL.gillSlot);
+
+        p.rect(0, 14, 2, 2, PAL.skinTan);
+        p.rect(0, 13, 2, 1, PAL.skinShadow);
+        p.rect(14, 14, 2, 2, PAL.skinShadow);
+        p.rect(14, 13, 2, 1, PAL.skinShadow);
+      },
+      top: (p) => {
+        p.fill(PAL.maskCarbon, 4, 12);
+        p.rect(4, 0, 8, 16, PAL.maskBlack, 3);
+        p.line(6, 2, 3, 15, PAL.venomBright, 1);
+        p.line(9, 2, 12, 15, PAL.venomBright, 1);
+      },
+      left: (p) => {
+        p.fill(PAL.maskCarbon, 5, 13);
+        p.rect(0, 2, 16, 2, PAL.maskBlack);
+        p.rect(0, 10, 10, 3, PAL.respiratorDark);
+        p.rect(0, 11, 8, 1, PAL.respiratorSilver);
+        p.rect(8, 13, 6, 3, PAL.skinTan, 2);
+      },
+      right: (p) => {
+        p.fill(PAL.maskCarbon, 5, 14);
+        p.rect(0, 2, 16, 2, PAL.maskBlack);
+        p.rect(6, 10, 10, 3, PAL.respiratorDark);
+        p.rect(8, 11, 8, 1, PAL.respiratorSilver);
+        p.rect(2, 13, 6, 3, PAL.skinShadow, 2);
+      },
+      back: (p) => {
+        p.fill(PAL.maskCarbon, 4, 15);
+        p.rect(5, 0, 6, 16, PAL.maskBlack, 3);
+        p.rect(6, 2, 4, 6, PAL.respiratorDark);
+        p.rect(7, 3, 2, 4, PAL.respiratorSilver);
+      },
+      bottom: (p) => p.fill(PAL.skinShadow, 3)
+    }, { res: 2, emissive: true, emissiveIntensity: 1.15, tag: 'head' });
+    headMesh.position.set(0, 4.2, 0);
+    headPivot.add(headMesh);
+
+    // Placed cleanly in front of headMesh (Z = 4.0) with no coplanar face overlap
+    const vanillaBrowLayer = createPixelBox(8.28, 1.5, 0.36, {
+      front: (p) => {
+        p.fill(PAL.maskBlack, 2);
+        p.rect(0, 2, 16, 1, '#0d0e11');
+        p.px(5, 0, PAL.venomBright);
+        p.px(6, 1, PAL.venomCore);
+        p.px(10, 0, PAL.venomBright);
+        p.px(9, 1, PAL.venomCore);
+      },
+      top: (p) => p.fill(PAL.maskBlack, 2),
+      bottom: (p) => p.fill('#090a0c', 1),
+      side: (p) => p.fill(PAL.maskBlack, 2)
+    }, { res: 2, emissive: true, emissiveIntensity: 1.15 });
+    vanillaBrowLayer.position.set(0, 5.2, 4.19);
+    headPivot.add(vanillaBrowLayer);
+
+    // Bottom of respiratorMuzzle sits at Y = 0.24 (offset from headMesh bottom Y = 0.20) to prevent coplanar Z-fighting
+    const respiratorMuzzle = createPixelBox(5.0, 3.44, 0.72, {
+      front: (p) => {
+        p.fill(PAL.respiratorSilver, 3, 21);
+        p.border(PAL.respiratorDark, 1);
+        p.rect(4, 0, 2, 7, PAL.respiratorLight);
+        for (let gy = 1; gy <= 5; gy += 2) {
+          p.rect(1, gy, 2, 1, PAL.gillSlot);
+          p.rect(7, gy, 2, 1, PAL.gillSlot);
+        }
+        p.px(0, 6, '#181a1d');
+        p.px(1, 6, PAL.respiratorDark);
+        p.px(8, 6, PAL.respiratorDark);
+        p.px(9, 6, '#181a1d');
+      },
+      left: (p) => {
+        p.fill(PAL.respiratorDark, 3);
+        p.px(0, 1, PAL.gillSlot);
+        p.px(0, 3, PAL.gillSlot);
+        p.px(0, 5, PAL.gillSlot);
+      },
+      right: (p) => {
+        p.fill(PAL.respiratorDark, 3);
+        p.px(0, 1, PAL.gillSlot);
+        p.px(0, 3, PAL.gillSlot);
+        p.px(0, 5, PAL.gillSlot);
+      },
+      top: (p) => {
+        p.fill(PAL.respiratorDark, 2);
+        p.rect(3, 0, 4, 2, PAL.respiratorLight);
+      },
+      bottom: (p) => p.fill(PAL.respiratorDark, 2)
+    }, { res: 2, metalness: 0.45, roughness: 0.42 });
+    respiratorMuzzle.position.set(0, 1.96, 4.37);
+    headPivot.add(respiratorMuzzle);
+
+    const respiratorNoseStep = createPixelBox(1.0, 3.9, 0.38, {
+      front: (p) => {
+        p.fill(PAL.respiratorLight, 2);
+        p.rect(0, 0, 2, 1, PAL.respiratorSilver);
+        p.rect(0, 7, 2, 1, PAL.respiratorDark);
+      },
+      side: (p) => p.fill(PAL.respiratorSilver, 2),
+      top: (p) => p.fill(PAL.respiratorLight, 2),
+      bottom: (p) => p.fill(PAL.respiratorDark, 2)
+    }, { res: 2, metalness: 0.5, roughness: 0.38 });
+    respiratorNoseStep.position.set(0, 2.23, 4.92);
+    headPivot.add(respiratorNoseStep);
+
+    const headValve = createPixelBox(1.8, 1.4, 2.0, {
+      side: (p) => {
+        p.fill(PAL.respiratorDark, 4);
+        p.rect(0, 0, 4, 1, PAL.venomBright);
+      },
+      top: (p) => p.fill(PAL.maskBlack, 3)
+    }, { emissive: true, metalness: 0.5 });
+    headValve.position.set(0, 8.25, -0.8);
+    headValve.rotation.x = -0.35;
+    headPivot.add(headValve);
+
+    const headHoseAnchor = new THREE.Object3D();
+    headHoseAnchor.position.set(0, 0.72, -0.35);
+    headValve.add(headHoseAnchor);
+
+    const headPreHoseAnchor = new THREE.Object3D();
+    headPreHoseAnchor.position.set(0, 2.45, -1.15);
+    headValve.add(headPreHoseAnchor);
+
+    // Group upper chest and all surface harness/pec/manifold attachments together so scaling never clips or swallows straps!
+    const chestBulkGroup = new THREE.Group();
+    chestBulkGroup.position.set(0, 7.5, 0);
+    torsoPivot.add(chestBulkGroup);
+
+    const highCollar = createPixelBox(6.4, 1.35, 5.3, {
+      front: (p) => {
+        p.fill(PAL.suitQuiltLight, 5);
+        p.rect(6, 0, 1, 3, PAL.zipperBlack);
+        p.px(2, 2, PAL.venomBright);
+        p.px(10, 2, PAL.venomBright);
+      }
+    }, { emissive: true });
+    highCollar.position.set(0, 3.82, 0.1);
+    chestBulkGroup.add(highCollar);
+
+    const trapSlopes = [];
+    [-1, 1].forEach((dir) => {
+      const trapSlope = createPixelBox(3.6, 1.7, 4.6, {
+        front: (p) => {
+          p.fill(PAL.suitCarbonSide, 5);
+          p.rect(2, 0, 3, 1, PAL.suitQuiltLight);
+        },
+        top: (p) => p.fill(PAL.suitQuiltMid, 5)
+      });
+      trapSlope.position.set(dir * 2.7, 3.5, -0.1);
+      trapSlope.rotation.z = -dir * 0.26;
+      chestBulkGroup.add(trapSlope);
+      trapSlopes.push({ mesh: trapSlope, dir });
+    });
+
+    const upperChest = createPixelBox(10.4, 7.1, 5.6, {
+      front: (p) => {
+        p.fill(PAL.suitCarbonSide, 6, 30);
+        p.rect(5, 0, 11, 14, PAL.suitQuiltLight, 5);
+        for (let y = 2; y < 14; y += 3) {
+          p.rect(5, y, 11, 1, PAL.suitQuiltDark);
+        }
+        p.rect(10, 0, 1, 14, PAL.zipperBlack);
+
+        p.line(7, 0, 4, 4, PAL.venomBright, 1);
+        p.line(4, 4, 4, 6, PAL.venomBright, 1);
+        p.line(4, 6, 7, 10, PAL.venomBright, 1);
+        p.line(7, 10, 7, 13, PAL.venomCore, 1);
+
+        p.line(13, 0, 16, 4, PAL.venomBright, 1);
+        p.line(16, 4, 16, 6, PAL.venomBright, 1);
+        p.line(16, 6, 13, 10, PAL.venomBright, 1);
+        p.line(13, 10, 13, 13, PAL.venomCore, 1);
+      },
+      back: (p) => {
+        p.fill(PAL.suitCarbonSide, 6, 31);
+        p.rect(6, 0, 9, 14, PAL.suitQuiltMid, 5);
+        p.line(4, 2, 4, 12, PAL.venomBright, 1);
+        p.line(16, 2, 16, 12, PAL.venomBright, 1);
+      },
+      left: (p) => {
+        p.fill(PAL.suitCarbonSide, 6, 32);
+        p.line(2, 10, 9, 13, PAL.venomBright, 1);
+      },
+      right: (p) => {
+        p.fill(PAL.suitCarbonSide, 6, 33);
+        p.line(9, 10, 2, 13, PAL.venomBright, 1);
+      },
+      top: (p) => p.fill(PAL.suitQuiltMid, 5)
+    }, { emissive: true, emissiveIntensity: 1.12 });
+    upperChest.position.set(0, 0, 0);
+    chestBulkGroup.add(upperChest);
+
+    [-1, 1].forEach((dir) => {
+      const isLeft = dir === 1;
+      const pecPlate = createPixelBox(3.9, 3.8, 0.46, {
+        front: (p) => {
+          p.fill(PAL.suitQuiltLight, 5);
+          p.rect(0, 2, 8, 1, PAL.suitQuiltDark);
+          p.rect(0, 5, 8, 1, PAL.suitQuiltDark);
+          if (isLeft) {
+            p.line(4, 0, 7, 3, PAL.venomBright, 1);
+            p.line(7, 3, 4, 7, PAL.venomBright, 1);
+          } else {
+            p.line(3, 0, 0, 3, PAL.venomBright, 1);
+            p.line(0, 3, 3, 7, PAL.venomBright, 1);
+          }
+        }
+      }, { emissive: true });
+      pecPlate.position.set(dir * 2.25, 0.75, 3.04);
+      chestBulkGroup.add(pecPlate);
+    });
+
+    [-1, 1].forEach((dir) => {
+      const vStrap = createPixelBox(1.35, 6.92, 6.02, {
+        front: (p) => {
+          p.fill(PAL.strapCharcoal, 4);
+          p.border(PAL.strapBorder, 1);
+          p.rect(0, 3, 3, 3, PAL.buckleSteel);
+          p.rect(1, 4, 1, 1, PAL.strapBorder);
+          p.px(1, 11, PAL.rivetSilver);
+        },
+        back: (p) => {
+          p.fill(PAL.strapCharcoal, 4);
+          p.rect(0, 4, 3, 2, PAL.buckleSteel);
+        },
+        top: (p) => p.fill(PAL.strapCharcoal, 4),
+        side: (p) => p.fill(PAL.strapBorder, 3)
+      }, { metalness: 0.36, roughness: 0.52 });
+      vStrap.position.set(dir * 3.28, 0.08, 0);
+      chestBulkGroup.add(vStrap);
+    });
+
+    const chestCrossStrap = createPixelBox(7.9, 1.05, 0.62, {
+      front: (p) => {
+        p.fill(PAL.strapCharcoal, 3);
+        p.border(PAL.strapBorder, 1);
+        p.rect(7, 0, 2, 2, PAL.buckleFrame);
+        p.px(7, 0, PAL.buckleSteel);
+        p.px(1, 1, PAL.rivetSilver);
+        p.px(14, 1, PAL.rivetSilver);
+      }
+    }, { metalness: 0.45, roughness: 0.45 });
+    chestCrossStrap.position.set(0, -2.35, 3.12);
+    chestBulkGroup.add(chestCrossStrap);
+
+    const backManifold = createPixelBox(5.2, 4.8, 1.35, {
+      back: (p) => {
+        p.fill(PAL.armorGunmetal, 5);
+        p.border(PAL.armorDark, 1);
+        p.rect(3, 3, 4, 4, PAL.venomBright);
+        p.rect(4, 4, 2, 2, PAL.venomCore);
+        p.px(1, 1, PAL.rivetSilver);
+        p.px(8, 1, PAL.rivetSilver);
+        p.px(1, 8, PAL.rivetSilver);
+        p.px(8, 8, PAL.rivetSilver);
+      },
+      side: (p) => p.fill(PAL.armorDark, 4)
+    }, { emissive: true, emissiveIntensity: 1.2, metalness: 0.48 });
+    backManifold.position.set(0, 0.7, -3.48);
+    chestBulkGroup.add(backManifold);
+
+    // Manifold hose exit anchors attached directly to chestBulkGroup so hoses stay locked to the manifold ports when chest expands
+    const manifoldCranialAnchor = new THREE.Object3D();
+    manifoldCranialAnchor.position.set(0, 2.85, -3.85);
+    chestBulkGroup.add(manifoldCranialAnchor);
+
+    // Extended lowerAbdomen height so it tucks seamlessly into upperChest above and pelvisMesh below with zero gap
+    const lowerAbdomen = createPixelBox(8.8, 5.5, 4.76, {
+      front: (p) => {
+        p.fill(PAL.suitCarbonSide, 6, 40);
+        p.rect(4, 0, 10, 11, PAL.suitQuiltLight, 5);
+        p.rect(4, 3, 10, 1, PAL.suitQuiltDark);
+        p.rect(4, 6, 10, 1, PAL.suitQuiltDark);
+        p.rect(4, 9, 10, 1, PAL.suitQuiltDark);
+        p.rect(8, 0, 2, 11, PAL.zipperBlack);
+
+        p.line(5, 1, 2, 4, PAL.venomBright, 1);
+        p.line(12, 1, 15, 4, PAL.venomBright, 1);
+
+        p.line(4, 9, 4, 7, PAL.venomBright, 1);
+        p.line(4, 7, 0, 4, PAL.venomBright, 1);
+
+        p.line(13, 9, 13, 7, PAL.venomBright, 1);
+        p.line(13, 7, 17, 4, PAL.venomBright, 1);
+      },
+      back: (p) => {
+        p.fill(PAL.suitCarbonSide, 6, 41);
+        p.rect(4, 0, 10, 11, PAL.suitQuiltMid, 5);
+      },
+      side: (p) => {
+        p.fill(PAL.suitCarbonSide, 6, 42);
+        p.line(0, 4, 9, 6, PAL.venomMid, 1);
+      }
+    }, { emissive: true, emissiveIntensity: 1.1 });
+    lowerAbdomen.position.set(0, 1.85, 0);
+    torsoPivot.add(lowerAbdomen);
+
+    const pelvisMesh = createPixelBox(9.0, 3.1, 5.0, {
+      front: (p) => {
+        p.fill(PAL.camoBase, 5);
+        p.rect(0, 1, 18, 3, '#383638', 4);
+        p.rect(0, 4, 18, 1, '#1d1c1e');
+        p.rect(3, 3, 2, 2, PAL.buckleSteel);
+        p.rect(13, 3, 2, 2, PAL.buckleSteel);
+        p.rect(8, 4, 2, 2, PAL.camoDark);
+      },
+      back: (p) => {
+        p.fill(PAL.camoBase, 5);
+        p.rect(0, 1, 18, 3, '#383638', 4);
+      },
+      side: (p) => {
+        p.fill(PAL.leatherChap, 4);
+        p.rect(0, 1, 10, 3, '#383638', 4);
+      }
+    });
+    pelvisMesh.position.set(0, 0.65, 0);
+    pelvisPivot.add(pelvisMesh);
+
+    const beltBuckle = createPixelBox(2.5, 2.1, 0.75, {
+      front: (p) => {
+        p.fill(PAL.buckleFrame, 4);
+        p.rect(0, 1, 1, 2, PAL.rivetSilver);
+        p.rect(4, 1, 1, 2, PAL.rivetSilver);
+        p.rect(1, 1, 3, 2, '#17181a');
+        p.px(2, 1, PAL.buckleSteel);
+        p.px(2, 2, PAL.buckleSteel);
+      }
+    }, { metalness: 0.68, roughness: 0.3 });
+    beltBuckle.position.set(0, 0.85, 2.68);
+    pelvisPivot.add(beltBuckle);
+
+    function createArmAssembly(isLeft) {
+      const dir = isLeft ? 1 : -1;
+      const shoulderPivot = new THREE.Group();
+      shoulderPivot.position.set(dir * 6.0, 9.9, 0);
+      torsoPivot.add(shoulderPivot);
+
+      // Upper arm bulk group so bicep armor and nozzles scale smoothly with Venom dosage
+      const upperArmBulk = new THREE.Group();
+      shoulderPivot.add(upperArmBulk);
+
+      const upperArm = createPixelBox(4.0, 6.4, 4.0, {
+        front: (p) => {
+          p.fill(PAL.suitQuiltMid, 5, 50);
+          const gx = isLeft ? 1 : 6;
+          p.rect(gx, 2, 1, 10, PAL.venomBright);
+          p.px(gx, 10, PAL.venomCore);
+        },
+        back: (p) => p.fill(PAL.suitCarbonSide, 5, 51),
+        left: (p) => {
+          p.fill(PAL.suitCarbonSide, 5, 52);
+          if (!isLeft) p.line(2, 2, 6, 11, PAL.venomBright, 1);
+        },
+        right: (p) => {
+          p.fill(PAL.suitCarbonSide, 5, 53);
+          if (isLeft) p.line(6, 2, 2, 11, PAL.venomBright, 1);
+        }
+      }, { emissive: true, emissiveIntensity: 1.15 });
+      upperArm.position.set(dir * 0.45, -2.5, 0);
+      upperArmBulk.add(upperArm);
+
+      const pauldronMain = createPixelBox(4.78, 4.1, 4.92, {
+        front: (p) => {
+          p.fill(PAL.armorGunmetal, 5, 55);
+          p.border(PAL.armorLight, 1);
+          p.rect(2, 2, 6, 4, PAL.armorLight, 3);
+          p.px(2, 6, PAL.rivetSilver);
+          p.px(7, 6, PAL.rivetSilver);
+        },
+        back: (p) => {
+          p.fill(PAL.armorGunmetal, 5, 56);
+          p.border(PAL.armorLight, 1);
+          p.px(2, 6, PAL.rivetSilver);
+          p.px(7, 6, PAL.rivetSilver);
+        },
+        side: (p) => {
+          p.fill(PAL.armorGunmetal, 5, 57);
+          p.border(PAL.armorLight, 1);
+          p.rect(2, 1, 6, 5, PAL.armorLight, 4);
+          p.px(2, 6, PAL.rivetSilver);
+          p.px(7, 6, PAL.rivetSilver);
+        },
+        top: (p) => {
+          p.fill(PAL.armorLight, 4, 58);
+          p.border(PAL.armorDark, 1);
+        }
+      }, { metalness: 0.48, roughness: 0.42 });
+      pauldronMain.position.set(dir * 0.8, -0.55, 0);
+      pauldronMain.rotation.z = -dir * 0.16;
+      upperArmBulk.add(pauldronMain);
+
+      const bicepPlate = createPixelBox(4.48, 2.2, 4.48, {
+        front: (p) => {
+          p.fill(PAL.armorGunmetal, 5);
+          p.border(PAL.armorDark, 1);
+          p.px(2, 2, PAL.rivetSilver);
+          p.px(6, 2, PAL.rivetSilver);
+        },
+        side: (p) => {
+          p.fill(PAL.armorGunmetal, 5);
+          p.border(PAL.armorLight, 1);
+          p.px(2, 2, PAL.rivetSilver);
+          p.px(6, 2, PAL.rivetSilver);
+          p.rect(1, 3, 7, 1, PAL.venomBright);
+        },
+        back: (p) => p.fill(PAL.armorGunmetal, 5)
+      }, { emissive: true, metalness: 0.45, roughness: 0.45 });
+      bicepPlate.position.set(dir * 0.55, -3.75, 0);
+      upperArmBulk.add(bicepPlate);
+
+      const bicepHoseNozzle = createPixelBox(1.15, 1.85, 1.25, {
+        side: (p) => {
+          p.fill(PAL.armorDark, 4);
+          p.rect(0, 0, 3, 1, PAL.rivetSilver);
+          p.rect(1, 1, 1, 2, PAL.venomBright);
+        },
+        top: (p) => p.fill(PAL.rivetSilver, 3)
+      }, { emissive: true, metalness: 0.55 });
+      bicepHoseNozzle.position.set(dir * 1.05, -3.65, -2.56);
+      bicepHoseNozzle.rotation.z = -dir * 0.14;
+      bicepHoseNozzle.rotation.x = -0.52;
+      upperArmBulk.add(bicepHoseNozzle);
+
+      const bicepSocketAnchor = new THREE.Object3D();
+      bicepSocketAnchor.position.set(0, 0.96, 0);
+      bicepHoseNozzle.add(bicepSocketAnchor);
+
+      const bicepPreSocketAnchor = new THREE.Object3D();
+      bicepPreSocketAnchor.position.set(0, 2.35, -0.35);
+      bicepHoseNozzle.add(bicepPreSocketAnchor);
+
+      const elbowPivot = new THREE.Group();
+      elbowPivot.position.set(dir * 0.45, -5.5, 0);
+      shoulderPivot.add(elbowPivot);
+
+      const forearmMesh = createPixelBox(3.75, 6.5, 3.75, {
+        front: (p) => {
+          p.fill(PAL.suitQuiltMid, 5, 60);
+          p.rect(0, 9, 8, 2, PAL.strapCharcoal);
+          p.rect(0, 11, 8, 2, PAL.skinTan, 4);
+        },
+        back: (p) => {
+          p.fill(PAL.suitCarbonSide, 5, 61);
+          p.rect(0, 9, 8, 2, PAL.strapCharcoal);
+          p.rect(0, 11, 8, 2, PAL.skinTan, 4);
+        },
+        side: (p) => {
+          p.fill(PAL.suitCarbonSide, 5, 62);
+          p.rect(0, 9, 8, 2, PAL.strapCharcoal);
+          p.rect(0, 11, 8, 2, PAL.skinShadow, 4);
+        },
+        bottom: (p) => {
+          p.fill(PAL.skinTan, 5, 63);
+          p.rect(0, 0, 8, 3, PAL.strapCharcoal);
+        }
+      });
+      forearmMesh.position.set(0, -2.45, 0);
+      elbowPivot.add(forearmMesh);
+
+      const gauntletCuff = createPixelBox(4.52, 3.85, 4.52, {
+        front: (p) => {
+          p.fill(PAL.armorGunmetal, 5, 64);
+          p.border(PAL.armorLight, 1);
+          p.rect(2, 1, 5, 6, PAL.armorDark);
+          p.px(1, 1, PAL.rivetSilver);
+          p.px(7, 1, PAL.rivetSilver);
+          p.px(1, 6, PAL.rivetSilver);
+          p.px(7, 6, PAL.rivetSilver);
+        },
+        back: (p) => {
+          p.fill(PAL.armorGunmetal, 5, 65);
+          p.border(PAL.armorLight, 1);
+          p.px(2, 1, PAL.rivetSilver);
+          p.px(6, 1, PAL.rivetSilver);
+          p.px(2, 6, PAL.rivetSilver);
+          p.px(6, 6, PAL.rivetSilver);
+        },
+        side: (p) => {
+          p.fill(PAL.armorGunmetal, 5, 66);
+          p.border(PAL.armorLight, 1);
+          p.rect(2, 2, 5, 4, PAL.armorLight, 4);
+          p.px(1, 1, PAL.rivetSilver);
+          p.px(7, 1, PAL.rivetSilver);
+          p.px(1, 6, PAL.rivetSilver);
+          p.px(7, 6, PAL.rivetSilver);
+        }
+      }, { metalness: 0.52, roughness: 0.38 });
+      gauntletCuff.position.set(0, -2.35, 0);
+      elbowPivot.add(gauntletCuff);
+
+      const hoseNozzle = createPixelBox(1.25, 2.2, 1.35, {
+        side: (p) => {
+          p.fill(PAL.armorDark, 4);
+          p.rect(0, 0, 3, 1, PAL.rivetSilver);
+          p.rect(1, 2, 1, 2, PAL.venomBright);
+        },
+        top: (p) => p.fill(PAL.rivetSilver, 3)
+      }, { emissive: true, metalness: 0.55 });
+      hoseNozzle.position.set(dir * 2.6, -1.22, -0.68);
+      hoseNozzle.rotation.z = -dir * 0.28;
+      hoseNozzle.rotation.x = -0.18;
+      elbowPivot.add(hoseNozzle);
+
+      const gauntletInjector = createPixelBox(0.75, 2.1, 1.85, {
+        side: (p) => {
+          p.fill(PAL.armorDark, 3);
+          p.rect(1, 1, 2, 2, PAL.venomBright);
+        },
+        front: (p) => p.fill(PAL.venomBright, 2)
+      }, { emissive: true, emissiveIntensity: 1.25 });
+      gauntletInjector.position.set(dir * 2.42, -2.55, 0.65);
+      elbowPivot.add(gauntletInjector);
+
+      const gauntletLoopPts = [
+        new THREE.Vector3(dir * 2.48, -1.02, 1.22),
+        new THREE.Vector3(dir * 3.22, -1.52, 1.52),
+        new THREE.Vector3(dir * 3.30, -2.68, 1.32),
+        new THREE.Vector3(dir * 2.48, -3.72, 0.72)
+      ];
+      const gauntletLoopCurve = new THREE.CatmullRomCurve3(gauntletLoopPts);
+      const gauntletLoopUp = new THREE.Vector3(0, 1, 0);
+      for (let i = 0; i < 9; i++) {
+        const isCap = i === 0 || i === 8;
+        const isEven = i % 2 === 0;
+        const segW = isCap ? 0.58 : (isEven ? 0.48 : 0.54);
+        const loopSeg = createPixelBox(segW, 0.68, segW, {
+          side: (p) => p.fill(isCap ? PAL.respiratorSilver : PAL.venomBright, 2),
+          cap: (p) => p.fill(PAL.venomCore, 2)
+        }, { emissive: !isCap, emissiveIntensity: 1.35, tag: 'hose' });
+        const u = i / 8;
+        const pos = gauntletLoopCurve.getPointAt(u);
+        const tan = gauntletLoopCurve.getTangentAt(u).normalize();
+        loopSeg.position.copy(pos);
+        loopSeg.quaternion.setFromUnitVectors(gauntletLoopUp, tan);
+        elbowPivot.add(loopSeg);
+      }
+
+      const knuckleGuard = createPixelBox(3.98, 1.45, 4.08, {
+        front: (p) => {
+          p.fill(PAL.skinTan, 4);
+          p.rect(0, 0, 8, 1, PAL.strapCharcoal);
+          p.px(2, 2, PAL.skinShadow);
+          p.px(4, 2, PAL.skinShadow);
+          p.px(6, 2, PAL.skinShadow);
+        },
+        back: (p) => {
+          p.fill(PAL.strapCharcoal, 4);
+          p.rect(1, 0, 1, 2, PAL.rivetSilver);
+          p.rect(3, 0, 1, 2, PAL.rivetSilver);
+          p.rect(5, 0, 1, 2, PAL.rivetSilver);
+          p.rect(7, 0, 1, 2, PAL.rivetSilver);
+        },
+        side: (p) => {
+          p.fill(PAL.strapCharcoal, 4);
+          p.rect(1, 0, 2, 2, PAL.rivetSilver);
+          p.rect(0, 2, 8, 1, PAL.skinTan);
+        }
+      }, { metalness: 0.42, roughness: 0.45 });
+      knuckleGuard.position.set(0, -5.55, 0.08);
+      elbowPivot.add(knuckleGuard);
+
+      const thumbBlock = createPixelBox(1.1, 1.6, 1.75, {
+        side: (p) => {
+          p.fill(PAL.skinTan, 4);
+          p.rect(0, 0, 4, 2, PAL.strapCharcoal);
+        }
+      });
+      thumbBlock.position.set(-dir * 1.68, -5.15, 1.15);
+      thumbBlock.rotation.z = dir * 0.25;
+      elbowPivot.add(thumbBlock);
+
+      const gauntletSocketAnchor = new THREE.Object3D();
+      gauntletSocketAnchor.position.set(0, 1.12, 0);
+      hoseNozzle.add(gauntletSocketAnchor);
+
+      const gauntletPreSocketAnchor = new THREE.Object3D();
+      gauntletPreSocketAnchor.position.set(dir * 0.35, 2.55, -0.15);
+      hoseNozzle.add(gauntletPreSocketAnchor);
+
+      const manifoldPrimaryAnchor = new THREE.Object3D();
+      manifoldPrimaryAnchor.position.set(dir * 2.35, 2.35, -3.85);
+      chestBulkGroup.add(manifoldPrimaryAnchor);
+
+      const manifoldSecondaryAnchor = new THREE.Object3D();
+      manifoldSecondaryAnchor.position.set(dir * 1.45, -1.05, -3.85);
+      chestBulkGroup.add(manifoldSecondaryAnchor);
+
+      return {
+        shoulderPivot,
+        upperArmBulk,
+        elbowPivot,
+        gauntletSocketAnchor,
+        gauntletPreSocketAnchor,
+        bicepSocketAnchor,
+        bicepPreSocketAnchor,
+        manifoldPrimaryAnchor,
+        manifoldSecondaryAnchor,
+        pauldronMain,
+        upperArm,
+        bicepPlate,
+        forearmMesh,
+        gauntletCuff,
+        dir
+      };
+    }
+
+    const leftArm = createArmAssembly(true);
+    const rightArm = createArmAssembly(false);
+
+    const animatedHoses = [];
+
+    // Shared base materials for metallic tips and dark rubber hose cores to avoid hundreds of redundant canvases
+    const sharedMetallicTipMat = createPixelFaceMaterial(1, 1, (p) => p.fill(PAL.respiratorSilver, 3), {
+      metalness: 0.55,
+      roughness: 0.38
+    });
+    const sharedDarkRubberMat = createPixelFaceMaterial(1, 1, (p) => p.fill('#121513', 3), {
+      roughness: 0.78,
+      metalness: 0.12
+    });
+    const sharedGlowSideTemplate = createPixelFaceMaterial(1, 1, (p) => {
+      p.fill(PAL.venomBright, 2);
+      p.px(0, 0, PAL.venomCore);
+    }, { emissive: true, emissiveIntensity: 1.25, skipGlobalTrack: true });
+
+    function createDynamicVenomHose(segmentCount = 21, thickness = 0.86, phaseOffset = 0) {
+      const count = segmentCount % 2 === 0 ? segmentCount + 1 : segmentCount;
+      const group = new THREE.Group();
+      const segments = [];
+
+      for (let i = 0; i < count; i++) {
+        const isMetallicTip = i === 0 || i === count - 1;
+        const isGlowBand = !isMetallicTip && i % 2 === 1;
+        const segWidth = isMetallicTip
+          ? thickness * 1.05
+          : isGlowBand
+          ? thickness * 1.0
+          : thickness * 0.84;
+
+        const geo = new THREE.BoxGeometry(segWidth, 1.0, segWidth);
+        let mat;
+        if (isMetallicTip) {
+          mat = sharedMetallicTipMat;
+        } else if (isGlowBand) {
+          // Clone lightweight material sharing the same GPU texture so each ring can pulse independently
+          mat = sharedGlowSideTemplate.clone();
+        } else {
+          mat = sharedDarkRubberMat;
+        }
+
+        const seg = new THREE.Mesh(geo, mat);
+        seg.castShadow = true;
+        seg.receiveShadow = true;
+        group.add(seg);
+        segments.push({ mesh: seg, mat, isGlowBand, isMetallicTip, index: i });
+      }
+
+      const prevTangent = new THREE.Vector3(0, 1, 0);
+      const stepQuat = new THREE.Quaternion();
+      const runningQuat = new THREE.Quaternion();
+      const rotMat = new THREE.Matrix4();
+      const rightAxis = new THREE.Vector3();
+      const forwardAxis = new THREE.Vector3();
+      const refForward = new THREE.Vector3(0, 0, 1);
+      const posVec = new THREE.Vector3();
+      const nextPosVec = new THREE.Vector3();
+      const prevPosVec = new THREE.Vector3();
+      const tangentVec = new THREE.Vector3();
+
+      // Pre-allocated dense lookup table for fast arc-length parameterization without per-frame GC
+      const LUT_STEPS = 64;
+      const lutPoints = Array.from({ length: LUT_STEPS + 1 }, () => new THREE.Vector3());
+      const lutCumLen = new Float32Array(LUT_STEPS + 1);
+
+      const hoseObj = {
+        group,
+        segments,
+        segmentCount: count,
+        phaseOffset,
+        updatePoints(pointsArray) {
+          const curve = new THREE.CatmullRomCurve3(pointsArray, false, 'centripetal', 0.35);
+
+          let totalLen = 0;
+          lutCumLen[0] = 0;
+          curve.getPoint(0, lutPoints[0]);
+          for (let k = 1; k <= LUT_STEPS; k++) {
+            curve.getPoint(k / LUT_STEPS, lutPoints[k]);
+            totalLen += lutPoints[k].distanceTo(lutPoints[k - 1]);
+            lutCumLen[k] = totalLen;
+          }
+
+          const unitSpan = totalLen / count;
+
+          for (let i = 0; i < count; i++) {
+            const targetDist = ((i + 0.5) / count) * totalLen;
+
+            // Binary search in precomputed arc-length table
+            let low = 0;
+            let high = LUT_STEPS;
+            while (low < high - 1) {
+              const mid = (low + high) >> 1;
+              if (lutCumLen[mid] <= targetDist) low = mid;
+              else high = mid;
+            }
+            const segLen = Math.max(0.0001, lutCumLen[high] - lutCumLen[low]);
+            const alpha = (targetDist - lutCumLen[low]) / segLen;
+            posVec.lerpVectors(lutPoints[low], lutPoints[high], alpha);
+
+            // Compute smooth tangent from neighboring LUT samples
+            const lowPrev = Math.max(0, low - 1);
+            const highNext = Math.min(LUT_STEPS, high + 1);
+            prevPosVec.copy(lutPoints[lowPrev]);
+            nextPosVec.copy(lutPoints[highNext]);
+            tangentVec.subVectors(nextPosVec, prevPosVec).normalize();
+
+            const segObj = segments[i];
+            const segMesh = segObj.mesh;
+            segMesh.position.copy(posVec);
+
+            // Lock initial roll at i=0 using a stable orthonormal basis so the hose never twists wildly
+            if (i === 0) {
+              rightAxis.crossVectors(tangentVec, refForward);
+              if (rightAxis.lengthSq() < 0.001) rightAxis.set(1, 0, 0);
+              else rightAxis.normalize();
+              forwardAxis.crossVectors(rightAxis, tangentVec).normalize();
+              rotMat.makeBasis(rightAxis, tangentVec, forwardAxis);
+              runningQuat.setFromRotationMatrix(rotMat);
+            } else {
+              stepQuat.setFromUnitVectors(prevTangent, tangentVec);
+              runningQuat.premultiply(stepQuat).normalize();
+            }
+            prevTangent.copy(tangentVec);
+            segMesh.quaternion.copy(runningQuat);
+
+            if (segObj.isMetallicTip) {
+              segMesh.scale.set(1, unitSpan * 1.18, 1);
+            } else if (segObj.isGlowBand) {
+              segMesh.scale.set(1, unitSpan * 0.92, 1);
+            } else {
+              segMesh.scale.set(1, unitSpan * 1.65, 1);
+            }
+          }
+        }
+      };
+
+      animatedHoses.push(hoseObj);
+      return hoseObj;
+    }
+
+    const cranialHose = createDynamicVenomHose(19, 0.92, 0.0);
+    torsoPivot.add(cranialHose.group);
+
+    const leftGauntletHose = createDynamicVenomHose(25, 0.82, 0.6);
+    torsoPivot.add(leftGauntletHose.group);
+
+    const rightGauntletHose = createDynamicVenomHose(25, 0.82, 1.4);
+    torsoPivot.add(rightGauntletHose.group);
+
+    const leftBicepHose = createDynamicVenomHose(19, 0.76, 1.15);
+    torsoPivot.add(leftBicepHose.group);
+
+    const rightBicepHose = createDynamicVenomHose(19, 0.76, 1.95);
+    torsoPivot.add(rightBicepHose.group);
+
+    function createLegAssembly(isLeft) {
+      const dir = isLeft ? 1 : -1;
+      const hipPivot = new THREE.Group();
+      hipPivot.position.set(dir * 2.4, 0, 0);
+      pelvisPivot.add(hipPivot);
+
+      const thighBulk = new THREE.Group();
+      hipPivot.add(thighBulk);
+
+      const thighMesh = createPixelBox(4.3, 6.8, 4.5, {
+        front: (p) => {
+          p.fillCamo(PAL.camoBase, PAL.camoMid, PAL.camoDark, PAL.camoLight, isLeft ? 70 : 80);
+          const sx = isLeft ? 5 : 2;
+          p.rect(sx, 1, 2, 4, PAL.leatherChap);
+          p.px(sx, 2, PAL.rivetSilver);
+        },
+        back: (p) => {
+          p.fillCamo(PAL.camoBase, PAL.camoMid, PAL.camoDark, PAL.camoLight, isLeft ? 71 : 81);
+          p.rect(0, 9, 8, 2, PAL.strapBorder);
+        },
+        side: (p) => {
+          p.fillCamo(PAL.camoBase, PAL.camoMid, PAL.camoDark, PAL.camoLight, isLeft ? 72 : 82);
+        }
+      });
+      thighMesh.position.set(0, -2.8, 0);
+      thighBulk.add(thighMesh);
+
+      const leatherThighPanel = createPixelBox(2.6, 4.6, 4.78, {
+        front: (p) => {
+          p.fill(PAL.leatherChap, 4, 73);
+          p.border(PAL.leatherEdge, 1);
+          p.line(0, 3, 5, 5, PAL.camoDark, 1);
+        },
+        side: (p) => {
+          p.fill(PAL.leatherChap, 4, 74);
+          p.border(PAL.leatherEdge, 1);
+          p.line(1, 3, 8, 3, PAL.camoDark, 1);
+          p.line(1, 7, 8, 7, PAL.camoDark, 1);
+        },
+        back: (p) => {
+          p.fill(PAL.leatherChap, 4);
+          p.border(PAL.leatherEdge, 1);
+        }
+      }, { roughness: 0.58, metalness: 0.18 });
+      leatherThighPanel.position.set(dir * 1.06, -3.15, 0.05);
+      thighBulk.add(leatherThighPanel);
+
+      const kneePivot = new THREE.Group();
+      kneePivot.position.set(0, -6.0, 0);
+      hipPivot.add(kneePivot);
+
+      const kneePad = createPixelBox(3.9, 2.75, 1.35, {
+        front: (p) => {
+          p.fill(PAL.armorGunmetal, 4, 75);
+          p.border(PAL.armorDark, 1);
+          p.rect(3, 1, 2, 4, PAL.armorLight);
+          p.px(1, 1, PAL.rivetSilver);
+          p.px(1, 4, PAL.rivetSilver);
+          p.px(6, 1, PAL.rivetSilver);
+          p.px(6, 4, PAL.rivetSilver);
+        },
+        side: (p) => {
+          p.fill(PAL.armorDark, 4);
+          p.px(1, 1, PAL.rivetSilver);
+          p.px(1, 4, PAL.rivetSilver);
+        },
+        top: (p) => p.fill(PAL.armorLight, 4)
+      }, { metalness: 0.5, roughness: 0.38 });
+      kneePad.position.set(0, -0.1, 2.18);
+      kneePivot.add(kneePad);
+
+      const shinBootMesh = createPixelBox(4.1, 6.6, 4.4, {
+        front: (p) => {
+          p.fill(PAL.bootDark, 4, 76);
+          p.rect(0, 0, 8, 5, PAL.camoBase, 6);
+          p.rect(1, 2, 3, 2, PAL.camoDark);
+          p.rect(5, 3, 2, 2, PAL.camoLight);
+
+          p.rect(2, 5, 4, 8, '#2d2a2b');
+          p.rect(0, 6, 8, 1, PAL.bootSole);
+          p.rect(0, 8, 8, 1, PAL.bootSole);
+          p.rect(0, 10, 8, 1, PAL.bootSole);
+
+          const bx = isLeft ? 6 : 1;
+          p.px(bx, 6, PAL.rivetSilver);
+          p.px(bx, 8, PAL.rivetSilver);
+          p.px(bx, 10, PAL.rivetSilver);
+          p.px(2, 11, PAL.rivetSilver);
+          p.px(5, 11, PAL.rivetSilver);
+        },
+        back: (p) => {
+          p.fill(PAL.bootDark, 4, 77);
+          p.rect(0, 0, 8, 5, PAL.camoMid, 6);
+          p.rect(2, 5, 4, 8, PAL.bootSole);
+        },
+        side: (p) => {
+          p.fill(PAL.bootDark, 5, 78);
+          p.rect(0, 0, 8, 5, PAL.camoBase, 6);
+          p.rect(0, 6, 8, 1, PAL.bootSole);
+          p.rect(0, 8, 8, 1, PAL.bootSole);
+          p.rect(0, 10, 8, 1, PAL.bootSole);
+          p.px(4, 6, PAL.rivetSilver);
+          p.px(4, 8, PAL.rivetSilver);
+          p.px(4, 10, PAL.rivetSilver);
+          p.rect(0, 12, 8, 1, PAL.bootSole);
+        }
+      });
+      shinBootMesh.position.set(0, -2.7, 0);
+      kneePivot.add(shinBootMesh);
+
+      // Offset bootToe bottom slightly (-5.98 instead of -6.00) so it never Z-fights with shinBootMesh sole
+      const bootToe = createPixelBox(4.18, 1.92, 1.6, {
+        front: (p) => {
+          p.fill(PAL.bootDark, 4);
+          p.rect(0, 3, 8, 1, PAL.bootSole);
+        },
+        top: (p) => {
+          p.fill('#2b2829', 4);
+          p.px(2, 0, PAL.rivetSilver);
+          p.px(5, 0, PAL.rivetSilver);
+          p.px(2, 1, PAL.rivetSilver);
+          p.px(5, 1, PAL.rivetSilver);
+        },
+        side: (p) => {
+          p.fill(PAL.bootDark, 4);
+          p.rect(0, 3, 4, 1, PAL.bootSole);
+        }
+      });
+      bootToe.position.set(0, -5.02, 2.28);
+      kneePivot.add(bootToe);
+
+      // Exact sole contact probes at heel and toe so ground clamping keeps feet planted above Y = 0
+      const heelProbe = new THREE.Object3D();
+      heelProbe.position.set(0, -6.0, -2.15);
+      kneePivot.add(heelProbe);
+
+      const toeProbe = new THREE.Object3D();
+      toeProbe.position.set(0, -6.0, 3.05);
+      kneePivot.add(toeProbe);
+
+      return { hipPivot, thighBulk, kneePivot, bootToe, heelProbe, toeProbe };
+    }
+
+    const leftLeg = createLegAssembly(true);
+    const rightLeg = createLegAssembly(false);
+
+    const vaporParticles = [];
+    const vaporGeo = new THREE.BoxGeometry(0.68, 0.68, 0.68);
+
+    for (let i = 0; i < 40; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: i % 3 === 0 ? 0xb8ffa1 : 0x4eff2b,
+        transparent: true,
+        opacity: 0.0
+      });
+      const m = new THREE.Mesh(vaporGeo, mat);
+      m.visible = false;
+      scene.add(m);
+      vaporParticles.push({
+        mesh: m,
+        vel: new THREE.Vector3(),
+        life: 0,
+        maxLife: 0.65 + Math.random() * 0.45
+      });
+    }
+
+    function spawnVenomVapor(worldOrigin, spread = 2.0, upwardSpeed = 4.2) {
+      const p = vaporParticles.find((item) => item.life <= 0);
+      if (!p) return;
+      p.life = p.maxLife;
+      p.mesh.visible = true;
+      p.mesh.position.copy(worldOrigin);
+      p.mesh.position.x += (Math.random() - 0.5) * spread;
+      p.mesh.position.y += (Math.random() - 0.5) * 1.2;
+      p.mesh.position.z += (Math.random() - 0.5) * spread;
+      p.vel.set(
+        (Math.random() - 0.5) * 5.0,
+        upwardSpeed + Math.random() * 3.8,
+        (Math.random() - 0.5) * 5.0
+      );
+    }
+
+    const shockwaveGeo = new THREE.RingGeometry(0.8, 1.8, 28);
+    const shockwaveMat = new THREE.MeshBasicMaterial({
+      color: 0x4eff2b,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.0
+    });
+    const shockwaveRing = new THREE.Mesh(shockwaveGeo, shockwaveMat);
+    shockwaveRing.rotation.x = -Math.PI / 2;
+    shockwaveRing.position.y = 0.04;
+    shockwaveRing.visible = false;
+    scene.add(shockwaveRing);
+
+    let shockwaveLife = 0;
+    let cameraShakeIntensity = 0;
+
+    function triggerGroundShockwave(zOffset = 4.0) {
+      shockwaveLife = 1.0;
+      cameraShakeIntensity = 0.35;
+      shockwaveRing.position.set(0, 0.04, zOffset);
+      shockwaveRing.scale.set(1, 1, 1);
+      shockwaveRing.visible = true;
+
+      const impactCenter = new THREE.Vector3(0, 0.5, zOffset);
+      for (let i = 0; i < 12; i++) {
+        spawnVenomVapor(impactCenter, 4.8, 2.8);
+      }
+    }
+
+    let currentAnim = 'idle';
+    let animTime = 0;
+    let venomTier = 1;
+    let slamTriggeredInCycle = false;
+    const pointerNDC = new THREE.Vector2(0, 0);
+
+    window.addEventListener('pointermove', (e) => {
+      pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+      pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    const animButtons = document.querySelectorAll('.anim-btn');
+    const statusSubtext = document.getElementById('status-subtext');
+
+    function updateStatusBadge() {
+      const tierNames = ['Standard Dose', 'Venom Boost', 'Max Overdrive'];
+      const modeName = currentAnim.charAt(0).toUpperCase() + currentAnim.slice(1);
+      if (statusSubtext) {
+        statusSubtext.textContent = `• ${modeName} • ${tierNames[venomTier - 1]}`;
+      }
+    }
+
+    function setAnimationMode(mode) {
+      currentAnim = mode;
+      animTime = 0;
+      slamTriggeredInCycle = false;
+      animButtons.forEach((b) => {
+        b.classList.toggle('active', b.getAttribute('data-anim') === mode);
+      });
+      updateStatusBadge();
+    }
+
+    animButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setAnimationMode(btn.getAttribute('data-anim'));
+      });
+    });
+
+    const venomTierBtn = document.getElementById('venom-tier-btn');
+    const venomTierLabel = document.getElementById('venom-tier-label');
+    const tempBurstOrigin = new THREE.Vector3();
+
+    function cycleVenomTier() {
+      venomTier = (venomTier % 3) + 1;
+      venomTierBtn.setAttribute('data-tier', String(venomTier));
+      venomTierLabel.textContent = `Venom Lv.${venomTier}`;
+      updateStatusBadge();
+
+      backManifold.getWorldPosition(tempBurstOrigin);
+      for (let i = 0; i < 7; i++) {
+        spawnVenomVapor(tempBurstOrigin, 2.5, 4.5);
+      }
+      respiratorMuzzle.getWorldPosition(tempBurstOrigin);
+      for (let i = 0; i < 3; i++) {
+        spawnVenomVapor(tempBurstOrigin, 1.2, 2.2);
+      }
+    }
+    venomTierBtn.addEventListener('click', cycleVenomTier);
+
+    const turntableBtn = document.getElementById('turntable-btn');
+    function toggleTurntable() {
+      controls.autoRotate = !controls.autoRotate;
+      turntableBtn.classList.toggle('active', controls.autoRotate);
+    }
+    turntableBtn.addEventListener('click', toggleTurntable);
+
+    function resetCamera() {
+      camera.position.copy(DEFAULT_CAM_POS);
+      controls.target.copy(DEFAULT_CAM_TARGET);
+      controls.update();
+    }
+    document.getElementById('reset-cam-btn').addEventListener('click', resetCamera);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '1') setAnimationMode('idle');
+      else if (e.key === '2') setAnimationMode('walk');
+      else if (e.key === '3') setAnimationMode('attack');
+      else if (e.key === '4') setAnimationMode('special');
+      else if (e.key === 'v' || e.key === 'V') cycleVenomTier();
+      else if (e.key === 'r' || e.key === 'R') resetCamera();
+      else if (e.code === 'Space') {
+        e.preventDefault();
+        toggleTurntable();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function damp(current, target, lambda, dt) {
+      return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-lambda * dt));
+    }
+
+    const tempVecA = new THREE.Vector3();
+    const tempVecB = new THREE.Vector3();
+    const tempVecC = new THREE.Vector3();
+    const tempVecD = new THREE.Vector3();
+    const tempVecE = new THREE.Vector3();
+    const tempStartPt = new THREE.Vector3();
+    const tempArchPt = new THREE.Vector3();
+    const tempLocalPt = new THREE.Vector3();
+
+    function pushPointOutOfOBB(ptTorso, mesh, hx, hy, hz, margin, mode, sideDir = 1) {
+      tempLocalPt.copy(ptTorso);
+      torsoPivot.localToWorld(tempLocalPt);
+      mesh.worldToLocal(tempLocalPt);
+
+      const ex = hx + margin;
+      const ey = hy + margin;
+      const ez = hz + margin;
+
+      if (Math.abs(tempLocalPt.x) >= ex || Math.abs(tempLocalPt.y) >= ey || Math.abs(tempLocalPt.z) >= ez) {
+        return;
+      }
+
+      if (mode === 'head') {
+        const distBack = tempLocalPt.z - (-ez);
+        const distTop = ey - tempLocalPt.y;
+        if (distTop < distBack * 1.15) {
+          tempLocalPt.y = ey;
+        } else {
+          tempLocalPt.z = -ez;
+        }
+      } else if (mode === 'torso') {
+        const distBack = tempLocalPt.z - (-ez);
+        const distOut = sideDir > 0 ? (ex - tempLocalPt.x) : (tempLocalPt.x - (-ex));
+        if (distBack <= distOut) {
+          tempLocalPt.z = -ez;
+        } else {
+          tempLocalPt.x = sideDir * ex;
+        }
+      } else if (mode === 'trap') {
+        const distBack = tempLocalPt.z - (-ez);
+        const distTop = ey - tempLocalPt.y;
+        const distOut = sideDir > 0 ? (ex - tempLocalPt.x) : (tempLocalPt.x - (-ex));
+        if (distBack <= distTop && distBack <= distOut) {
+          tempLocalPt.z = -ez;
+        } else if (distOut <= distTop) {
+          tempLocalPt.x = sideDir * ex;
+        } else {
+          tempLocalPt.y = ey;
+        }
+      } else if (mode === 'limb') {
+        const distOut = sideDir > 0 ? (ex - tempLocalPt.x) : (tempLocalPt.x - (-ex));
+        const distBack = tempLocalPt.z - (-ez);
+        if (distOut <= distBack * 1.25) {
+          tempLocalPt.x = sideDir * ex;
+        } else {
+          tempLocalPt.z = -ez;
+        }
+      }
+
+      mesh.localToWorld(tempLocalPt);
+      torsoPivot.worldToLocal(tempLocalPt);
+      ptTorso.copy(tempLocalPt);
+    }
+
+    function buildCollisionFreeHosePoints(rawControlPts, sampleCount, margin, colliders, sideDir, preEndPt) {
+      const baseCurve = new THREE.CatmullRomCurve3(rawControlPts);
+      const pts = [];
+      for (let i = 0; i < sampleCount; i++) {
+        pts.push(baseCurve.getPoint(i / (sampleCount - 1)));
+      }
+
+      for (let iter = 0; iter < 3; iter++) {
+        for (let i = 1; i < sampleCount - 1; i++) {
+          for (let c = 0; c < colliders.length; c++) {
+            const col = colliders[c];
+            pushPointOutOfOBB(pts[i], col.mesh, col.hx, col.hy, col.hz, margin, col.mode, sideDir);
+          }
+        }
+        for (let i = 2; i < sampleCount - 2; i++) {
+          pts[i].x = pts[i].x * 0.65 + (pts[i - 1].x + pts[i + 1].x) * 0.175;
+          pts[i].y = pts[i].y * 0.65 + (pts[i - 1].y + pts[i + 1].y) * 0.175;
+          pts[i].z = pts[i].z * 0.65 + (pts[i - 1].z + pts[i + 1].z) * 0.175;
+        }
+      }
+
+      for (let i = 1; i < sampleCount - 1; i++) {
+        for (let c = 0; c < colliders.length; c++) {
+          const col = colliders[c];
+          pushPointOutOfOBB(pts[i], col.mesh, col.hx, col.hy, col.hz, margin, col.mode, sideDir);
+        }
+      }
+
+      // Gently guide the penultimate point toward the nozzle axis so the metallic tip enters straight
+      if (preEndPt && sampleCount >= 4) {
+        pts[sampleCount - 2].lerp(preEndPt, 0.45);
+      }
+
+      return pts;
+    }
+
+    const cranialColliders = [
+      { mesh: headMesh, hx: 4.0, hy: 4.0, hz: 4.0, mode: 'head' },
+      { mesh: neckBlock, hx: 2.55, hy: 1.05, hz: 2.35, mode: 'torso' },
+      { mesh: highCollar, hx: 3.2, hy: 0.68, hz: 2.65, mode: 'torso' },
+      { mesh: upperChest, hx: 5.2, hy: 3.4, hz: 2.8, mode: 'torso' }
+    ];
+
+    const armHosePairs = [
+      {
+        arm: leftArm,
+        hose: leftGauntletHose,
+        secondHose: leftBicepHose,
+        colliders: [
+          { mesh: upperChest, hx: 5.2, hy: 3.4, hz: 2.8, mode: 'torso' },
+          { mesh: lowerAbdomen, hx: 4.4, hy: 1.95, hz: 2.4, mode: 'torso' },
+          { mesh: backManifold, hx: 2.6, hy: 2.4, hz: 0.68, mode: 'torso' },
+          { mesh: trapSlopes[1].mesh, hx: 1.8, hy: 0.85, hz: 2.3, mode: 'trap' },
+          { mesh: leftArm.pauldronMain, hx: 2.39, hy: 2.05, hz: 2.46, mode: 'limb' },
+          { mesh: leftArm.upperArm, hx: 2.0, hy: 3.0, hz: 2.0, mode: 'limb' },
+          { mesh: leftArm.bicepPlate, hx: 2.24, hy: 1.1, hz: 2.24, mode: 'limb' },
+          { mesh: leftArm.forearmMesh, hx: 1.88, hy: 2.85, hz: 1.88, mode: 'limb' },
+          { mesh: leftArm.gauntletCuff, hx: 2.26, hy: 1.93, hz: 2.26, mode: 'limb' }
+        ]
+      },
+      {
+        arm: rightArm,
+        hose: rightGauntletHose,
+        secondHose: rightBicepHose,
+        colliders: [
+          { mesh: upperChest, hx: 5.2, hy: 3.4, hz: 2.8, mode: 'torso' },
+          { mesh: lowerAbdomen, hx: 4.4, hy: 1.95, hz: 2.4, mode: 'torso' },
+          { mesh: backManifold, hx: 2.6, hy: 2.4, hz: 0.68, mode: 'torso' },
+          { mesh: trapSlopes[0].mesh, hx: 1.8, hy: 0.85, hz: 2.3, mode: 'trap' },
+          { mesh: rightArm.pauldronMain, hx: 2.39, hy: 2.05, hz: 2.46, mode: 'limb' },
+          { mesh: rightArm.upperArm, hx: 2.0, hy: 3.0, hz: 2.0, mode: 'limb' },
+          { mesh: rightArm.bicepPlate, hx: 2.24, hy: 1.1, hz: 2.24, mode: 'limb' },
+          { mesh: rightArm.forearmMesh, hx: 1.88, hy: 2.85, hz: 1.88, mode: 'limb' },
+          { mesh: rightArm.gauntletCuff, hx: 2.26, hy: 1.93, hz: 2.26, mode: 'limb' }
+        ]
+      }
+    ];
+
+    function updateDynamicHoseGeometry() {
+      torsoPivot.updateMatrixWorld(true);
+
+      // 1. Cranial Hose
+      manifoldCranialAnchor.getWorldPosition(tempStartPt);
+      torsoPivot.worldToLocal(tempStartPt);
+
+      headHoseAnchor.getWorldPosition(tempVecA);
+      torsoPivot.worldToLocal(tempVecA);
+
+      headPreHoseAnchor.getWorldPosition(tempVecC);
+      torsoPivot.worldToLocal(tempVecC);
+
+      tempVecB.set(0, 6.85, -5.45);
+      headPivot.localToWorld(tempVecB);
+      torsoPivot.worldToLocal(tempVecB);
+
+      tempArchPt.set(tempVecA.x * 0.25, 12.9, tempStartPt.z - 1.5);
+
+      const cranialPts = buildCollisionFreeHosePoints(
+        [tempStartPt, tempArchPt, tempVecB, tempVecC, tempVecA],
+        cranialHose.segmentCount,
+        0.64,
+        cranialColliders,
+        1,
+        tempVecC
+      );
+      cranialHose.updatePoints(cranialPts);
+
+      // 2. Dual Arm Hoses per side
+      for (let pIdx = 0; pIdx < armHosePairs.length; pIdx++) {
+        const { arm, hose, secondHose, colliders } = armHosePairs[pIdx];
+        const d = arm.dir;
+
+        // Track A: Primary Outer-Shoulder-to-Gauntlet Hose
+        arm.manifoldPrimaryAnchor.getWorldPosition(tempStartPt);
+        torsoPivot.worldToLocal(tempStartPt);
+
+        arm.gauntletSocketAnchor.getWorldPosition(tempVecB);
+        torsoPivot.worldToLocal(tempVecB);
+
+        arm.gauntletPreSocketAnchor.getWorldPosition(tempVecE);
+        torsoPivot.worldToLocal(tempVecE);
+
+        tempVecC.set(d * 4.55, 0.35, -1.65);
+        arm.shoulderPivot.localToWorld(tempVecC);
+        torsoPivot.worldToLocal(tempVecC);
+
+        tempVecD.set(d * 4.55, -2.85, -0.95);
+        arm.shoulderPivot.localToWorld(tempVecD);
+        torsoPivot.worldToLocal(tempVecD);
+
+        tempArchPt.set(
+          d * 5.65,
+          Math.max(11.35, (tempStartPt.y + tempVecC.y) * 0.5 + 1.45),
+          Math.min(tempStartPt.z - 0.15, tempVecC.z - 0.95)
+        );
+
+        const primaryPts = buildCollisionFreeHosePoints(
+          [tempStartPt.clone(), tempArchPt.clone(), tempVecC.clone(), tempVecD.clone(), tempVecE.clone(), tempVecB.clone()],
+          hose.segmentCount,
+          0.62,
+          colliders,
+          d,
+          tempVecE
+        );
+
+        // Track B: Secondary Lower-Manifold-to-Posterior-Bicep Hose
+        arm.manifoldSecondaryAnchor.getWorldPosition(tempStartPt);
+        torsoPivot.worldToLocal(tempStartPt);
+
+        arm.bicepSocketAnchor.getWorldPosition(tempVecD);
+        torsoPivot.worldToLocal(tempVecD);
+
+        arm.bicepPreSocketAnchor.getWorldPosition(tempVecE);
+        torsoPivot.worldToLocal(tempVecE);
+
+        tempVecC.set(d * 1.35, -1.85, -3.65);
+        arm.shoulderPivot.localToWorld(tempVecC);
+        torsoPivot.worldToLocal(tempVecC);
+
+        tempArchPt.set(
+          d * 4.35,
+          6.85,
+          Math.min(tempStartPt.z - 0.85, tempVecC.z - 0.85)
+        );
+
+        const secondaryPts = buildCollisionFreeHosePoints(
+          [tempStartPt.clone(), tempArchPt.clone(), tempVecC.clone(), tempVecE.clone(), tempVecD.clone()],
+          secondHose.segmentCount,
+          0.58,
+          colliders,
+          d,
+          tempVecE
+        );
+
+        // Enforce 3D separation between primary and secondary arm hoses
+        const minHoseDist = 1.75;
+        for (let iter = 0; iter < 2; iter++) {
+          for (let i = 1; i < secondHose.segmentCount - 1; i++) {
+            for (let j = 1; j < hose.segmentCount - 1; j++) {
+              const dx = primaryPts[j].x - secondaryPts[i].x;
+              const dy = primaryPts[j].y - secondaryPts[i].y;
+              const dz = primaryPts[j].z - secondaryPts[i].z;
+              const distSq = dx * dx + dy * dy + dz * dz;
+              if (distSq < minHoseDist * minHoseDist && distSq > 0.0001) {
+                const dist = Math.sqrt(distSq);
+                const overlap = (minHoseDist - dist) * 0.55;
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const nz = dz / dist;
+                primaryPts[j].x += nx * overlap + d * overlap * 0.35;
+                primaryPts[j].y += ny * overlap + overlap * 0.25;
+                primaryPts[j].z += nz * overlap;
+                secondaryPts[i].x -= nx * overlap;
+                secondaryPts[i].y -= ny * overlap;
+                secondaryPts[i].z -= Math.abs(nz) * overlap + overlap * 0.45;
+              }
+            }
+          }
+        }
+
+        for (let j = 1; j < hose.segmentCount - 1; j++) {
+          for (let c = 0; c < colliders.length; c++) {
+            const col = colliders[c];
+            pushPointOutOfOBB(primaryPts[j], col.mesh, col.hx, col.hy, col.hz, 0.6, col.mode, d);
+          }
+        }
+        for (let i = 1; i < secondHose.segmentCount - 1; i++) {
+          for (let c = 0; c < colliders.length; c++) {
+            const col = colliders[c];
+            pushPointOutOfOBB(secondaryPts[i], col.mesh, col.hx, col.hy, col.hz, 0.56, col.mode, d);
+          }
+        }
+
+        hose.updatePoints(primaryPts);
+        secondHose.updatePoints(secondaryPts);
+      }
+    }
+
+    function updateVenomGlow(surgeMultiplier, globalTime) {
+      const tierMultiplier = venomTier === 1 ? 1.0 : venomTier === 2 ? 1.48 : 2.15;
+      const totalSurge = surgeMultiplier * tierMultiplier;
+
+      for (let i = 0; i < emissiveMaterials.length; i++) {
+        const item = emissiveMaterials[i];
+        if (item.tag === 'platform') {
+          item.mat.emissiveIntensity = item.baseIntensity;
+        } else {
+          item.mat.emissiveIntensity = item.baseIntensity * totalSurge;
+        }
+      }
+
+      const flowSpeed = 6.5 + venomTier * 2.5;
+      for (let h = 0; h < animatedHoses.length; h++) {
+        const hose = animatedHoses[h];
+        for (let s = 0; s < hose.segments.length; s++) {
+          const seg = hose.segments[s];
+          if (seg.isGlowBand) {
+            const wave = 0.5 + 0.5 * Math.sin(globalTime * flowSpeed - s * 0.65 + hose.phaseOffset);
+            seg.mat.emissiveIntensity = (0.75 + wave * 0.85) * totalSurge;
+          }
+        }
+      }
+
+      venomLight.intensity = 1.1 * totalSurge;
+    }
+
+    const footProbePoints = [
+      leftLeg.heelProbe,
+      leftLeg.toeProbe,
+      rightLeg.heelProbe,
+      rightLeg.toeProbe
+    ];
+    const tempProbeWorld = new THREE.Vector3();
+
+    function enforceGroundContact() {
+      characterRoot.position.y = 0;
+      characterRoot.updateMatrixWorld(true);
+
+      let minBootY = Infinity;
+      for (let i = 0; i < footProbePoints.length; i++) {
+        footProbePoints[i].getWorldPosition(tempProbeWorld);
+        if (tempProbeWorld.y < minBootY) {
+          minBootY = tempProbeWorld.y;
+        }
+      }
+
+      // Shift characterRoot vertically so the lowest boot sole contact point rests cleanly on Y = 0.0
+      if (minBootY < 0.0) {
+        characterRoot.position.y = -minBootY;
+      } else if (currentAnim === 'idle' || currentAnim === 'special') {
+        characterRoot.position.y = -minBootY;
+      }
+    }
+
+    const tempWorldVec = new THREE.Vector3();
+
+    function updateCharacterAnimation(dt, globalTime) {
+      animTime += dt;
+      const s = 14;
+
+      const tierMuscleScale = venomTier === 1 ? 1.0 : venomTier === 2 ? 1.045 : 1.095;
+
+      let pelvisY = 12.0;
+      let pelvisRotX = 0, pelvisRotY = 0.08, pelvisRotZ = 0;
+      let torsoRotX = 0.04, torsoRotY = -0.05, torsoRotZ = 0;
+      let torsoScale = tierMuscleScale;
+      let headRotX = 0.08, headRotY = 0.04, headRotZ = 0;
+
+      let lShoulderX = 0.06, lShoulderY = 0, lShoulderZ = 0.20;
+      let rShoulderX = 0.06, rShoulderY = 0, rShoulderZ = -0.20;
+      let lElbowX = -0.34, rElbowX = -0.34;
+
+      let lHipX = -0.05, lHipZ = 0.055, rHipX = 0.06, rHipZ = -0.055;
+      let lKneeX = 0.10, rKneeX = 0.08;
+
+      let venomSurge = 1.0 + Math.sin(animTime * (2.8 + venomTier)) * 0.14;
+
+      if (currentAnim === 'idle') {
+        const breath = Math.sin(animTime * 2.2);
+        const breath2 = Math.cos(animTime * 2.2);
+
+        pelvisY = 12.0 - Math.abs(breath) * 0.15;
+        torsoRotX = 0.05 + breath * 0.03;
+        torsoScale = tierMuscleScale + Math.max(0, breath) * 0.018;
+
+        headRotY = 0.04 + THREE.MathUtils.clamp(pointerNDC.x * 0.32, -0.38, 0.38) + Math.sin(animTime * 1.1) * 0.05;
+        headRotX = 0.09 + THREE.MathUtils.clamp(-pointerNDC.y * 0.18, -0.22, 0.22) - breath * 0.025;
+
+        lShoulderX = 0.08 + breath2 * 0.035;
+        rShoulderX = 0.06 + breath2 * 0.035;
+        lShoulderZ = 0.21 + breath * 0.025 + (venomTier - 1) * 0.04;
+        rShoulderZ = -0.21 - breath * 0.025 - (venomTier - 1) * 0.04;
+        lElbowX = -0.36 - breath * 0.04;
+        rElbowX = -0.32 - breath * 0.04;
+
+        lHipX = -0.06;
+        rHipX = 0.06;
+        lKneeX = 0.11;
+        rKneeX = 0.08;
+
+        if (venomTier === 3 && Math.random() < 0.18) {
+          backManifold.getWorldPosition(tempWorldVec);
+          spawnVenomVapor(tempWorldVec, 1.8, 3.0);
+        }
+      } else if (currentAnim === 'walk') {
+        const wSpeed = 5.4;
+        const phase = animTime * wSpeed;
+        const sinP = Math.sin(phase);
+        const cosP = Math.cos(phase);
+
+        pelvisY = 11.75 + Math.abs(cosP) * 0.55;
+        pelvisRotY = -sinP * 0.15;
+        pelvisRotZ = cosP * 0.05;
+
+        torsoRotX = 0.16 + Math.abs(sinP) * 0.05;
+        torsoRotY = sinP * 0.24;
+        torsoRotZ = -cosP * 0.05;
+
+        headRotX = -0.06 + Math.abs(cosP) * 0.04;
+        headRotY = -sinP * 0.14;
+
+        lShoulderX = -sinP * 0.54 + 0.1;
+        rShoulderX = sinP * 0.54 + 0.1;
+        lShoulderZ = 0.24 + Math.max(0, -sinP) * 0.08;
+        rShoulderZ = -0.24 - Math.max(0, sinP) * 0.08;
+        lElbowX = -0.52 - Math.max(0, -sinP) * 0.35;
+        rElbowX = -0.52 - Math.max(0, sinP) * 0.35;
+
+        lHipX = sinP * 0.62;
+        rHipX = -sinP * 0.62;
+        lKneeX = Math.max(0, -cosP) * 0.72 + 0.1;
+        rKneeX = Math.max(0, cosP) * 0.72 + 0.1;
+      } else if (currentAnim === 'attack') {
+        const cycle = (animTime * 1.15) % 2.0;
+        if (cycle < 0.45) {
+          slamTriggeredInCycle = false;
+          const t = cycle / 0.45;
+          const e = t * t * (3 - 2 * t);
+          pelvisY = 11.6;
+          torsoRotY = -0.68 * e;
+          torsoRotX = 0.15 * e;
+          headRotY = 0.45 * e;
+          rShoulderX = -0.55 * e;
+          rShoulderZ = -0.68 * e;
+          rElbowX = -1.1 * e;
+          lShoulderX = 0.55 * e;
+          lElbowX = -0.95 * e;
+          lHipX = -0.28 * e;
+          rHipX = 0.32 * e;
+          lKneeX = 0.35 * e;
+          rKneeX = 0.25 * e;
+          venomSurge = 1.2 + e * 0.5;
+        } else if (cycle < 0.9) {
+          const t = (cycle - 0.45) / 0.45;
+          const e = 1 - Math.pow(1 - t, 3);
+          pelvisY = 11.4;
+          torsoRotY = -0.68 + 1.48 * e;
+          torsoRotX = 0.28;
+          headRotY = -0.55 * e;
+          rShoulderX = 1.48 * e;
+          rShoulderZ = -0.15;
+          rElbowX = -0.22;
+          lShoulderX = -0.45 * e;
+          lElbowX = -1.1;
+          lHipX = -0.35;
+          rHipX = 0.42;
+          lKneeX = 0.45;
+          rKneeX = 0.25;
+          venomSurge = 1.85;
+        } else if (cycle < 1.35) {
+          const t = (cycle - 0.9) / 0.45;
+          const e = t * t * (3 - 2 * t);
+          pelvisY = 12.35 * e + 11.5 * (1 - e);
+          torsoRotY = 0.8 * (1 - e);
+          torsoRotX = -0.34 * e;
+          headRotX = -0.26 * e;
+          lShoulderX = 2.68 * e;
+          rShoulderX = 2.68 * e;
+          lShoulderZ = 0.18;
+          rShoulderZ = -0.18;
+          lElbowX = -0.35;
+          rElbowX = -0.35;
+          venomSurge = 2.15;
+        } else {
+          const t = (cycle - 1.35) / 0.65;
+          const slam = Math.min(1, t * 3.2);
+          const recover = Math.max(0, (t - 0.35) / 0.65);
+
+          if (slam >= 0.9 && !slamTriggeredInCycle) {
+            slamTriggeredInCycle = true;
+            triggerGroundShockwave(4.2);
+          }
+
+          pelvisY = THREE.MathUtils.lerp(11.15, 12.0, recover);
+          torsoRotX = THREE.MathUtils.lerp(0.64, 0.05, recover);
+          headRotX = THREE.MathUtils.lerp(-0.25, 0.08, recover);
+          lShoulderX = THREE.MathUtils.lerp(2.68 - 1.78 * slam, 0.08, recover);
+          rShoulderX = THREE.MathUtils.lerp(2.68 - 1.78 * slam, 0.06, recover);
+          lElbowX = THREE.MathUtils.lerp(-0.2, -0.36, recover);
+          rElbowX = THREE.MathUtils.lerp(-0.2, -0.32, recover);
+          lHipX = THREE.MathUtils.lerp(-0.42, -0.06, recover);
+          rHipX = THREE.MathUtils.lerp(0.42, 0.06, recover);
+          lKneeX = THREE.MathUtils.lerp(0.58, 0.11, recover);
+          rKneeX = THREE.MathUtils.lerp(0.48, 0.08, recover);
+          venomSurge = THREE.MathUtils.lerp(2.5, 1.1, recover);
+        }
+      } else if (currentAnim === 'special') {
+        const cycle = (animTime * 0.85) % 2.4;
+
+        if (cycle < 0.7) {
+          slamTriggeredInCycle = false;
+          const t = cycle / 0.7;
+          const e = t * t * (3 - 2 * t);
+          pelvisY = 12.0 - 0.75 * e;
+          torsoRotX = 0.36 * e;
+          torsoRotY = 0.22 * e;
+          headRotX = 0.25 * e;
+          headRotY = -0.18 * e;
+          lShoulderX = 0.65 * e;
+          rShoulderX = 0.45 * e;
+          lShoulderZ = 0.55 * e;
+          rShoulderZ = -0.65 * e;
+          lElbowX = -1.25 * e;
+          rElbowX = -0.95 * e;
+          lHipX = -0.32 * e;
+          rHipX = 0.25 * e;
+          lKneeX = 0.52 * e;
+          rKneeX = 0.42 * e;
+          venomSurge = 1.0 + e * 1.4;
+        } else if (cycle < 1.75) {
+          if (!slamTriggeredInCycle) {
+            slamTriggeredInCycle = true;
+            triggerGroundShockwave(0.0);
+          }
+
+          const tremor = Math.sin(animTime * 48) * 0.032;
+          pelvisY = 11.45;
+          torsoRotX = 0.22 + tremor;
+          torsoRotY = 0.25;
+          torsoScale = tierMuscleScale * 1.085 + Math.sin(animTime * 20) * 0.02;
+          headRotX = -0.12 + tremor;
+          headRotY = -0.22 + Math.sin(animTime * 8) * 0.08;
+
+          lShoulderX = 0.45 + tremor;
+          rShoulderX = -0.25 - tremor;
+          lShoulderZ = 0.68;
+          rShoulderZ = -0.78;
+          lElbowX = -0.92;
+          rElbowX = -0.58;
+
+          lHipX = -0.28;
+          rHipX = 0.24;
+          lKneeX = 0.45;
+          rKneeX = 0.35;
+
+          venomSurge = 2.6 + Math.sin(animTime * 24) * 0.45;
+
+          if (Math.random() < 0.78) {
+            backManifold.getWorldPosition(tempWorldVec);
+            spawnVenomVapor(tempWorldVec, 2.2, 4.5);
+            leftArm.elbowPivot.getWorldPosition(tempWorldVec);
+            spawnVenomVapor(tempWorldVec, 1.6, 3.8);
+            rightArm.elbowPivot.getWorldPosition(tempWorldVec);
+            spawnVenomVapor(tempWorldVec, 1.6, 3.8);
+          }
+        } else {
+          const t = (cycle - 1.75) / 0.65;
+          const e = t * t * (3 - 2 * t);
+          pelvisY = THREE.MathUtils.lerp(11.45, 12.0, e);
+          torsoRotX = THREE.MathUtils.lerp(0.22, 0.05, e);
+          torsoRotY = THREE.MathUtils.lerp(0.25, -0.05, e);
+          torsoScale = THREE.MathUtils.lerp(tierMuscleScale * 1.085, tierMuscleScale, e);
+          headRotX = THREE.MathUtils.lerp(-0.12, 0.08, e);
+          headRotY = THREE.MathUtils.lerp(-0.22, 0.04, e);
+          lShoulderZ = THREE.MathUtils.lerp(0.68, 0.21, e);
+          rShoulderZ = THREE.MathUtils.lerp(-0.78, -0.21, e);
+          lElbowX = THREE.MathUtils.lerp(-0.92, -0.36, e);
+          rElbowX = THREE.MathUtils.lerp(-0.58, -0.32, e);
+          venomSurge = THREE.MathUtils.lerp(2.6, 1.1, e);
+        }
+      }
+
+      pelvisPivot.position.y = damp(pelvisPivot.position.y, pelvisY, s, dt);
+      pelvisPivot.rotation.x = damp(pelvisPivot.rotation.x, pelvisRotX, s, dt);
+      pelvisPivot.rotation.y = damp(pelvisPivot.rotation.y, pelvisRotY, s, dt);
+      pelvisPivot.rotation.z = damp(pelvisPivot.rotation.z, pelvisRotZ, s, dt);
+
+      torsoPivot.rotation.x = damp(torsoPivot.rotation.x, torsoRotX, s, dt);
+      torsoPivot.rotation.y = damp(torsoPivot.rotation.y, torsoRotY, s, dt);
+      torsoPivot.rotation.z = damp(torsoPivot.rotation.z, torsoRotZ, s, dt);
+
+      // Scale chestBulkGroup (chest + straps + pec plates + manifold together) and shift shoulders outward so nothing clips!
+      const sc = damp(chestBulkGroup.scale.x, torsoScale, s, dt);
+      const scY = 1 + (sc - 1) * 0.32;
+      chestBulkGroup.scale.set(sc, scY, sc);
+      lowerAbdomen.scale.set(1 + (sc - 1) * 0.72, 1.0, 1 + (sc - 1) * 0.72);
+      headPivot.position.y = 11.2 + (scY - 1) * 3.8;
+
+      const armBulkScale = 1 + (sc - 1) * 0.65;
+      leftArm.shoulderPivot.position.x = 6.0 * sc;
+      rightArm.shoulderPivot.position.x = -6.0 * sc;
+      leftArm.upperArmBulk.scale.set(armBulkScale, 1, armBulkScale);
+      rightArm.upperArmBulk.scale.set(armBulkScale, 1, armBulkScale);
+      leftLeg.thighBulk.scale.set(1 + (sc - 1) * 0.45, 1, 1 + (sc - 1) * 0.45);
+      rightLeg.thighBulk.scale.set(1 + (sc - 1) * 0.45, 1, 1 + (sc - 1) * 0.45);
+
+      headPivot.rotation.x = damp(headPivot.rotation.x, headRotX, s, dt);
+      headPivot.rotation.y = damp(headPivot.rotation.y, headRotY, s, dt);
+      headPivot.rotation.z = damp(headPivot.rotation.z, headRotZ, s, dt);
+
+      leftArm.shoulderPivot.rotation.x = damp(leftArm.shoulderPivot.rotation.x, lShoulderX, s, dt);
+      leftArm.shoulderPivot.rotation.y = damp(leftArm.shoulderPivot.rotation.y, lShoulderY, s, dt);
+      leftArm.shoulderPivot.rotation.z = damp(leftArm.shoulderPivot.rotation.z, lShoulderZ, s, dt);
+      leftArm.elbowPivot.rotation.x = damp(leftArm.elbowPivot.rotation.x, lElbowX, s, dt);
+
+      rightArm.shoulderPivot.rotation.x = damp(rightArm.shoulderPivot.rotation.x, rShoulderX, s, dt);
+      rightArm.shoulderPivot.rotation.y = damp(rightArm.shoulderPivot.rotation.y, rShoulderY, s, dt);
+      rightArm.shoulderPivot.rotation.z = damp(rightArm.shoulderPivot.rotation.z, rShoulderZ, s, dt);
+      rightArm.elbowPivot.rotation.x = damp(rightArm.elbowPivot.rotation.x, rElbowX, s, dt);
+
+      leftLeg.hipPivot.rotation.x = damp(leftLeg.hipPivot.rotation.x, lHipX, s, dt);
+      leftLeg.hipPivot.rotation.z = damp(leftLeg.hipPivot.rotation.z, lHipZ, s, dt);
+      leftLeg.kneePivot.rotation.x = damp(leftLeg.kneePivot.rotation.x, lKneeX, s, dt);
+
+      rightLeg.hipPivot.rotation.x = damp(rightLeg.hipPivot.rotation.x, rHipX, s, dt);
+      rightLeg.hipPivot.rotation.z = damp(rightLeg.hipPivot.rotation.z, rHipZ, s, dt);
+      rightLeg.kneePivot.rotation.x = damp(rightLeg.kneePivot.rotation.x, rKneeX, s, dt);
+
+      enforceGroundContact();
+      updateDynamicHoseGeometry();
+      updateVenomGlow(venomSurge, globalTime);
+
+      if (shockwaveLife > 0) {
+        shockwaveLife -= dt * 2.2;
+        if (shockwaveLife <= 0) {
+          shockwaveRing.visible = false;
+        } else {
+          const progress = 1 - shockwaveLife;
+          const ringScale = 1 + progress * 9.5;
+          shockwaveRing.scale.set(ringScale, ringScale, 1);
+          shockwaveRing.material.opacity = shockwaveLife * 0.75;
+        }
+      }
+
+      if (cameraShakeIntensity > 0) {
+        cameraShakeIntensity = Math.max(0, cameraShakeIntensity - dt * 1.4);
+      }
+
+      for (let i = 0; i < vaporParticles.length; i++) {
+        const p = vaporParticles[i];
+        if (p.life > 0) {
+          p.life -= dt;
+          if (p.life <= 0) {
+            p.mesh.visible = false;
+          } else {
+            p.mesh.position.addScaledVector(p.vel, dt);
+            p.mesh.rotation.x += dt * 4;
+            p.mesh.rotation.y += dt * 5;
+            const ratio = p.life / p.maxLife;
+            p.mesh.material.opacity = ratio * 0.75;
+            const pScale = 0.55 + (1 - ratio) * 1.15;
+            p.mesh.scale.set(pScale, pScale, pScale);
+          }
+        }
+      }
+    }
+
+    const STEP = 1 / 60;
+    let accumulator = 0;
+    let lastTime = performance.now();
+    let totalElapsed = 0;
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+
+      const frameTime = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+      accumulator += frameTime;
+
+      while (accumulator >= STEP) {
+        totalElapsed += STEP;
+        updateCharacterAnimation(STEP, totalElapsed);
+        accumulator -= STEP;
+      }
+
+      controls.update();
+
+      if (cameraShakeIntensity > 0.001) {
+        camera.position.y += Math.sin(totalElapsed * 55) * cameraShakeIntensity * 0.18;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function () {
+      enforceGroundContact();
+      updateDynamicHoseGeometry();
+      updateStatusBadge();
+      requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

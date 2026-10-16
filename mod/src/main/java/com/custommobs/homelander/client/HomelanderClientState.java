@@ -31,7 +31,6 @@ public final class HomelanderClientState {
             "special", Map.of("laserOn", "laser", "laserOff", "-laser"),
             "throw", Map.of("grab", "grab", "release", "whoosh"),
             "clap", Map.of("swing", "whoosh", "hit", "slap"),
-            "smash", Map.of("swing", "whoosh", "hit", "punch", "grab", "grab", "release", "whoosh"),
             "throatLaser", Map.of("grab", "grab", "burnOn", "laser", "burnOff", "-laser"));
 
     public final HomelanderAnimator a;
@@ -73,7 +72,6 @@ public final class HomelanderClientState {
             case HomelanderEntity.EV_THROW -> s.playOnce("throw");
             case HomelanderEntity.EV_CLAP -> s.playOnce("clap");
             case HomelanderEntity.EV_BURN -> s.playOnce("throatLaser");
-            case HomelanderEntity.EV_SMASH -> s.playOnce("smash");
             default -> s.oneShot = false;
         }
     }
@@ -189,7 +187,7 @@ public final class HomelanderClientState {
         a.worldX = x; a.worldY = y; a.worldZ = z;
         a.worldYaw = yaw;
         a.step(dt, rate);
-        HomelanderVictims.track(e, a, partial);   // the Clap / Smash victim falls, lies, is dragged (any mob)
+        HomelanderVictims.track(e, a, partial);   // the Clap victim falls, lies, gets up (any mob)
 
         // Sounds on the animation's own events; a sound of an animation that stopped stops too (viewer updateSfx).
         Map<String, String> ev = SFX_EVENTS.get(a.anim.name);

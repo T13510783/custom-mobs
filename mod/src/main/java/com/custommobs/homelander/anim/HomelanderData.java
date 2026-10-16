@@ -108,8 +108,6 @@ public final class HomelanderData {
     // Victims: hand point (forearm_right space), dummy neck height, throw speed (blocks/s), grab lift time (s)
     public double[] hand;
     public double neck, scale, hangUp, hangOut, throwVy, grabLift;
-    /** Smash fling speed (blocks/s, forward / up) and the dummy's length soles..head top (texels). */
-    public double smashVz, smashVy, victimLen;
     /** Walk while attacking: bones the Walk drives under an attack, and the root (only its height). */
     public int[] walkBones;
     public int walkRoot;
@@ -275,9 +273,6 @@ public final class HomelanderData {
             v.release = o.has("release") ? doubles(o.getAsJsonArray("release")) : null;
             d.victims.put(e.getKey(), v);
         }
-        d.smashVz = victim.get("smashVz").getAsDouble();
-        d.smashVy = victim.get("smashVy").getAsDouble();
-        d.victimLen = victim.get("len").getAsDouble();
         JsonObject wl = j.getAsJsonObject("walkLayer");
         JsonArray wb = wl.getAsJsonArray("bones");
         d.walkBones = new int[wb.size()];

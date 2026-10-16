@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-16 14:09
+- Homelander: Smash attack removed everywhere (viewer `mobs/homelander/homelander.html`: button, animation, victim pose; mod: `HomelanderEntity`, `HomelanderAttackGoal`, `HomelanderVictims`, `HomelanderClientState`, `HomelanderData`, `SindicateConfig` option `groundSmash`, mods.toml text, test timeline).
+- Homelander AI (`HomelanderAttackGoal.java`): every ready special joins one random pool (throw, throat laser, clap, point-blank heat vision), at most 2 punches in a row; lower first cooldowns; creative players can be grabbed (`HomelanderEntity.java`).
+- Rules (`CLAUDE.md`): release after every in-game test; commit everything when asked.
+- Release notes for v0.0.2-alpha (`mod/release_notes.md`); README attacks line.
+
 ## 2026-10-16 13:20
 - Homelander (`mobs/homelander/homelander.html` + mod port in `mod/src/main/java/com/custommobs/homelander/`):
   - Hover: hands behind the back now rest ON the cape; the cape stays flat on his back and narrows between the arms (`anim/HomelanderCloth.java`, `anim/HomelanderData.java`).
@@ -50,6 +56,31 @@
 - Shared viewer UI (`mobs/_shared/viewer.css`, `viewer.js`, `viewer_template.html`): expression menu (Auto / Happy / Sad / Angry / Afraid, face icons, pill style); Homelander uses it.
 - Sounds (`sounds/homelander/`, `tools/sfx/`): new `slap`, `crush` removed.
 - Rules (`CLAUDE.md`): expression menu, shared viewer files, only touch the asked mob, 10000 lines per file, edit tool choice, own-branch cleanup, organise + commit + push after every request.
+
+## 2026-10-16 08:28
+- Michael Myers (`mobs/michael_myers/michael_myers.html`):
+  - Built 16x16 Vanilla+ 3D viewer based on the 3 reference photos in `references/michael_myers/` (`images.jpg`, `MichaelMyers2018.jpg`, `MICHAELMYERSHD.png`), with a 2-bone arm and leg rig (`armR`/`forearmR`, `armL`/`forearmL`, `legR`/`kneeR`, `legL`/`kneeL`), recessed hollow eye sockets with pointer tracking and smooth blinks, spring-physics collar/sheet drape and hair tufts, and a 3-bevel 12-inch Lamson rosewood butcher knife.
+  - Added 4 selectable outfits in the floating bottom pill bar: `2018 Haddonfield` (weathered cracked grey-ivory latex mask, charcoal-navy coveralls with open collar, grey undershirt, square right pocket + flapped left pocket, and bandaged left hand), `1978 The Shape` (stark bleached-white mask with chiaroscuro shadow, high upturned collar wings, and slate-spruce Tex-Green coveralls), `Scorched 2021` (fire-charred left mask & bloodied coveralls), and `Ghost Sheet` (1978 white bedsheet ghost disguise with Bob's 3D wire-rimmed glasses).
+  - Implemented 4 selectable animations (`Idle`, `Walk`, `Attack`, `Special` head-tilt & glowing Jack-O'-Lantern pumpkin), camera reset (`R`), and `Show bones` (`B`) overlay.
+- Hannibal Lecter (`mobs/hannibal/hannibal.html`):
+  - Refined Mads Mikkelsen's 8x8 pixel-art face: moved deep-set hooded eyes to row 4 (`y = 3.5`) with inner-anchored dark irises and upper orbital hood fold, overhanging bone brow ridge without dark eyebrows, high cheekbone highlights, tear-trough eye bags, Cupid's-bow mouth, and a pixel-grid-aligned stepped diagonal ash-brown hair sweep.
+
+## 2026-10-16 08:11
+- Hannibal Lecter (`mobs/hannibal/hannibal.html`):
+  - Built 16x16 Vanilla+ 3D viewer based on the 5 reference photos in `references/hannibal/`, featuring Mads Mikkelsen likeness (high cheekbones, hollow cheek shading, faint ash-blonde brow ridge, swept sandy-ash hair with silver temples and spring-physics diagonal forehead strands, smooth blinking eyelids, and pointer head/eye tracking).
+  - Implemented 4 selectable outfits matching the reference photos: `Plaid Suit` (brown/burgundy/teal 3-piece windowpane plaid suit, pale blush shirt, burgundy/silver paisley tie, pocket square, Chianti wine glass & scalpel), `Kill Suit` (translucent clear vinyl zip-up coverall with double white zipper tape and upturned plastic collar over charcoal glen-plaid suit + #10 surgical scalpel), `Chef Flambé` (rolled-sleeve white dress shirt, striped butcher's waist apron, copper/steel skillet with animated 3D voxel flambé flames + brandy bottle), and `Psychiatrist` (burnt rust-orange shirt, dark slate-teal check waistcoat, teal/copper paisley tie).
+  - Added 2-bone arm and leg rig (`armR`/`forearmR`, `armL`/`forearmL`, `legR`/`kneeR`, `legL`/`kneeL`), 4 animations (`Idle`, `Walk`, `Attack`, `Special`), camera reset (`R`), and `Show bones` (`B`) overlay.
+
+## 2026-10-16 08:01
+- References (`references/darth_vader/`, `references/hannibal/`):
+  - Sorted and renamed 5 new Darth Vader reference photos from root into `references/darth_vader/` (`vader_full_body_grey_bg.png`, `vader_full_body_red_bg.png`, `vader_storm_clouds_portrait.png`, `vader_full_body_lightsaber.png`, `vader_helmet_closeup_bw.png`).
+  - Sorted and renamed 5 new Hannibal Lecter reference photos from root into `references/hannibal/` (`hannibal_cooking_flambe.png`, `hannibal_kill_suit_scalpel.png`, `hannibal_waistcoat_portrait.png`, `hannibal_plaid_suit_full.png`, `hannibal_kill_suit_dark.png`).
+
+## 2026-10-16 07:53
+- Jason Voorhees (`mobs/jason_voorhees/jason_voorhees.html`, `references/jason_voorhees/`):
+  - Sorted the three Jason Voorhees reference images from root into `references/jason_voorhees/` (`jason_standing_machete_rain.png`, `jason_rooftop_machete.png`, `jason_mask_spear_closeup.png`).
+  - Built the 16x16 Vanilla+ 3D viewer with 2-bone arms/legs (`arm_R`/`forearm_R`, `arm_L`/`forearm_L`, `leg_R`/`knee_R`, `leg_L`/`knee_L`), oval fiberglass hockey mask with forehead axe crack, top strap with silver rivets, red chevron, 3D breather vents, sunken shadowed eyes with smooth blinks and pointer tracking, olive work shirt with chest pockets and bullet tears, open tattered hunting coat with spring-physics lower flaps, bloodied 3-bevel Machete, and Part VI iron Fence-Post Spear.
+  - Added 4 selectable animations (`Idle`, `Walk`, `Attack`, `Special`), locked 60 FPS delta-time loop, camera reset button, and `Show bones` (`B`) overlay.
 
 ## 2026-10-15 22:36
 - Organized files into subfolders without deleting or editing any contents:
