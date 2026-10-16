@@ -12,7 +12,7 @@
     The Joker (Arthur Fleck, fan model, vanilla+ humanoid): crimson suit, mustard waistcoat, green shirt, clown paint.
     - Shared UI from ../_shared/: viewer.css (look) + viewer.js (expression menu, MobViewer.face(dt)).
     - Rig: head 8x8x8 right on the torso top (no neck), body 8x12x4, 2-bone arms (arm_/forearm_) and legs
-      (leg_/knee_), feet at y = 0. Wavy hair: side locks + flares, back curtain (small springs), coat tails.
+      (leg_/knee_), feet at y = 0. Wavy hair (first look): side locks + flares, back curtain (springs), coat tails.
     - Face: whole face white paint. The painted eyes, brows and mouth are thin planes on the head front, so they
       blink, glance, frown and grin. Blue painted eyelids slide over the eyes. Mouth = the standard type (lip line +
       teeth plate, as Homelander / Bateman) right under the nose, inside the painted red smile.
@@ -294,20 +294,25 @@ const JokerTextures = {
             p.px(6, 6, PALETTE.makeupRedBase);
             p.rect(3, 7, 2, 1, PALETTE.makeupRedDark);       // smear under the lower lip (row 7), white chin around it
         },
-        // Sides: white paint at the front (cheek, jaw), the rest is under the side hair locks
+        // Sides (first look): swept-back green hair on the top 2 rows and the back 5 columns (same clumpy noise as the
+        // locks), white paint at the front (cheek, jaw), a painted ear peeking out under the hair
         right(p) {
-            p.fill(PALETTE.hairDark);
-            p.noise(0, 0, 8, 8, [PALETTE.hairShade, PALETTE.hairBase], 0.5, 11);
-            p.rect(0, 1, 3, 7, PALETTE.paintShade);          // x 0 = front edge
+            p.fill(PALETTE.paintShade);                      // x 0 = front edge
             p.rect(0, 1, 1, 7, PALETTE.paintBase);
-            p.px(2, 7, PALETTE.paintDark);
+            p.rect(0, 0, 8, 2, PALETTE.hairBase);
+            p.rect(3, 0, 5, 7, PALETTE.hairBase);
+            p.noise(3, 0, 5, 7, [PALETTE.hairLight, PALETTE.hairShade, PALETTE.hairDark], 0.55, 11);
+            p.px(2, 3, PALETTE.paintDark);                   // ear
+            p.px(2, 4, PALETTE.paintDark);
         },
         left(p) {
-            p.fill(PALETTE.hairDark);
-            p.noise(0, 0, 8, 8, [PALETTE.hairShade, PALETTE.hairBase], 0.5, 22);
-            p.rect(5, 1, 3, 7, PALETTE.paintShade);          // x 7 = front edge
+            p.fill(PALETTE.paintShade);                      // x 7 = front edge
             p.rect(7, 1, 1, 7, PALETTE.paintBase);
-            p.px(5, 7, PALETTE.paintDark);
+            p.rect(0, 0, 8, 2, PALETTE.hairBase);
+            p.rect(0, 0, 5, 7, PALETTE.hairBase);
+            p.noise(0, 0, 5, 7, [PALETTE.hairLight, PALETTE.hairShade, PALETTE.hairDark], 0.55, 22);
+            p.px(5, 3, PALETTE.paintDark);                   // ear
+            p.px(5, 4, PALETTE.paintDark);
         },
         top(p) {
             // Swept-back green hair strands
@@ -333,25 +338,7 @@ const JokerTextures = {
         }
     },
 
-    // 2b. SIDE + BACK HAIR LOCKS: long strands hanging straight down, darker toward the tips, ragged ends
-    //     (cut-out pixels on the bottom row of the side faces)
-    hairLock: {
-        all(p) {
-            p.fill(PALETTE.hairBase);
-            for (let x = 0; x < p.w; x++) {
-                const c = [PALETTE.hairShade, PALETTE.hairBase, PALETTE.hairLight, PALETTE.hairBase][(x * 7 + 3) % 4];
-                p.rect(x, 0, 1, p.h, c);
-            }
-            p.noise(0, 0, p.w, p.h, [PALETTE.hairHighlight, PALETTE.hairDark], 0.22, 88 + p.w);
-            p.rect(0, p.h - 2, p.w, 2, PALETTE.hairShade);
-            p.noise(0, p.h - 2, p.w, 2, [PALETTE.hairDark], 0.5, 89);
-            if (p.h > 2) for (let x = 0; x < p.w; x++) if ((x * 5 + p.w) % 3 === 0) p.ctx.clearRect(x, p.h - 1, 1, 1);
-        },
-        top(p) { p.fill(PALETTE.hairShade); p.noise(0, 0, p.w, p.h, [PALETTE.hairBase], 0.4, 90); },
-        bottom(p) { p.fill(PALETTE.hairDark); }
-    },
-
-    // 2. HAIR LOCKS (Reusable mossy green wavy texture)
+    // 2. HAIR LOCKS (Reusable mossy green wavy texture: crown, side locks, flares, back hair)
     hairLayer: {
         all(p) {
             p.fill(PALETTE.hairBase);
@@ -641,19 +628,20 @@ cube(R.head, 1.8, 1.5, 0.85, 0, 3.65, 4.35, { all: (p) => { p.fill(PALETTE.makeu
 cube(R.head, 8.6, 1.15, 8.65, 0, 8.575, -0.175, T_.hairLayer);   // slicked-back crown: starts on the head top (y 8) and
                                                                   // overhangs the forehead by 0.15 (never on the face plane)
 cube(R.head, 7.6, 1.0, 7.2, 0, 9.4, -0.7, T_.hairLayer);
-// Wavy hair (the first Joker look, references): per side a lock over the ear, a flare curling out below it and a thin
-// strand framing the white face at the temple; at the back a curtain and a lower wave over the collar. Strands, darker
-// tips and ragged cut-out ends. The side flares end 1.9 above the head bottom and the back wave 1.0: raised arms
-// (dance, aiming) pass under them.
-const hairCut = { alphaTest: 0.5 };                          // ragged ends: cut-out pixels on the bottom row
+// puffy band around the temples and the back (first look): hangs 0.4 below the head top, its front stays 0.15 behind
+// the face plane (no flicker on the forehead) and its sides 0.05 inside the crown's (no z-fighting)
+cube(R.head, 8.5, 0.9, 8.3, 0, 8.05, -0.3, T_.hairLayer);
+// Wavy hair, the first Joker look (user pick, 2026-10-16): chunky mossy clumps with bright highlights (hairLayer
+// texture), per side a lock over the ear and a flare curling out below it, at the back a curtain and a lower wave over
+// the collar. The side flares end 1.9 above the head bottom and the back wave 1.0: raised arms (dance, aiming) pass
+// under them (the locks also lift and calm down on a rising shoulder, see Physics).
 for (const [s, sx] of [['right', -1], ['left', 1]]) {
   const h = R[`hair_${s}`];
-  cube(h, 1.3, 5.6, 5.5, 0, -2.8, 0, T_.hairLock, { ...hairCut, rot: [0, 0, -sx * 0.08] });              // lock over the ear
-  cube(h, 1.4, 2.8, 4.2, sx * 0.45, -4.4, -0.3, T_.hairLock, { ...hairCut, rot: [0, 0, -sx * 0.2] });    // flare curling out
-  cube(h, 0.9, 4.4, 1.4, -sx * 0.1, -2.2, 3.4, T_.hairLock, { ...hairCut, rot: [0, 0, -sx * 0.04] });    // temple strand
+  cube(h, 1.3, 5.6, 5.5, 0, -2.8, 0, T_.hairLayer, { rot: [0, 0, -sx * 0.08] });              // lock over the ear
+  cube(h, 1.4, 2.8, 4.2, sx * 0.45, -4.4, -0.3, T_.hairLayer, { rot: [0, 0, -sx * 0.2] });     // flare curling out
 }
-cube(R.hair_back, 7.4, 6.2, 1.5, 0, -3.1, 0, T_.hairLock, { ...hairCut, rot: [0.08, 0, 0] });            // curtain
-cube(R.hair_back, 7.0, 2.2, 1.3, 0, -5.1, -0.25, T_.hairLock, { ...hairCut, rot: [0.16, 0, 0] });        // lower wave
+cube(R.hair_back, 7.4, 6.2, 1.5, 0, -3.1, 0, T_.hairLayer, { rot: [0.08, 0, 0] });            // curtain
+cube(R.hair_back, 7.0, 2.2, 1.3, 0, -5.1, -0.25, T_.hairLayer, { rot: [0.16, 0, 0] });        // lower wave (narrower: clears the locks)
 
 // 3. Cigarette (filter, paper, glowing ember): one in the mouth, one in the right hand (toggle: mouth / hand / off)
 function addCig(parent) {
@@ -1155,9 +1143,8 @@ function step(dt) {
 }
 
 /* ───────── Physics: hair locks, back hair, coat tails ─────────
-   Springs driven by the body's motion, always clamped (soft limits). The hair hangs straight down: the two side
-   locks only sway a little (forward / back, a touch outward), the back flap only a little backward. They end above
-   the shoulder tops, so they never need to dodge the arms. */
+   Springs driven by the body's motion, always clamped (soft limits). The side locks swing forward / back and flare
+   outward (first look: lively), the back hair only backward. A rising shoulder lifts its lock, so it rests on the arm. */
 // How far (texels) the top corners of an upper arm rise above their rest height (arm-bone turn only)
 const _sq = new THREE.Vector3();
 function shoulderLift(arm) {
@@ -1174,22 +1161,26 @@ function springs(dt) {
   S.ph[0] = hx; S.ph[1] = hy; S.ph[2] = hz;
   const rx = root.position.x * 16, rv = (rx - S.prevRootX) / dt, ra = (rv - S.prevRootV) / dt; S.prevRootX = rx; S.prevRootV = rv;
   const vy = (root.position.y * 16 - S.prevRootY) / dt; S.prevRootY = root.position.y * 16;
-  sp.side.v += clamp(-wz * 0.4 - ra * 0.0015, -2, 2) * kf;
-  sp.fwd.v += clamp(wx * 0.4 - vy * 0.01, -2, 2) * kf;
-  sp.back.v += clamp(wx * 0.5 - vy * 0.012, -2, 2) * kf;
-  const breeze = 0.012 * Math.sin(S.time * 1.7) + 0.008 * Math.sin(S.time * 2.9 + 1);
-  const flareT = 0.05 * softAbs(wy, 0.5);                       // turning fast throws the locks out a little
+  sp.side.v += clamp(-wz * 0.5 - ra * 0.002, -3, 3) * kf;
+  sp.fwd.v += clamp(wx * 0.5 - vy * 0.012, -3, 3) * kf;
+  sp.back.v += clamp(wx * 0.6 - vy * 0.015, -3, 3) * kf;
+  const breeze = 0.02 * Math.sin(S.time * 1.7) + 0.012 * Math.sin(S.time * 2.9 + 1);
+  const flareT = 0.1 * softAbs(wy, 0.5);                        // turning fast throws the locks outward
   for (let i = 0; i < n; i++) {
-    stepSpring(sp.side, breeze, h, 130, 10); stepSpring(sp.fwd, breeze * 0.5, h, 140, 10);
-    stepSpring(sp.back, 0.02 + breeze, h, 110, 9); stepSpring(sp.flare, flareT, h, 90, 10);
+    stepSpring(sp.side, breeze, h, 110, 8); stepSpring(sp.fwd, breeze * 0.5, h, 120, 8);
+    stepSpring(sp.back, 0.03 + breeze, h, 90, 7); stepSpring(sp.flare, flareT, h, 80, 9);
   }
   // a shoulder rising under a lock (aiming, dance) lifts it a little, smoothly (filtered, max 0.12 rad): it rests on the arm
   S.liftR += (softLim(softplus(shoulderLift(R.arm_right) - 0.6, 0.1) * 0.2, 0.12) - S.liftR) * filt(dt, 12);
   S.liftL += (softLim(softplus(shoulderLift(R.arm_left) - 0.6, 0.1) * 0.2, 0.12) - S.liftL) * filt(dt, 12);
-  const sway = softLim(sp.fwd.a, 0.12);
-  R.hair_right.rotation.set(sway + S.liftR, 0, -softLim(softplus(sp.flare.a - sp.side.a, 0.02), 0.1));
-  R.hair_left.rotation.set(sway + S.liftL, 0, softLim(softplus(sp.flare.a + sp.side.a, 0.02), 0.1));
-  R.hair_back.rotation.x = softLim(softplus(sp.back.a, 0.02), 0.22);
+  // a lock resting on a rising shoulder calms down (its swing fades smoothly, never snaps)
+  const calmR = Math.exp(-15 * S.liftR), calmL = Math.exp(-15 * S.liftL);
+  const sway = softLim(sp.fwd.a, 0.2), swayR = sway * calmR, swayL = sway * calmL;
+  R.hair_right.rotation.set(swayR + S.liftR, 0, -calmR * softLim(softplus(sp.flare.a - sp.side.a, 0.03), 0.25));
+  R.hair_left.rotation.set(swayL + S.liftL, 0, calmL * softLim(softplus(sp.flare.a + sp.side.a, 0.03), 0.25));
+  // the back hair is pushed along by the side locks swinging back (they overlap at its corners): smooth max
+  const pushB = 0.5 * (swayR + swayL + Math.sqrt((swayR - swayL) ** 2 + 0.0025));
+  R.hair_back.rotation.x = softLim(softplus(sp.back.a, 0.03) + softplus(pushB, 0.03), 0.35);
 
   // coat tails lag behind the thighs (follow-through) and flare out with the stride, soft-limited
   for (const s of ['right', 'left']) {

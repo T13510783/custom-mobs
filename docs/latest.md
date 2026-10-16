@@ -1,13 +1,12 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 21:31
-**Request:** Improve Anton Chigurh without reworking him: fix bugs and clipping, add facial expressions, check the reference images.
+**Date:** 2026-10-16 21:46
+**Request:** Make the Joker more like a previous version, especially the hair (user screenshot = version #37).
 
 **Done:**
-- `mobs/anton_chigurh/anton_chigurh.html`: moving face (eyes, lids, brows, mouth) + shared expression menu, follow mouse, Show bones; 2-bone limbs, foot solver, hair springs; new Idle 2; collar / arm / prop / floor clipping fixed; test modes `#cliptest`, `#rest`, `#shot-...`.
-- `references/anton_chigurh/`: the 3 reference images added to git.
-- Checked: `#cliptest` 0 clips (chin dip 0.42, floor 0), face renders of all 5 expressions, all 5 animations run without errors.
+- `mobs/the_joker/the_joker.html`: first-look hair texture (clumpy, highlights), puffy band at temples/back, green head sides with ear, temple strands removed, livelier hair springs (calm on a raised shoulder). Face, mouth, cigarette and animations unchanged.
+- Checked: renders next to version #37 from the screenshot's angle and the back, `#cliptest` 23 pairs (was 25), hair vs arms max 0.28.
 
 **Files:** `mobs/anton_chigurh/anton_chigurh.html`, `references/anton_chigurh/*`, docs.
 
-**Next:** Anton is viewer only (not in the mod, no release).
+**Next:** Joker still viewer only (not in the mod, no release). Anton PR #42 still waits for a merge.
