@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-16 16:00
+- Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`): buttons and expression menu no longer vanish when the page cannot reach `mobs/_shared/`: `viewer.css` / `viewer.js` then load from the public repo (jsDelivr).
+- `mobs/_shared/viewer_template.html`: same fallback. `CLAUDE.md` rule 10: shared links get this fallback.
+
 ## 2026-10-16 15:47
 - Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`):
   - No neck: head right on the torso top, neck block removed, shoulders 0.8 below the torso top, coat shells flush (torso top, sleeve inner side).

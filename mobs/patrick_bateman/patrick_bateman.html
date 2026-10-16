@@ -21,9 +21,13 @@
     - Test modes: #cliptest, #rest, #shot-<anim>-<variant>-<sec>[-<cam>[-<expression>]].
   -->
 
-  <!-- Shared viewer UI: mobs/_shared/ -->
-  <link rel="stylesheet" href="../_shared/viewer.css">
-  <script src="../_shared/viewer.js"></script>
+  <!-- Shared viewer UI: mobs/_shared/. When the page cannot reach that folder (opened from another folder,
+       a copy, or a preview that serves only this folder), the same files load from the public repo instead:
+       without them the buttons fall below the 3D view and the expression menu is missing. -->
+  <link rel="stylesheet" href="../_shared/viewer.css"
+    onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/gh/T13510783/custom-mobs@main/mobs/_shared/viewer.css'">
+  <script src="../_shared/viewer.js"
+    onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/T13510783/custom-mobs@main/mobs/_shared/viewer.js';document.head.appendChild(s)"></script>
 
   <script type="importmap">
     { "imports": {
