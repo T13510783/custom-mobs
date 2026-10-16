@@ -1,14 +1,13 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 19:52
-**Request:** Improve and add facial expressions and better animations for the Joker; keep Special as Dance (same dance, higher quality); model/face only small changes.
+**Date:** 2026-10-16 20:21
+**Request:** Joker v2: never always sad, varied idles, cigarette mouth/hand/away, maniac laugh, normal/blank/angry faces, all-white face, more hair (2 side + 1 back, straight), several walks, better attack, more dance faces, realistic mouth.
 
 **Done:**
-- `mobs/the_joker/the_joker.html` rebuilt on the current viewer system (shared UI, expression menu + Grin/Laugh/Smug/Manic, follow mouse, bones, test modes), same cubes and paint.
-- Moving face (eyes, blue lids, brows, standard mouth + teeth), 2-bone limbs, hair/coat springs.
-- Animations: Idle, Idle 2 (laughing fit), Walk (strut), Attack (revolver), Dance (old Special, smoother).
-- Checked: `#cliptest` max 0.36 texel (was 1.9), feet on the floor, per-frame step probe, renders of every expression and animation.
+- PR #37 merged first (the file on main was still the old version).
+- `mobs/the_joker/the_joker.html`: white face + references smile, new mouth, new hair, cigarette toggle (C) with smoke, new Idle / Idle 2 / Walk (3 styles) / Attack, Dance faces, 6 Laugh, Normal + Blank expressions.
+- Checked: `#cliptest` (mouth + hand) max 0.38 texel, feet on the floor, step probe, renders, live page UI.
 
-**Files:** `mobs/the_joker/the_joker.html`, `references/the_joker/*` (renamed), docs.
+**Files:** `mobs/the_joker/the_joker.html`, docs.
 
-**Next:** Joker is not in the mod yet (viewer only, no release).
+**Next:** Joker still viewer only (not in the mod, no release).

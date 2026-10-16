@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-16 20:21
+- The Joker (`mobs/the_joker/the_joker.html`), v2 from user feedback:
+  - Whole face and cheeks white paint (no skin at the jaw or sides); painted red smile per the references.
+  - Mouth: thin lip seam inside the painted smile, corners curl up/down, opens downward, upper teeth row.
+  - Hair: 2 long side locks + 1 back flap hang straight and frame the face (small sway only, never flip back).
+  - Cigarette button (key `C`): in the mouth / in the right hand / put away, with smoke and exhale puffs.
+  - Idle: smoking (drag, exhale, weight shift, tic, smirk), neutral face (no longer sad). Idle 2: restless (looks around, lapel tug, neck crack, foot tap).
+  - Walk: strut, slouch and swagger take turns. Attack: draw from the pocket, flourish, two shots, gun flick, giggle.
+  - Dance: same moves, face runs bliss -> grin -> smug -> manic -> laughing. New 6 Laugh (maniac). New expressions Normal, Blank; stronger Laugh.
+  - Tested: `#cliptest` (mouth + hand) max 0.38 texel, per-frame step probe, renders of all faces and animations.
+
 ## 2026-10-16 19:52
 - The Joker (`mobs/the_joker/the_joker.html`): rebuilt on the current viewer system, same model and face paint.
   - Shared UI (`mobs/_shared/`), expression menu with 4 extra Joker faces (Grin, Laugh, Smug, Manic), follow mouse, show bones, 120 FPS loop, `#cliptest` / `#rest` / `#shot` test modes.
