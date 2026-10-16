@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-16 19:52
+- The Joker (`mobs/the_joker/the_joker.html`): rebuilt on the current viewer system, same model and face paint.
+  - Shared UI (`mobs/_shared/`), expression menu with 4 extra Joker faces (Grin, Laugh, Smug, Manic), follow mouse, show bones, 120 FPS loop, `#cliptest` / `#rest` / `#shot` test modes.
+  - Face: eyes with centred pupils, blue painted eyelids (blink, squint, closed), red brows and the standard mouth (lip seam + teeth plate) as moving planes; the painted brows became greasepaint under them.
+  - Rig: 2-bone arms and legs (same 12-high textures over both bones), coat tails on the thighs, springs on hair locks, back hair and coat tails, cigarette drops with the jaw.
+  - Animations: Idle (brooding, nervous tic), new Idle 2 (laughing fit, hand over the mouth), Walk (street strut, knees), Attack (revolver draw, shot, giggle), Special renamed Dance (same stairs dance: knees, trailing forearms, hop landings, blissful face).
+  - Small model fixes against clipping: hair ends 0.8 above the shoulders, back hair 7.4 wide, jacket fronts and back layer flush with the torso sides, sleeves flush on the inner side. Clip test max 0.36 texel (shoulder corners at the head side), was 1.9.
+  - Colors now render as the palette (crimson suit) instead of washed-out pink (sRGB textures).
+- References: `references/joker/` -> `references/the_joker/` with clear names (cigarette close-up, street strut, elevator portrait, smirk portrait, grin close-up).
+
 ## 2026-10-16 18:52
 - Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`): shoulders no longer sink into the torso.
   - Arm IK: both arm bones turn the shortest way (no twist around the arm), so the square arm boxes stay square to the chest; the old frame twisted them ~45 degrees and pushed the shoulder corners up to 1.7 texel into the torso (tie straighten, axe chop, nail gun, card).

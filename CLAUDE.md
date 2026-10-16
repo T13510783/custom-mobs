@@ -159,6 +159,8 @@ When the user says "model from A, animations from B":
      - poses with arms beside the head fade head-follow out before the arms move;
      - hanging back hair only swings backward and ends above the sleeve tops; hands end above the leg tops (2026-10-14);
      - eyelids rest just inside the head (hidden) and step out only while closing, so the default pose has open eyes (2026-10-14).
+     - a turned head hangs a corner over the shoulder: shrink the pitch/roll limits as the yaw grows (Joker: `fac = 1 - tanh((yaw/0.4)^2)`), yaw max ~0.6; side/back hair ends ~0.8 above the head bottom; a raised shoulder pushes its hair lock back, never out (the arm is out there) (2026-10-16).
+     - an old r128 page moved to three 0.160: set `tex.colorSpace = SRGBColorSpace` on painted textures, or the palette renders washed out (Joker looked pink) (2026-10-16).
 
 ## Look and UI
 
