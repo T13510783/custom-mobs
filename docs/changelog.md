@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 20:29
+- The Joker (`mobs/the_joker/the_joker.html`):
+  - Hair back to the first wavy look, improved: per side a lock over the ear + a flare curling out + a temple strand framing the face; back curtain + lower wave. Strand texture, darker tips, ragged ends.
+  - Hair clipping fixed: flares end higher (above raised shoulders) and rest on a raised shoulder with a small smooth lift (max 0.12 rad, no flipping back).
+  - Mouth back to the standard line + teeth plate (as Homelander / Bateman), 1 pixel higher, right under the nose; face paint smile moved up with it.
+  - Tested: `#cliptest` (mouth + hand) max 0.38 texel, hair vs arms max 0.32 (was up to 1.8 in the first look); step probe; renders.
+
 ## 2026-10-16 20:21
 - The Joker (`mobs/the_joker/the_joker.html`), v2 from user feedback:
   - Whole face and cheeks white paint (no skin at the jaw or sides); painted red smile per the references.

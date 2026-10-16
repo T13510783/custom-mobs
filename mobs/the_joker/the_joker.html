@@ -12,10 +12,10 @@
     The Joker (Arthur Fleck, fan model, vanilla+ humanoid): crimson suit, mustard waistcoat, green shirt, clown paint.
     - Shared UI from ../_shared/: viewer.css (look) + viewer.js (expression menu, MobViewer.face(dt)).
     - Rig: head 8x8x8 right on the torso top (no neck), body 8x12x4, 2-bone arms (arm_/forearm_) and legs
-      (leg_/knee_), feet at y = 0. Long hair: 2 side locks + 1 back flap hang straight (small springs), coat tails.
+      (leg_/knee_), feet at y = 0. Wavy hair: side locks + flares, back curtain (small springs), coat tails.
     - Face: whole face white paint. The painted eyes, brows and mouth are thin planes on the head front, so they
-      blink, glance, frown and grin. Blue painted eyelids slide over the eyes. Mouth: thin lip seam inside the painted
-      red smile (corners curl, opens downward, upper teeth row).
+      blink, glance, frown and grin. Blue painted eyelids slide over the eyes. Mouth = the standard type (lip line +
+      teeth plate, as Homelander / Bateman) right under the nose, inside the painted red smile.
     - Animations: 1 Idle (smoking), 2 Idle 2 (restless), 3 Walk (3 walks take turns), 4 Attack (revolver), 5 Dance
       (the stairs), 6 Laugh (maniac). Follow mouse (eye), Show bones (B), cigarette mouth / hand / away (C), reset (R).
       Extra Joker expressions: Grin, Laugh, Smug, Manic, Normal, Blank.
@@ -277,23 +277,22 @@ const JokerTextures = {
             p.px(5, 4, PALETTE.makeupBlueBase);
             p.px(6, 4, PALETTE.makeupBlueDark);
 
-            // Iconic smeared blue tear streak dripping down left eye (viewer's right, x=5, y=5)
-            p.px(5, 5, PALETTE.makeupBlueLight);
 
             // Red painted nose (Row 4, center x=3,4)
             p.px(3, 4, PALETTE.makeupRedLight);
             p.px(4, 4, PALETTE.makeupRedBase);
 
-            // Painted crimson smile (references): wide, the corners curl up into the cheeks, thick red lips in the
-            // middle. The real mouth (lip seam, opening, teeth) is the moving mouth rig on top of this paint.
-            p.px(1, 5, PALETTE.makeupRedLight);              // corners curling up (row 5)
+            // Painted crimson smile (references), right under the nose: the mouth line (mouth rig) sits on the edge of
+            // row 5 and row 6. Red upper lip (row 5) with the corners curling up beside it, red lower lip (row 6),
+            // a red smear under the lower lip (row 7). The tear streak runs down from the left eye diamond (row 4).
+            p.px(5, 4, PALETTE.makeupBlueLight);             // tear streak
+            p.px(1, 5, PALETTE.makeupRedLight);              // corners curling up into the cheeks
             p.px(6, 5, PALETTE.makeupRedLight);
-            p.px(1, 6, PALETTE.makeupRedBase);               // painted upper lip (row 6)
-            p.rect(2, 6, 4, 1, PALETTE.makeupRedLight);
+            p.rect(2, 5, 4, 1, PALETTE.makeupRedLight);      // painted upper lip (row 5)
+            p.px(1, 6, PALETTE.makeupRedBase);               // painted lower lip (row 6)
+            p.rect(2, 6, 4, 1, PALETTE.makeupRedBase);
             p.px(6, 6, PALETTE.makeupRedBase);
-            p.rect(2, 7, 4, 1, PALETTE.makeupRedBase);       // painted lower lip (row 7)
-            p.px(3, 7, PALETTE.makeupRedDark);
-            p.px(4, 7, PALETTE.makeupRedDark);
+            p.rect(3, 7, 2, 1, PALETTE.makeupRedDark);       // smear under the lower lip (row 7), white chin around it
         },
         // Sides: white paint at the front (cheek, jaw), the rest is under the side hair locks
         right(p) {
@@ -605,10 +604,10 @@ const SH_Y = 11.2;                                      // shoulder pivot: 0.8 b
 
 bone('body', root, 0, 12, 0);                          // hips: the torso hangs up from here
 bone('head', R.body, 0, 12, 0);                        // no neck: the head sits right on the torso top
-bone('hair_right', R.head, -4.02, 8.6, -0.2);          // side locks: pivot on the top edge, just outside the head side
-bone('hair_left', R.head, 4.02, 8.6, -0.2);
-bone('hair_back', R.head, 0, 8.6, -4.02);              // back flap: pivot on its top edge, just behind the head
-bone('cig', R.head, -1.35, 1.0, 3.9, [0.32, -0.35, 0]);    // cigarette in his right mouth corner, held between the lips
+bone('hair_right', R.head, -4.35, 7.7, -1.1);          // side locks: pivot on their top edge, beside the temples
+bone('hair_left', R.head, 4.35, 7.7, -1.1);
+bone('hair_back', R.head, 0, 7.2, -4.45);              // back curtain: pivot on its top edge, behind the head
+bone('cig', R.head, -1.0, 1.9, 3.9, [0.32, -0.35, 0]);    // cigarette in his right mouth corner, held between the lips
 for (const [s, sx] of [['right', -1], ['left', 1]]) {
   bone(`arm_${s}`, R.body, sx * 6, SH_Y, 0);
   bone(`forearm_${s}`, R[`arm_${s}`], 0, -5.2, 0);     // elbow (torso y 6)
@@ -640,15 +639,19 @@ cube(R.head, 8, 8, 8, 0, 4, 0, T_.head);
 cube(R.head, 1.8, 1.5, 0.85, 0, 3.65, 4.35, { all: (p) => { p.fill(PALETTE.makeupRedLight); p.px(0, 1, PALETTE.makeupRedBase); } });
 cube(R.head, 8.6, 1.5, 8.5, 0, 8.4, -0.25, T_.hairLayer);    // slicked-back crown
 cube(R.head, 7.6, 1.0, 7.2, 0, 9.4, -0.7, T_.hairLayer);
-// Long hair (references): one lock on each side hangs straight down from the crown, covers the side of the head and
-// frames the white face; one flap covers the back down to the collar. Side locks end 2.2 above the head bottom (the
-// shoulder tops), the back flap's narrow tail hangs behind the collar: they never reach the arms.
+// Wavy hair (the first Joker look, references): per side a lock over the ear, a flare curling out below it and a thin
+// strand framing the white face at the temple; at the back a curtain and a lower wave over the collar. Strands, darker
+// tips and ragged cut-out ends. The side flares end 1.9 above the head bottom and the back wave 1.0: raised arms
+// (dance, aiming) pass under them.
 const hairCut = { alphaTest: 0.5 };                          // ragged ends: cut-out pixels on the bottom row
 for (const [s, sx] of [['right', -1], ['left', 1]]) {
-  cube(R[`hair_${s}`], 1.6, 6.4, 7.0, sx * 0.8, -3.2, 0, T_.hairLock, hairCut);
+  const h = R[`hair_${s}`];
+  cube(h, 1.3, 5.6, 5.5, 0, -2.8, 0, T_.hairLock, { ...hairCut, rot: [0, 0, -sx * 0.08] });              // lock over the ear
+  cube(h, 1.4, 2.8, 4.2, sx * 0.45, -4.4, -0.3, T_.hairLock, { ...hairCut, rot: [0, 0, -sx * 0.2] });    // flare curling out
+  cube(h, 0.9, 4.4, 1.4, -sx * 0.1, -2.2, 3.4, T_.hairLock, { ...hairCut, rot: [0, 0, -sx * 0.04] });    // temple strand
 }
-cube(R.hair_back, 8.8, 7.8, 1.5, 0, -3.9, -0.77, T_.hairLock, hairCut);
-cube(R.hair_back, 4.0, 1.6, 1.3, 0, -8.6, -0.7, T_.hairLock, hairCut);   // tail over the collar
+cube(R.hair_back, 7.4, 6.2, 1.5, 0, -3.1, 0, T_.hairLock, { ...hairCut, rot: [0.08, 0, 0] });            // curtain
+cube(R.hair_back, 7.0, 2.2, 1.3, 0, -5.1, -0.25, T_.hairLock, { ...hairCut, rot: [0.16, 0, 0] });        // lower wave
 
 // 3. Cigarette (filter, paper, glowing ember): one in the mouth, one in the right hand (toggle: mouth / hand / off)
 function addCig(parent) {
@@ -713,19 +716,13 @@ for (const [s, x] of [['right', -2], ['left', 2]]) {
   });
   plane(brow, 2, 1, 0, 0, 0, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0 }));
 }
-// Mouth (standard thin lip line, made more lifelike for the references): the real mouth sits inside the painted red
-// smile, on the line between the painted upper lip (row 6) and lower lip (row 7). The thin dark lip seam (4 wide) is
-// three pieces: the middle and two corners that curl up (smile) or down (frown) from the middle's ends. It opens
-// downward from its top edge (the jaw drops). The upper teeth row shows at the top of the opening for a grin or laugh.
-const MOUTH = {};
-bone('mouth', R.head, 0, 1.14, FZ + 0.05);                     // top edge of the seam
-MOUTH.mid = plane(R.mouth, 2, 0.3, 0, -0.15, 0.02, fmat('#3b0606'));
-bone('mouth_cr', R.mouth, -1, 0, 0);                            // his right corner: pivot at the middle piece's end
-bone('mouth_cl', R.mouth, 1, 0, 0);
-MOUTH.r = plane(R.mouth_cr, 1, 0.3, -0.5, -0.15, 0.02, fmat('#3b0606'));
-MOUTH.l = plane(R.mouth_cl, 1, 0.3, 0.5, -0.15, 0.02, fmat('#3b0606'));
-MOUTH.teeth = plane(R.mouth, 2.4, 0.42, 0, -0.24, 0.03, fmat('#ddd5c2'));
-MOUTH.teeth.visible = false;
+// Mouth (row 5/6 edge, right under the nose), standard type (same as Homelander and Bateman): one thin lip line that
+// tilts and slides for the one-sided smirk, thickens when the mouth opens and widens with a smile; a teeth plate under the
+// line grows down for the grin (scale y 0 -> 1) and sits inside the head until he grins. Around it: the painted red smile.
+bone('mouth', R.head, 0, 2.0, FZ + 0.05);
+FACE.line = plane(R.mouth, 2, 0.35, 0, 0, 0.02, fmat('#4c0808'));
+bone('teeth', R.mouth, 0, -0.1, -0.1);                          // hidden inside the head at rest
+FACE.teeth = plane(R.teeth, 2, 0.8, 0, -0.4, 0, fmat('#ddd5c2'));
 
 /* ───────── Curves ─────────
    Keyframe tracks [[t, v], ...] through a monotone cubic (Fritsch-Butland tangents): smooth, flows
@@ -1010,6 +1007,7 @@ const S = {
   ph: [0, 0, 0], prevRootY: 0, prevRootX: 0, prevRootV: 0,
   gun: 0, lastT: 0, flashT: 1,
   cig: 'mouth', cigM: 1, cigH: 0,                                // cigarette: 'mouth' | 'hand' | 'off'; eased visibility
+  liftR: 0, liftL: 0,                                            // side locks resting on a raised shoulder
 };
 const mkPose = () => ({ r: {}, f: Object.fromEntries(FACE_KEYS.map((k) => [k, 0])), root: [0, 0, 0], yaw: 0, fw: 1, gun: 0, spin: 0 });
 const poseA = mkPose(), poseB = mkPose();
@@ -1133,6 +1131,13 @@ function step(dt) {
    Springs driven by the body's motion, always clamped (soft limits). The hair hangs straight down: the two side
    locks only sway a little (forward / back, a touch outward), the back flap only a little backward. They end above
    the shoulder tops, so they never need to dodge the arms. */
+// How far (texels) the top corners of an upper arm rise above their rest height (arm-bone turn only)
+const _sq = new THREE.Vector3();
+function shoulderLift(arm) {
+  let m = -9;
+  for (const x of [-2.1, 2.1]) for (const z of [-2.2, 2.2]) m = Math.max(m, _sq.set(x, 0.8, z).applyQuaternion(arm.quaternion).y);
+  return m - 0.8;
+}
 function springs(dt) {
   if (dt <= 0) return;
   const sp = S.spring, n = Math.max(1, Math.ceil(dt * 240)), h = dt / n, kf = Math.min(1, dt * 60);
@@ -1151,9 +1156,12 @@ function springs(dt) {
     stepSpring(sp.side, breeze, h, 130, 10); stepSpring(sp.fwd, breeze * 0.5, h, 140, 10);
     stepSpring(sp.back, 0.02 + breeze, h, 110, 9); stepSpring(sp.flare, flareT, h, 90, 10);
   }
+  // a shoulder rising under a lock (aiming, dance) lifts it a little, smoothly (filtered, max 0.12 rad): it rests on the arm
+  S.liftR += (softLim(softplus(shoulderLift(R.arm_right) - 0.6, 0.1) * 0.2, 0.12) - S.liftR) * filt(dt, 12);
+  S.liftL += (softLim(softplus(shoulderLift(R.arm_left) - 0.6, 0.1) * 0.2, 0.12) - S.liftL) * filt(dt, 12);
   const sway = softLim(sp.fwd.a, 0.12);
-  R.hair_right.rotation.set(sway, 0, -softLim(softplus(sp.flare.a - sp.side.a, 0.02), 0.1));
-  R.hair_left.rotation.set(sway, 0, softLim(softplus(sp.flare.a + sp.side.a, 0.02), 0.1));
+  R.hair_right.rotation.set(sway + S.liftR, 0, -softLim(softplus(sp.flare.a - sp.side.a, 0.02), 0.1));
+  R.hair_left.rotation.set(sway + S.liftL, 0, softLim(softplus(sp.flare.a + sp.side.a, 0.02), 0.1));
   R.hair_back.rotation.x = softLim(softplus(sp.back.a, 0.02), 0.22);
 
   // coat tails lag behind the thighs (follow-through) and flare out with the stride, soft-limited
@@ -1209,21 +1217,18 @@ function applyFace(fc, blinkV, glance) {
       + (s === 'left' ? 0.32 : -0.08) * arch, -0.35, 0.5);       // max 0.5 up: stays under the hair crown
     brow.rotation.z = sg * 0.32 * clamp(fc.tilt, -1, 1) + (s === 'left' ? 0.18 * arch : 0);
   }
-  // Mouth: the dark lip seam opens downward from its top edge (the jaw drops), the corner pieces curl up for a smile
-  // (down for a frown); arch lifts only his left corner (smirk); smoke pushes the lips together (narrower).
-  // Teeth: the upper row shows at the top of the opening when he grins or laughs.
+  // mouth (standard type): grin = teeth plate, a smile without teeth tilts the line up on his left (smirk), arch adds
+  // to the smirk; open thickens the line; a smile widens it, a sad face (smile < 0) narrows it; smoke purses the lips
   const open = clamp(fc.open, 0, 1), sm = clamp(fc.smile, -1, 1), grin = clamp(fc.teeth, 0, 1), smk = clamp(fc.smoke, 0, 1);
-  const h = 0.28 + 0.62 * open + 0.2 * grin - 0.08 * smk, hc = 0.28 + 0.38 * open + 0.1 * grin;
-  MOUTH.mid.scale.y = h / 0.3; MOUTH.mid.position.y = -h / 2;
-  for (const m of [MOUTH.l, MOUTH.r]) { m.scale.y = hc / 0.3; m.position.y = -hc / 2; }
-  R.mouth_cl.rotation.z = 0.32 * sm + 0.3 * arch; R.mouth_cl.position.y = 0.05 * sm + 0.06 * arch;
-  R.mouth_cr.rotation.z = -0.32 * sm + 0.06 * arch; R.mouth_cr.position.y = 0.05 * sm - 0.02 * arch;
-  R.mouth.scale.x = 1 + 0.08 * Math.max(0, sm) + 0.08 * grin - 0.3 * smk;
-  const th = grin * Math.max(0, Math.min(0.42, h - 0.12));
-  MOUTH.teeth.visible = th > 0.004;
-  MOUTH.teeth.scale.y = Math.max(0.001, th / 0.42); MOUTH.teeth.position.y = -0.03 - th / 2;
-  R.cig.position.y = 1.0 - 0.6 * h + 0.17;                       // the cigarette rides on the lower lip (drops with the jaw)
-  R.cig.rotation.x = 0.32 + 0.2 * open;
+  const smirk = clamp(Math.max(0, sm) * (1 - grin) + 0.6 * arch, 0, 1), mw = 0.4 * sm + 0.2 * open - 0.6 * smk;
+  R.mouth.scale.y = 1 + open * 1.5;
+  R.mouth.scale.x = 1 + mw * 0.4 + grin * 0.3;
+  R.mouth.rotation.z = 0.14 * smirk;
+  R.mouth.position.x = 0.25 * smirk;
+  R.teeth.scale.y = Math.max(0.001, grin);
+  R.teeth.position.z = -0.1 + 0.11 * clamp(grin * 10, 0, 1);    // steps out of the head only while grinning
+  R.cig.position.y = 1.9 - 0.3 * open;                           // the cigarette drops with the jaw and droops
+  R.cig.rotation.x = 0.32 + 0.15 * open;
 }
 
 /* ───────── Smoke: tiny voxel puffs (made once, reused round-robin) ─────────
@@ -1371,7 +1376,7 @@ function restPose() {
   root.updateMatrixWorld(true);
 }
 function resetSim(anim, mx = 0, my = 0) {
-  Object.assign(S, { anim, t: 0, prev: null, prevT: 0, blend: 1, time: 0, prevRootY: 0, prevRootX: 0, prevRootV: 0, gun: 0, lastT: 0, flashT: 1 });
+  Object.assign(S, { anim, t: 0, prev: null, prevT: 0, blend: 1, time: 0, prevRootY: 0, prevRootX: 0, prevRootV: 0, gun: 0, lastT: 0, flashT: 1, liftR: 0, liftL: 0 });
   S.ph = [0, 0, 0]; S.cigM = S.cig === 'mouth' ? 1 : 0; S.cigH = S.cig === 'hand' ? 1 : 0;
   for (const k of FACE_KEYS) S.face[k] = 0;
   for (const s of Object.values(S.spring)) { s.a = 0; s.v = 0; }
@@ -1478,7 +1483,7 @@ function dumpFrame(cam = 'full') {
 
 /* ───────── Start ───────── */
 restPose(); groundRest = footLow();
-window.jokerDebug = { S, bones, FACE, MOUTH, ANIMS, selectAnim, step, restPose, resetSim, clipTest, setCig, camera, controls, toggleBones, rigView };
+window.jokerDebug = { S, bones, FACE, ANIMS, selectAnim, step, restPose, resetSim, clipTest, setCig, camera, controls, toggleBones, rigView };
 // Test modes. The "variant" field picks the cigarette: 0 = mouth, h = hand, o = put away (#shot-walk-h-3, #cliptest-hand)
 const hash = decodeURIComponent(location.hash.slice(1));
 if (hash.startsWith('cliptest')) { S.frozen = true; setTimeout(() => clipTest(hash.split('-')[1] || 'mouth'), 0); }
