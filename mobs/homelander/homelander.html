@@ -10,7 +10,7 @@
 
   <!--
     Homelander - 3D Vanilla+ Minecraft Model Viewer
-    - Box model, 1 unit = 1 texel: head 8x8x8, torso 9x12x5, 2-bone arms and legs (see js/rig.js).
+    - Box model, 1 unit = 1 texel: head 8x8x8, torso 9x12x5, 2-bone arms and legs (see the Rig section).
     - Blonde hair shell, gold eagle pauldrons and belt, copper bracers, red gloves and boots,
       American flag cape with 50 bones, moved only by cloth physics (gravity, air, breeze, body collisions).
     - Animations (keys 1-8): Idle, Idle 2, Walk, Attack (super punch), Special (levitation + heat vision),
@@ -18,7 +18,7 @@
       Hover plays by itself from Idle now and then.
     - Test dummy (key D) = the victim of every attack; voice line on/off + volume (key V = say it).
     - Same UI as every mob (#0f1115), Show bones (B); the mod gets everything 1:1 through #modexport.
-    - Code in js/ (classic scripts, loaded in order below).
+    - One file: all code in the module script below (sections). Shared UI (expression menu) from ../_shared/.
   -->
 
   <style>
@@ -65,13 +65,14 @@
     .icon-btn svg { width: 16px; height: 16px; flex: none; }
     #resetBtn { padding: 0; width: 36px; }
 
-    /* ───────── Top right: download + reset ───────── */
+    /* ───────── Top right: expression menu (shared) + reset ───────── */
     #topRight { position: fixed; top: 16px; right: 16px; z-index: 20; display: flex; gap: 8px; }
 
     /* ───────── Bottom dock ───────── */
     #dock {
       position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 20;
-      display: flex; align-items: center; gap: 4px; padding: 6px; max-width: calc(100vw - 32px);
+      display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px; padding: 6px;
+      width: max-content; max-width: calc(100vw - 32px); border-radius: 24px; /* wraps into rows instead of running out of the pill */
     }
     .anim-btn {
       padding: 7px 14px; border-radius: 999px; font-size: 12px; font-weight: 500; letter-spacing: .02em;
@@ -100,6 +101,9 @@
       #voiceVol { width: 44px; }
     }
   </style>
+  <!-- Shared viewer UI (expression menu): mobs/_shared/ -->
+  <link rel="stylesheet" href="../_shared/viewer.css">
+  <script src="../_shared/viewer.js"></script>
 
   <script type="importmap">
     { "imports": {
@@ -793,34 +797,34 @@ const lasers = [-2, 2].map((x) => {
 const LASER_LEN = 56; // default beam length in texels (3.5 blocks); anims may set `beam`
 
 // American flag cape: 50 bones of 0.4 texel each, posed only by cloth physics (see Cloth below), no keyframes.
-// Same 20-texel length and look: each bone paints the row of the old 4-texel pattern it covers
-// (rows 0-3 star yoke, 4-7 V transition, 8-19 stripes). CAPE_TOP = where it hangs from the chest (texels):
-// 0.3 behind the torso's back face, so the 0.4-thick cloth never sits inside the torso.
+// The bones are the rig (Show bones, .bbmodel, the mod); what you SEE is one continuous cloth surface made
+// straight from the cloth points every frame (see Cape mesh): no boxes, so no gaps, steps or box edges when it bends.
+// 20 texels long, 9.6 wide. CAPE_TOP = where it hangs from the chest (texels): behind the torso's back face.
 const CAPE_N = 50, CAPE_SEG = 0.4, CAPE_W = 9.6, CAPE_TOP = [0, 11.6, -2.8];
-const capeSub = document.createElement('canvas');            // reused: old 4-row segment is painted here
-capeSub.width = capeSub.height = 32;
-const capeSubCtx = capeSub.getContext('2d');
-function capePainter(y0) {
-  return (ctx, face, w, h) => {
-    const old = y0 < 4 ? paintCapeMantle : y0 < 8 ? paintCapeTrans : paintCapeStripes;
-    const tall = face !== 'top' && face !== 'bottom';         // side faces carry the 4 rows; top/bottom don't
-    capeSubCtx.clearRect(0, 0, 32, 32);
-    old(capeSubCtx, face, w, tall ? 4 : h);
-    ctx.drawImage(capeSub, 0, tall ? y0 % 4 : 0, w, h, 0, 0, w, h); // copy our row(s)
-  };
-}
 const CAPE = [];
 let capeParent = chest;
 for (let i = 0; i < CAPE_N; i++) {
   const name = `cape_seg_${i + 1}`;
   // straight chain at rest (physics bends it every frame); each bone hangs CAPE_SEG below the one above
   const b = i === 0 ? bone(name, chest, CAPE_TOP[0], CAPE_TOP[1], CAPE_TOP[2]) : bone(name, capeParent, 0, -CAPE_SEG, 0);
-  // texture row = the old pattern row under this bone's top edge (50 bones over 20 rows: 2-3 bones per row);
-  // the top 4 texels (mantle) are a bit wider, like before
-  box(b, name, i * CAPE_SEG < 4 - 1e-6 ? 10.0 : CAPE_W, CAPE_SEG, 0.4, 0, -CAPE_SEG / 2, 0, capePainter(Math.floor(i * CAPE_SEG + 1e-6)), { rough: 0.65 });
   CAPE.push(name);
   capeParent = b;
 }
+// The cloth's texture: one 10 x 20 flag packed in the atlas like a cube (back = outside: star yoke rows 0-3,
+// V transition 4-7, stripes 8-19; front = the striped lining; left/right = side edges; top; bottom = hem).
+const capeSub = document.createElement('canvas');            // reused: one 4-row block of the pattern
+capeSub.width = capeSub.height = 32;
+const capeSubCtx = capeSub.getContext('2d');
+function paintCapeFull(ctx, face, w, h) {
+  if (face === 'top' || face === 'bottom') { (face === 'top' ? paintCapeMantle : paintCapeStripes)(ctx, face, w, h); return; }
+  for (let y0 = 0; y0 < h; y0 += 4) {
+    const old = y0 < 4 ? paintCapeMantle : y0 < 8 ? paintCapeTrans : paintCapeStripes;
+    capeSubCtx.clearRect(0, 0, 32, 32);
+    old(capeSubCtx, face, w, 4);
+    ctx.drawImage(capeSub, 0, 0, w, 4, 0, y0, w, 4);
+  }
+}
+const CAPE_CLOTH = { name: 'cape', size: [10, 20, 0.4], inflate: 0, painter: paintCapeFull, rects: [] };
 
 // Arms with Golden Eagle Pauldrons and Gauntlet Bracers (muscular proportions)
 function buildArm(side, sx) {
@@ -867,9 +871,11 @@ const faceSize = (c, f) => {
   return f < 2 ? [r(d), r(h)] : f < 4 ? [r(w), r(d)] : [r(w), r(h)];
 };
 
+// Atlas items: every cube + the cape cloth texture (no cube of its own, see CAPE_CLOTH)
+const ATLAS_CUBES = [...cubeList, CAPE_CLOTH];
 (function packAtlas() {
   const items = [];
-  for (const c of cubeList) for (let f = 0; f < 6; f++) { const [w, h] = faceSize(c, f); items.push({ c, f, w, h }); }
+  for (const c of ATLAS_CUBES) for (let f = 0; f < 6; f++) { const [w, h] = faceSize(c, f); items.push({ c, f, w, h }); }
   items.sort((a, b) => b.h - a.h || b.w - a.w);
   let x = 1, y = 1, shelf = 0;
   for (const it of items) {
@@ -903,7 +909,7 @@ const GUTTER = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 function paintAtlas() {
   atlasCtx.imageSmoothingEnabled = false;
   atlasCtx.clearRect(0, 0, ATLAS_W, ATLAS_H);
-  for (const c of cubeList) {
+  for (const c of ATLAS_CUBES) {
     for (let f = 0; f < 6; f++) {
       const r = c.rects[f];
       sctx.clearRect(0, 0, 32, 32);
@@ -1024,7 +1030,7 @@ const SPEC_SWEEP = [[0, 0], [1.0, 0], [1.5, -0.25], [2.1, 0.25], [2.6, 0], [4.0,
 
 // Throw (3.25 s): right hand grabs the neck, lifts, dips, flings the victim straight up,
 // watches them fly, then looks down at where they land. Victim stands a bit to his right.
-const TH_AX   = [[0, 0], [0.32, -1.6], [0.42, -1.55], [0.95, -1.9], [1.25, -1.3], [1.5, -3.0], [1.75, -2.95], [2.35, -2.6], [2.85, -0.1], [3.25, 0]];
+const TH_AX   = [[0, 0], [0.32, -1.12], [0.42, -1.07], [0.95, -1.9], [1.25, -1.3], [1.5, -3.0], [1.75, -2.95], [2.35, -2.6], [2.85, -0.1], [3.25, 0]];
 // (no inward yaw: it swings the shoulder end of the upper arm into the chest and head.
 //  Arm z: out = negative while the arm points down/forward, but POSITIVE once it is overhead)
 const TH_AY   = [[0, 0], [0.32, 0.06], [1.25, 0.06], [1.5, 0], [3.25, 0]];
@@ -1041,30 +1047,29 @@ const TH_HOLD = [[0, 0], [0.32, 0], [0.45, 1], [1.2, 1], [1.4, 0], [3.25, 0]]; /
 //  0.0-0.3   breath in, arms pull back a little
 //  0.3-1.95  (homelander_i_am_god.mp4) arms thrown out wide and low, chest out, chin up, red eyes,
 //            screams "I AM GOD" (voice line starts at 0.3 s, mouth from its loudness curve), leans in on "GOD"
-//  1.95-2.35 (homelander_clap_head.mp4, 0-0.6 s) calm again in a heartbeat: arms drop, head cocked, big fake smile
-//  2.35-2.55 (clip 0.6-0.8 s) one fast move: both hands shoot up and cup the victim's head at the temples
-//  2.55-3.45 (clip 0.8-1.9 s) the squeeze: he leans in, the hands push the head up and back (victim's chin
-//            rises, mouth gapes), arms tremble harder, the smile dies into a cold glare, eyes heat up
-//  3.45-3.55 CRUSH: palms slam inward; 3.55 = hit; then lets go and smirks
+//  1.95-2.35 (homelander_clap_head.mp4, 0-0.6 s) calm again in a heartbeat: arms drop, head cocked, fake smile
+//  2.35-2.6  wind-up: both arms swing out wide at head height, snarl
+//  2.6-2.68  SLAM: both palms whip in and smack the victim's ears, hard and fast (no squeezing); 2.68 = hit
+//  2.68-2.8  palms bounce straight off the head (a smack, no holding) and swing out; then the victim grabs its ears, smirk
 // Victim (dummy / mod): stands 12 texels in front of him, head center ~26 texels high (VICTIM.clap).
-const CL_AX   = [[0, 0], [0.3, 0.15], [0.62, -0.35], [1.95, -0.35], [2.35, -0.3], [2.55, -1.6], [3.45, -1.72], [3.55, -1.72], [3.75, -1.6], [4.2, 0]];
-const CL_AY   = [[0, 0], [2.35, 0], [2.55, 0.05], [3.45, 0.08], [3.55, 0.1], [3.75, 0.1], [4.2, 0]];        // right arm (+ = inward); left = -
-const CL_AZ   = [[0, 0], [0.3, -0.12], [0.62, -1.0], [1.95, -1.0], [2.35, -0.15], [2.55, -0.05], [4.2, 0]];  // right arm (- = out); left = -
-const CL_FX   = [[0, 0], [0.3, -0.2], [0.62, -0.25], [1.95, -0.25], [2.35, -0.35], [2.55, -0.62], [3.45, -0.66], [3.55, -0.58], [3.75, -0.5], [4.2, 0]];
+const CL_AX   = [[0, 0], [0.3, 0.15], [0.62, -0.35], [1.95, -0.35], [2.35, -0.3], [2.6, -1.4], [2.68, -1.6], [2.8, -1.62], [3.2, -1.3], [4.2, 0]];
+const CL_AY   = [[0, 0], [2.6, 0], [2.68, -0.09], [2.8, -0.35], [3.2, 0.03], [4.2, 0]];                       // right arm (+ = inward); left = -
+const CL_AZ   = [[0, 0], [0.3, -0.12], [0.62, -1.0], [1.95, -1.0], [2.35, -0.15], [2.6, -1.05], [2.68, -0.32], [2.8, -0.55], [3.2, -0.3], [4.2, 0]]; // right arm (- = out); left = -
+const CL_FX   = [[0, 0], [0.3, -0.2], [0.62, -0.25], [1.95, -0.25], [2.35, -0.35], [2.6, -0.9], [2.68, -0.62], [2.8, -0.5], [3.2, -0.45], [4.2, 0]];
 const CL_WIDE = [[0, 0], [0.3, 0], [0.62, 1], [1.95, 1], [2.3, 0], [4.2, 0]];                              // arms out, screaming
 const CL_GOD  = [[0, 0], [1.35, 0], [1.5, 1], [1.85, 1], [2.0, 0], [4.2, 0]];                              // "GOD": leans in
-const CL_CALM = [[0, 0], [1.95, 0], [2.2, 1], [2.6, 1], [3.0, 0], [4.2, 0]];                               // fake smile, head cocked
-const CL_CUP  = [[0, 0], [2.35, 0], [2.55, 1], [3.55, 1], [3.8, 0], [4.2, 0]];                             // hands on the head
-const CL_PRESS = [[0, 0], [2.6, 0], [3.45, 1], [3.6, 1], [3.85, 0], [4.2, 0]];                             // squeeze builds up
-const CL_CRUSH = [[0, 0], [3.45, 0], [3.55, 1], [3.7, 1], [3.95, 0], [4.2, 0]];
-const CL_HIT  = [[0, 0], [3.53, 0], [3.57, 1], [3.7, 0], [4.2, 0]];                                        // impact jolt
-const CL_STANCE = [[0, 0], [0.5, 1], [3.7, 1], [4.2, 0]];
-const CL_SMUG = [[0, 0], [3.75, 0], [4.0, 1], [4.2, 0]];                                                   // smirk after the kill
-const CL_SQUEEZE = 0.5;    // forearm z on the crush (right arm; left = -)
+const CL_CALM = [[0, 0], [1.95, 0], [2.2, 1], [2.4, 1], [2.6, 0], [4.2, 0]];                               // fake smile, head cocked
+const CL_WIND = [[0, 0], [2.35, 0], [2.6, 1], [2.68, 0], [4.2, 0]];                                        // swings out, snarling
+const CL_CUP  = [[0, 0], [2.66, 0], [2.68, 1], [2.74, 1], [2.85, 0], [4.2, 0]];                             // palms on the ears: only the smack
+const CL_SLAM = [[0, 0], [2.64, 0], [2.68, 1], [2.76, 0.4], [2.9, 0.3], [3.1, 0], [4.2, 0]];               // impact: forearms snap in, body jolts
+const CL_HIT  = [[0, 0], [2.66, 0], [2.7, 1], [2.85, 0], [4.2, 0]];                                        // impact jolt
+const CL_STANCE = [[0, 0], [0.5, 1], [3.2, 1], [4.2, 0]];
+const CL_SMUG = [[0, 0], [3.1, 0], [3.4, 1], [4.0, 1], [4.2, 0]];                                          // smirk after the hit
+const CL_SQUEEZE = 0.0;    // forearm z snap on the slam (right arm; left = -): palms land on the ears, not in the head
 
 // Throat laser (3.4 s): grabs the throat and lifts, holds 1 s while his eyes heat up,
 // then burns the victim's face point-blank, drops them and smirks.
-const TL_AX   = [[0, 0], [0.3, -1.6], [0.45, -1.85], [2.75, -1.9], [3.0, -1.1], [3.4, 0]];
+const TL_AX   = [[0, 0], [0.3, -1.05], [0.45, -1.0], [0.8, -1.85], [2.75, -1.9], [3.0, -1.1], [3.4, 0]];
 const TL_AY   = [[0, 0], [0.3, 0.06], [2.75, 0.06], [3.0, 0.03], [3.4, 0]];
 const TL_FX   = [[0, 0], [0.3, -0.15], [0.45, -0.35], [2.75, -0.35], [3.0, -0.05], [3.4, 0]];
 const TL_STEP = [[0, 0], [0.3, 1], [2.9, 1], [3.4, 0]];
@@ -1297,9 +1302,6 @@ const ANIMS = {
       rot(Q, 'head', SPEC_AIM * laser, sweep, 0);
       pos(Q, 'head', 0, 4.2 * (SPEC_AIM * laser) ** 2 / (SPEC_AIM * laser + 0.05), 0);
 
-      // Cape flutters in the updraft: a wave that runs from the shoulders to the hem
-      const air = Math.min(1, lift / 4);
-
       Q.f.laser = laser;
       Q.f.glow = clamp(lift / 6, 0, 1) ** 2;   // eyes heat up while he rises (full red just before the beams)
       Q.f.frown = 1.0 * laser;
@@ -1353,53 +1355,50 @@ const ANIMS = {
   },
 
   // 7 · Clap: "I AM GOD" + head clap (both reference clips, see CL_*). Arms thrown out wide,
-  // screaming the voice line with red eyes, then calm: both hands cup the victim's head at the
-  // temples, a short smug hold, and the palms crush inward. The voice line starts at events.voice.
+  // screaming the voice line with red eyes, then calm with a fake smile, then both arms swing out and the
+  // palms smack the victim's ears hard and fast (no squeezing). The voice line starts at events.voice.
   clap: {
     T: 4.2, yawLimit: 0.05, follow: 0,
-    events: { voice: 0.3, grab: 2.55, hit: 3.55, release: 3.7 },
+    events: { voice: 0.3, swing: 2.4, hit: 2.68 },
     fn(t, Q) {
-      const wide = kf(t, CL_WIDE), god = kf(t, CL_GOD), calm = kf(t, CL_CALM), cup = kf(t, CL_CUP);
-      const press = kf(t, CL_PRESS), crush = kf(t, CL_CRUSH), hit = kf(t, CL_HIT), st = kf(t, CL_STANCE);
+      const wide = kf(t, CL_WIDE), god = kf(t, CL_GOD), calm = kf(t, CL_CALM), wind = kf(t, CL_WIND), cup = kf(t, CL_CUP);
+      const slam = kf(t, CL_SLAM), hit = kf(t, CL_HIT), st = kf(t, CL_STANCE);
       const shake = 0.035 * Math.sin(TAU * 7 * t) * wide;              // arms tremble with rage while he screams
-      const strain = 0.02 * Math.sin(TAU * 11 * t) * press * (1 - crush); // ...and with effort while he squeezes
 
-      // Legs: wide planted stance (splay), knees give a little on "GOD", the squeeze and the crush
+      // Legs: wide planted stance (splay), knees give a little on "GOD" and dip into the slam
       // (lift 0.13*st: the wide splay tips the boots' outer edges below the floor solve)
-      const kn = 0.06 * st + 0.12 * god + 0.16 * cup + 0.06 * press + 0.14 * crush;
+      const kn = 0.06 * st + 0.12 * god + 0.1 * wind + 0.18 * slam;
       legs(Q, -0.05 * st - 0.08 * god - 0.1 * cup, kn, -0.05 * st - 0.08 * god - 0.1 * cup, kn, 0.13 * st, 0.03 + 0.09 * st * (1 - 0.6 * cup));
 
-      // Chest: puffs up and arches back while screaming, pushes in on "GOD", leans toward the victim
-      // to reach his head, leans further in while squeezing (+ jolt on the crush)
-      rot(Q, 'chest', -0.12 * wide + 0.08 * god + 0.1 * cup + 0.05 * press + 0.04 * hit, 0, 0);
-      pos(Q, 'chest', 0, 0.25 * wide, 0.35 * god + 0.3 * cup + 0.2 * press - 0.15 * hit);
+      // Chest: puffs up and arches back while screaming, pushes in on "GOD", opens up in the wind-up,
+      // snaps forward into the slam
+      rot(Q, 'chest', -0.12 * wide + 0.08 * god - 0.06 * wind + 0.1 * cup + 0.06 * slam, 0, 0);
+      pos(Q, 'chest', 0, 0.25 * wide, 0.35 * god + 0.3 * cup + 0.2 * slam - 0.15 * hit);
 
-      // Arms (mirrored): out wide and low -> drop calmly -> shoot up to the temples -> push the head up
-      // and back (ax rises) -> crush inward
+      // Arms (mirrored): out wide and low -> drop calmly -> swing out wide at head height -> whip in onto the ears
       const ax = kf(t, CL_AX), ay = kf(t, CL_AY), az = kf(t, CL_AZ), fx = kf(t, CL_FX);
-      rot(Q, 'arm_right', ax - 0.1 * god, ay, az - 0.12 * god + shake + strain);
-      rot(Q, 'arm_left', ax - 0.1 * god, -ay, -az + 0.12 * god - shake - strain);
-      // the crush squeezes with the forearms (elbows swing in): the upper arms stay clear of his chin
-      rot(Q, 'forearm_right', fx + strain, 0, CL_SQUEEZE * crush);
-      rot(Q, 'forearm_left', fx + strain, 0, -CL_SQUEEZE * crush);
+      rot(Q, 'arm_right', ax - 0.1 * god, ay, az - 0.12 * god + shake);
+      rot(Q, 'arm_left', ax - 0.1 * god, -ay, -az + 0.12 * god - shake);
+      // the slam snaps the forearms in (elbows swing in): the upper arms stay clear of his chin
+      rot(Q, 'forearm_right', fx, 0, CL_SQUEEZE * slam);
+      rot(Q, 'forearm_left', fx, 0, -CL_SQUEEZE * slam);
 
-      // Head: chin up for the scream, cocked while smiling, a curious tilt down at the victim while holding,
-      // shakes on the impact. Neck lifts with the pitch/tilt (head half size x angle) so no corner sinks into the chest.
-      const hx = -0.2 * wide + 0.12 * cup * (1 - crush) + 0.02 * hit; // chin comes up on the crush: the elbows swing in under it
-      const hz = 0.08 * calm + 0.06 * cup * (1 - crush) * (1 - calm) + 0.03 * Math.sin(TAU * 9 * t) * hit;
+      // Head: chin up for the scream, cocked while smiling, tilts down at the victim on the slam, shakes on the impact.
+      // Neck lifts with the pitch/tilt (head half size x angle) so no corner sinks into the chest.
+      const hx = -0.2 * wide + 0.12 * cup + 0.05 * wind + 0.02 * hit;
+      const hz = 0.08 * calm + 0.03 * Math.sin(TAU * 9 * t) * hit;
       rot(Q, 'head', hx, 0, hz);
       pos(Q, 'head', 0, 1.0 * wide + 4.2 * Math.max(0, hx) ** 2 / (Math.max(0, hx) + 0.05) + 4.2 * hz * hz / Math.sqrt(hz * hz + 0.0025) + 0.25 * cup, 0);
 
       // Face: scream (open mouth = the voice line's loudness, red eyes, brows up then frown) ->
-      // big deliberate fake smile (teeth, brows up) -> the smile dies into a cold glare while he squeezes
-      // (frown, bared teeth, eyes heating up) -> clenched teeth on the crush -> smirk
-      Q.f.open = 0.75 * wide + 0.1 * press * (1 - crush);
+      // deliberate fake smile -> snarl in the wind-up (bared teeth, eyes heat up) -> clenched teeth on the hit -> smirk
+      Q.f.open = 0.75 * wide + 0.15 * wind;
       Q.f.wide = 0.2 + 0.5 * wide + 0.7 * calm;
-      Q.f.browUp = 0.45 * wide - 0.1 * god + 0.55 * calm - 0.15 * press;
-      Q.f.frown = 0.5 * wide + 0.4 * god + 0.8 * press * (1 - crush) + 1.0 * crush;
-      Q.f.grin = 1.0 * calm + 0.35 * press * (1 - crush) + 0.9 * crush;
-      Q.f.squint = 0.1 + 0.25 * god + 0.3 * press + 0.4 * crush - 0.05 * calm;
-      Q.f.glow = 0.75 * wide + 0.25 * god + 0.6 * press * (1 - crush) + 0.35 * crush;
+      Q.f.browUp = 0.45 * wide - 0.1 * god + 0.55 * calm - 0.2 * wind;
+      Q.f.frown = 0.5 * wide + 0.4 * god + 0.9 * wind + 1.0 * cup;
+      Q.f.grin = 1.0 * calm + 0.6 * wind + 0.8 * cup;
+      Q.f.squint = 0.1 + 0.25 * god + 0.3 * wind + 0.4 * cup - 0.05 * calm;
+      Q.f.glow = 0.75 * wide + 0.25 * god + 0.6 * wind + 0.35 * cup;
       Q.f.smirk = 0.3 * calm + 0.6 * kf(t, CL_SMUG);
       Q.f.glance = 0;
     }
@@ -1451,7 +1450,7 @@ const SFX_EVENTS = {
   attack: { hit: 'punch' },
   special: { laserOn: 'laser', laserOff: '-laser' },
   throw: { grab: 'grab', release: 'whoosh' },
-  clap: { grab: 'grab', hit: 'crush' },
+  clap: { swing: 'whoosh', hit: 'slap' },
   throatLaser: { grab: 'grab', burnOn: 'laser', burnOff: '-laser' }
 };
 
@@ -1470,8 +1469,8 @@ const CLOTH = {
   gravity: 156.8,         // texels/s^2 (9.8 m/s^2, 16 texels per block)
   drag: 3.0,              // air drag per second (light cloth: walking 1 block/s blows it back ~17 degrees)
   iters: 6,               // constraint + collision passes per substep
-  half: CAPE_W / 2,       // edge chains this far left/right of the middle (texels)
-  margin: 0.3,            // points stay this far outside body boxes (cloth half thickness + a hair)
+  cols: 7,               // chains across the cape (a point every CAPE_W / 6 = 1.6 texels: body corners cannot poke through)
+  margin: 0.5,            // points stay this far outside body boxes (cloth half thickness + room for the flat row boxes)
   wind: 10,               // breeze strength (texels/s^2): slow random gusts, ripples run down the cape
   colliders: ['torso_suit', 'head_cranium', 'hair_main', 'upper_arm_right', 'upper_arm_left', 'pauldron_right', 'pauldron_left',
     'pauldron_wing_right', 'pauldron_wing_left', 'lower_arm_right', 'lower_arm_left', 'gauntlet_right', 'gauntlet_left',
@@ -1480,10 +1479,11 @@ const CLOTH = {
 const CLOTH_COL = CLOTH.colliders.map((n) => cubeList.find((c) => c.name === n));
 const CAPE_BONES = CAPE.map((n) => bones[n]);
 const NP = CAPE_N + 1;                                   // points per chain
+const NK = CLOTH.cols, KMID = (NK - 1) / 2, KGAP = CAPE_W / (NK - 1);   // chains, middle chain, gap between chains
 
 function makeCloth(rand) {
-  const n = 3 * NP * 3;
-  const C = { init: false, P: new Float64Array(n), Q: new Float64Array(n), A: new Float64Array(9), ph: [], col: new Float64Array(CLOTH_COL.length * 12),
+  const n = NK * NP * 3;
+  const C = { init: false, P: new Float64Array(n), Q: new Float64Array(n), A: new Float64Array(NK * 3), ph: [], col: new Float64Array(CLOTH_COL.length * 12),
               R: new Float64Array(9), Rp: new Float64Array(9) };
   for (let i = 0; i < 6; i++) C.ph.push(rand() * TAU);   // breeze phases: every mob gusts differently
   return C;
@@ -1500,18 +1500,18 @@ const chestM = new Float64Array(12);
 // One frame of cloth. move = how far his body moved through the air this frame (texels, model space):
 // the viewer passes the animation's own walking speed, the mod his real movement.
 function clothStep(S, dt, move) {
-  const C = S.cloth, P = C.P, Q = C.Q, N = CAPE_N, half = CLOTH.half, seg = CAPE_SEG;
+  const C = S.cloth, P = C.P, Q = C.Q, N = CAPE_N, seg = CAPE_SEG, diag = Math.sqrt(KGAP * KGAP + CAPE_SEG * CAPE_SEG);   // (sqrt, not hypot: same bits in Java)
   mobRoot.updateMatrixWorld(true);
   mat34(bones.chest.matrixWorld, chestM, 0);
-  // anchors: CAPE_TOP +- half in chest space
-  for (let k = 0; k < 3; k++) {
-    const x = CAPE_TOP[0] + (k - 1) * half, y = CAPE_TOP[1], z = CAPE_TOP[2], m = chestM;
+  // anchors: along the top edge of the cape, in chest space
+  for (let k = 0; k < NK; k++) {
+    const x = CAPE_TOP[0] + (k - KMID) * KGAP, y = CAPE_TOP[1], z = CAPE_TOP[2], m = chestM;
     C.A[k * 3] = m[0] * x + m[3] * y + m[6] * z + m[9];
     C.A[k * 3 + 1] = m[1] * x + m[4] * y + m[7] * z + m[10];
     C.A[k * 3 + 2] = m[2] * x + m[5] * y + m[8] * z + m[11];
   }
   if (!C.init) {                                         // first frame: hang straight down
-    for (let k = 0; k < 3; k++) for (let i = 0; i <= N; i++) {
+    for (let k = 0; k < NK; k++) for (let i = 0; i <= N; i++) {
       const j = (k * NP + i) * 3;
       P[j] = Q[j] = C.A[k * 3]; P[j + 1] = Q[j + 1] = C.A[k * 3 + 1] - i * seg; P[j + 2] = Q[j + 2] = C.A[k * 3 + 2];
     }
@@ -1531,24 +1531,30 @@ function clothStep(S, dt, move) {
     const wx = W * 0.35 * Math.sin(TAU * 0.23 * tt + ph[1]), wy = W * 0.15 * Math.sin(TAU * 0.41 * tt + ph[2]);
     const wz = -W * (0.6 + 0.4 * Math.sin(TAU * 0.17 * tt + ph[3]));
     // integrate (verlet): inertia (damped by the air), air pushing on a moving body, gravity, breeze
-    for (let k = 0; k < 3; k++) for (let i = 1; i <= N; i++) {
+    for (let k = 0; k < NK; k++) for (let i = 1; i <= N; i++) {
       const j = (k * NP + i) * 3;
-      const ripple = 0.7 + 0.3 * Math.sin(TAU * 1.3 * tt - i * 0.25 + ph[4] + k * 0.6);   // gust waves run down the cloth
+      const ripple = 0.7 + 0.3 * Math.sin(TAU * 1.3 * tt - i * 0.25 + ph[4] + k * 0.2);   // gust waves run down the cloth
       const px = P[j], py = P[j + 1], pz = P[j + 2];
       P[j] = px + (px - Q[j]) * damp - mx * (1 - damp) + wx * ripple * h * h;
       P[j + 1] = py + (py - Q[j + 1]) * damp - my * (1 - damp) + (wy * ripple - CLOTH.gravity) * h * h;
       P[j + 2] = pz + (pz - Q[j + 2]) * damp - mz * (1 - damp) + wz * ripple * h * h;
       Q[j] = px; Q[j + 1] = py; Q[j + 2] = pz;
     }
-    for (let k = 0; k < 3; k++) { const j = k * NP * 3; P[j] = Q[j] = C.A[k * 3]; P[j + 1] = Q[j + 1] = C.A[k * 3 + 1]; P[j + 2] = Q[j + 2] = C.A[k * 3 + 2]; }
+    for (let k = 0; k < NK; k++) { const j = k * NP * 3; P[j] = Q[j] = C.A[k * 3]; P[j + 1] = Q[j + 1] = C.A[k * 3 + 1]; P[j + 2] = Q[j + 2] = C.A[k * 3 + 2]; }
     for (let it = 0; it < CLOTH.iters; it++) {
-      for (let k = 0; k < 3; k++) for (let i = 0; i < N; i++) clothLink(P, (k * NP + i) * 3, (k * NP + i + 1) * 3, seg, i === 0);
-      for (let i = 1; i <= N; i++) {
-        clothLink(P, i * 3, (NP + i) * 3, half, false); clothLink(P, (NP + i) * 3, (2 * NP + i) * 3, half, false);
-        clothLink(P, (i - 1) * 3, (NP + i) * 3, Math.hypot(half, seg), i === 1); clothLink(P, (2 * NP + i - 1) * 3, (NP + i) * 3, Math.hypot(half, seg), i === 1);
+      for (let k = 0; k < NK; k++) for (let i = 0; i < N; i++) clothLink(P, (k * NP + i) * 3, (k * NP + i + 1) * 3, seg, i === 0);
+      // across (neighbour chains) and diagonally both ways (keeps the cloth from shearing)
+      for (let k = 0; k < NK - 1; k++) for (let i = 1; i <= N; i++) {
+        const a = (k * NP + i) * 3, b = ((k + 1) * NP + i) * 3;
+        clothLink(P, a, b, KGAP, false);
+        clothLink(P, a - 3, b, diag, i === 1); clothLink(P, b - 3, a, diag, i === 1);
       }
+      // bending across: every second chain + edge to edge keep each row nearly straight (each row is one
+      // flat bone box in the model, so a row that curled around a leg would let the box cut into it)
+      for (let k = 0; k < NK - 2; k++) for (let i = 1; i <= N; i++) clothLink(P, (k * NP + i) * 3, ((k + 2) * NP + i) * 3, 2 * KGAP, false);
+      for (let i = 1; i <= N; i++) clothLink(P, i * 3, ((NK - 1) * NP + i) * 3, CAPE_W, false);
       // never further from the top than the cloth length above it (no stretching under gravity)
-      for (let k = 0; k < 3; k++) for (let i = 1; i <= N; i++) {
+      for (let k = 0; k < NK; k++) for (let i = 1; i <= N; i++) {
         const j = (k * NP + i) * 3, dx = P[j] - C.A[k * 3], dy = P[j + 1] - C.A[k * 3 + 1], dz = P[j + 2] - C.A[k * 3 + 2];
         const d = Math.sqrt(dx * dx + dy * dy + dz * dz), L = i * seg;
         if (d > L) { const f = L / d; P[j] = C.A[k * 3] + dx * f; P[j + 1] = C.A[k * 3 + 1] + dy * f; P[j + 2] = C.A[k * 3 + 2] + dz * f; }
@@ -1557,6 +1563,7 @@ function clothStep(S, dt, move) {
     }
   }
   clothBones(C);
+  updateCapeMesh(C);
 }
 
 // Keep two points `len` apart (each moves half; a pinned first point does not move).
@@ -1647,7 +1654,7 @@ function clothBones(C) {
   const P = C.P, R = C.R, Rp = C.Rp;
   for (let a = 0; a < 9; a++) Rp[a] = chestM[a];
   for (let i = 0; i < CAPE_N; i++) {
-    const m0 = (NP + i) * 3, m1 = m0 + 3, l0 = i * 3, r0 = (2 * NP + i) * 3;
+    const m0 = (KMID * NP + i) * 3, m1 = m0 + 3, l0 = i * 3, r0 = ((NK - 1) * NP + i) * 3;
     let yx = P[m0] - P[m1], yy = P[m0 + 1] - P[m1 + 1], yz = P[m0 + 2] - P[m1 + 2];
     let d = Math.sqrt(yx * yx + yy * yy + yz * yz) || 1;
     yx /= d; yy /= d; yz /= d;
@@ -1669,6 +1676,91 @@ function clothBones(C) {
   }
 }
 
+/* ───────── Cape mesh ─────────
+   The cape you see: one closed cloth surface straight from the cloth points (NK chains x NP points).
+   Outside and lining sit CAPE_T on each side of the cloth (along its normal), joined along both side edges,
+   the hem and the top. Rebuilt in place every step (positions + normals); texture = CAPE_CLOTH's atlas rects.
+   The mod builds the same quads from its own cloth points. */
+const CAPE_T = 0.2;                                        // half thickness (texels): 0.4 thick, like the old boxes
+const CAPE_MESH = (() => {
+  const G = NK * NP, nv = 2 * G + 4 * NP + 4 * NK;
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(nv * 3), nrm = new Float32Array(nv * 3), uv = new Float32Array(nv * 2), idx = [];
+  const O = (k, i) => k * NP + i, I = (k, i) => G + k * NP + i;           // outside / lining grid
+  const SL = (i, s) => 2 * G + i * 2 + s, SR = (i, s) => 2 * G + 2 * NP + i * 2 + s;  // side edges (s 0 = outside, 1 = lining)
+  const HM = (k, s) => 2 * G + 4 * NP + k * 2 + s, TP = (k, s) => 2 * G + 4 * NP + 2 * NK + k * 2 + s; // hem, top
+  const quad = (a, b, c, d) => idx.push(a, b, c, b, d, c);  // a-b top edge, c-d bottom edge: (a, b, c), (b, d, c)
+  for (let k = 0; k < NK - 1; k++) for (let i = 0; i < CAPE_N; i++) {
+    quad(O(k, i), O(k + 1, i), O(k, i + 1), O(k + 1, i + 1));            // outside faces away from his back
+    quad(I(k + 1, i), I(k, i), I(k + 1, i + 1), I(k, i + 1));            // lining faces his back
+  }
+  for (let i = 0; i < CAPE_N; i++) {
+    quad(SL(i, 1), SL(i, 0), SL(i + 1, 1), SL(i + 1, 0));                 // -x edge
+    quad(SR(i, 0), SR(i, 1), SR(i + 1, 0), SR(i + 1, 1));                 // +x edge
+  }
+  for (let k = 0; k < NK - 1; k++) {
+    quad(HM(k, 0), HM(k + 1, 0), HM(k, 1), HM(k + 1, 1));                 // hem (faces down)
+    quad(TP(k, 1), TP(k + 1, 1), TP(k, 0), TP(k + 1, 0));                 // top (faces up)
+  }
+  // UVs: rect face f of CAPE_CLOTH, fu / fv = 0..1 across / down that rect
+  const R = (f, v, fu, fv) => { const r = CAPE_CLOTH.rects[f]; uv[v * 2] = (r.x + fu * r.w) / ATLAS_W; uv[v * 2 + 1] = 1 - (r.y + fv * r.h) / ATLAS_H; };
+  for (let k = 0; k < NK; k++) for (let i = 0; i < NP; i++) {
+    const a = k / (NK - 1), b = i / CAPE_N;
+    R(5, O(k, i), 1 - a, b); R(4, I(k, i), a, b);                         // back face = outside (mirrored), front = lining
+  }
+  for (let i = 0; i < NP; i++) for (let s = 0; s < 2; s++) { R(1, SL(i, s), s, i / CAPE_N); R(0, SR(i, s), 1 - s, i / CAPE_N); }
+  for (let k = 0; k < NK; k++) for (let s = 0; s < 2; s++) { R(3, HM(k, s), k / (NK - 1), s); R(2, TP(k, s), k / (NK - 1), 1 - s); }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  const mesh = new THREE.Mesh(geo, mat(0.65, 0.04, false));
+  mesh.name = 'cape'; mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
+  scene.add(mesh);                                          // cloth points are in world texels (mobRoot has no transform)
+  return { mesh, geo, pos, nrm, O, I, SL, SR, HM, TP };
+})();
+const cn = new Float64Array(NK * NP * 3), ca = new Float64Array(NK * NP * 3);   // per point: normal, across direction
+function updateCapeMesh(C) {
+  const P = C.P, M = CAPE_MESH, pos = M.pos, nrm = M.nrm, T = CAPE_T;
+  // normal = across x down (central differences, one-sided at the edges): points away from his back
+  for (let k = 0; k < NK; k++) for (let i = 0; i < NP; i++) {
+    const j = (k * NP + i) * 3;
+    const ka = Math.min(NK - 1, k + 1), kb = Math.max(0, k - 1), ia = Math.min(CAPE_N, i + 1), ib = Math.max(0, i - 1);
+    const a1 = (ka * NP + i) * 3, a0 = (kb * NP + i) * 3, d1 = (k * NP + ia) * 3, d0 = (k * NP + ib) * 3;
+    const ax = P[a1] - P[a0], ay = P[a1 + 1] - P[a0 + 1], az = P[a1 + 2] - P[a0 + 2];
+    const dx = P[d1] - P[d0], dy = P[d1 + 1] - P[d0 + 1], dz = P[d1 + 2] - P[d0 + 2];
+    let nx = ay * dz - az * dy, ny = az * dx - ax * dz, nz = ax * dy - ay * dx;
+    const nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1, al = Math.sqrt(ax * ax + ay * ay + az * az) || 1;
+    cn[j] = nx / nl; cn[j + 1] = ny / nl; cn[j + 2] = nz / nl;
+    ca[j] = ax / al; ca[j + 1] = ay / al; ca[j + 2] = az / al;
+  }
+  const put = (v, j, s, nx, ny, nz) => {                    // vertex v at point j, s = +1 outside / -1 lining
+    pos[v * 3] = (P[j] + cn[j] * T * s) * TEXEL; pos[v * 3 + 1] = (P[j + 1] + cn[j + 1] * T * s) * TEXEL; pos[v * 3 + 2] = (P[j + 2] + cn[j + 2] * T * s) * TEXEL;
+    nrm[v * 3] = nx; nrm[v * 3 + 1] = ny; nrm[v * 3 + 2] = nz;
+  };
+  for (let k = 0; k < NK; k++) for (let i = 0; i < NP; i++) {
+    const j = (k * NP + i) * 3;
+    put(M.O(k, i), j, 1, cn[j], cn[j + 1], cn[j + 2]);
+    put(M.I(k, i), j, -1, -cn[j], -cn[j + 1], -cn[j + 2]);
+  }
+  for (let i = 0; i < NP; i++) {
+    const l = i * 3, r = ((NK - 1) * NP + i) * 3;
+    for (let s = 0; s < 2; s++) {
+      put(M.SL(i, s), l, s ? -1 : 1, -ca[l], -ca[l + 1], -ca[l + 2]);
+      put(M.SR(i, s), r, s ? -1 : 1, ca[r], ca[r + 1], ca[r + 2]);
+    }
+  }
+  for (let k = 0; k < NK; k++) {
+    const h = (k * NP + CAPE_N) * 3, h0 = h - 3, t = k * NP * 3, t1 = t + 3;
+    let dx = P[h] - P[h0], dy = P[h + 1] - P[h0 + 1], dz = P[h + 2] - P[h0 + 2], dl = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+    for (let s = 0; s < 2; s++) put(M.HM(k, s), h, s ? -1 : 1, dx / dl, dy / dl, dz / dl);
+    dx = P[t] - P[t1]; dy = P[t + 1] - P[t1 + 1]; dz = P[t + 2] - P[t1 + 2]; dl = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+    for (let s = 0; s < 2; s++) put(M.TP(k, s), t, s ? -1 : 1, dx / dl, dy / dl, dz / dl);
+  }
+  M.geo.attributes.position.needsUpdate = true;
+  M.geo.attributes.normal.needsUpdate = true;
+}
+
 // Seeded random (mulberry32): same seed = same blinks / glow / hover timing (tests, shots)
 function rng(seed) {
   let a = seed >>> 0;
@@ -1687,16 +1779,16 @@ const randomSeed = () => (Math.random() * 4294967296) >>> 0;
    Runs in step() on its own random clock, so the idles never repeat on a fixed loop.
    Mood 0 = smug smirk, 1 = angry (frown, bared teeth, red flicker), 2 = deliberate fake smile
    (big toothy grin, brows up, eyes locked on you, head cocked). Menacing most of the time:
-   angry 45 %, fake smile 35 %, smirk 20 %, never the same mood twice in a row.
+   angry 45 %, smirk 37 %, the toothy fake smile only 18 % (and short), never the same mood twice in a row.
    Each animation says how much it lets the director drive: `look` (head/chest look-around) and `mood` (face). */
-const MOOD_PICK = [0.2, 0.45, 0.35];                     // chance of smirk / angry / fake smile
-const MOOD_TIME = [[1.2, 1.8], [2.0, 2.5], [1.6, 1.8]];  // hold time per mood: min + random range (s)
+const MOOD_PICK = [0.37, 0.45, 0.18];                    // chance of smirk / angry / fake smile
+const MOOD_TIME = [[1.5, 2.5], [2.0, 2.5], [1.0, 1.4]];  // hold time per mood: min + random range (s)
 // Face per mood (keys not listed stay as the animation has them)
 const MOOD_FACE = {
   frown:  [0.25, 1.0, 0.0],
   browUp: [0.15, 0.0, 0.6],
   squint: [0.2, 0.5, 0.3],
-  grin:   [0.0, 0.3, 1.0],
+  grin:   [0.0, 0.15, 1.0],
   wide:   [0.15, 0.05, 0.85],
   smirk:  [0.9, 0.0, 0.25],
   open:   [0.0, 0.04, 0.0]
@@ -1812,7 +1904,8 @@ function step(S, dt) {
   if (S.ev.glowT >= 0) {
     S.ev.glowT += dt;
     const u = clamp(S.ev.glowT / S.ev.glowDur, 0, 1);
-    evGlow = S.ev.glowAmp * Math.sin(Math.PI * u) ** 2; // smooth in and out
+    const sg = Math.sin(Math.PI * u);
+    evGlow = S.ev.glowAmp * sg * sg; // smooth in and out
     if (u >= 1) S.ev.glowT = -1;
   }
 
@@ -1868,6 +1961,22 @@ function step(S, dt) {
   of0.open += 0.015 * (1 + Math.sin(TAU * 0.53 * tm + ph[3]));            // jaw works a little
   of0.wide += 0.05 * Math.sin(TAU * 0.41 * tm + ph[4]);
   of0.smirk += 0.06 * Math.sin(TAU * 0.19 * tm + ph[5]) * (1 - rd.mw[1] * mwt);
+
+  // Forced expression from the menu (mobs/_shared/viewer.js): eases over the animation + mood face.
+  // tilt up = inner brow ends up (negative frown), smile -> teeth grin, eyes narrowed -> squint; angry warms the eyes.
+  const MV = window.MobViewer, xf = MV ? MV.face(dt) : null;
+  if (xf && xf.w > 1e-4) {
+    const xw = xf.w, mixF = (k, v) => { of0[k] += (v - of0[k]) * xw; };
+    mixF('browUp', 0.8 * xf.brow);
+    mixF('frown', clamp(-0.6 * xf.tilt + 0.4 * Math.max(0, -xf.brow), -0.7, 1));
+    mixF('grin', 0.9 * Math.max(0, xf.smile));
+    mixF('smirk', 0);
+    mixF('wide', 0.4 * xf.smile + 0.2 * xf.open);
+    mixF('open', 0.8 * xf.open);
+    mixF('squint', 0.7 * Math.max(0, -xf.eyes));
+    mixF('glance', 0);
+    of0.glow += xw * 0.35 * Math.max(0, -xf.tilt) * Math.max(0, -xf.brow);
+  }
 
   // Talking (voice line) overrides the animation's mouth: open = loudness, wide = brightness
   // ("ee" wide, "o" narrow); a scream also frowns and squints a little. Fades in/out (talkW).
@@ -2086,6 +2195,26 @@ function buildBBModel() {
     });
     (groupOf[c.bone] = groupOf[c.bone] || []).push(id);
   }
+  // Cape: Blockbench has no cloth, so each cape bone gets a 9.6 x 0.4 x 0.4 strip hanging below its pivot,
+  // textured with its row of the flag (CAPE_CLOTH rects): the .bbmodel cape looks like the cloth at rest.
+  CAPE.forEach((name, i) => {
+    const id = uuid(), bp = abs.get(bones[name]), ctr = bbVec([bp[0], bp[1] - CAPE_SEG / 2, bp[2]]);
+    const row = Math.floor(i * CAPE_SEG + 1e-6), r = (f) => CAPE_CLOTH.rects[f];
+    const strip = (f) => [r(f).x, r(f).y + row, r(f).x + r(f).w, r(f).y + row + 1];
+    elements.push({
+      name, box_uv: false, rescale: false, locked: false, render_order: 'default', allow_mirror_modeling: true,
+      from: [r4(ctr[0] - CAPE_W / 2), r4(ctr[1] - CAPE_SEG / 2), r4(ctr[2] - 0.2)],
+      to: [r4(ctr[0] + CAPE_W / 2), r4(ctr[1] + CAPE_SEG / 2), r4(ctr[2] + 0.2)],
+      autouv: 0, color: 0, inflate: 0, origin: bbVec(bp),
+      faces: {
+        north: { uv: strip(4), texture: 0 }, south: { uv: strip(5), texture: 0 },
+        east: { uv: strip(1), texture: 0 }, west: { uv: strip(0), texture: 0 },
+        up: { uv: [r(2).x, r(2).y, r(2).x + r(2).w, r(2).y + r(2).h], texture: 0 }, down: { uv: [r(3).x, r(3).y, r(3).x + r(3).w, r(3).y + r(3).h], texture: 0 }
+      },
+      type: 'cube', uuid: id
+    });
+    (groupOf[name] = groupOf[name] || []).push(id);
+  });
 
   const outlinerNode = (g) => ({
     name: g.name, origin: bbVec(abs.get(g)), rotation: bbRot(g.userData.restRot.x, g.userData.restRot.y, g.userData.restRot.z),
@@ -2179,7 +2308,8 @@ function modExport() {
       channels.push({ key, lo, hi, at: offset }); // exact lo/hi: the 16-bit levels map back without drift
       offset += frames;
     }
-    anims[name] = { T: A.T, frames, yawLimit: A.yawLimit || 0.45, follow: A.follow !== undefined ? A.follow : 1, beam: A.beam || 0, events: A.events || {}, channels };
+    anims[name] = { T: A.T, frames, yawLimit: A.yawLimit || 0.45, follow: A.follow !== undefined ? A.follow : 1, beam: A.beam || 0,
+      look: A.look || 0, mood: A.mood || 0, move: A.move || 0, events: A.events || {}, channels };   // look / mood = director weights, move = walk speed (texels/s)
   }
   const all = new Int16Array(offset);
   let at = 0;
@@ -2198,7 +2328,9 @@ function modExport() {
       format: 1, fps: BAKE_FPS, atlas: [ATLAS_W, ATLAS_H], variants: VARIANTS.map((v) => v.id), animOrder: ALL_ANIMS,
       faceKeys: FACE_KEYS, bones: bonesOut, cubes: cubesOut,
       // Cape cloth (see Cloth): settings, cape bones, body boxes it collides with (bone, center, half size, rotation)
-      cloth: { ...CLOTH, n: CAPE_N, seg: CAPE_SEG, top: CAPE_TOP, bones: CAPE.map((n) => B[n]),
+      // + the cape mesh: half thickness and the atlas rects of its texture (right, left, top, bottom, front = lining, back = outside)
+      cloth: { ...CLOTH, n: CAPE_N, seg: CAPE_SEG, top: CAPE_TOP, width: CAPE_W, bones: CAPE.map((n) => B[n]),
+        thick: CAPE_T, rects: CAPE_CLOTH.rects.map((r) => [r.x, r.y, r.w, r.h]),
         colliders: CLOTH_COL.map((c) => ({ name: c.name, bone: B[c.bone], c: c.center, h: c.size.map((s) => s / 2 + c.inflate), r: c.rot })) },
       // Eye glow planes and heat-vision beams (drawn by the mod in the head bone, like eyeGlow / lasers here)
       fx: {
@@ -2206,7 +2338,7 @@ function modExport() {
         glowColors: [col(glowMat), col(glowCoreMat), col(glowHaloMat)], beamZ: 4.1, beamR: [0.7, 0.28], beamSides: [8, 6],
         beamColors: [col(laserMat), col(laserCoreMat)], laserLen: LASER_LEN
       },
-      victim: { hand: HAND_PT, neck: DUMMY_NECK, scale: DUMMY_SCALE, throwVy: THROW_VY, grabLift: GRAB_LIFT, spots: VICTIM },
+      victim: { hand: HAND_PT, neck: DUMMY_NECK, scale: DUMMY_SCALE, hangUp: HANG_UP, hangOut: HANG_OUT, throwVy: THROW_VY, grabLift: GRAB_LIFT, spots: VICTIM },
       voice: VOICE_LINES.map((v) => ({ id: v.id, env: v.env, zcr: v.zcr })),
       anims
     },
@@ -2255,8 +2387,9 @@ function modTrace() {
    (browsers allow sound only after the first click or key) - and the same as in the mod. */
 const VOICE_LINES = [
   { id: 'i_am_god', src: '../../sounds/homelander/i_am_god',
-    env: '6iuyzzvsssmdbfmtutsstsstkb9aa635ivywuttvzzzyutqkjha5321100000000',
-    zcr: '5232222451135442233433100369855552333333222233244545555555555555' }
+    // 77 values = the whole 2.55 s file (the quiet "...GOD" tail included: the line is never cut short)
+    env: '6iuyzzvsssmdbfmtutsstsstkb9aa635ivywuttvzzzyutqkjha53211000000001121122222122',
+    zcr: '52322224511354422334331003698555523333332222332445455555555555551111111111111' }
 ];
 // vol: 0.6 by default; the dock slider changes it (saved in this browser).
 const voice = { on: true, unlocked: false, line: null, start: 0, anim: null, audio: null, vol: 0.6 };
@@ -2282,7 +2415,7 @@ function updateVoice(S) {
   if (v && voice.anim && S.anim !== voice.anim) stopLine();   // the attack was cut off: so is the shout
   if (!voice.line) { T.active = false; return; }
   const i = Math.floor((S.time - voice.start) * 30);
-  if (i >= v.env.length) { stopLine(); T.active = false; return; }
+  if (i >= v.env.length) { voice.line = null; T.active = false; return; }   // curve done: the sound plays out by itself (never cut)
   T.active = true;
   T.level = Math.min(1, parseInt(v.env[Math.max(0, i)], 36) / 35 * 1.1);
   T.shape = +v.zcr[Math.max(0, i)] / 9;
@@ -2292,11 +2425,11 @@ function setVoiceVol(x) {
   VOICE_LINES.forEach((l) => { l.audio.volume = voice.vol; });
   for (const n in SFX) SFX[n].audio.volume = voice.vol;
 }
-/* ───────── Sound effects (punch, grab, whoosh, crush, laser) ─────────
+/* ───────── Sound effects (punch, grab, whoosh, slap, laser) ─────────
    Made by tools/sfx/make_homelander_sfx.ps1. Played on animation events (SFX_EVENTS in anims.js),
    same on/off button and volume as the voice line. A sound stops when its animation is cut off. */
 const SFX = {};
-['punch', 'grab', 'whoosh', 'crush', 'laser'].forEach((n) => {
+['punch', 'grab', 'whoosh', 'slap', 'laser'].forEach((n) => {
   const a = new Audio('../../sounds/homelander/' + n + AUDIO_EXT); a.preload = 'auto'; a.volume = voice.vol; SFX[n] = { audio: a, anim: '', count: 0 };
 });
 // name from SFX_EVENTS ('-laser' = stop it); anim = the animation that started it
@@ -2319,63 +2452,74 @@ window.addEventListener('keydown', unlockVoice);
    Grab attacks hold the victim by the neck at HAND_PT (a point in forearm_right's space, front of the fist).
    Blocky heads sit right on the body (no neck), so the fist goes UNDER the head, against the throat:
    the victim's neck (top of its body) is HANG_UP texels above the hand and its body center HANG_OUT texels
-   further away (fist half width + body half depth): fist, head and body touch without passing through.
+   further away (fist half width + body half depth + 0.4 room for the turning fist): they touch, never pass through.
    THROW_VY = how fast the Throw flings the victim straight up (blocks per second; the mod uses it too). */
 const HAND_PT = [0, -5.0, 0.6];
-const HANG_UP = 1.9, HANG_OUT = 3.8;
+const HANG_UP = 1.9, HANG_OUT = 4.3;
 const DUMMY_SCALE = 0.9375;                 // player size: the 32-texel player model is drawn 0.9375 big
 const DUMMY_NECK = 24 * DUMMY_SCALE;        // 22.5 texels: top of the body box
 const THROW_VY = 24, GRAVITY_B = 32;        // blocks/s, blocks/s^2 (Minecraft: 0.08 blocks/tick^2)
 const GRAB_LIFT = 0.15;                     // seconds: a grabbed victim is lifted to the hand over this time
 const VICTIM = {
-  attack: { spot: [0, 0, 17] },             // punched: the fist just reaches its chest at the hit, then knocked back
+  attack: { spot: [0, 0, 18] },             // punched: the fist just reaches its chest at the hit, then knocked back
   special: { spot: [0, 0, 56] },            // 3.5 blocks: the beams come down onto its chest
   throw: { grab: true },                    // spot = under the hand at events.grab (computed below)
-  clap: { spot: [0, 0, 12] },               // head between his palms (they reach z 11: the temples)
+  clap: { spot: [0, 0, 12] },               // head between his palms (they smack its ears)
   throatLaser: { grab: true }
 };
 
 /* ───────── Dummy model ─────────
-   A plain player-shaped mannequin (8x8x8 head, 8x12x4 body, 4x12x4 arms and legs), burlap colors.
-   Bones: root (feet) > body (hips) > head (neck), arms (shoulders); legs (hips). Faces Homelander. */
+   A plain player-shaped mannequin (8x8x8 head, 8x12x4 body, arms and legs 4x12x4 split in two), burlap colors.
+   Bones: root (feet) > body (hips) > head (neck); arm_r/l (shoulder) > elbow_r/l; leg_r/l (hip) > knee_r/l.
+   2 bones per arm and leg, like every mob: elbows and knees bend. Faces Homelander. */
 const dummy = (() => {
   const T = TEXEL * DUMMY_SCALE;
   const mats = [0xc9b28a, 0x9b8460, 0x2b2620].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, metalness: 0, transparent: true, opacity: 0 }));
   const [cloth, dark, eye] = mats;
   const group = (parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x * T, y * T, z * T); g.rotation.order = 'ZYX'; parent.add(g); return g; };
-  const cube = (parent, m, w, h, d, x, y, z) => {
+  const cube = (parent, m, w, h, d, x, y, z, name) => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w * T, h * T, d * T), m);
-    mesh.position.set(x * T, y * T, z * T); mesh.castShadow = true; mesh.receiveShadow = true; parent.add(mesh); return mesh;
+    mesh.position.set(x * T, y * T, z * T); mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = name; parent.add(mesh); return mesh;
   };
   const root = new THREE.Group(); root.rotation.order = 'YXZ'; root.visible = false; scene.add(root);
   const body = group(root, 0, 12, 0);
-  cube(body, cloth, 8, 12, 4, 0, 6, 0);
-  cube(body, dark, 8.2, 1, 4.2, 0, 1, 0);                       // belt line
+  cube(body, cloth, 8, 12, 4, 0, 6, 0, 'body');
+  cube(body, dark, 8.2, 1, 4.2, 0, 1, 0, 'belt');
   const head = group(body, 0, 12, 0);
-  cube(head, cloth, 8, 8, 8, 0, 4, 0);
-  cube(head, eye, 1, 1, 0.2, -2, 4, 4.05); cube(head, eye, 1, 1, 0.2, 2, 4, 4.05);   // button eyes
-  const mouth = cube(head, dark, 4, 0.6, 0.2, 0, 2, 4.05);                           // stitched mouth (gapes in the clap squeeze)
-  const armR = group(body, -6, 12, 0), armL = group(body, 6, 12, 0);
-  cube(armR, dark, 4, 12, 4, 0, -6, 0); cube(armL, dark, 4, 12, 4, 0, -6, 0);
-  const legR = group(root, -2, 12, 0), legL = group(root, 2, 12, 0);
-  cube(legR, dark, 4, 12, 4, 0, -6, 0); cube(legL, dark, 4, 12, 4, 0, -6, 0);
-  // Hit puffs (clap crush, punch): a few small cubes, flying on fixed paths (no state)
+  cube(head, cloth, 8, 8, 8, 0, 4, 0, 'head');
+  cube(head, eye, 1, 1, 0.2, -2, 4, 4.05, 'eye_r'); cube(head, eye, 1, 1, 0.2, 2, 4, 4.05, 'eye_l');   // button eyes
+  const mouth = cube(head, dark, 4, 0.6, 0.2, 0, 2, 4.05, 'mouth');                                 // stitched mouth (gapes in pain)
+  const limb = (parent, x, y, side, kind) => {           // upper part + joint group + lower part (6 + 6 long)
+    const top = group(parent, x, y, 0);
+    cube(top, dark, 4, 6, 4, 0, -3, 0, `${kind}_${side}`);
+    const joint = group(top, 0, -6, 0);
+    cube(joint, dark, 4, 6, 4, 0, -3, 0, `${kind === 'arm' ? 'forearm' : 'shin'}_${side}`);
+    return [top, joint];
+  };
+  const [armR, elbowR] = limb(body, -6, 12, 'r', 'arm'), [armL, elbowL] = limb(body, 6, 12, 'l', 'arm');
+  const [legR, kneeR] = limb(root, -2, 12, 'r', 'leg'), [legL, kneeL] = limb(root, 2, 12, 'l', 'leg');
+  // Hit puffs (punch, ear smack): a few small cubes, flying on fixed paths (no state)
   const puffMat = new THREE.MeshBasicMaterial({ color: 0x8e1b21, transparent: true, opacity: 0, depthWrite: false });
   const puffGeo = new THREE.BoxGeometry(1.2 * TEXEL, 1.2 * TEXEL, 1.2 * TEXEL);
   const puffs = Array.from({ length: 14 }, (_, i) => {
     const m = new THREE.Mesh(puffGeo, puffMat); m.visible = false; scene.add(m);
     const a = i * 2.39996, up = 0.3 + (i % 5) * 0.17;       // golden-angle spread
-    return { m, v: [Math.cos(a) * 40, 30 + up * 60, Math.sin(a) * 40] };
+    return { m, v: [Math.cos(a) * 40, 30 + up * 60, Math.sin(a) * 40], side: i % 2 ? 1 : -1 };
   });
-  return { root, body, head, mouth, armR, armL, legR, legL, mats, puffs, puffMat, opacity: 0, shown: null, on: true };
+  return { root, body, head, mouth, armR, armL, elbowR, elbowL, legR, legL, kneeR, kneeL, mats, puffs, puffMat, opacity: 0, shown: null, on: true };
 })();
 
+// Hands on its own ears (2-bone arm, solved for an 8x8 head on a 4-wide arm: hand right beside the head):
+// upper arm out and up, forearm folds back in. Right arm values; the left arm is mirrored.
+const EAR_POSE = { arm: -1.911, elbow: -2.461 };
+
 /* ───────── Victim pose per attack (a function of the attack's time: no state) ─────────
-   Fills DS: feet position (texels), lean back (rad), spin, arms up 0..1, leg kick, head squash 0..1, burn 0..1. */
-const DS = { x: 0, y: 0, z: 0, lean: 0, spin: 0, arms: 0, cower: 0, kick: 0, squash: 0, burn: 0, faceBurn: 0, headBack: 0, gape: 0, flail: 0, puff: -1, puffAt: [0, 0, 0] };
+   Fills DS: feet position (texels), lean back (rad), spin, arms up 0..1, cower, flail, hands on its ears 0..1,
+   legs kick / knees buckle, head tilt / jolt, mouth gape, burn 0..1, blood puffs (time since the hit + where). */
+const DS = { x: 0, y: 0, z: 0, lean: 0, spin: 0, arms: 0, cower: 0, kick: 0, burn: 0, faceBurn: 0, headBack: 0, gape: 0, flail: 0,
+             ears: 0, buckle: 0, jolt: 0, puff: -1, puffAt: [0, 0, 0], puffEars: false };
 const smooth01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
 const vHand = new THREE.Vector3();
-const grabSpot = {};   // anim -> feet spot under the hand at events.grab
 
 // Feet position of a victim held by the neck at world point h (texels): see HANG_UP / HANG_OUT.
 function hangFrom(h, out) {
@@ -2409,7 +2553,8 @@ function handWorld(out) {
 const hTmp = new THREE.Vector3(), aTmp = [0, 0, 0];   // reused every frame
 
 function victimPose(name, t, S) {
-  Object.assign(DS, { lean: 0, spin: 0, arms: 0, cower: 0, kick: 0, squash: 0, burn: 0, faceBurn: 0, headBack: 0, gape: 0, flail: 0, puff: -1 });
+  Object.assign(DS, { lean: 0, spin: 0, arms: 0, cower: 0, kick: 0, burn: 0, faceBurn: 0, headBack: 0, gape: 0, flail: 0,
+                      ears: 0, buckle: 0, jolt: 0, puff: -1, puffEars: false });
   const sp = VICTIM[name].spot, ev = ANIMS[name].events || {};
   [DS.x, DS.y, DS.z] = sp;
   if (name === 'attack') {
@@ -2418,17 +2563,21 @@ function victimPose(name, t, S) {
       DS.z = sp[2] + 40 * (1 - Math.exp(-u * 5));
       DS.y = u < 0.5 ? 48 * u - 96 * u * u : 0;
       DS.lean = -Math.PI / 2 * smooth01(u / 0.45);
+      DS.flail = smooth01(u / 0.15) * (1 - smooth01((u - 0.4) / 0.3));
       DS.puff = u; DS.puffAt[0] = 0; DS.puffAt[1] = 24; DS.puffAt[2] = sp[2] - 2;
     }
   } else if (name === 'special') {
     DS.burn = kf(t, [[0, 0], [ev.laserOn, 0], [ev.laserOn + 0.4, 1], [ev.laserOff, 1], [ev.laserOff + 0.5, 0.6], [ANIMS.special.T, 0.6]]);
     DS.lean = -Math.PI / 2 * smooth01((t - ev.laserOff) / 0.5);
-    DS.arms = 0.5 * smooth01((t - ev.laserOn) / 0.3);
+    DS.arms = 0.5 * smooth01((t - ev.laserOn) / 0.3);    // arms up in front of the face
+    DS.buckle = 0.4 * smooth01((t - ev.laserOn) / 0.5);
   } else if (name === 'throw' || name === 'throatLaser') {
-    if (t >= ev.grab && t < ev.release) {        // held by the neck: hangs from his hand, kicks, grabs the wrist
+    if (t >= ev.grab && t < ev.release) {        // held by the throat: hangs under his fist, kicks, arms flail
       hangFrom(handWorld(hTmp), aTmp); [DS.x, DS.y, DS.z] = aTmp;
-      DS.y = Math.max(0, DS.y) * smooth01((t - ev.grab) / GRAB_LIFT); // yanked off the ground (the hand closes a bit above the neck)
-      DS.arms = smooth01((t - ev.grab) / 0.2);
+      DS.y = Math.max(0, DS.y) * smooth01((t - ev.grab) / GRAB_LIFT); // yanked off the ground
+      DS.flail = smooth01((t - ev.grab) / 0.2);
+      DS.headBack = 0.6 * smooth01((t - ev.grab) / 0.2);
+      DS.gape = smooth01((t - ev.grab) / 0.3);
       DS.kick = smooth01((t - ev.grab) / 0.3) * Math.sin(TAU * 2.6 * t);
       if (name === 'throatLaser') DS.faceBurn = kf(t, [[0, 0], [ev.burnOn, 0], [ev.burnOn + 0.15, 1], [ev.burnOff, 1], [ev.burnOff + 0.3, 0.5], [ANIMS[name].T, 0.5]]);
     } else if (t >= ev.release) {
@@ -2439,29 +2588,31 @@ function victimPose(name, t, S) {
         DS.y = Math.max(0, r[1] + 16 * (THROW_VY * u - 0.5 * GRAVITY_B * u * u));
         DS.spin = 2 * TAU * smooth01(u / land);    // exactly 2 rolls in the air: lands upright-ish, no snap
         DS.lean = -Math.PI / 2 * smooth01((u - land) / 0.15);
-        DS.arms = 1 - smooth01(u / 0.3);
+        DS.flail = 1 - smooth01((u - land) / 0.2);
       } else {                                    // dropped: falls, crumples
         DS.y = Math.max(0, r[1] - 16 * 0.5 * GRAVITY_B * u * u);
+        DS.z = r[2] + 6 * smooth01(u / 0.35);      // staggers away from him as it drops (clear of his lowering arm)
+        DS.buckle = smooth01(u / 0.25);
         DS.lean = -Math.PI / 2 * smooth01((u - 0.2) / 0.35);
         DS.faceBurn = 0.5;
       }
     }
   } else if (name === 'clap') {
-    // leans away, arms out, while he screams; relaxes a bit when he smiles again (reference clip)
-    DS.cower = kf(t, [[0, 0], [0.5, 0], [0.9, 1], [1.95, 1], [2.3, 0.35], [ev.grab, 0], [ANIMS.clap.T, 0]]);
-    DS.lean = -0.1 * DS.cower;
-    // Squeeze (grab .. hit): his hands push the head up and back: chin rises, mouth gapes, up onto the toes,
-    // arms flail out to the sides (clear of his forearms, which come in from the front)
-    const sq = smooth01((t - ev.grab) / 0.9);                    // stays at 1 after the hit (squashed head falls with it)
-    DS.headBack = sq;
-    DS.gape = sq;
-    DS.y = 1.0 * sq * (1 - smooth01((t - ev.hit) / 0.3));
-    DS.flail = smooth01((t - ev.grab) / 0.25) * (1 - smooth01((t - ev.hit) / 0.3));
+    // First HIS hit, then its reaction: while he screams I AM GOD it only shrinks back (arms a little out, no hands
+    // up), flinches in his wind-up. The smack on both ears: head jolts, blood from the ears; THEN it grabs its own
+    // ears, screams (mouth wide, shaking), staggers back, knees buckle, falls on its back.
     const u = t - ev.hit;
+    DS.cower = kf(t, [[0, 0], [0.5, 0], [0.9, 0.7], [1.95, 0.7], [2.3, 0.2], [2.45, 0.2], [2.6, 0.5], [ev.hit, 0.5], [ev.hit + 0.1, 0], [ANIMS.clap.T, 0]]);
+    DS.lean = -0.12 * DS.cower;
+    DS.ears = kf(t, [[0, 0], [ev.hit + 0.18, 0], [ev.hit + 0.4, 1], [ANIMS.clap.T, 1]]);   // after his hands are off
     if (u > 0) {
-      DS.squash = smooth01(u / 0.06);
-      DS.lean = -Math.PI / 2 * smooth01((u - 0.12) / 0.4);
-      DS.puff = u; DS.puffAt[0] = 0; DS.puffAt[1] = 26; DS.puffAt[2] = sp[2];
+      DS.jolt = Math.exp(-u * 9) * Math.sin(TAU * 7 * u);              // head snaps side to side
+      DS.gape = smooth01((u - 0.1) / 0.15) * (0.85 + 0.15 * Math.sin(TAU * 9 * u));   // screams once its hands are up
+      DS.headBack = 0.5 * smooth01((u - 0.15) / 0.2) * (1 - smooth01((u - 0.7) / 0.3));
+      DS.z = sp[2] + 7 * smooth01(u / 0.8);                             // knocked back by the smack, staggers
+      DS.buckle = smooth01((u - 0.55) / 0.4);
+      DS.lean = -0.12 * DS.cower - Math.PI / 2 * smooth01((u - 0.85) / 0.45);
+      DS.puff = u; DS.puffAt[0] = 0; DS.puffAt[1] = 26; DS.puffAt[2] = sp[2]; DS.puffEars = true;
     }
   }
   return DS;
@@ -2485,22 +2636,34 @@ function updateDummy(S, dt) {
   const v = victimPose(D.shown, S.t % ANIMS[D.shown].T, S);
   D.root.position.set(v.x * TEXEL, v.y * TEXEL, v.z * TEXEL);
   D.root.rotation.set(v.lean, Math.atan2(-v.x, -v.z), v.spin);   // faces him, leans back, rolls
-  const fl = v.flail * (1 + 0.12 * Math.sin(TAU * 5 * S.t)); // flailing arms shake
-  D.armR.rotation.set(-2.7 * v.arms - 0.6 * fl, 0, 0.25 * v.arms - 0.5 * v.cower - 1.1 * fl);
-  D.armL.rotation.set(-2.7 * v.arms - 0.6 * fl, 0, -0.25 * v.arms + 0.5 * v.cower + 1.1 * fl);
-  D.legR.rotation.x = 0.35 * v.kick; D.legL.rotation.x = -0.35 * v.kick;
-  D.head.scale.set(1 - 0.75 * v.squash, 1 + 0.15 * v.squash, 1 - 0.2 * v.squash);
-  D.head.rotation.x = -0.35 * v.arms * (1 - v.headBack) - 0.5 * v.headBack; // head tilts back (held by the neck / pushed up in the clap)
+  // Arms (right; left mirrored): flail = out to the sides and back, elbows bent (clear of his arms in front);
+  // cower = out a little; arms = raised in front of the face; ears = hands on its own ears.
+  const fl = v.flail * (1 + 0.12 * Math.sin(TAU * 5 * S.t)), e = v.ears;
+  const ax = (0.45 * fl - 1.3 * v.arms) * (1 - e), az = (-1.0 * fl - 0.5 * v.cower - 0.2 * v.arms) * (1 - e) + EAR_POSE.arm * e;
+  const ex = (-0.6 * fl - 1.2 * v.arms) * (1 - e), ez = (-0.3 * v.cower) * (1 - e) + EAR_POSE.elbow * e;
+  D.armR.rotation.set(ax, 0, az); D.armL.rotation.set(ax, 0, -az);
+  D.elbowR.rotation.set(ex, 0, ez); D.elbowL.rotation.set(ex, 0, -ez);
+  // Legs: kick while held (knees bend on the back swing); buckle = knees give, hips stay over the feet
+  const k = v.kick, bk = v.buckle;
+  D.legR.rotation.x = 0.35 * k - 0.7 * bk; D.legL.rotation.x = -0.35 * k - 0.7 * bk;
+  D.kneeR.rotation.x = 0.5 * Math.max(0, k) ** 2 + 1.4 * bk; D.kneeL.rotation.x = 0.5 * Math.max(0, -k) ** 2 + 1.4 * bk;
+  D.body.position.y = (12 - 12 * (1 - Math.cos(0.7 * bk))) * TEXEL * DUMMY_SCALE;  // sinks as the knees bend
+  D.body.rotation.x = 0.35 * bk;
+  D.head.rotation.set(-0.5 * v.headBack, 0, 0.35 * v.jolt);       // head tilts back (held / in pain), jolts on the smack
   D.mouth.scale.y = 1 + 2.5 * v.gape;
   const burn = Math.max(v.burn, 0);
   for (const m of D.mats) m.emissive.setRGB(0.9 * burn, 0.25 * burn, 0.05 * burn);
   if (v.faceBurn > 0) D.mats[0].emissive.setRGB(0.9 * Math.max(burn, v.faceBurn * 0.6), 0.25 * v.faceBurn * 0.6, 0.05);
-  // Puffs: burst from the hit point, fall, fade
+  // Puffs: burst from the hit point (or both ears, sideways), fall, fade
   if (v.puff >= 0 && v.puff < 0.7) {
     D.puffMat.opacity = D.opacity * (1 - v.puff / 0.7);
+    D.root.updateMatrixWorld(true);
     for (const p of D.puffs) {
       p.m.visible = true;
-      p.m.position.set((v.puffAt[0] + p.v[0] * v.puff) * TEXEL, (v.puffAt[1] + p.v[1] * v.puff - 256 * v.puff * v.puff) * TEXEL, (v.puffAt[2] + p.v[2] * v.puff) * TEXEL);
+      if (v.puffEars) {                           // from the ear on each side of the head, outward
+        D.head.getWorldPosition(hTmp);
+        p.m.position.set(hTmp.x + (p.side * 4 + p.side * Math.abs(p.v[0]) * 0.6 * v.puff) * TEXEL, hTmp.y + (4 + p.v[1] * 0.4 * v.puff - 256 * v.puff * v.puff) * TEXEL, hTmp.z + p.v[2] * 0.3 * v.puff * TEXEL);
+      } else p.m.position.set((v.puffAt[0] + p.v[0] * v.puff) * TEXEL, (v.puffAt[1] + p.v[1] * v.puff - 256 * v.puff * v.puff) * TEXEL, (v.puffAt[2] + p.v[2] * v.puff) * TEXEL);
     }
   }
 }
@@ -2708,6 +2871,31 @@ function restPose() {
   });
 }
 
+// How deep the cape surface (cloth points and cell centers, CAPE_T thick) is inside each body box (texels),
+// using the boxes of the cloth's last step. Map: collider name -> worst depth.
+function clothDepth(C) {
+  const P = C.P, M = C.col, out = new Map(), q = [0, 0, 0];
+  const test = (x, y, z) => {
+    for (let c = 0; c < CLOTH_COL.length; c++) {
+      const o = c * 12, cube = CLOTH_COL[c], dx = x - M[o + 9], dy = y - M[o + 10], dz = z - M[o + 11];
+      q[0] = M[o] * dx + M[o + 1] * dy + M[o + 2] * dz; q[1] = M[o + 3] * dx + M[o + 4] * dy + M[o + 5] * dz; q[2] = M[o + 6] * dx + M[o + 7] * dy + M[o + 8] * dz;
+      let out2 = 0, inside = 1e9;
+      for (let a = 0; a < 3; a++) {
+        const e = Math.abs(q[a]) - (cube.size[a] / 2 + cube.inflate);
+        if (e > 0) out2 += e * e; else inside = Math.min(inside, -e);
+      }
+      const d = out2 > 0 ? CAPE_T - Math.sqrt(out2) : inside + CAPE_T;   // surface depth: thickness minus the gap
+      if (d > 0 && d > (out.get(cube.name) || 0)) out.set(cube.name, d);
+    }
+  };
+  for (let j = 0; j < P.length; j += 3) if (j % (NP * 3)) test(P[j], P[j + 1], P[j + 2]);
+  for (let k = 0; k < NK - 1; k++) for (let i = 1; i < CAPE_N; i++) {
+    const a = (k * NP + i) * 3, b = a + NP * 3;
+    test((P[a] + P[a + 3] + P[b] + P[b + 3]) / 4, (P[a + 1] + P[a + 4] + P[b + 1] + P[b + 4]) / 4, (P[a + 2] + P[a + 5] + P[b + 2] + P[b + 5]) / 4);
+  }
+  return out;
+}
+
 function clipTest() {
   const meshes = cubeList.map((c) => c.mesh);
   const inv = meshes.map(() => new THREE.Matrix4());
@@ -2800,6 +2988,11 @@ function clipTest() {
           const id = `${a} in ${b}`;
           if (!bucket[id] || bucket[id].depth < d) bucket[id] = { depth: +d.toFixed(3), rest: +base.toFixed(3), anim: name };
         }
+        for (const [cname, d] of clothDepth(S.cloth)) {
+          if (d <= EPS) continue;
+          const id = `cape cloth in ${cname}`;
+          if (!report.clips[id] || report.clips[id].depth < d) report.clips[id] = { depth: +d.toFixed(3), rest: 0, anim: name };
+        }
         for (const c of boots) {
           const [hx, hy, hz] = half[cubeList.indexOf(c)];
           for (let k = 0; k < 8; k++) {
@@ -2841,9 +3034,10 @@ function clipTest() {
         for (const p of dPts[j]) { wp.copy(p).applyMatrix4(dMeshes[j].matrixWorld).applyMatrix4(inv[i]); worst = Math.max(worst, inside(half[i], wp)); }
         for (const p of pts[i]) { wp.copy(p).applyMatrix4(meshes[i].matrixWorld).applyMatrix4(dInv[j]); worst = Math.max(worst, inside(dHalf[j], wp)); }
         if (worst / TEXEL <= EPS) continue;
-        const contact = HAND.test(cubeList[i].name) && (S.t % ANIMS[name].T) >= (ANIMS[name].events.grab || 1e9) - 0.05;
+        const evs = ANIMS[name].events, touchAt = evs.grab !== undefined ? evs.grab : evs.hit !== undefined ? evs.hit : 1e9;
+        const contact = HAND.test(cubeList[i].name) && (S.t % ANIMS[name].T) >= touchAt - 0.05;
         const bucket = contact ? report.victim.contact : report.victim.clips;
-        const id = `${cubeList[i].name} / dummy#${j} (${name})`;
+        const id = `${cubeList[i].name} / dummy ${dMeshes[j].name} (${name})`;
         if (!bucket[id] || bucket[id].depth < worst / TEXEL) bucket[id] = { depth: +(worst / TEXEL).toFixed(3), t: +(S.t % ANIMS[name].T).toFixed(2) };
       }
     }

@@ -22,7 +22,8 @@ Custom Minecraft mobs for **Minecraft 1.21.1 + NeoForge**, made in three steps:
 | The Joker | `mobs/the_joker/the_joker.html` | not yet |
 
 Viewer controls: number keys = animations, `B` = show bones, `R` = reset camera,
-eye button = head follows the mouse, dots = color variants, top right = reset camera.
+eye button = head follows the mouse, dots = color variants, top right = expression menu (Auto / Happy / Sad / Angry / Afraid) + reset camera.
+Shared viewer UI for every mob: `mobs/_shared/` (`viewer.css`, `viewer.js`, `viewer_template.html` = start page for a new mob).
 
 ## Folders
 

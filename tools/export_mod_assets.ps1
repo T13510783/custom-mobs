@@ -14,7 +14,8 @@ $cfg = @{
     sounds = @{ 'cussingshort.ogg' = 'voice_cussing_short.ogg'; 'cussing_long_final.ogg' = 'voice_cussing_long.ogg';
                 'take_ur_stuff_and_get_out_of_my_seat_please_final.ogg' = 'voice_take_your_stuff.ogg'; 'backgroundmusic.ogg' = 'dance_music.ogg' } }
   homelander = @{ page = 'mobs/homelander/homelander.html'; ns = 'homelander'; dir = 'homelander'; tex = 'homelander'; trace = 'homelander_modtrace.json'; snd = 'sounds\homelander'
-    sounds = @{ 'i_am_god.ogg' = 'voice_i_am_god.ogg' } }
+    sounds = @{ 'i_am_god.ogg' = 'voice_i_am_god.ogg'; 'punch.ogg' = 'punch.ogg'; 'grab.ogg' = 'grab.ogg'; 'whoosh.ogg' = 'whoosh.ogg'
+                'slap.ogg' = 'slap.ogg'; 'laser.ogg' = 'laser.ogg' } }
 }[$mob]
 if (-not $scratch) { $scratch = Join-Path $env:TEMP "$($mob)_export" }
 $page = 'file:///' + ($root -replace '\\', '/' -replace ' ', '%20') + '/' + $cfg.page

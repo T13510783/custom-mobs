@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New Mob - 3D Vanilla+ Minecraft Model Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!--
+    Start page for a new mob (copy it to mobs/<mob>/<mob>.html, then change model, colors, animations and face).
+    - Shared UI from ../_shared/: viewer.css (look) + viewer.js (expression menu, MobViewer.face(dt)).
+    - Humanoid placeholder: head 8x8x8, body 8x12x4, 2-bone arms and legs (arm_/forearm_, leg_/knee_), feet at y = 0.
+    - Face: eyes with pupils + lids, brows, mouth (thin planes on the head front), smoothed every frame.
+    - Animations (keys 1-3): Idle, Idle 2, Walk. Follow mouse (eye button), Show bones (B), reset camera (R).
+    - 120 FPS when the screen can, else 60; all motion uses delta time.
+  -->
+
+  <!-- Shared viewer UI: mobs/_shared/ -->
+  <link rel="stylesheet" href="../_shared/viewer.css">
+  <script src="../_shared/viewer.js"></script>
+
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body class="mv-ui">
+  <canvas id="viewport" tabindex="0"></canvas>
+
+  <!-- Top right: the expression menu (added by viewer.js) sits left of the reset button -->
+  <div id="topRight">
+    <button id="resetBtn" class="pill icon-btn" title="Reset camera (R)" aria-label="Reset camera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+    </button>
+  </div>
+
+  <!-- Bottom dock: animations, follow toggle, bones toggle, color variants -->
+  <nav id="dock" class="pill">
+    <button class="anim-btn active" data-anim="idle"><kbd>1</kbd>Idle</button>
+    <button class="anim-btn" data-anim="idle2"><kbd>2</kbd>Idle 2</button>
+    <button class="anim-btn" data-anim="walk"><kbd>3</kbd>Walk</button>
+    <span class="sep"></span>
+    <button id="followBtn" class="icon-btn round-btn on" title="Head follows the mouse" aria-label="Follow mouse" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+    <button id="bonesBtn" class="icon-btn round-btn" title="Show bones (B)" aria-label="Show bones" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8 8l8 8"/></svg>
+    </button>
+    <span class="sep"></span>
+    <span id="dots"></span>
+  </nav>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ───────── Setup ───────── */
+const TEXEL = 1 / 16;                           // 1 unit = 1 texel, 16 texels per block
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const filt = (dt, rate) => 1 - Math.exp(-dt * rate);   // per-frame smoothing factor (frame-rate independent)
+
+const canvas = document.getElementById('viewport');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+renderer.shadowMap.enabled = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f1115);
+const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
+const CAM_POS = new THREE.Vector3(1.4, 1.5, 3.4), CAM_TARGET = new THREE.Vector3(0, 1.0, 0);
+camera.position.copy(CAM_POS);
+const controls = new OrbitControls(camera, canvas);
+controls.target.copy(CAM_TARGET); controls.enableDamping = true; controls.update();
+
+// Lights: soft fill + one shadow-casting key + a blue rim
+scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x1a1c22, 1.1));
+const key = new THREE.DirectionalLight(0xffffff, 2.2);
+key.position.set(2, 4, 3); key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x7aa2ff, 0.8); rim.position.set(-3, 2, -3); scene.add(rim);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(2, 48), new THREE.ShadowMaterial({ opacity: 0.35 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+/* ───────── Palettes (color variants) ───────── */
+const VARIANTS = [
+  { name: 'Default', skin: '#c99a7a', shirt: '#3a6ea5', pants: '#2c3446', boots: '#3b2a20', hair: '#3a2a1e', brow: '#2a1d14', eye: '#2b4a7a', lip: '#9a5c4a' },
+  { name: 'Alt', skin: '#8d5e44', shirt: '#7a2e2e', pants: '#2d2d2d', boots: '#1c1c1c', hair: '#141414', brow: '#101010', eye: '#3b2a1a', lip: '#5e3326' },
+];
+
+/* ───────── Rig ─────────
+   Every bone = a Group with its pivot at the joint; cubes hang from it. Limbs: 2 bones each. */
+const mobRoot = new THREE.Group(); scene.add(mobRoot);
+const bones = {};
+const mats = {};                                // one material per palette key (repainted on variant change)
+const mat = (k) => mats[k] || (mats[k] = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0 }));
+function bone(name, parent, x, y, z) {
+  const g = new THREE.Group(); g.name = name; g.position.set(x * TEXEL, y * TEXEL, z * TEXEL); g.rotation.order = 'ZYX';
+  g.userData.rest = g.position.clone(); (parent || mobRoot).add(g); bones[name] = g; return g;
+}
+function box(parent, w, h, d, x, y, z, k) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w * TEXEL, h * TEXEL, d * TEXEL), mat(k));
+  m.position.set(x * TEXEL, y * TEXEL, z * TEXEL); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+}
+// Face planes: thin, on the head front, normals set by hand (a 0-size box flips its normal)
+function plane(parent, w, h, x, y, z, k) {
+  const g = new THREE.PlaneGeometry(w * TEXEL, h * TEXEL);
+  const m = new THREE.Mesh(g, mat(k)); m.position.set(x * TEXEL, y * TEXEL, z * TEXEL); parent.add(m); return m;
+}
+const root = bone('root', null, 0, 0, 0);
+const body = bone('body', root, 0, 12, 0);           // hips
+box(body, 8, 12, 4, 0, 6, 0, 'shirt');
+const head = bone('head', body, 0, 12, 0);           // neck
+box(head, 8, 8, 8, 0, 4, 0, 'skin');
+box(head, 8.5, 2.5, 8.5, 0, 7.25, 0, 'hair');
+// Face: eye whites, pupils (glance), lids (blink: scale from the top edge), brows, mouth
+const eyeR = bone('eye_right', head, -2, 4.5, 4.01), eyeL = bone('eye_left', head, 2, 4.5, 4.01);
+for (const e of [eyeR, eyeL]) { plane(e, 2, 1, 0, 0, 0, 'white'); }
+const pupilR = bone('pupil_right', eyeR, 0, 0, 0.01), pupilL = bone('pupil_left', eyeL, 0, 0, 0.01);   // rest in the middle of the eye white
+plane(pupilR, 1, 1, 0, 0, 0, 'eye'); plane(pupilL, 1, 1, 0, 0, 0, 'eye');
+const lidR = bone('lid_right', head, -2, 5, 4.02), lidL = bone('lid_left', head, 2, 5, 4.02);
+plane(lidR, 2, 1, 0, -0.5, 0, 'skin'); plane(lidL, 2, 1, 0, -0.5, 0, 'skin');
+const browR = bone('brow_right', head, -2, 5.6, 4.03), browL = bone('brow_left', head, 2, 5.6, 4.03);
+plane(browR, 2, 0.6, 0, 0, 0, 'brow'); plane(browL, 2, 0.6, 0, 0, 0, 'brow');
+const mouth = bone('mouth', head, 0, 2, 4.02);
+plane(mouth, 3, 0.6, 0, 0, 0, 'lip');
+// Arms: shoulder -> elbow; legs: hip -> knee (boot on the shin)
+const limb = (side, sx) => {
+  const arm = bone(`arm_${side}`, body, sx * 6, 12, 0); box(arm, 4, 6, 4, 0, -3, 0, 'shirt');
+  const fore = bone(`forearm_${side}`, arm, 0, -6, 0); box(fore, 4, 6, 4, 0, -3, 0, 'skin');
+  const leg = bone(`leg_${side}`, root, sx * 2, 12, 0); box(leg, 4, 6, 4, 0, -3, 0, 'pants');
+  const knee = bone(`knee_${side}`, leg, 0, -6, 0); box(knee, 4, 4, 4, 0, -2, 0, 'pants'); box(knee, 4.2, 2, 4.2, 0, -5, 0, 'boots');
+};
+limb('right', -1); limb('left', 1);
+
+let variant = 0;
+function setVariant(i) {
+  variant = i; const p = VARIANTS[i];
+  for (const k of Object.keys(mats)) mats[k].color.set(k === 'white' ? '#eeeeee' : p[k]);
+  document.querySelectorAll('.dot').forEach((d, k) => d.classList.toggle('active', k === i));
+}
+
+/* ───────── Animations ─────────
+   Each anim: fn(t, Q) fills rotations (Q.r[bone] = [x, y, z]) and the face channels (Q.f). Smooth curves only. */
+const FACE_KEYS = ['browUp', 'frown', 'open', 'wide', 'squint', 'glance'];
+const ANIMS = {
+  // 1 · Idle: calm breathing, arms hang, soft weight shift
+  idle: { T: 4, fn(t, Q) {
+    const b = Math.sin(TAU * t / 4);
+    Q.r.body = [0.01 * b, 0, 0.01 * Math.sin(TAU * t / 8)];
+    Q.r.arm_right = [0.03 * b, 0, -0.04]; Q.r.arm_left = [0.03 * b, 0, 0.04];
+    Q.r.forearm_right = [-0.08 - 0.03 * b, 0, 0]; Q.r.forearm_left = [-0.08 - 0.03 * b, 0, 0];
+    Q.f.open = 0.05 + 0.05 * b; Q.f.browUp = 0.1 * b;
+  } },
+  // 2 · Idle 2: looks around, shifts weight, scratches nothing in particular
+  idle2: { T: 6, fn(t, Q) {
+    const look = Math.sin(TAU * t / 6), s = Math.sin(TAU * t / 3);
+    Q.r.head = [0.04 * s, 0.35 * look, 0];
+    Q.r.body = [0, 0.05 * look, 0.02 * s];
+    Q.r.arm_right = [-0.1 - 0.1 * s, 0, -0.08]; Q.r.forearm_right = [-0.4 - 0.2 * s, 0, 0];
+    Q.r.arm_left = [0.05, 0, 0.06]; Q.r.forearm_left = [-0.1, 0, 0];
+    Q.r.leg_right = [0, 0, 0.03 * s]; Q.r.leg_left = [0, 0, 0.03 * s];
+    Q.f.glance = 0.6 * look; Q.f.browUp = 0.3 * Math.max(0, s) ** 2; Q.f.frown = 0.2 * Math.max(0, -s) ** 2;
+  } },
+  // 3 · Walk: legs swing with the knees bending on the back swing, arms counter-swing, elbows bend
+  walk: { T: 1, move: 16, fn(t, Q) {
+    const p = TAU * t, s = Math.sin(p);
+    Q.r.leg_right = [0.5 * s, 0, 0]; Q.r.leg_left = [-0.5 * s, 0, 0];
+    Q.r.knee_right = [0.6 * Math.max(0, -Math.sin(p - 0.6)) ** 2 + 0.05, 0, 0];
+    Q.r.knee_left = [0.6 * Math.max(0, Math.sin(p - 0.6)) ** 2 + 0.05, 0, 0];
+    Q.r.arm_right = [-0.45 * s, 0, -0.03]; Q.r.arm_left = [0.45 * s, 0, 0.03];
+    Q.r.forearm_right = [-0.25 - 0.15 * Math.max(0, -s) ** 2, 0, 0]; Q.r.forearm_left = [-0.25 - 0.15 * Math.max(0, s) ** 2, 0, 0];
+    Q.r.body = [0.04, 0.06 * s, 0];
+    Q.p = 0.5 * Math.cos(2 * p);                // bob (texels): lowest at mid-stance
+    Q.f.open = 0.1; Q.f.glance = 0.15 * s;
+  } },
+};
+
+/* ───────── Sim (state) ───────── */
+const S = {
+  anim: 'idle', t: 0, prev: null, blend: 1, time: 0,
+  face: Object.fromEntries(FACE_KEYS.map((k) => [k, 0])),
+  blink: { t: -1, wait: 2, again: false },
+  follow: { on: true, has: false, mx: 0, my: 0, yaw: 0, pitch: 0, eye: 0, w: 1 },
+};
+const poseA = { r: {}, f: {}, p: 0 }, poseB = { r: {}, f: {}, p: 0 };
+function evalAnim(name, t, Q) {
+  for (const k in Q.r) delete Q.r[k];
+  for (const k of FACE_KEYS) Q.f[k] = 0;
+  Q.p = 0; ANIMS[name].fn(t % ANIMS[name].T, Q);
+}
+function selectAnim(name) {
+  if (!ANIMS[name] || name === S.anim) return;
+  S.prev = S.anim; S.prevT = S.t; S.anim = name; S.t = 0; S.blend = 0;
+  document.querySelectorAll('.anim-btn').forEach((b) => b.classList.toggle('active', b.dataset.anim === name));
+}
+
+function step(dt) {
+  S.time += dt; S.t += dt; S.prevT = (S.prevT || 0) + dt;
+  S.blend = Math.min(1, S.blend + dt / 0.3);
+  const w = S.blend * S.blend * (3 - 2 * S.blend);            // smooth crossfade between animations
+  evalAnim(S.anim, S.t, poseA);
+  if (S.prev && w < 1) evalAnim(S.prev, S.prevT, poseB);
+  for (const n in bones) { const b = bones[n]; b.rotation.set(0, 0, 0); b.position.copy(b.userData.rest); }
+  const names = new Set([...Object.keys(poseA.r), ...(S.prev && w < 1 ? Object.keys(poseB.r) : [])]);
+  for (const n of names) {
+    const a = poseA.r[n] || [0, 0, 0], b = (S.prev && w < 1 && poseB.r[n]) || [0, 0, 0], k = S.prev && w < 1 ? w : 1;
+    bones[n].rotation.set(b[0] + (a[0] - b[0]) * k, b[1] + (a[1] - b[1]) * k, b[2] + (a[2] - b[2]) * k);
+  }
+  const k = S.prev && w < 1 ? w : 1;
+  root.position.y = (poseB.p + (poseA.p - poseB.p) * k) * TEXEL;
+  const fo = {};
+  for (const f of FACE_KEYS) fo[f] = (S.prev && w < 1 ? poseB.f[f] : poseA.f[f]) + (poseA.f[f] - (S.prev && w < 1 ? poseB.f[f] : poseA.f[f])) * k;
+
+  // Head + eyes follow the mouse; when off they ease back to the animation's pose (never snap)
+  const F = S.follow, on = F.on && F.has;
+  F.yaw += ((on ? F.mx * 0.5 : 0) - F.yaw) * filt(dt, 6);
+  F.pitch += ((on ? -F.my * 0.15 : 0) - F.pitch) * filt(dt, 6);
+  F.eye += ((on ? F.mx : 0) - F.eye) * filt(dt, 10);
+  head.rotation.y += F.yaw; head.rotation.x = clamp(head.rotation.x + F.pitch, -0.08, 0.08);
+
+  // Forced expression from the shared menu: eases over the animation's face + head pose
+  const xf = window.MobViewer ? window.MobViewer.face(dt) : null;
+  if (xf && xf.w > 1e-4) {
+    const mix = (c, v) => { fo[c] += (v - fo[c]) * xf.w; };
+    mix('browUp', 0.8 * xf.brow); mix('frown', clamp(-0.6 * xf.tilt + 0.4 * Math.max(0, -xf.brow), -0.7, 1));
+    mix('wide', 0.6 * xf.smile + 0.2 * xf.open); mix('open', 0.8 * xf.open); mix('squint', 0.7 * Math.max(0, -xf.eyes)); mix('glance', 0);
+    head.rotation.x = clamp(head.rotation.x + window.MobViewer.head.pitch, -0.08, 0.08);
+    head.rotation.z += window.MobViewer.head.roll;
+  }
+
+  // Face: smoothing filter on every channel (no snapping), random (double) blinks as a sine bump
+  for (const f of FACE_KEYS) S.face[f] += (fo[f] - S.face[f]) * filt(dt, 16);
+  const fc = S.face, bl = S.blink;
+  let blinkV = 0;
+  if (bl.t < 0) { bl.wait -= dt; if (bl.wait <= 0) { bl.t = 0; bl.again = Math.random() < 0.18; } }
+  if (bl.t >= 0) {
+    bl.t += dt;
+    if (bl.t >= 0.18) { bl.t = -1; bl.wait = bl.again ? 0.12 : 1.8 + Math.random() * 3.4; bl.again = false; }
+    else blinkV = Math.sin(Math.PI * bl.t / 0.18);
+  }
+  const closed = clamp(Math.max(blinkV, fc.squint * 0.5), 0.001, 1);
+  lidR.scale.y = lidL.scale.y = closed;
+  lidR.visible = lidL.visible = closed > 0.002;                  // hidden while open: default pose has open eyes
+  const glance = clamp(fc.glance + F.eye * 0.6, -1, 1);
+  pupilR.position.x = pupilR.userData.rest.x + glance * 0.5 * TEXEL;
+  pupilL.position.x = pupilL.userData.rest.x + glance * 0.5 * TEXEL;
+  const browY = clamp(fc.browUp * 0.4 - fc.frown * 0.25, -0.35, 0.5) * TEXEL;
+  browR.position.y = browR.userData.rest.y + browY; browL.position.y = browL.userData.rest.y + browY;
+  browR.rotation.z = -fc.frown * 0.3; browL.rotation.z = fc.frown * 0.3;   // + frown = inner ends down
+  mouth.scale.set(1 + clamp(fc.wide, -1, 1) * 0.3, 1 + clamp(fc.open, 0, 1) * 1.5, 1);
+}
+
+/* ───────── Show bones (B): a dot on every pivot, a line to its parent, updated every frame ───────── */
+const rigView = new THREE.Group(); rigView.visible = false; scene.add(rigView);
+const boneList = Object.values(bones);
+const dotGeo = new THREE.SphereGeometry(0.012, 8, 6), dotMat = new THREE.MeshBasicMaterial({ color: 0x60a5fa, depthTest: false });
+const dots = boneList.map(() => { const m = new THREE.Mesh(dotGeo, dotMat); m.renderOrder = 10; rigView.add(m); return m; });
+const linePos = new Float32Array(boneList.length * 6);
+const lineGeo = new THREE.BufferGeometry(); lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+const lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: 0x93c5fd, depthTest: false }));
+lines.renderOrder = 9; rigView.add(lines);
+const vA = new THREE.Vector3(), vB = new THREE.Vector3();
+function updateRigView() {
+  if (!rigView.visible) return;
+  mobRoot.updateMatrixWorld(true);
+  boneList.forEach((b, i) => {
+    b.getWorldPosition(vA); dots[i].position.copy(vA);
+    if (b.parent && b.parent !== mobRoot) b.parent.getWorldPosition(vB); else vB.copy(vA);
+    linePos.set([vA.x, vA.y, vA.z, vB.x, vB.y, vB.z], i * 6);
+  });
+  lineGeo.attributes.position.needsUpdate = true;
+}
+function toggleBones() {
+  rigView.visible = !rigView.visible;
+  const b = document.getElementById('bonesBtn'); b.classList.toggle('on', rigView.visible); b.setAttribute('aria-pressed', String(rigView.visible));
+}
+
+/* ───────── UI ───────── */
+document.querySelectorAll('.anim-btn').forEach((b) => b.addEventListener('click', () => selectAnim(b.dataset.anim)));
+const dotsEl = document.getElementById('dots');
+VARIANTS.forEach((v, i) => {
+  const d = document.createElement('button'); d.className = 'dot'; d.title = v.name; d.setAttribute('aria-label', v.name);
+  d.style.background = v.shirt; d.addEventListener('click', () => setVariant(i)); dotsEl.appendChild(d);
+});
+const followBtn = document.getElementById('followBtn');
+followBtn.addEventListener('click', () => {
+  S.follow.on = !S.follow.on; followBtn.classList.toggle('on', S.follow.on); followBtn.setAttribute('aria-pressed', String(S.follow.on));
+});
+document.getElementById('bonesBtn').addEventListener('click', toggleBones);
+let camTween = null;
+const resetCam = () => { camTween = { t: 0, p: camera.position.clone(), q: controls.target.clone() }; };
+document.getElementById('resetBtn').addEventListener('click', resetCam);
+window.addEventListener('pointermove', (e) => {
+  S.follow.has = true; S.follow.mx = e.clientX / innerWidth * 2 - 1; S.follow.my = e.clientY / innerHeight * 2 - 1;
+});
+window.addEventListener('keydown', (e) => {
+  const names = Object.keys(ANIMS), n = parseInt(e.key, 10);
+  if (n >= 1 && n <= names.length) selectAnim(names[n - 1]);
+  else if (e.key === 'r' || e.key === 'R') resetCam();
+  else if (e.key === 'b' || e.key === 'B') toggleBones();
+});
+function resize() {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize); resize();
+setVariant(0);
+
+/* ───────── Loop: 120 FPS when the screen can (measured over ~30 frames), else 60 ───────── */
+let last = performance.now(), acc = 0, rate = 60, probe = [], lastRaf = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (probe.length < 30) { if (lastRaf) probe.push(now - lastRaf); lastRaf = now; if (probe.length === 30) { probe.sort((a, b) => a - b); rate = 1000 / probe[15] >= 110 ? 120 : 60; } }
+  acc += now - last; last = now;
+  if (acc < 1000 / rate - 1) return;               // lock to the chosen rate
+  const dt = Math.min(acc / 1000, 0.1); acc = 0;
+  step(dt);
+  if (camTween) {
+    camTween.t = Math.min(1, camTween.t + dt / 0.7);
+    const k = 1 - (1 - camTween.t) ** 3;
+    camera.position.lerpVectors(camTween.p, CAM_POS, k); controls.target.lerpVectors(camTween.q, CAM_TARGET, k);
+    if (camTween.t >= 1) camTween = null;
+  }
+  controls.update();
+  updateRigView();
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

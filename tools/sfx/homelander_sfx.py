@@ -5,7 +5,7 @@ sounds/homelander/<name>.ogg (mod + browser) and .mp3 (browser backup).
   punch   - Attack: the super-punch lands (thump + smack)
   grab    - Throw / Clap / Throat laser: the hand closes on a neck or head
   whoosh  - Throw: the victim is flung up into the sky
-  crush   - Clap: the head clap (thud + bone crunch + wet splat)
+  slap    - Clap: both palms smack the ears (crack + thud + ear ring)
   laser   - Special / Throat laser: heat-vision beams (buzzing hum, 2 s, faded ends)
 Same seed every run: the files come out byte-identical.
 Usage: python tools/sfx/homelander_sfx.py <out_dir>
@@ -83,20 +83,18 @@ def whoosh(rnd):
     return normalize(out, 0.8)
 
 
-def crush(rnd):
-    n = int(0.7 * RATE)
+def slap(rnd):
+    """Both palms smack the ears at once: sharp skin crack + body thud + a fading ear ring."""
+    n = int(0.9 * RATE)
     nz = noise(n, rnd)
-    wet = lowpass(nz, 700)
-    out, ph = [], 0.0
-    cracks = [(rnd.uniform(0, 0.18), rnd.uniform(0.4, 1.0)) for _ in range(14)]   # bone snaps: time, loudness
+    crack = svf(nz, 2600, 0.5)
+    out, ph, ring = [], 0.0, 0.0
     for i in range(n):
         t = i / RATE
-        ph += TAU * (40 + 30 * math.exp(-t * 20)) / RATE
-        v = 1.0 * math.sin(ph) * math.exp(-t * 10) + 2.5 * wet[i] * math.exp(-t * 7)
-        for (c, a) in cracks:
-            d = t - c
-            if 0 <= d < 0.012:
-                v += a * nz[(i * 7) % n] * math.exp(-d * 400)
+        ph += TAU * (60 + 40 * math.exp(-t * 30)) / RATE
+        ring += TAU * 3100 / RATE
+        v = 2.2 * crack[i] * math.exp(-t * 70) + 0.9 * nz[i] * math.exp(-t * 400) + 0.8 * math.sin(ph) * math.exp(-t * 18)
+        v += 0.12 * math.sin(ring) * min(1, t / 0.05) * math.exp(-t * 3)
         out.append(v)
     return normalize(out)
 
@@ -128,6 +126,6 @@ def write(path, s):
 
 if __name__ == '__main__':
     out_dir = sys.argv[1] if len(sys.argv) > 1 else '.'
-    for name, fn in [('punch', punch), ('grab', grab), ('whoosh', whoosh), ('crush', crush), ('laser', laser)]:
+    for name, fn in [('punch', punch), ('grab', grab), ('whoosh', whoosh), ('slap', slap), ('laser', laser)]:
         write(f'{out_dir}/{name}.wav', fn(random.Random(name)))
         print('wrote', name)

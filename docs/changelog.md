@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-16 08:48
+- Homelander cape (`mobs/homelander/homelander.html`): 50 bones posed only by cloth physics (7 chains, gravity, air, breeze, body + hands collisions); drawn as one continuous cloth surface from the cloth points (no gaps, steps or box edges); lies over his hands in Hover.
+- Homelander clap: he smacks both ears first, then the dummy grabs its own ears, screams and falls; I AM GOD plays to the end (lip-sync curve covers the whole 2.55 s file).
+- Homelander: one file (no `js/` folder), dummy with 2-bone arms/legs, throat grabs at neck height, rarer random grin, dock wraps.
+- Shared viewer UI (`mobs/_shared/viewer.css`, `viewer.js`, `viewer_template.html`): expression menu (Auto / Happy / Sad / Angry / Afraid, face icons, pill style); Homelander uses it.
+- Sounds (`sounds/homelander/`, `tools/sfx/`): new `slap`, `crush` removed.
+- Rules (`CLAUDE.md`): expression menu, shared viewer files, only touch the asked mob, 10000 lines per file, edit tool choice, own-branch cleanup, organise + commit + push after every request.
+
 ## 2026-10-15 22:36
 - Organized files into subfolders without deleting or editing any contents:
   - `mobs/anton_chigurh/AntonChig.html`: sorted Anton Chigurh viewer into its own mob directory (`mobs/anton_chigurh/`).
