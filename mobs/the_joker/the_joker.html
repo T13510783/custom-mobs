@@ -607,7 +607,7 @@ bone('head', R.body, 0, 12, 0);                        // no neck: the head sits
 bone('hair_right', R.head, -4.35, 7.7, -1.1);          // side locks: pivot on their top edge, beside the temples
 bone('hair_left', R.head, 4.35, 7.7, -1.1);
 bone('hair_back', R.head, 0, 7.2, -4.45);              // back curtain: pivot on its top edge, behind the head
-bone('cig', R.head, -1.0, 1.9, 3.9, [0.32, -0.35, 0]);    // cigarette in his right mouth corner, held between the lips
+bone('cig', R.head, -1.45, 2.0, 3.9, [0.25, -0.75, 0]);   // cigarette in his right mouth corner, just past the mouth line's end, pointing out to his right (never across the mouth)
 for (const [s, sx] of [['right', -1], ['left', 1]]) {
   bone(`arm_${s}`, R.body, sx * 6, SH_Y, 0);
   bone(`forearm_${s}`, R[`arm_${s}`], 0, -5.2, 0);     // elbow (torso y 6)
@@ -636,7 +636,8 @@ cube(R.body, 8, 12.2, 0.45, 0, 6, -2.15, T_.suitPanel);                         
 
 // 2. Head (8x8x8) + red nose + layered green hair
 cube(R.head, 8, 8, 8, 0, 4, 0, T_.head);
-cube(R.head, 1.8, 1.5, 0.85, 0, 3.65, 4.35, { all: (p) => { p.fill(PALETTE.makeupRedLight); p.px(0, 1, PALETTE.makeupRedBase); } });
+cube(R.head, 1.8, 1.5, 0.85, 0, 3.65, 4.35, { all: (p) => { p.fill(PALETTE.makeupRedLight); p.px(0, 1, PALETTE.makeupRedBase); } },
+  { castShadow: false });   // no shadow: it painted a dark block over the mouth right under it
 cube(R.head, 8.6, 1.5, 8.5, 0, 8.4, -0.25, T_.hairLayer);    // slicked-back crown
 cube(R.head, 7.6, 1.0, 7.2, 0, 9.4, -0.7, T_.hairLayer);
 // Wavy hair (the first Joker look, references): per side a lock over the ear, a flare curling out below it and a thin
@@ -720,7 +721,7 @@ for (const [s, x] of [['right', -2], ['left', 2]]) {
 // tilts and slides for the one-sided smirk, thickens when the mouth opens and widens with a smile; a teeth plate under the
 // line grows down for the grin (scale y 0 -> 1) and sits inside the head until he grins. Around it: the painted red smile.
 bone('mouth', R.head, 0, 2.0, FZ + 0.05);
-FACE.line = plane(R.mouth, 2, 0.35, 0, 0, 0.02, fmat('#4c0808'));
+FACE.line = plane(R.mouth, 2, 0.35, 0, 0, 0.02, fmat('#2a0404'));   // dark: must read on the red lip paint
 bone('teeth', R.mouth, 0, -0.1, -0.1);                          // hidden inside the head at rest
 FACE.teeth = plane(R.teeth, 2, 0.8, 0, -0.4, 0, fmat('#ddd5c2'));
 
@@ -1227,8 +1228,8 @@ function applyFace(fc, blinkV, glance) {
   R.mouth.position.x = 0.25 * smirk;
   R.teeth.scale.y = Math.max(0.001, grin);
   R.teeth.position.z = -0.1 + 0.11 * clamp(grin * 10, 0, 1);    // steps out of the head only while grinning
-  R.cig.position.y = 1.9 - 0.3 * open;                           // the cigarette drops with the jaw and droops
-  R.cig.rotation.x = 0.32 + 0.15 * open;
+  R.cig.position.y = 2.0 - 0.3 * open;                           // the cigarette drops with the jaw and droops
+  R.cig.rotation.x = 0.25 + 0.15 * open;
 }
 
 /* ───────── Smoke: tiny voxel puffs (made once, reused round-robin) ─────────
@@ -1473,7 +1474,8 @@ const CAMS = { full: [HOME.pos, HOME.tgt], face: [new THREE.Vector3(0.3, 1.8, 2.
   bust: [new THREE.Vector3(0.9, 1.6, 3.0), new THREE.Vector3(0, 1.4, 0)],
   side: [new THREE.Vector3(4.9, 1.3, 0.3), new THREE.Vector3(0, 1.0, 0)], back: [new THREE.Vector3(-2.6, 1.7, -4.6), new THREE.Vector3(0, 1.05, 0)],
   front: [new THREE.Vector3(0, 1.25, 5.2), new THREE.Vector3(0, 1.05, 0)],
-  mouth: [new THREE.Vector3(0.12, 1.62, 1.3), new THREE.Vector3(0, 1.6, 0)] };   // close-up of the face (mouth checks)
+  mouth: [new THREE.Vector3(0.12, 1.62, 1.3), new THREE.Vector3(0, 1.6, 0)],     // close-up of the face (mouth checks)
+  mouthlow: [new THREE.Vector3(-0.55, 1.48, 1.05), new THREE.Vector3(0, 1.62, 0)] };   // close-up from below-left
 function dumpFrame(cam = 'full') {
   const [p, t] = CAMS[cam] || CAMS.full; camera.position.copy(p); controls.target.copy(t); controls.update();
   renderer.render(scene, camera);

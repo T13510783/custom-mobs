@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-16 20:34
+- The Joker (`mobs/the_joker/the_joker.html`): mouth fix.
+  - Cigarette moved to the mouth corner just past the line's end, pointing out to his right: it no longer covers the mouth.
+  - Mouth line darker (`#2a0404`) so it reads on the red lip paint; the nose no longer casts a dark block over the mouth.
+  - Test camera `mouthlow` (close-up from below-left) for `#shot`. Tested: renders, `#cliptest` max 0.38 texel, no cigarette clips.
+
 ## 2026-10-16 20:29
 - The Joker (`mobs/the_joker/the_joker.html`):
   - Hair back to the first wavy look, improved: per side a lock over the ear + a flare curling out + a temple strand framing the face; back curtain + lower wave. Strand texture, darker tips, ragged ends.
