@@ -1,12 +1,13 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 21:46
-**Request:** Make the Joker more like a previous version, especially the hair (user screenshot = version #37).
+**Date:** 2026-10-16 22:16
+**Request:** Merge Anton; Joker face + mouth like the first look (no corner step, whole mouth shifts like Homelander); then an emote wheel in the mod.
 
 **Done:**
-- `mobs/the_joker/the_joker.html`: first-look hair texture (clumpy, highlights), puffy band at temples/back, green head sides with ear, temple strands removed, livelier hair springs (calm on a raised shoulder). Face, mouth, cigarette and animations unchanged.
-- Checked: renders next to version #37 from the screenshot's angle and the back, `#cliptest` 23 pairs (was 25), hair vs arms max 0.28.
+- Anton PR #42 merged into `main`.
+- `mobs/the_joker/the_joker.html`: first-look hair (PR #43) + first-look face paint (skin at jaw / sides) + mouth on row 6 moving as one piece.
+- Checked: face renders of idle / Smug / Happy / Grin, `#cliptest` 23 pairs (same as before).
 
-**Files:** `mobs/anton_chigurh/anton_chigurh.html`, `references/anton_chigurh/*`, docs.
+**Files:** `mobs/the_joker/the_joker.html`, docs.
 
-**Next:** Joker still viewer only (not in the mod, no release). Anton PR #42 still waits for a merge.
+**Next:** emote wheel in the mod (hold R, 8 slots, Wave in slot 1, catalogue after a 3 s hover, synced, third-person camera).
