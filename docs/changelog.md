@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-16 11:58
+- Homelander mod port of the new viewer work (`mod/src/main/java/com/custommobs/homelander/`):
+  - Run: he sprints when the target is farther than 5 blocks (~10-11 blocks/s, `homelander.runSpeed`), clients play the Run loop at his real speed (`client/HomelanderClientState.java`).
+  - Smash: hammer-fist slam, victim lies on its back, he grabs its ankles, drags it and flings it ~12 blocks (`entity/HomelanderEntity.java`); works on any mob up to 2.3 blocks tall.
+  - Clap victims: hands on ears, fall onto their back, lie screaming, get up (`client/HomelanderVictims.java` + `mixin/LivingEntityRendererMixin.java`, `sindicate.mixins.json`).
+  - Walk while attacking: legs walk under Punch / Heat vision.
+  - Fixed: thrown / burned victims stayed stuck on his fist (own dismount block); he kept walking into victims after the chase; lying victims walked away; held mobs took over his movement.
+  - Voice line `I am god` heard up to 32 blocks (`assets/homelander/sounds.json`).
+  - Test world: smash + run scenes, debug target hook (`mod/testworld/homelandertest/`).
+
 ## 2026-10-16 10:00
 - Mod renamed to **Sindicate** (`mod/gradle.properties`, `mod/src/main/java/com/custommobs/Sindicate*.java`): mod id `sindicate`, jar `sindicate-<version>.jar`, lang in `assets/sindicate/`.
 - Config screen (`mod/src/main/java/com/custommobs/config/`): Client/Server tabs, search, hover tooltips, reset buttons, key `K`; server settings per world, synced, editable by operators only when `opsCanEditConfig` is on.

@@ -1,5 +1,5 @@
 {
-  "voice_i_am_god": { "sounds": [ "homelander:voice_i_am_god" ], "subtitle": "subtitles.homelander.voice" },
+  "voice_i_am_god": { "sounds": [ { "name": "homelander:voice_i_am_god", "attenuation_distance": 32 } ], "subtitle": "subtitles.homelander.voice" },
   "punch": { "sounds": [ "homelander:punch" ], "subtitle": "subtitles.homelander.punch" },
   "grab": { "sounds": [ "homelander:grab" ], "subtitle": "subtitles.homelander.grab" },
   "whoosh": { "sounds": [ "homelander:whoosh" ], "subtitle": "subtitles.homelander.whoosh" },

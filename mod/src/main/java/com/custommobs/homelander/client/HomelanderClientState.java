@@ -15,12 +15,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 /* ───────── One Homelander on the client: which animation plays, sounds, lip sync, cape motion ─────────
-   Base animation: Walk while moving (sped up to his real ground speed, so the feet do not slide), otherwise Idle;
+   Base animation: Run when he sprints, Walk while moving (both sped up to his real ground speed, so the feet do not
+   slide), otherwise Idle;
    from Idle the animator itself plays a random Hover or Idle 2 now and then (like the viewer).
    Attacks come from the server (entity events) and play once, then crossfade back.
    Sounds follow the animation's own events (viewer SFX_EVENTS + the Clap's "voice" line), so they hit on the frame. */
 public final class HomelanderClientState {
     private static final double WALK_DESIGN_SPEED = 1.0; // blocks/s of one Walk loop at speed 1 (anim move = 16 texels/s)
+    private static final double RUN_DESIGN_SPEED = 54 / 16.0; // Run loop at speed 1 (anim move = 54 texels/s)
     private static final double DEG = Math.PI / 180;
 
     // viewer SFX_EVENTS: animation -> event -> sound ("-laser" = stop the laser hum)
@@ -29,6 +31,7 @@ public final class HomelanderClientState {
             "special", Map.of("laserOn", "laser", "laserOff", "-laser"),
             "throw", Map.of("grab", "grab", "release", "whoosh"),
             "clap", Map.of("swing", "whoosh", "hit", "slap"),
+            "smash", Map.of("swing", "whoosh", "hit", "punch", "grab", "grab", "release", "whoosh"),
             "throatLaser", Map.of("grab", "grab", "burnOn", "laser", "burnOff", "-laser"));
 
     public final HomelanderAnimator a;
@@ -70,6 +73,7 @@ public final class HomelanderClientState {
             case HomelanderEntity.EV_THROW -> s.playOnce("throw");
             case HomelanderEntity.EV_CLAP -> s.playOnce("clap");
             case HomelanderEntity.EV_BURN -> s.playOnce("throatLaser");
+            case HomelanderEntity.EV_SMASH -> s.playOnce("smash");
             default -> s.oneShot = false;
         }
     }
@@ -147,12 +151,23 @@ public final class HomelanderClientState {
         if (oneShot && (a.t + dt >= a.anim.T - 0.05 || !e.isAlive())) oneShot = false;
         if (!oneShot) {
             boolean moving = speed > 0.35 && !e.isVehicle();
+            // Run: the server sets the sprinting flag when he chases from far away (synced vanilla flag)
+            boolean running = moving && e.isSprinting() && speed > 2.0;
             String now = a.anim.name;
             boolean calm = now.equals("idle") || now.equals("idle2") || now.equals("hover");
-            String want = moving ? "walk" : calm ? now : "idle";
-            if (!want.equals(now)) a.switchAnim(want);
+            String want = running ? "run" : moving ? "walk" : calm ? now : "idle";
+            if (!want.equals(now)) {
+                if (HomelanderEntity.DEBUG) HomelanderEntity.LOG.info("[Homelander] client anim {} -> {} (speed {} sprint {})", now, want, String.format("%.2f", speed), e.isSprinting());
+                a.switchAnim(want);
+            }
             if (want.equals("walk")) rate = Mth.clamp(speed / WALK_DESIGN_SPEED, 0.5, 2.5);
+            if (want.equals("run")) rate = Mth.clamp(speed / RUN_DESIGN_SPEED, 0.6, 3.5);
         }
+        // Walk while attacking (Punch / Heat vision, server walkAt): legs walk under the attack's upper body
+        String an = a.anim.name;
+        boolean walkable = oneShot && (an.equals("attack") || an.equals("special"));
+        a.walkAtk = walkable ? Mth.clamp((speed - 0.25) / 0.5, 0, 1) : 0;
+        a.walkRate = Mth.clamp(speed / WALK_DESIGN_SPEED, 0.5, 2.5);
 
         // Head + eyes follow where he looks (viewer: the mouse). Minecraft head yaw + = his right, so flip it.
         a.lookYaw = -netHeadYaw * DEG;
@@ -174,6 +189,7 @@ public final class HomelanderClientState {
         a.worldX = x; a.worldY = y; a.worldZ = z;
         a.worldYaw = yaw;
         a.step(dt, rate);
+        HomelanderVictims.track(e, a, partial);   // the Clap / Smash victim falls, lies, is dragged (any mob)
 
         // Sounds on the animation's own events; a sound of an animation that stopped stops too (viewer updateSfx).
         Map<String, String> ev = SFX_EVENTS.get(a.anim.name);

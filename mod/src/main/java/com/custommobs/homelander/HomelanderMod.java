@@ -87,7 +87,7 @@ public final class HomelanderMod {
         });
         // A victim held by the throat cannot climb off (players press sneak to dismount).
         NeoForge.EVENT_BUS.addListener(EntityMountEvent.class, e -> {
-            if (e.isDismounting() && e.getEntityBeingMounted() instanceof HomelanderEntity h && h.isHolding(e.getEntityMounting()))
+            if (e.isDismounting() && e.getEntityBeingMounted() instanceof HomelanderEntity h && h.keepsHold(e.getEntityMounting()))
                 e.setCanceled(true);
         });
     }
