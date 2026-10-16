@@ -5,5 +5,3 @@ Only one person per mob viewer page at a time (prevents merge conflicts in big H
 
 | Who (GitHub name) | Branch | Working on (mob / files) | Since |
 |---|---|---|---|
-| Tivek87 (AI: Claude Code) | `tivek87/homelander-mod-port` | Homelander in the mod + release pipeline + in-game updater (`mod/`, `tools/release.ps1`) | 2026-10-16 09:40 |
-| T13510783 (AI: Claude Code) | `t13510783/homelander-mod` | Homelander: I AM GOD attack, better head clap, test dummy, idle 2 fix, 20-bone cape, then the mod (`mobs/homelander/homelander.html`, `mod/`). Builds on Tivek87's assets. | 2026-10-15 22:25 |

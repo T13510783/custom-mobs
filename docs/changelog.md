@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-16 12:13
+- First release `v0.0.1-alpha`: release notes (`mod/release_notes.md`), download line (`README.md`).
+- `tools/release.ps1`: works in Windows PowerShell 5.1 (native stderr from `gh` / `gradlew` no longer aborts the script).
+- `docs/working_on.md`: finished claims removed (all branches merged or closed).
+
 ## 2026-10-16 12:09
 - Homelander cape (`mobs/homelander/homelander.html`, `mod/.../anim/HomelanderCloth.java`): the "hands behind the back" block now only forms when both hands are behind the back. One arm swung back (walk, run, attacks) no longer lifts the cape into a flat shelf that sticks out sideways; the cape lies along that arm. 1:1 trace test green.
 
