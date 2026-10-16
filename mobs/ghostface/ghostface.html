@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ghostface — 16x16 Vanilla+ Model Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0f1115;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #f3f4f6;
+    }
+
+    #viewport {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      outline: none;
+    }
+
+    .pill-bar {
+      background: rgba(20, 23, 30, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.7), 0 0 20px rgba(220, 38, 38, 0.08);
+    }
+
+    .anim-btn {
+      position: relative;
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      color: #9ca3af;
+    }
+
+    .anim-btn:hover {
+      color: #f9fafb;
+    }
+
+    .anim-btn.active {
+      color: #ffffff;
+      background: rgba(220, 38, 38, 0.22);
+      border-color: rgba(220, 38, 38, 0.55);
+      box-shadow: 0 0 16px rgba(220, 38, 38, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+
+    .reset-btn {
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      color: #9ca3af;
+    }
+
+    .reset-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
+      transform: rotate(-15deg);
+    }
+
+    .reset-btn:active {
+      transform: scale(0.92) rotate(-35deg);
+    }
+  </style>
+</head>
+<body class="relative w-full h-full overflow-hidden">
+
+  <canvas id="viewport"></canvas>
+
+  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 p-1.5 rounded-full pill-bar">
+    <button data-anim="idle" class="anim-btn active px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-transparent tracking-wide">
+      Idle
+    </button>
+    <button data-anim="walk" class="anim-btn px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-transparent tracking-wide">
+      Walk
+    </button>
+    <button data-anim="attack" class="anim-btn px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-transparent tracking-wide">
+      Attack
+    </button>
+    <button data-anim="special" class="anim-btn px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-transparent tracking-wide">
+      Special
+    </button>
+
+    <div class="w-px h-5 bg-white/10 mx-1"></div>
+
+    <button id="resetCameraBtn" title="Reset Camera" aria-label="Reset Camera" class="reset-btn p-2 rounded-full border border-transparent flex items-center justify-center">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+    </button>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ============================================================================
+      // 1. SCENE, CAMERA, RENDERER & ORBIT CONTROLS
+      // ============================================================================
+      const canvas = document.getElementById('viewport');
+      const renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        powerPreference: 'high-performance'
+      });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.18;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color('#0f1115');
+      scene.fog = new THREE.FogExp2('#0f1115', 0.045);
+
+      const DEFAULT_CAM_POS = new THREE.Vector3(1.95, 1.42, 3.55);
+      const DEFAULT_CAM_TARGET = new THREE.Vector3(0, 1.05, 0);
+
+      const camera = new THREE.PerspectiveCamera(
+        38,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        100
+      );
+      camera.position.copy(DEFAULT_CAM_POS);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.copy(DEFAULT_CAM_TARGET);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.065;
+      controls.minDistance = 1.35;
+      controls.maxDistance = 8.5;
+      controls.maxPolarAngle = Math.PI / 2 + 0.06;
+      controls.update();
+
+      const ambientLight = new THREE.HemisphereLight('#d4dceb', '#12141c', 0.82);
+      scene.add(ambientLight);
+
+      const keyLight = new THREE.DirectionalLight('#f8faff', 1.55);
+      keyLight.position.set(3.2, 5.6, 4.0);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.width = 2048;
+      keyLight.shadow.mapSize.height = 2048;
+      keyLight.shadow.camera.near = 0.5;
+      keyLight.shadow.camera.far = 16;
+      const d = 2.5;
+      keyLight.shadow.camera.left = -d;
+      keyLight.shadow.camera.right = d;
+      keyLight.shadow.camera.top = d;
+      keyLight.shadow.camera.bottom = -d;
+      keyLight.shadow.bias = -0.0005;
+      scene.add(keyLight);
+
+      const rimLight = new THREE.DirectionalLight('#9ab0d6', 1.15);
+      rimLight.position.set(-3.6, 3.8, -3.2);
+      scene.add(rimLight);
+
+      const slasherFillLight = new THREE.DirectionalLight('#8b1e2b', 0.28);
+      slasherFillLight.position.set(-2.4, 0.8, 2.2);
+      scene.add(slasherFillLight);
+
+      const groundGeo = new THREE.PlaneGeometry(30, 30);
+      const groundMat = new THREE.ShadowMaterial({ opacity: 0.52 });
+      const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+      groundMesh.rotation.x = -Math.PI / 2;
+      groundMesh.position.y = 0;
+      groundMesh.receiveShadow = true;
+      scene.add(groundMesh);
+
+      const floorRingCanvas = document.createElement('canvas');
+      floorRingCanvas.width = 64;
+      floorRingCanvas.height = 64;
+      const fCtx = floorRingCanvas.getContext('2d');
+      const grad = fCtx.createRadialGradient(32, 32, 4, 32, 32, 30);
+      grad.addColorStop(0, 'rgba(185, 28, 28, 0.10)');
+      grad.addColorStop(0.55, 'rgba(24, 28, 38, 0.24)');
+      grad.addColorStop(1, 'rgba(15, 17, 21, 0)');
+      fCtx.fillStyle = grad;
+      fCtx.fillRect(0, 0, 64, 64);
+      const floorTex = new THREE.CanvasTexture(floorRingCanvas);
+      floorTex.magFilter = THREE.NearestFilter;
+      const pedestalDisc = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.5, 2.5),
+        new THREE.MeshBasicMaterial({ map: floorTex, transparent: true, depthWrite: false })
+      );
+      pedestalDisc.rotation.x = -Math.PI / 2;
+      pedestalDisc.position.y = 0.002;
+      scene.add(pedestalDisc);
+
+      // ============================================================================
+      // 2. PROCEDURAL TEXTURE ENGINE & MASK PAINTERS
+      // ============================================================================
+      const PX = 1 / 16;
+
+      function makePixelTexture(w, h, drawCallback) {
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(w));
+        c.height = Math.max(1, Math.round(h));
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        drawCallback(ctx, c.width, c.height);
+
+        const tex = new THREE.CanvasTexture(c);
+        tex.magFilter = THREE.NearestFilter;
+        tex.minFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        tex.encoding = THREE.sRGBEncoding;
+        tex.needsUpdate = true;
+        return tex;
+      }
+
+      function rect(ctx, x, y, w, h, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, w, h);
+      }
+
+      function pxl(ctx, x, y, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, 1, 1);
+      }
+
+      function createTexturedBox(wPx, hPx, dPx, faceDrawers, matOptions = {}) {
+        const rw = Math.max(1, Math.round(wPx));
+        const rh = Math.max(1, Math.round(hPx));
+        const rd = Math.max(1, Math.round(dPx));
+
+        const defaultDraw = faceDrawers.all || ((ctx, w, h) => rect(ctx, 0, 0, w, h, '#14161b'));
+
+        const faces = [
+          { draw: faceDrawers.right || faceDrawers.side || defaultDraw, w: rd, h: rh },  // +X
+          { draw: faceDrawers.left || faceDrawers.side || defaultDraw, w: rd, h: rh },   // -X
+          { draw: faceDrawers.top || defaultDraw, w: rw, h: rd },                        // +Y
+          { draw: faceDrawers.bottom || defaultDraw, w: rw, h: rd },                     // -Y
+          { draw: faceDrawers.front || defaultDraw, w: rw, h: rh },                      // +Z
+          { draw: faceDrawers.back || faceDrawers.side || defaultDraw, w: rw, h: rh }    // -Z
+        ];
+
+        const materials = faces.map((f) => {
+          const tex = makePixelTexture(f.w, f.h, f.draw);
+          return new THREE.MeshStandardMaterial({
+            map: tex,
+            roughness: matOptions.roughness !== undefined ? matOptions.roughness : 0.78,
+            metalness: matOptions.metalness !== undefined ? matOptions.metalness : 0.08,
+            alphaTest: matOptions.alphaTest !== undefined ? matOptions.alphaTest : 0.0,
+            transparent: !!matOptions.transparent,
+            side: matOptions.doubleSided ? THREE.DoubleSide : THREE.FrontSide
+          });
+        });
+
+        const geo = new THREE.BoxGeometry(wPx * PX, hPx * PX, dPx * PX);
+        const mesh = new THREE.Mesh(geo, materials);
+        mesh.castShadow = matOptions.castShadow !== undefined ? matOptions.castShadow : true;
+        mesh.receiveShadow = matOptions.receiveShadow !== undefined ? matOptions.receiveShadow : true;
+        return mesh;
+      }
+
+      function drawRobeCloth(ctx, w, h, options = {}) {
+        const base = options.base || '#15171c';
+        const foldDark = options.foldDark || '#0b0d10';
+        const foldLight = options.foldLight || '#22262e';
+        const sparkle = options.sparkle !== false;
+
+        rect(ctx, 0, 0, w, h, base);
+
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            if (x % 3 === 0) {
+              pxl(ctx, x, y, foldLight);
+            } else if (x % 3 === 1) {
+              pxl(ctx, x, y, foldDark);
+            }
+            if (sparkle && ((x * 7 + y * 13) % 11 === 0)) {
+              pxl(ctx, x, y, '#2c313b');
+            }
+            if (sparkle && ((x * 5 + y * 17) % 23 === 0)) {
+              pxl(ctx, x, y, '#383e4a');
+            }
+          }
+        }
+
+        if (options.tatteredBottom) {
+          const jagDepth = options.jagDepth || 2;
+          for (let x = 0; x < w; x++) {
+            const cutHeight = (x % 2 === 0) ? jagDepth : 0;
+            if (cutHeight > 0) {
+              ctx.clearRect(x, h - cutHeight, 1, cutHeight);
+            } else {
+              pxl(ctx, x, h - 1, '#08090c');
+            }
+          }
+        }
+      }
+
+      /**
+       * Organic, Lore-Accurate 16x16 Ghostface Mask Front Texture
+       * Captures the smooth porcelain-like curves, wide peanut-eyed drooping black mesh,
+       * inverted heart nose, and elongated screaming mouth without boxy artifacts.
+       */
+      function drawGhostfaceMaskFront(ctx, w, h) {
+        ctx.clearRect(0, 0, w, h);
+
+        // Smooth curved porcelain-white vinyl base silhouette
+        for (let y = 0; y < h; y++) {
+          let minX = 1;
+          let maxX = w - 2;
+          if (y === 0) { minX = 3; maxX = 4; }
+          else if (y === 1) { minX = 2; maxX = 5; }
+          else if (y >= 2 && y <= 5) { minX = 1; maxX = 6; }
+          else if (y === 6 || y === 7) { minX = 2; maxX = 5; }
+          else if (y >= 8 && y <= 10) { minX = 2; maxX = 5; }
+          else if (y === 11) { minX = 3; maxX = 4; }
+
+          for (let x = minX; x <= maxX; x++) {
+            const edge = (x === minX || x === maxX);
+            pxl(ctx, x, y, edge ? '#d8e1ed' : '#f7fafe');
+          }
+        }
+
+        // Glossy forehead highlight
+        rect(ctx, 2, 0, 4, 1, '#ffffff');
+        pxl(ctx, 2, 1, '#ffffff');
+        pxl(ctx, 5, 1, '#ffffff');
+
+        // Drooping Peanut-Shaped Left Eye Socket (viewer's left: x=2)
+        pxl(ctx, 2, 2, '#040507');
+        pxl(ctx, 1, 3, '#040507');
+        pxl(ctx, 2, 3, '#080a0e');
+        pxl(ctx, 2, 4, '#040507');
+
+        // Drooping Peanut-Shaped Right Eye Socket (viewer's right: x=5)
+        pxl(ctx, 5, 2, '#040507');
+        pxl(ctx, 5, 3, '#080a0e');
+        pxl(ctx, 6, 3, '#040507');
+        pxl(ctx, 5, 4, '#040507');
+
+        // Flared cheekbone rims around the eyes
+        pxl(ctx, 0, 3, '#e2e8f0');
+        pxl(ctx, 0, 4, '#f8fafc');
+        pxl(ctx, 7, 3, '#e2e8f0');
+        pxl(ctx, 7, 4, '#f8fafc');
+
+        // Narrow bridge and Inverted-Heart Black Nose Cavity (y: 5)
+        pxl(ctx, 3, 3, '#ffffff');
+        pxl(ctx, 4, 3, '#ffffff');
+        pxl(ctx, 3, 4, '#ffffff');
+        pxl(ctx, 4, 4, '#ffffff');
+        pxl(ctx, 3, 5, '#040507');
+        pxl(ctx, 4, 5, '#040507');
+
+        // Sculpted philtrum & cheek hollows (y: 6)
+        pxl(ctx, 2, 6, '#e2e8f0');
+        pxl(ctx, 3, 6, '#ffffff');
+        pxl(ctx, 4, 6, '#ffffff');
+        pxl(ctx, 5, 6, '#e2e8f0');
+
+        // Long Teardrop Screaming Mouth Cavity (y: 7..11)
+        for (let y = 7; y <= 10; y++) {
+          pxl(ctx, 3, y, '#030406');
+          pxl(ctx, 4, y, '#030406');
+          pxl(ctx, 2, y, '#ffffff'); // bright lip rim
+          pxl(ctx, 5, y, '#ffffff');
+        }
+        pxl(ctx, 3, 11, '#ffffff');
+        pxl(ctx, 4, 11, '#ffffff');
+      }
+
+      // ============================================================================
+      // 3. HIERARCHICAL 16x16 BLOCKBENCH MODEL CONSTRUCTION
+      // ============================================================================
+      const ghostfaceRoot = new THREE.Group();
+      scene.add(ghostfaceRoot);
+
+      const bodyPivot = new THREE.Group();
+      bodyPivot.position.set(0, 12 * PX, 0);
+      ghostfaceRoot.add(bodyPivot);
+
+      // ----------------------------------------------------------------------------
+      // A. TORSO & BELT
+      // ----------------------------------------------------------------------------
+      const torsoGroup = new THREE.Group();
+      bodyPivot.add(torsoGroup);
+
+      const torsoMesh = createTexturedBox(8, 12, 4, {
+        front: (ctx, w, h) => {
+          drawRobeCloth(ctx, w, h);
+          rect(ctx, 3, 0, 2, h, '#101217');
+          for (let y = 0; y < h; y++) {
+            pxl(ctx, 3, y, '#232832');
+            pxl(ctx, 4, y, '#0a0c0f');
+          }
+          pxl(ctx, 1, 10, '#2a303c');
+          pxl(ctx, 6, 10, '#2a303c');
+        },
+        back: (ctx, w, h) => drawRobeCloth(ctx, w, h),
+        side: (ctx, w, h) => drawRobeCloth(ctx, w, h),
+        top: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#121419'),
+        bottom: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#090b0e')
+      }, { roughness: 0.78, metalness: 0.08 });
+      torsoMesh.position.set(0, 6 * PX, 0);
+      torsoGroup.add(torsoMesh);
+
+      const chestMantleMesh = createTexturedBox(8, 5, 4, {
+        front: (ctx, w, h) => {
+          drawRobeCloth(ctx, w, h, { base: '#171a20' });
+          rect(ctx, 3, 0, 1, 4, '#07080a');
+          rect(ctx, 5, 0, 1, 5, '#07080a');
+          pxl(ctx, 3, 3, '#2d3340');
+          pxl(ctx, 5, 4, '#2d3340');
+        },
+        back: (ctx, w, h) => drawRobeCloth(ctx, w, h),
+        side: (ctx, w, h) => drawRobeCloth(ctx, w, h),
+        top: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#181b22')
+      }, { roughness: 0.76, metalness: 0.08 });
+      chestMantleMesh.scale.set(8.5 / 8, 5.0 / 5, 4.5 / 4);
+      chestMantleMesh.position.set(0, 9.6 * PX, 0);
+      torsoGroup.add(chestMantleMesh);
+
+      const waistSashMesh = createTexturedBox(8, 2, 4, {
+        all: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#0e1014');
+          rect(ctx, 0, 0, w, 1, '#242933');
+          for (let x = 0; x < w; x += 2) {
+            pxl(ctx, x, 1, '#181c23');
+          }
+        }
+      }, { roughness: 0.72, metalness: 0.1 });
+      waistSashMesh.scale.set(8.65 / 8, 1.45 / 2, 4.65 / 4);
+      waistSashMesh.position.set(0, 0.9 * PX, 0);
+      torsoGroup.add(waistSashMesh);
+
+      const sashKnotGroup = new THREE.Group();
+      sashKnotGroup.position.set(0.55 * PX, 0.9 * PX, 2.38 * PX);
+      torsoGroup.add(sashKnotGroup);
+
+      const sashKnotMesh = createTexturedBox(2, 2, 1, {
+        all: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#1b1f27');
+          pxl(ctx, 0, 0, '#2c323e');
+          pxl(ctx, 1, 1, '#0b0d10');
+        }
+      }, { roughness: 0.75 });
+      sashKnotMesh.scale.set(1.5 / 2, 1.5 / 2, 0.75);
+      sashKnotGroup.add(sashKnotMesh);
+
+      const sashTailLeft = createTexturedBox(2, 8, 1, {
+        all: (ctx, w, h) => drawRobeCloth(ctx, w, h, { base: '#12151b' })
+      }, { roughness: 0.78 });
+      sashTailLeft.scale.set(1.15 / 2, 7.2 / 8, 0.45);
+      sashTailLeft.position.set(-0.45 * PX, -3.8 * PX, 0.05 * PX);
+      sashTailLeft.rotation.z = -0.08;
+      sashKnotGroup.add(sashTailLeft);
+
+      const sashTailRight = createTexturedBox(2, 7, 1, {
+        all: (ctx, w, h) => drawRobeCloth(ctx, w, h, { base: '#15181f' })
+      }, { roughness: 0.78 });
+      sashTailRight.scale.set(1.1 / 2, 6.0 / 7, 0.45);
+      sashTailRight.position.set(0.55 * PX, -3.2 * PX, 0.12 * PX);
+      sashTailRight.rotation.z = 0.11;
+      sashKnotGroup.add(sashTailRight);
+
+      // ----------------------------------------------------------------------------
+      // B. REWORKED ORGANIC HEAD, MASK & REAPER HOOD
+      // ----------------------------------------------------------------------------
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 12 * PX, 0);
+      torsoGroup.add(headGroup);
+
+      // Inner pitch-black shroud void
+      const headCore = createTexturedBox(7.2, 7.8, 7.2, {
+        all: (ctx, w, h) => drawRobeCloth(ctx, w, h, { base: '#060709' })
+      }, { roughness: 0.9, metalness: 0.04 });
+      headCore.position.set(0, 4.0 * PX, -0.1 * PX);
+      headGroup.add(headCore);
+
+      // Organic Curved Faceplate Mesh
+      const maskGroup = new THREE.Group();
+      maskGroup.position.set(0, 3.5 * PX, 3.65 * PX);
+      headGroup.add(maskGroup);
+
+      // Deep eye/mouth backing void
+      const maskCavityBacking = createTexturedBox(5.5, 9.0, 1, {
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#020305')
+      }, { roughness: 0.95 });
+      maskCavityBacking.position.set(0, -0.1 * PX, -0.2 * PX);
+      maskGroup.add(maskCavityBacking);
+
+      // Main curved porcelain mask plate
+      const maskPlate = createTexturedBox(7.5, 11.2, 1, {
+        front: drawGhostfaceMaskFront,
+        side: (ctx, w, h) => {
+          ctx.clearRect(0, 0, w, h);
+          rect(ctx, 0, 1, w, 8, '#e2e8f0');
+        },
+        top: (ctx, w, h) => rect(ctx, 1, 0, w - 2, h, '#e2e8f0'),
+        bottom: (ctx, w, h) => rect(ctx, 2, 0, w - 4, h, '#e2e8f0'),
+        back: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#040507')
+      }, {
+        roughness: 0.18,
+        metalness: 0.06,
+        alphaTest: 0.5,
+        transparent: true
+      });
+      maskGroup.add(maskPlate);
+
+      // 3D Rounded Forehead Dome
+      const maskForehead = createTexturedBox(5.0, 2.0, 1, {
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#f8fafc')
+      }, { roughness: 0.15, metalness: 0.08 });
+      maskForehead.scale.set(1, 0.8, 0.5);
+      maskForehead.position.set(0, 4.4 * PX, 0.25 * PX);
+      maskForehead.rotation.x = 0.18;
+      maskGroup.add(maskForehead);
+
+      // 3D Angled Brow Ridges (Peanut arch)
+      const maskBrowL = createTexturedBox(2.5, 1.5, 1, {
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#ffffff')
+      }, { roughness: 0.16 });
+      maskBrowL.position.set(1.3 * PX, 3.1 * PX, 0.35 * PX);
+      maskBrowL.rotation.z = -0.32;
+      maskGroup.add(maskBrowL);
+
+      const maskBrowR = createTexturedBox(2.5, 1.5, 1, {
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#ffffff')
+      }, { roughness: 0.16 });
+      maskBrowR.position.set(-1.3 * PX, 3.1 * PX, 0.35 * PX);
+      maskBrowR.rotation.z = 0.32;
+      maskGroup.add(maskBrowR);
+
+      // 3D Flared Cheek Pouches
+      const maskCheekL = createTexturedBox(2.2, 2.2, 1, {
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#ffffff')
+      }, { roughness: 0.16 });
+      maskCheekL.position.set(1.9 * PX, 0.7 * PX, 0.35 * PX);
+      maskCheekL.rotation.z = 0.22;
+      maskGroup.add(maskCheekL);
+
+      const maskCheekR = createTexturedBox(2.2, 2.2, 1, {
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#ffffff')
+      }, { roughness: 0.16 });
+      maskCheekR.position.set(-1.9 * PX, 0.7 * PX, 0.35 * PX);
+      maskCheekR.rotation.z = -0.22;
+      maskGroup.add(maskCheekR);
+
+      // Enveloping Reaper Hood (Organic, rounded crown that wraps cleanly over the face)
+      const hoodCrown = createTexturedBox(8.6, 3.2, 9.4, {
+        top: (ctx, w, h) => {
+          drawRobeCloth(ctx, w, h, { base: '#15181f' });
+          rect(ctx, Math.floor(w / 2), 0, 1, h, '#090b0e');
+        },
+        all: (ctx, w, h) => drawRobeCloth(ctx, w, h, { base: '#14171d' })
+      }, { roughness: 0.80, metalness: 0.06 });
+      hoodCrown.position.set(0, 8.4 * PX, 0.2 * PX);
+      headGroup.add(hoodCrown);
+
+      const hoodBrow = createTexturedBox(7.2, 1.8, 2.2, {
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#13161c')
+      }, { roughness: 0.78 });
+      hoodBrow.position.set(0, 8.2 * PX, 3.9 * PX);
+      hoodBrow.rotation.x = 0.22;
+      headGroup.add(hoodBrow);
+
+      function buildHoodSide(isLeft) {
+        const xSign = isLeft ? 1 : -1;
+        const s = createTexturedBox(2.2, 10.5, 8.8, {
+          all: (ctx, w, h) => drawRobeCloth(ctx, w, h, { base: '#13161c' })
+        }, { roughness: 0.8 });
+        s.position.set(xSign * 4.0 * PX, 3.6 * PX, 0.1 * PX);
+        s.rotation.z = xSign * 0.08;
+        return s;
+      }
+      headGroup.add(buildHoodSide(true));
+      headGroup.add(buildHoodSide(false));
+
+      const hoodBack = createTexturedBox(8.6, 9.8, 2.0, {
+        all: (ctx, w, h) => drawRobeCloth(ctx, w, h, { base: '#12151b' })
+      }, { roughness: 0.82 });
+      hoodBack.position.set(0, 3.8 * PX, -4.1 * PX);
+      headGroup.add(hoodBack);
+
+      // ----------------------------------------------------------------------------
+      // C. ARMS, SLEEVES & ACCURATE BUCK 120 KNIFE GRIP
+      // ----------------------------------------------------------------------------
+      const sleeveDrapePivots = [];
+
+      function buildGhostfaceArm(isRightArm) {
+        const armGroup = new THREE.Group();
+        const xSign = isRightArm ? -1 : 1;
+        armGroup.position.set(xSign * 6.0 * PX, 10.6 * PX, 0);
+
+        const armMesh = createTexturedBox(4, 12, 4, {
+          all: (ctx, w, h) => {
+            drawRobeCloth(ctx, w, 8, { base: '#161920' });
+            rect(ctx, 0, 8, w, 1, '#08090c');
+            for (let y = 9; y < 12; y++) {
+              for (let x = 0; x < w; x++) {
+                pxl(ctx, x, y, (x % 2 === 0) ? '#1d2129' : '#0f1217');
+              }
+            }
+          },
+          bottom: (ctx, w, h) => {
+            rect(ctx, 0, 0, w, h, '#121418');
+          }
+        }, { roughness: 0.65, metalness: 0.14 });
+        armMesh.position.set(0, -4.5 * PX, 0);
+        armGroup.add(armMesh);
+
+        const sleeveLayer = createTexturedBox(4, 8, 4, {
+          all: (ctx, w, h) => drawRobeCloth(ctx, w, h, { base: '#181c24' })
+        }, { roughness: 0.78, metalness: 0.08 });
+        sleeveLayer.scale.set(4.55 / 4, 8.1 / 8, 4.55 / 4);
+        sleeveLayer.position.set(0, -2.6 * PX, 0);
+        armGroup.add(sleeveLayer);
+
+        const drapePivot = new THREE.Group();
+        drapePivot.position.set(xSign * 0.25 * PX, -6.2 * PX, -0.35 * PX);
+        armGroup.add(drapePivot);
+
+        const sleeveDrapeMesh = createTexturedBox(1, 14, 6, {
+          side: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            drawRobeCloth(ctx, w, h, { base: '#13161c' });
+            for (let y = 4; y < h; y++) {
+              if (y >= 6) {
+                ctx.clearRect(1, y, 1, 1);
+                ctx.clearRect(4, y, 1, 1);
+              }
+            }
+            ctx.clearRect(0, h - 2, 1, 2);
+            ctx.clearRect(2, h - 1, 1, 1);
+            ctx.clearRect(5, h - 3, 1, 3);
+          },
+          all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#101217')
+        }, {
+          roughness: 0.82,
+          metalness: 0.05,
+          alphaTest: 0.5,
+          transparent: true,
+          doubleSided: true
+        });
+        sleeveDrapeMesh.scale.set(0.75, 13.5 / 14, 5.4 / 6);
+        sleeveDrapeMesh.position.set(0, -6.5 * PX, 0);
+        drapePivot.add(sleeveDrapeMesh);
+
+        sleeveDrapePivots.push({ pivot: drapePivot, isRightArm });
+        return armGroup;
+      }
+
+      const rightArmGroup = buildGhostfaceArm(true);
+      const leftArmGroup = buildGhostfaceArm(false);
+      torsoGroup.add(rightArmGroup);
+      torsoGroup.add(leftArmGroup);
+
+      // ACCURATE BUCK 120 HUNTING KNIFE GRIP (Held tightly in clenched black leather fist)
+      const knifePivot = new THREE.Group();
+      knifePivot.position.set(0.15 * PX, -9.4 * PX, 0.3 * PX);
+      knifePivot.rotation.x = Math.PI / 2 + 0.15;
+      knifePivot.rotation.z = -0.15;
+      rightArmGroup.add(knifePivot);
+
+      const knifeHandle = createTexturedBox(2.2, 4.2, 2.2, {
+        all: (ctx, w, h) => {
+          rect(ctx, 0, 3.5, w, 0.7, '#d8e0eb'); // pommel cap
+          rect(ctx, 0, 0, w, 3.5, '#0e1014'); // black phenolic grip
+          pxl(ctx, 0, 1, '#2c323e');
+          pxl(ctx, 0, 2.5, '#2c323e');
+        }
+      }, { roughness: 0.25, metalness: 0.65 });
+      knifeHandle.scale.set(1.0, 1.0, 1.0);
+      knifePivot.add(knifeHandle);
+
+      const knifeGuard = createTexturedBox(2.6, 0.8, 3.2, {
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#e2e8f0')
+      }, { roughness: 0.15, metalness: 0.92 });
+      knifeGuard.position.set(0, 2.2 * PX, 0);
+      knifePivot.add(knifeGuard);
+
+      const knifeBlade = createTexturedBox(1, 9.5, 3.0, {
+        side: (ctx, w, h) => {
+          ctx.clearRect(0, 0, w, h);
+          for (let y = 0; y < h; y++) {
+            if (y === 0) {
+              pxl(ctx, 0, y, '#ffffff');
+              pxl(ctx, 1, y, '#b91c1c'); // blood-stained tip
+            } else if (y === 1) {
+              pxl(ctx, 0, y, '#f1f5f9');
+              pxl(ctx, 1, y, '#991b1b');
+              pxl(ctx, 2, y, '#dc2626');
+            } else {
+              pxl(ctx, 0, y, '#cbd5e1');
+              pxl(ctx, 1, y, '#64748b');
+              pxl(ctx, 2, y, '#f8fafc');
+            }
+          }
+          pxl(ctx, 2, 2, '#b91c1c');
+        },
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#e2e8f0')
+      }, {
+        roughness: 0.14,
+        metalness: 0.92,
+        alphaTest: 0.5,
+        transparent: true,
+        doubleSided: true
+      });
+      knifeBlade.scale.set(0.45, 1.0, 1.0);
+      knifeBlade.position.set(0, 6.8 * PX, 0);
+      knifePivot.add(knifeBlade);
+
+      // ----------------------------------------------------------------------------
+      // D. LEGS, BOOTS & SKIRT
+      // ----------------------------------------------------------------------------
+      function buildGhostfaceLeg(isRightLeg) {
+        const legGroup = new THREE.Group();
+        const xSign = isRightLeg ? -1 : 1;
+        legGroup.position.set(xSign * 2.05 * PX, 0, 0);
+
+        const legMesh = createTexturedBox(4, 12, 4, {
+          front: (ctx, w, h) => {
+            drawRobeCloth(ctx, w, 8, { base: '#121419', sparkle: false });
+            rect(ctx, 0, 8, w, 4, '#090b0e');
+            rect(ctx, 1, 9, 2, 1, '#2d3340');
+            rect(ctx, 1, 10, 2, 1, '#475063');
+            rect(ctx, 0, 11, w, 1, '#050608');
+          },
+          all: (ctx, w, h) => {
+            drawRobeCloth(ctx, w, 8, { base: '#121419', sparkle: false });
+            rect(ctx, 0, 8, w, 4, '#090b0e');
+            rect(ctx, 0, 11, w, 1, '#050608');
+          },
+          bottom: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#050608')
+        }, { roughness: 0.45, metalness: 0.25 });
+        legMesh.position.set(0, -6 * PX, 0);
+        legGroup.add(legMesh);
+
+        const bootToe = createTexturedBox(4, 2, 1, {
+          all: (ctx, w, h) => {
+            rect(ctx, 0, 0, w, h, '#0b0d11');
+            rect(ctx, 1, 0, 2, 1, '#384050');
+          }
+        }, { roughness: 0.25, metalness: 0.55 });
+        bootToe.scale.set(4.15 / 4, 1.85 / 2, 0.75);
+        bootToe.position.set(0, -11.05 * PX, 2.1 * PX);
+        legGroup.add(bootToe);
+
+        const robeSkirt = createTexturedBox(4, 11, 5, {
+          front: (ctx, w, h) => drawRobeCloth(ctx, w, h, { tatteredBottom: true, jagDepth: 2 }),
+          back: (ctx, w, h) => drawRobeCloth(ctx, w, h, { tatteredBottom: true, jagDepth: 2 }),
+          side: (ctx, w, h) => drawRobeCloth(ctx, w, h, { tatteredBottom: true, jagDepth: 2 }),
+          top: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#14171d'),
+          bottom: (ctx, w, h) => ctx.clearRect(0, 0, w, h)
+        }, {
+          roughness: 0.80,
+          metalness: 0.06,
+          alphaTest: 0.5,
+          transparent: true,
+          doubleSided: true
+        });
+        robeSkirt.scale.set(4.55 / 4, 10.6 / 11, 4.85 / 5);
+        robeSkirt.position.set(xSign * 0.15 * PX, -5.15 * PX, 0);
+        robeSkirt.rotation.z = xSign * 0.035;
+        legGroup.add(robeSkirt);
+
+        return legGroup;
+      }
+
+      const rightLegGroup = buildGhostfaceLeg(true);
+      const leftLegGroup = buildGhostfaceLeg(false);
+      bodyPivot.add(rightLegGroup);
+      bodyPivot.add(leftLegGroup);
+
+      const backRobePanelPivot = new THREE.Group();
+      backRobePanelPivot.position.set(0, 0.5 * PX, -2.25 * PX);
+      torsoGroup.add(backRobePanelPivot);
+
+      const backRobePanel = createTexturedBox(9, 11, 1, {
+        front: (ctx, w, h) => drawRobeCloth(ctx, w, h, { tatteredBottom: true, jagDepth: 2 }),
+        back: (ctx, w, h) => drawRobeCloth(ctx, w, h, { tatteredBottom: true, jagDepth: 2 }),
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#12151b')
+      }, {
+        roughness: 0.82,
+        metalness: 0.06,
+        alphaTest: 0.5,
+        transparent: true,
+        doubleSided: true
+      });
+      backRobePanel.scale.set(8.8 / 9, 10.6 / 11, 0.7);
+      backRobePanel.position.set(0, -5.3 * PX, 0);
+      backRobePanelPivot.add(backRobePanel);
+
+      const fxParticlesGroup = new THREE.Group();
+      scene.add(fxParticlesGroup);
+
+      const fxParticles = [];
+      const particleGeo = new THREE.BoxGeometry(0.75 * PX, 0.75 * PX, 0.75 * PX);
+      for (let i = 0; i < 14; i++) {
+        const isCrimson = i % 3 !== 0;
+        const pMat = new THREE.MeshBasicMaterial({
+          color: isCrimson ? '#dc2626' : '#e2e8f0',
+          transparent: true,
+          opacity: 0.0
+        });
+        const pMesh = new THREE.Mesh(particleGeo, pMat);
+        fxParticlesGroup.add(pMesh);
+        fxParticles.push({
+          mesh: pMesh,
+          angle: (i / 14) * Math.PI * 2,
+          radius: 0.38 + (i % 4) * 0.12,
+          speed: 1.5 + (i % 3) * 0.45,
+          yOffset: (i / 14) * 1.35
+        });
+      }
+
+      // ============================================================================
+      // 4. ANIMATION RIGGING & SMOOTH INTERPOLATION
+      // ============================================================================
+      let currentAnim = 'idle';
+      let animTime = 0;
+      let specialBlend = 0;
+
+      function damp(current, target, lambda, dt) {
+        return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-lambda * dt));
+      }
+
+      function updateAnimations(dt) {
+        animTime += dt;
+
+        let bodyY = 12 * PX;
+        let bodyRotX = 0, bodyRotY = 0, bodyRotZ = 0;
+        let torsoScaleY = 1.0, torsoRotX = 0, torsoRotY = 0;
+        let headRotX = 0, headRotY = 0, headRotZ = 0;
+
+        let rArmRotX = 0, rArmRotY = 0, rArmRotZ = 0;
+        let lArmRotX = 0, lArmRotY = 0, lArmRotZ = 0;
+        let knifeRotX = Math.PI / 2 + 0.15, knifeRotY = 0, knifeRotZ = -0.15;
+
+        let rLegRotX = 0, rLegRotY = 0, rLegRotZ = 0;
+        let lLegRotX = 0, lLegRotY = 0, lLegRotZ = 0;
+
+        let backRobeRotX = 0.06;
+        let rSleeveDrapeRotX = 0, rSleeveDrapeRotZ = -0.05;
+        let lSleeveDrapeRotX = 0, lSleeveDrapeRotZ = 0.05;
+
+        if (currentAnim === 'idle') {
+          const breath = Math.sin(animTime * 2.0);
+          torsoScaleY = 1.0 + breath * 0.015;
+          bodyY = (12 + breath * 0.12) * PX;
+          bodyRotY = -0.14;
+
+          headRotY = 0.14 + Math.sin(animTime * 0.65) * 0.12;
+          headRotZ = 0.12 * Math.sin(animTime * 0.85);
+          headRotX = 0.05 + breath * 0.025;
+
+          rArmRotX = -1.18 + breath * 0.04;
+          rArmRotY = -0.18;
+          rArmRotZ = -0.22;
+
+          lArmRotX = -0.22 - breath * 0.03;
+          lArmRotZ = 0.14;
+          lArmRotY = 0.12;
+
+          rSleeveDrapeRotX = -rArmRotX + Math.sin(animTime * 1.8) * 0.06;
+          rSleeveDrapeRotZ = -rArmRotZ - 0.08;
+          lSleeveDrapeRotX = -lArmRotX + Math.cos(animTime * 1.6) * 0.05;
+          lSleeveDrapeRotZ = -lArmRotZ + 0.06;
+
+          backRobeRotX = 0.07 + Math.sin(animTime * 1.6) * 0.03;
+        }
+        else if (currentAnim === 'walk') {
+          const speed = 4.2;
+          const phase = animTime * speed;
+          const stride = Math.sin(phase);
+          const stepUp = Math.abs(Math.cos(phase));
+
+          bodyY = (11.85 - stepUp * 0.45) * PX;
+          bodyRotX = 0.11;
+          torsoRotY = -stride * 0.14;
+
+          headRotX = -0.06 + stepUp * 0.03;
+          headRotY = stride * 0.12;
+          headRotZ = 0.09 * Math.cos(phase * 0.5);
+
+          rLegRotX = stride * 0.54;
+          lLegRotX = -stride * 0.54;
+
+          rArmRotX = -0.65 - stride * 0.32;
+          rArmRotZ = -0.18;
+          rArmRotY = -0.12;
+
+          lArmRotX = stride * 0.44;
+          lArmRotZ = 0.14;
+
+          rSleeveDrapeRotX = -rArmRotX + 0.28 + Math.sin(phase * 2) * 0.08;
+          lSleeveDrapeRotX = -lArmRotX + 0.25 + Math.cos(phase * 2) * 0.08;
+          backRobeRotX = 0.28 + stepUp * 0.10;
+        }
+        else if (currentAnim === 'attack') {
+          const cycle = (animTime * 0.95) % 1.0;
+
+          if (cycle < 0.32) {
+            const t = cycle / 0.32;
+            const ease = t * t * (3 - 2 * t);
+
+            bodyRotY = THREE.MathUtils.lerp(-0.1, -0.35, ease);
+            torsoRotX = THREE.MathUtils.lerp(0, -0.14, ease);
+            headRotX = THREE.MathUtils.lerp(0, 0.08, ease);
+            headRotY = THREE.MathUtils.lerp(0, 0.32, ease);
+            headRotZ = THREE.MathUtils.lerp(0, -0.12, ease);
+
+            rArmRotX = THREE.MathUtils.lerp(-1.1, -2.55, ease);
+            rArmRotZ = THREE.MathUtils.lerp(-0.2, -0.28, ease);
+            rArmRotY = THREE.MathUtils.lerp(-0.15, 0.22, ease);
+
+            lArmRotX = THREE.MathUtils.lerp(-0.2, 0.25, ease);
+            lArmRotZ = THREE.MathUtils.lerp(0.14, 0.28, ease);
+
+            rLegRotX = THREE.MathUtils.lerp(0, 0.25, ease);
+            lLegRotX = THREE.MathUtils.lerp(0, -0.25, ease);
+
+            rSleeveDrapeRotX = -rArmRotX + 0.12;
+            backRobeRotX = 0.18 + ease * 0.14;
+          } else if (cycle < 0.56) {
+            const t = (cycle - 0.32) / 0.24;
+            const ease = 1 - Math.pow(1 - t, 3);
+
+            bodyRotY = THREE.MathUtils.lerp(-0.35, 0.42, ease);
+            torsoRotX = THREE.MathUtils.lerp(-0.14, 0.28, ease);
+            bodyY = (12 - Math.sin(t * Math.PI) * 0.85) * PX;
+            headRotY = THREE.MathUtils.lerp(0.32, -0.35, ease);
+            headRotX = THREE.MathUtils.lerp(0.08, -0.12, ease);
+
+            rArmRotX = THREE.MathUtils.lerp(-2.55, -0.45, ease);
+            rArmRotZ = THREE.MathUtils.lerp(-0.28, 0.32, ease);
+            rArmRotY = THREE.MathUtils.lerp(0.22, -0.35, ease);
+
+            lArmRotX = THREE.MathUtils.lerp(0.25, 0.55, ease);
+            lArmRotZ = THREE.MathUtils.lerp(0.28, 0.42, ease);
+
+            rLegRotX = THREE.MathUtils.lerp(0.25, -0.38, ease);
+            lLegRotX = THREE.MathUtils.lerp(-0.25, 0.38, ease);
+
+            rSleeveDrapeRotX = -rArmRotX + 0.38;
+            backRobeRotX = 0.45;
+          } else if (cycle < 0.80) {
+            const t = (cycle - 0.56) / 0.24;
+            const ease = t * t * (3 - 2 * t);
+
+            bodyRotY = THREE.MathUtils.lerp(0.42, -0.38, ease);
+            torsoRotX = THREE.MathUtils.lerp(0.28, 0.10, ease);
+            headRotY = THREE.MathUtils.lerp(-0.35, 0.30, ease);
+
+            rArmRotX = THREE.MathUtils.lerp(-0.45, -1.45, ease);
+            rArmRotZ = THREE.MathUtils.lerp(0.32, -0.68, ease);
+            rArmRotY = THREE.MathUtils.lerp(-0.35, 0.25, ease);
+
+            lArmRotX = THREE.MathUtils.lerp(0.55, -0.35, ease);
+            rLegRotX = THREE.MathUtils.lerp(-0.38, 0.18, ease);
+            lLegRotX = THREE.MathUtils.lerp(0.38, -0.18, ease);
+
+            rSleeveDrapeRotX = -rArmRotX + 0.32;
+            backRobeRotX = 0.42;
+          } else {
+            const t = (cycle - 0.80) / 0.20;
+            const ease = t * t * (3 - 2 * t);
+
+            bodyRotY = THREE.MathUtils.lerp(-0.38, -0.14, ease);
+            torsoRotX = THREE.MathUtils.lerp(0.10, 0, ease);
+            headRotY = THREE.MathUtils.lerp(0.30, 0.14, ease);
+
+            rArmRotX = THREE.MathUtils.lerp(-1.45, -1.18, ease);
+            rArmRotZ = THREE.MathUtils.lerp(-0.68, -0.22, ease);
+            rArmRotY = THREE.MathUtils.lerp(0.25, -0.18, ease);
+
+            lArmRotX = THREE.MathUtils.lerp(-0.35, -0.22, ease);
+            rLegRotX = THREE.MathUtils.lerp(0.18, 0, ease);
+            lLegRotX = THREE.MathUtils.lerp(-0.18, 0, ease);
+
+            rSleeveDrapeRotX = -rArmRotX;
+            backRobeRotX = THREE.MathUtils.lerp(0.42, 0.07, ease);
+          }
+        }
+        else if (currentAnim === 'special') {
+          const cycle = (animTime * 0.42) % 1.0;
+
+          if (cycle < 0.25) {
+            const t = cycle / 0.25;
+            const ease = t * t * (3 - 2 * t);
+
+            bodyRotY = THREE.MathUtils.lerp(-0.14, 0.18, ease);
+            torsoRotX = THREE.MathUtils.lerp(0, 0.05, ease);
+            headRotX = THREE.MathUtils.lerp(0.05, 0.14, ease);
+            headRotY = THREE.MathUtils.lerp(0.14, -0.12, ease);
+            headRotZ = THREE.MathUtils.lerp(0, -0.08, ease);
+
+            lArmRotX = THREE.MathUtils.lerp(-0.22, -1.42, ease);
+            lArmRotY = THREE.MathUtils.lerp(0.12, -0.78, ease);
+            lArmRotZ = THREE.MathUtils.lerp(0.14, -0.18, ease);
+
+            rArmRotX = THREE.MathUtils.lerp(-1.18, -1.28, ease);
+            rArmRotY = THREE.MathUtils.lerp(-0.18, 0.58, ease);
+            rArmRotZ = THREE.MathUtils.lerp(-0.22, 0.15, ease);
+          } else if (cycle < 0.68) {
+            const t = (cycle - 0.25) / 0.43;
+            const ease = t * t * (3 - 2 * t);
+
+            bodyRotY = THREE.MathUtils.lerp(0.18, -0.12, ease);
+            torsoRotX = 0.06;
+            headRotX = THREE.MathUtils.lerp(0.14, 0.06, ease);
+            headRotY = THREE.MathUtils.lerp(-0.12, 0.16, ease);
+            headRotZ = THREE.MathUtils.lerp(-0.08, 0.24, ease);
+
+            lArmRotX = THREE.MathUtils.lerp(-1.42, -1.15, ease);
+            lArmRotY = THREE.MathUtils.lerp(-0.78, -0.25, ease);
+            lArmRotZ = THREE.MathUtils.lerp(-0.18, 0.22, ease);
+
+            rArmRotX = THREE.MathUtils.lerp(-1.28, -0.95, ease);
+            rArmRotY = THREE.MathUtils.lerp(0.58, -0.25, ease);
+            rArmRotZ = THREE.MathUtils.lerp(0.15, -0.35, ease);
+          } else {
+            const t = (cycle - 0.68) / 0.32;
+            const ease = t * t * (3 - 2 * t);
+
+            bodyRotY = THREE.MathUtils.lerp(-0.12, -0.14, ease);
+            torsoRotX = THREE.MathUtils.lerp(0.06, 0, ease);
+            headRotX = THREE.MathUtils.lerp(0.06, 0.05, ease);
+            headRotY = THREE.MathUtils.lerp(0.16, 0.14, ease);
+            headRotZ = THREE.MathUtils.lerp(0.24, 0.08, ease);
+
+            lArmRotX = THREE.MathUtils.lerp(-1.15, -0.22, ease);
+            lArmRotY = THREE.MathUtils.lerp(-0.25, 0.12, ease);
+            lArmRotZ = THREE.MathUtils.lerp(0.22, 0.14, ease);
+
+            rArmRotX = THREE.MathUtils.lerp(-0.95, -1.18, ease);
+            rArmRotY = THREE.MathUtils.lerp(-0.25, -0.18, ease);
+            rArmRotZ = THREE.MathUtils.lerp(-0.35, -0.22, ease);
+          }
+
+          rSleeveDrapeRotX = -rArmRotX + Math.sin(animTime * 2.5) * 0.06;
+          lSleeveDrapeRotX = -lArmRotX + Math.cos(animTime * 2.5) * 0.06;
+          backRobeRotX = 0.14 + Math.sin(animTime * 2.2) * 0.04;
+        }
+
+        const k = 12.0;
+        bodyPivot.position.y = damp(bodyPivot.position.y, bodyY, k, dt);
+        bodyPivot.rotation.x = damp(bodyPivot.rotation.x, bodyRotX, k, dt);
+        bodyPivot.rotation.y = damp(bodyPivot.rotation.y, bodyRotY, k, dt);
+        bodyPivot.rotation.z = damp(bodyPivot.rotation.z, bodyRotZ, k, dt);
+
+        torsoGroup.scale.y = damp(torsoGroup.scale.y, torsoScaleY, k, dt);
+        torsoGroup.rotation.x = damp(torsoGroup.rotation.x, torsoRotX, k, dt);
+        torsoGroup.rotation.y = damp(torsoGroup.rotation.y, torsoRotY, k, dt);
+
+        headGroup.rotation.x = damp(headGroup.rotation.x, headRotX, k, dt);
+        headGroup.rotation.y = damp(headGroup.rotation.y, headRotY, k, dt);
+        headGroup.rotation.z = damp(headGroup.rotation.z, headRotZ, k, dt);
+
+        rightArmGroup.rotation.x = damp(rightArmGroup.rotation.x, rArmRotX, k, dt);
+        rightArmGroup.rotation.y = damp(rightArmGroup.rotation.y, rArmRotY, k, dt);
+        rightArmGroup.rotation.z = damp(rightArmGroup.rotation.z, rArmRotZ, k, dt);
+
+        leftArmGroup.rotation.x = damp(leftArmGroup.rotation.x, lArmRotX, k, dt);
+        leftArmGroup.rotation.y = damp(leftArmGroup.rotation.y, lArmRotY, k, dt);
+        leftArmGroup.rotation.z = damp(leftArmGroup.rotation.z, lArmRotZ, k, dt);
+
+        rightLegGroup.rotation.x = damp(rightLegGroup.rotation.x, rLegRotX, k, dt);
+        rightLegGroup.rotation.y = damp(rightLegGroup.rotation.y, rLegRotY, k, dt);
+        rightLegGroup.rotation.z = damp(rightLegGroup.rotation.z, rLegRotZ, k, dt);
+
+        leftLegGroup.rotation.x = damp(leftLegGroup.rotation.x, lLegRotX, k, dt);
+        leftLegGroup.rotation.y = damp(leftLegGroup.rotation.y, lLegRotY, k, dt);
+        leftLegGroup.rotation.z = damp(leftLegGroup.rotation.z, lLegRotZ, k, dt);
+
+        backRobePanelPivot.rotation.x = damp(backRobePanelPivot.rotation.x, backRobeRotX, k * 0.8, dt);
+
+        for (let i = 0; i < sleeveDrapePivots.length; i++) {
+          const item = sleeveDrapePivots[i];
+          const targetX = item.isRightArm ? rSleeveDrapeRotX : lSleeveDrapeRotX;
+          const targetZ = item.isRightArm ? rSleeveDrapeRotZ : lSleeveDrapeRotZ;
+          item.pivot.rotation.x = damp(item.pivot.rotation.x, targetX, k * 0.75, dt);
+          item.pivot.rotation.z = damp(item.pivot.rotation.z, targetZ, k * 0.75, dt);
+        }
+
+        specialBlend = damp(specialBlend, currentAnim === 'special' ? 1.0 : 0.0, 6.0, dt);
+        for (let i = 0; i < fxParticles.length; i++) {
+          const p = fxParticles[i];
+          if (specialBlend > 0.01) {
+            p.angle += p.speed * dt;
+            const yCycle = (p.yOffset + animTime * 0.5) % 1.65;
+            const radiusNow = p.radius + Math.sin(animTime * 2.5 + i) * 0.06;
+            p.mesh.position.set(
+              Math.cos(p.angle) * radiusNow,
+              0.25 + yCycle,
+              Math.sin(p.angle) * radiusNow
+            );
+            p.mesh.rotation.x += 2.2 * dt;
+            p.mesh.rotation.y += 2.6 * dt;
+            const fade = Math.sin((yCycle / 1.65) * Math.PI);
+            p.mesh.material.opacity = fade * specialBlend * 0.8;
+          } else {
+            p.mesh.material.opacity = 0;
+          }
+        }
+      }
+
+      // ============================================================================
+      // 5. UI & RENDER LOOP
+      // ============================================================================
+      const animButtons = document.querySelectorAll('.anim-btn');
+      animButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          animButtons.forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentAnim = btn.getAttribute('data-anim');
+          animTime = 0;
+        });
+      });
+
+      let isResettingCamera = false;
+      document.getElementById('resetCameraBtn').addEventListener('click', () => {
+        isResettingCamera = true;
+      });
+
+      controls.addEventListener('start', () => {
+        isResettingCamera = false;
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      const STEP = 1 / 60;
+      let lastTime = performance.now();
+      let accumulator = 0;
+
+      function animateLoop(now) {
+        requestAnimationFrame(animateLoop);
+
+        let frameTime = (now - lastTime) / 1000;
+        lastTime = now;
+        if (frameTime > 0.1) frameTime = 0.1;
+        accumulator += frameTime;
+
+        while (accumulator >= STEP) {
+          updateAnimations(STEP);
+
+          if (isResettingCamera) {
+            camera.position.lerp(DEFAULT_CAM_POS, 0.12);
+            controls.target.lerp(DEFAULT_CAM_TARGET, 0.12);
+            if (
+              camera.position.distanceTo(DEFAULT_CAM_POS) < 0.005 &&
+              controls.target.distanceTo(DEFAULT_CAM_TARGET) < 0.005
+            ) {
+              camera.position.copy(DEFAULT_CAM_POS);
+              controls.target.copy(DEFAULT_CAM_TARGET);
+              isResettingCamera = false;
+            }
+          }
+
+          accumulator -= STEP;
+        }
+
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      window.onload = function () {
+        lastTime = performance.now();
+        requestAnimationFrame(animateLoop);
+      };
+    })();
+  </script>
+</body>
+</html>

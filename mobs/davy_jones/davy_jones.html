@@ -1,0 +1,2262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Davy Jones — Vanilla+ 16x16 Model Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Three.js r128 + OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0d1117;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: #e2e8f0;
+        }
+        #viewport-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 42%, #24303c 0%, #121820 58%, #090c10 100%);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+        /* Sleek floating bottom pill bar */
+        .pill-bar {
+            background: rgba(15, 20, 26, 0.84);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(0, 0, 0, 0.45);
+        }
+        .anim-btn, .util-btn {
+            transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+            color: #94a3b8;
+        }
+        .anim-btn:hover, .util-btn:hover {
+            color: #f1f5f9;
+            background: rgba(255, 255, 255, 0.06);
+        }
+        .anim-btn.active, .util-btn.active {
+            color: #fff7ed;
+            background: linear-gradient(180deg, rgba(180, 68, 38, 0.68) 0%, rgba(110, 35, 20, 0.78) 100%);
+            border: 1px solid rgba(251, 146, 60, 0.42);
+            box-shadow: 0 2px 12px rgba(234, 88, 12, 0.25);
+        }
+        .reset-btn {
+            transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+            color: #94a3b8;
+        }
+        .reset-btn:hover {
+            color: #f8fafc;
+            background: rgba(255, 255, 255, 0.08);
+            transform: rotate(-15deg);
+        }
+        .reset-btn:active {
+            transform: scale(0.94);
+        }
+    </style>
+</head>
+<body>
+    <div id="viewport-container">
+        <canvas id="model-canvas"></canvas>
+
+        <!-- Subtle top-left badge -->
+        <div class="fixed top-5 left-5 z-10 pointer-events-none hidden sm:flex items-center gap-2.5 px-3.5 py-1.5 rounded-full pill-bar text-xs text-slate-300/90">
+            <span class="w-2 h-2 rounded-full bg-orange-400 animate-pulse"></span>
+            <span class="font-medium tracking-wide text-slate-100">Davy Jones</span>
+            <span class="text-slate-500">•</span>
+            <span class="text-amber-300/90">Color-Graded Vanilla+ Rig</span>
+        </div>
+
+        <!-- Ultra-minimal bottom floating pill bar -->
+        <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 sm:gap-1.5 p-1.5 rounded-full pill-bar max-w-[95vw] overflow-x-auto">
+            <button type="button" data-anim="idle" class="anim-btn active px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-medium tracking-wide border border-transparent whitespace-nowrap">
+                Idle
+            </button>
+            <button type="button" data-anim="walk" class="anim-btn px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-medium tracking-wide border border-transparent whitespace-nowrap">
+                Walk
+            </button>
+            <button type="button" data-anim="attack" class="anim-btn px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-medium tracking-wide border border-transparent whitespace-nowrap">
+                Attack
+            </button>
+            <button type="button" data-anim="locket" class="anim-btn px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-medium tracking-wide border border-transparent whitespace-nowrap">
+                Locket
+            </button>
+            <button type="button" data-anim="special" class="anim-btn px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-medium tracking-wide border border-transparent whitespace-nowrap">
+                Kraken
+            </button>
+
+            <div class="w-px h-4 bg-white/10 mx-0.5 shrink-0"></div>
+
+            <button id="toggle-deck-btn" type="button" title="Toggle Dutchman Deck & Dead Man's Chest" class="util-btn active px-2.5 py-1.5 rounded-full text-xs font-medium border border-transparent flex items-center gap-1 shrink-0">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                    <path d="M2 17l10 5 10-5"/>
+                    <path d="M2 12l10 5 10-5"/>
+                </svg>
+                <span class="hidden md:inline">Deck</span>
+            </button>
+
+            <button id="reset-camera-btn" type="button" title="Reset Camera" aria-label="Reset Camera" class="reset-btn p-2 rounded-full flex items-center justify-center shrink-0">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function () {
+            // Deterministic PRNG for consistent procedural pixel art across reloads
+            let seed = 1337420;
+            function rand() {
+                seed = (seed * 16807) % 2147483647;
+                return (seed - 1) / 2147483646;
+            }
+
+            // Color-Graded High-Contrast Palette matched directly to the Davy Jones reference figure
+            const PALETTE = {
+                // Warm fleshy peach-apricot, salmon-coral & golden-tan cephalopod skin
+                skinBase: '#e09b72',
+                skinLight: '#f3be99',
+                skinMid: '#c77a52',
+                skinDark: '#995233',
+                skinDeep: '#612c1a',
+                skinPinkTint: '#d97564',
+                skinGreenTint: '#a88459',
+                skinBlueVein: '#7d5a50',
+                skinWetHighlight: '#fce0c5',
+                suckerRing: '#f5c6a8',
+                suckerRim: '#d17866',
+                suckerHole: '#6e252f',
+                eyeSocket: '#381812',
+                eyeSclera: '#f5ece2',
+                eyeIris: '#4a2518',
+                eyePupil: '#140b08',
+                eyeGleam: '#ffffff',
+
+                // Rich crimson-maroon bandana under hat
+                bandanaBase: '#7d2027',
+                bandanaDark: '#4d1116',
+                bandanaPattern: '#ad3b42',
+
+                // Deep Prussian nautical blue-slate coat & hat with rich moss/algae & bright gold trim
+                coatDarkest: '#121c24',
+                coatDark: '#1b2c38',
+                coatBase: '#274052',
+                coatMid: '#37586e',
+                coatLight: '#4e758f',
+                coatMoss: '#4a6637',
+                coatAlgae: '#6b8c49',
+                coatKelpBright: '#84a65b',
+                coatRot: '#29261e',
+                hatTrimGold: '#cfa136',
+                hatTrimLight: '#f2c957',
+                hatTrimShadow: '#8f6b1c',
+                brassButton: '#d4a63f',
+                brassHighlight: '#fae588',
+                linenCuffLight: '#ebe5d5',
+                linenCuffMid: '#cfc6b0',
+                linenCuffShadow: '#9c927e',
+
+                // Mossy olive-green right thigh breeches & dark kelp left breeches
+                breechesOliveDark: '#394727',
+                breechesOliveBase: '#55693b',
+                breechesOliveLight: '#738c52',
+                breechesOliveHighlight: '#8fa868',
+
+                // Barnacles, Royal Blue & Orange Shoulder Shells, Coral & Starfish
+                barnacleShell: '#bfc4ba',
+                barnacleLight: '#e6ebe1',
+                barnacleHole: '#2d3630',
+                shellRoyalBlue: '#1d4696',
+                shellBrightBlue: '#3568c4',
+                shellNavyEdge: '#0f234d',
+                shellGoldOrange: '#d97e28',
+                shellBrightOrange: '#f5a642',
+                musselBlack: '#16202b',
+                musselBlue: '#284566',
+                musselRim: '#527ba6',
+                coralPink: '#cc4b5a',
+                coralLight: '#f07886',
+                spongeTan: '#d4a84e',
+                starfishOrange: '#d95b26',
+                kelpDark: '#334724',
+                kelpMid: '#526e3a',
+                kelpLight: '#709150',
+
+                // Crimson Waist Sash & Warm Mahogany Leather Belts / Baldric
+                sashDark: '#521419',
+                sashBase: '#852029',
+                sashLight: '#b0303c',
+                beltLeather: '#4a2c1d',
+                beltDark: '#29170e',
+                beltEdge: '#6e442f',
+                buckleGold: '#c99e38',
+                buckleBright: '#f5d061',
+
+                // Dead Man's Chest Key & Heart Music Box Locket
+                keySilver: '#a8b8c4',
+                keyHighlight: '#e1ebf2',
+                keyShadow: '#4d5b66',
+                locketGold: '#cfa23c',
+                locketBright: '#fae787',
+                locketDark: '#705216',
+
+                // VIVID Crimson-Vermilion & Burnt-Orange Left Crab Claw with Yellow Knuckle & Pitch-Black Tips
+                clawDarkest: '#4a0e07',
+                clawDark: '#871b0e',
+                clawBase: '#bd2b16',
+                clawCrimson: '#d63a1f',
+                clawOrange: '#eb5828',
+                clawHighlight: '#ff7b47',
+                clawKnuckleYellow: '#f2c12e',
+                clawKnuckleShadow: '#b58416',
+                clawTooth: '#f2eadc',
+                clawTipDark: '#261714',
+                clawTipBlack: '#120d0c',
+
+                // VIVID Red-Orange-to-Charred-Black Graded Right Peg Leg (matching reference figure!)
+                pegSocketRed: '#8f1d10',
+                pegCrimson: '#b82914',
+                pegVermilion: '#d9441e',
+                pegOrange: '#eb6834',
+                pegAmberHighlight: '#f78c52',
+                pegCharredMid: '#4f291d',
+                pegTip: '#1a1311',
+
+                // Broadsword & Barnacle-Encrusted Blade
+                bladeDark: '#3f4b52',
+                bladeBase: '#63737d',
+                bladeLight: '#93a6b0',
+                bladeEdge: '#d2e2eb',
+                bladeRust: '#8c4627',
+                hiltBronze: '#7d602b',
+                hiltGold: '#bd9642',
+
+                // Sculpted Barnacle/Crustacean Pipe
+                pipeStemDark: '#181c21',
+                pipeStemHighlight: '#3b434d',
+                pipeBeadMid: '#362d26',
+                pipeBeadRing: '#5c4d40',
+                pipeBowlDark: '#26201b',
+                pipeBowlMid: '#453a30',
+                pipeBowlRidge: '#695849',
+                pipeClawBase: '#786833',
+                pipeClawLight: '#a38f48',
+                pipeClawDark: '#473d1c',
+                pipeEmber: '#5eead4'
+            };
+
+            function createPixelCanvas(w, h, drawFn) {
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(w));
+                canvas.height = Math.max(1, Math.round(h));
+                const ctx = canvas.getContext('2d');
+                ctx.imageSmoothingEnabled = false;
+                drawFn(ctx, canvas.width, canvas.height);
+
+                // Subtle top-to-bottom warm sunlight / deep sea ambient color-grading pass on every texture
+                if (canvas.height >= 3) {
+                    ctx.fillStyle = 'rgba(255, 232, 185, 0.05)';
+                    ctx.fillRect(0, 0, canvas.width, Math.max(1, Math.floor(canvas.height * 0.28)));
+                    ctx.fillStyle = 'rgba(10, 18, 28, 0.08)';
+                    ctx.fillRect(0, Math.floor(canvas.height * 0.75), canvas.width, Math.ceil(canvas.height * 0.25));
+                }
+
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.magFilter = THREE.NearestFilter;
+                texture.minFilter = THREE.NearestFilter;
+                texture.generateMipmaps = false;
+                texture.needsUpdate = true;
+                return texture;
+            }
+
+            function px(ctx, x, y, color, w = 1, h = 1) {
+                ctx.fillStyle = color;
+                ctx.fillRect(x, y, w, h);
+            }
+
+            // Fills a canvas with rich Vanilla+ pixel shading, directional highlights, and encrusted barnacle/moss speckles
+            function fillWeatheredFabric(ctx, w, h, baseColors, addBarnacles = true, addButtons = false, goldBorderSide = null) {
+                for (let y = 0; y < h; y++) {
+                    const yRatio = y / Math.max(1, h - 1);
+                    for (let x = 0; x < w; x++) {
+                        const r = rand();
+                        let col = baseColors[1];
+                        if (r < 0.24) col = baseColors[0];
+                        else if (r < 0.50) col = baseColors[2];
+                        else if (r < 0.68 && baseColors[3]) col = baseColors[3];
+
+                        // Vertical color grading: brighter upper catch-light, richer deep lower shadow
+                        if (yRatio < 0.2 && baseColors[2] && r > 0.3) col = baseColors[2];
+                        else if (yRatio > 0.82 && r > 0.35) col = baseColors[0];
+
+                        // Crisp Vanilla+ bevel shading along borders
+                        if (x === 0 || y === h - 1) col = baseColors[0];
+                        else if (y === 0 && baseColors[2] && r > 0.3) col = baseColors[2];
+                        px(ctx, x, y, col);
+                    }
+                }
+                if (addBarnacles) {
+                    const count = Math.max(1, Math.floor((w * h) / 9));
+                    for (let i = 0; i < count; i++) {
+                        const bx = Math.floor(rand() * w);
+                        const by = Math.floor(rand() * h);
+                        const br = rand();
+                        let bCol = PALETTE.barnacleShell;
+                        if (br < 0.35) bCol = PALETTE.coatMoss;
+                        else if (br < 0.58) bCol = PALETTE.coatAlgae;
+                        else if (br < 0.78) bCol = PALETTE.barnacleLight;
+                        px(ctx, bx, by, bCol);
+                    }
+                }
+                if (goldBorderSide === 'left') {
+                    for (let y = 0; y < h; y++) px(ctx, 0, y, y % 2 === 0 ? PALETTE.hatTrimLight : PALETTE.hatTrimGold);
+                } else if (goldBorderSide === 'right') {
+                    for (let y = 0; y < h; y++) px(ctx, w - 1, y, y % 2 === 0 ? PALETTE.hatTrimLight : PALETTE.hatTrimGold);
+                } else if (goldBorderSide === 'bottom') {
+                    for (let x = 0; x < w; x++) px(ctx, x, h - 1, x % 2 === 0 ? PALETTE.hatTrimLight : PALETTE.hatTrimGold);
+                }
+                if (addButtons) {
+                    for (let y = 1; y < h - 1; y += 3) {
+                        px(ctx, Math.floor(w / 2), y, PALETTE.brassHighlight);
+                    }
+                }
+            }
+
+            // Specialized gradient painter for the vivid red-orange-to-black crab claw & carapace surfaces
+            function fillCrabCarapace(ctx, w, h, verticalTipFade = false) {
+                for (let y = 0; y < h; y++) {
+                    const yNorm = y / Math.max(1, h - 1);
+                    for (let x = 0; x < w; x++) {
+                        const r = rand();
+                        let col = PALETTE.clawCrimson;
+
+                        if (verticalTipFade && yNorm > 0.72) {
+                            col = yNorm > 0.86 ? PALETTE.clawTipBlack : (r > 0.4 ? PALETTE.clawTipDark : PALETTE.clawDarkest);
+                        } else if (verticalTipFade && yNorm > 0.54) {
+                            col = r > 0.45 ? PALETTE.clawDark : PALETTE.clawBase;
+                        } else {
+                            if (r < 0.22) col = PALETTE.clawBase;
+                            else if (r < 0.52) col = PALETTE.clawOrange;
+                            else if (r < 0.70) col = PALETTE.clawHighlight;
+                            else if (r < 0.84) col = PALETTE.clawDark;
+
+                            // Warm specular ridge along center-top
+                            if (x > 0 && x < w - 1 && yNorm < 0.45 && r > 0.55) {
+                                col = PALETTE.clawHighlight;
+                            }
+                        }
+                        // Calcified white-cream tiny speckles on upper shell
+                        if (!verticalTipFade && r > 0.92 && yNorm < 0.65) {
+                            col = PALETTE.clawTooth;
+                        }
+                        px(ctx, x, y, col);
+                    }
+                }
+            }
+
+            function createVoxelBox(w, h, d, facePainters, options = {}) {
+                const scale = options.texScale || 1;
+                const txW = Math.max(1, Math.round(w * scale));
+                const txH = Math.max(1, Math.round(h * scale));
+                const txD = Math.max(1, Math.round(d * scale));
+
+                const faces = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+                const dims = [
+                    [txD, txH], // right (+x)
+                    [txD, txH], // left (-x)
+                    [txW, txD], // top (+y)
+                    [txW, txD], // bottom (-y)
+                    [txW, txH], // front (+z)
+                    [txW, txH]  // back (-z)
+                ];
+
+                const materials = faces.map((faceName, idx) => {
+                    const [fw, fh] = dims[idx];
+                    const painter = facePainters[faceName] || facePainters.all || ((ctx, cw, ch) => {
+                        fillWeatheredFabric(ctx, cw, ch, [PALETTE.coatDarkest, PALETTE.coatBase, PALETTE.coatMid, PALETTE.coatMoss], true);
+                    });
+                    const tex = createPixelCanvas(fw, fh, painter);
+                    return new THREE.MeshStandardMaterial({
+                        map: tex,
+                        roughness: options.roughness !== undefined ? options.roughness : 0.72,
+                        metalness: options.metalness !== undefined ? options.metalness : 0.08,
+                        emissive: options.emissive ? new THREE.Color(options.emissive) : new THREE.Color(0x000000),
+                        emissiveIntensity: options.emissiveIntensity || 0,
+                        transparent: Boolean(options.transparent),
+                        alphaTest: options.transparent ? 0.5 : 0
+                    });
+                });
+
+                const geom = new THREE.BoxGeometry(w, h, d);
+                const mesh = new THREE.Mesh(geom, materials);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                return mesh;
+            }
+
+            const canvas = document.getElementById('model-canvas');
+            const renderer = new THREE.WebGLRenderer({
+                canvas,
+                antialias: true,
+                powerPreference: 'high-performance'
+            });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.26;
+
+            const scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x0d1218, 0.0095);
+
+            const DEFAULT_CAM_POS = new THREE.Vector3(21, 22, 39);
+            const DEFAULT_CAM_TARGET = new THREE.Vector3(0, 17.5, 0);
+
+            const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.5, 300);
+            camera.position.copy(DEFAULT_CAM_POS);
+
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.target.copy(DEFAULT_CAM_TARGET);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.06;
+            controls.maxPolarAngle = Math.PI * 0.515;
+            controls.minDistance = 12;
+            controls.maxDistance = 95;
+            controls.update();
+
+            // Rich Color-Graded Studio Lighting (Warm Golden Key + Vibrant Coral-Warm Fill + Deep Teal Rim)
+            const ambientLight = new THREE.HemisphereLight(0xffe8cc, 0x1a2c38, 0.88);
+            scene.add(ambientLight);
+
+            const keyLight = new THREE.DirectionalLight(0xfff1d6, 1.38);
+            keyLight.position.set(28, 50, 36);
+            keyLight.castShadow = true;
+            keyLight.shadow.mapSize.width = 2048;
+            keyLight.shadow.mapSize.height = 2048;
+            keyLight.shadow.camera.near = 10;
+            keyLight.shadow.camera.far = 120;
+            const shadowBounds = 26;
+            keyLight.shadow.camera.left = -shadowBounds;
+            keyLight.shadow.camera.right = shadowBounds;
+            keyLight.shadow.camera.top = shadowBounds;
+            keyLight.shadow.camera.bottom = -shadowBounds;
+            keyLight.shadow.bias = -0.0005;
+            scene.add(keyLight);
+
+            const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.68);
+            rimLight.position.set(-30, 28, -28);
+            scene.add(rimLight);
+
+            // Warm coral-amber fill light from the front-left to bring out the red crab claw, warm tentacles, and gold trim
+            const warmFillLight = new THREE.PointLight(0xff7e47, 0.58, 70);
+            warmFillLight.position.set(16, 15, 22);
+            scene.add(warmFillLight);
+
+            const coolFillLight = new THREE.PointLight(0x2dd4bf, 0.36, 65);
+            coolFillLight.position.set(-16, 12, 16);
+            scene.add(coolFillLight);
+
+            const shadowPlane = new THREE.Mesh(
+                new THREE.PlaneGeometry(160, 160),
+                new THREE.ShadowMaterial({ opacity: 0.46 })
+            );
+            shadowPlane.rotation.x = -Math.PI / 2;
+            shadowPlane.position.y = 0;
+            shadowPlane.receiveShadow = true;
+            scene.add(shadowPlane);
+
+            const deckGroup = new THREE.Group();
+            scene.add(deckGroup);
+
+            // 16x16 Flying Dutchman Weathered Ship Deck Planks Base
+            const deckBase = createVoxelBox(22, 1.2, 22, {
+                top: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const isSeam = x % 4 === 0 || (y === 11 && x % 8 < 4) || (y === 16 && x % 8 >= 4);
+                            const r = rand();
+                            let col = '#2c2620';
+                            if (isSeam) col = '#171411';
+                            else if (r < 0.25) col = '#383028';
+                            else if (r < 0.42) col = '#3d4d32';
+                            else if (r < 0.52) col = '#4a3d2e';
+                            px(ctx, x, y, col);
+                        }
+                    }
+                    px(ctx, 4, 5, '#3b6e5c', 2, 1);
+                    px(ctx, 16, 17, '#3b6e5c', 2, 1);
+                },
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, ['#171411', '#26211c', '#383028', PALETTE.coatMoss], true)
+            }, { roughness: 0.85 });
+            deckBase.position.set(0, -0.6, 0);
+            deckGroup.add(deckBase);
+
+            // Dead Man's Chest resting beside Davy Jones's left boot (matching the reference photo!)
+            const deadMansChestGroup = new THREE.Group();
+            deadMansChestGroup.position.set(6.4, 0.0, 2.2);
+            deadMansChestGroup.rotation.y = -0.18;
+            deckGroup.add(deadMansChestGroup);
+
+            const chestBox = createVoxelBox(5.2, 3.2, 3.6, {
+                front: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const isBand = (x === 0 || x === w - 1 || y === h - 1);
+                            px(ctx, x, y, isBand ? '#2e241b' : '#59432e');
+                        }
+                    }
+                    // Ornate bronze lock escutcheon & keyhole on front center
+                    px(ctx, Math.floor(w / 2) - 1, 1, PALETTE.buckleGold, 2, 2);
+                    px(ctx, Math.floor(w / 2), 1, '#14100c', 1, 1);
+                },
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, ['#2b2118', '#473626', '#695038', PALETTE.buckleGold], false)
+            }, { texScale: 2, roughness: 0.6, metalness: 0.25 });
+            chestBox.position.set(0, 1.6, 0);
+            deadMansChestGroup.add(chestBox);
+
+            const chestLid = createVoxelBox(5.4, 1.2, 3.8, {
+                front: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            px(ctx, x, y, x % 2 === 0 ? '#6e543b' : '#3d2e20');
+                        }
+                    }
+                },
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, ['#2b2118', '#523e2b', '#785c3f', PALETTE.buckleGold], false)
+            }, { texScale: 2, roughness: 0.58, metalness: 0.28 });
+            chestLid.position.set(0, 3.7, 0);
+            deadMansChestGroup.add(chestLid);
+
+            // Coiled rope & barnacles on the opposite corner of the deck
+            const deckRope = createVoxelBox(3.5, 1.0, 3.5, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, ['#473825', '#6b5539', '#8a6f4b', PALETTE.coatMoss], false)
+            });
+            deckRope.position.set(-7.2, 0.5, -6.8);
+            deckRope.rotation.y = 0.4;
+            deckGroup.add(deckRope);
+
+            const rig = {
+                root: new THREE.Group(),
+                pelvis: new THREE.Group(),
+                torso: new THREE.Group(),
+                headPivot: new THREE.Group(),
+                siphonGroup: new THREE.Group(),
+                eyeBrows: new THREE.Group(),
+                hatGroup: new THREE.Group(),
+                beardGroup: new THREE.Group(),
+                tentacles: [],
+                pipeGroup: new THREE.Group(),
+                pipeFeederTendril: new THREE.Group(),
+                chestKeyGroup: new THREE.Group(),
+                rightArmPivot: new THREE.Group(),
+                rightForearmPivot: new THREE.Group(),
+                swordGroup: new THREE.Group(),
+                locketGroup: new THREE.Group(),
+                leftArmPivot: new THREE.Group(),
+                leftClawPivot: new THREE.Group(),
+                clawLowerPincer: new THREE.Group(),
+                leftCapePivot: new THREE.Group(),
+                leftCapeLowerPivot: new THREE.Group(),
+                rightLegPivot: new THREE.Group(),
+                leftLegPivot: new THREE.Group(),
+                coatTails: []
+            };
+
+            scene.add(rig.root);
+            rig.pelvis.position.set(0, 12, 0);
+            rig.root.add(rig.pelvis);
+
+            rig.torso.position.set(0, 0, 0);
+            rig.pelvis.add(rig.torso);
+
+            rig.headPivot.position.set(0, 12, 0);
+            rig.torso.add(rig.headPivot);
+
+            const headBox = createVoxelBox(8, 8, 8, {
+                front: (ctx, w, h) => {
+                    // Warm apricot-peach & coral-salmon cephalopod skin with warm shading
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const r = rand();
+                            let c = (x + y) % 2 === 0 ? PALETTE.skinBase : PALETTE.skinLight;
+                            if (r < 0.22) c = PALETTE.skinPinkTint;
+                            else if (r < 0.36) c = PALETTE.skinMid;
+                            px(ctx, x, y, c);
+                        }
+                    }
+                    // Crimson-maroon pirate bandana across top forehead (y=0,1)
+                    for (let x = 0; x < w; x++) {
+                        px(ctx, x, 0, PALETTE.bandanaDark);
+                        px(ctx, x, 1, x % 2 === 0 ? PALETTE.bandanaBase : PALETTE.bandanaPattern);
+                    }
+                    // Deep terracotta-brown furrow under brow (y=2)
+                    px(ctx, 0, 2, PALETTE.skinMid);
+                    px(ctx, 1, 2, PALETTE.skinDark);
+                    px(ctx, 2, 2, PALETTE.skinDeep);
+                    px(ctx, 3, 2, PALETTE.skinDeep);
+                    px(ctx, 4, 2, PALETTE.skinDeep);
+                    px(ctx, 5, 2, PALETTE.skinDeep);
+                    px(ctx, 6, 2, PALETTE.skinDark);
+                    px(ctx, 7, 2, PALETTE.skinMid);
+
+                    // Sunken Cephalopod Eyes with warm terracotta rims
+                    px(ctx, 0, 3, PALETTE.skinMid);
+                    px(ctx, 1, 3, PALETTE.eyeGleam);  // Outer right eye white
+                    px(ctx, 2, 3, PALETTE.eyeSocket); // Inner right eye dark brown iris/pupil
+                    px(ctx, 3, 3, PALETTE.skinDark);
+                    px(ctx, 4, 3, PALETTE.skinDark);
+                    px(ctx, 5, 3, PALETTE.eyeSocket); // Inner left eye dark brown iris/pupil
+                    px(ctx, 6, 3, PALETTE.eyeGleam);  // Outer left eye white
+                    px(ctx, 7, 3, PALETTE.skinMid);
+
+                    // Nose-less vertical cephalopod nasal slits & warm peach cheekbone ridges (y=4)
+                    px(ctx, 0, 4, PALETTE.skinMid);
+                    px(ctx, 1, 4, PALETTE.skinLight);
+                    px(ctx, 2, 4, PALETTE.skinPinkTint);
+                    px(ctx, 3, 4, PALETTE.eyeSocket);
+                    px(ctx, 4, 4, PALETTE.eyeSocket);
+                    px(ctx, 5, 4, PALETTE.skinPinkTint);
+                    px(ctx, 6, 4, PALETTE.skinLight);
+                    px(ctx, 7, 4, PALETTE.skinMid);
+
+                    // Shadowed mouth cavity & upper lip area (y=5,6,7)
+                    px(ctx, 2, 5, PALETTE.skinLight);
+                    px(ctx, 3, 5, PALETTE.eyeSocket);
+                    px(ctx, 4, 5, PALETTE.eyeSocket);
+                    px(ctx, 5, 5, PALETTE.skinLight);
+                    px(ctx, 2, 6, PALETTE.eyeSocket);
+                    px(ctx, 3, 6, PALETTE.skinBase);
+                    px(ctx, 4, 6, PALETTE.skinBase);
+                    px(ctx, 5, 6, PALETTE.eyeSocket);
+                },
+                all: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            if (y < 2) {
+                                px(ctx, x, y, (x + y) % 2 === 0 ? PALETTE.bandanaBase : PALETTE.bandanaDark);
+                            } else {
+                                const r = rand();
+                                px(ctx, x, y, r < 0.32 ? PALETTE.skinPinkTint : (r < 0.68 ? PALETTE.skinBase : PALETTE.skinMid));
+                            }
+                        }
+                    }
+                }
+            }, { roughness: 0.48 });
+            headBox.position.set(0, 4, 0);
+            rig.headPivot.add(headBox);
+
+            // Sculpted 3D furrowed cephalopod brow ridge & cheekbones
+            rig.eyeBrows.position.set(0, 5.45, 4.15);
+            rig.headPivot.add(rig.eyeBrows);
+
+            const browCenter = createVoxelBox(6.6, 1.1, 0.9, {
+                front: (ctx, w, h) => {
+                    for (let x = 0; x < w; x++) {
+                        px(ctx, x, 0, (x === 2 || x === 3) ? PALETTE.skinDark : PALETTE.skinLight);
+                    }
+                },
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.skinPinkTint, w, h)
+            }, { roughness: 0.48 });
+            rig.eyeBrows.add(browCenter);
+
+            [-2.35, 2.35].forEach((cx) => {
+                const cheekRidge = createVoxelBox(2.3, 0.85, 0.72, {
+                    all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.skinPinkTint, w, h)
+                }, { roughness: 0.48 });
+                cheekRidge.position.set(cx, 3.55, 4.08);
+                rig.headPivot.add(cheekRidge);
+            });
+
+            const nasalBridge = createVoxelBox(2.2, 1.45, 0.65, {
+                front: (ctx, w, h) => {
+                    px(ctx, 0, 0, PALETTE.skinLight, w, h);
+                    if (w >= 2) {
+                        px(ctx, 0, h - 1, PALETTE.skinDark);
+                        px(ctx, w - 1, h - 1, PALETTE.skinDark);
+                    }
+                },
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.skinBase, w, h)
+            }, { roughness: 0.48 });
+            nasalBridge.position.set(0, 3.65, 4.12);
+            rig.headPivot.add(nasalBridge);
+
+            // Bulbous Octopus Mantle Sacs on sides and back of the skull
+            [-4.35, 4.35].forEach((xPos) => {
+                const mantleSac = createVoxelBox(1.1, 5.2, 5.4, {
+                    all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.skinDark, PALETTE.skinMid, PALETTE.skinPinkTint, PALETTE.skinBase], false)
+                }, { roughness: 0.5 });
+                mantleSac.position.set(xPos, 3.8, -0.6);
+                rig.headPivot.add(mantleSac);
+            });
+
+            const rearMantleBulb = createVoxelBox(6.8, 5.0, 2.2, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.skinDark, PALETTE.skinMid, PALETTE.skinPinkTint, PALETTE.skinBase], false)
+            }, { roughness: 0.5 });
+            rearMantleBulb.position.set(0, 3.6, -4.6);
+            rig.headPivot.add(rearMantleBulb);
+
+            const bandanaKnot = createVoxelBox(2.4, 2.8, 1.2, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.bandanaDark, PALETTE.bandanaBase, PALETTE.bandanaPattern], false)
+            });
+            bandanaKnot.position.set(1.2, 5.2, -4.5);
+            bandanaKnot.rotation.z = -0.25;
+            rig.headPivot.add(bandanaKnot);
+
+            // Short Protruding Cephalopod Siphon Valve on upper left cheek
+            rig.siphonGroup.position.set(2.35, 2.85, 4.35);
+            rig.siphonGroup.rotation.z = -0.58;
+            rig.siphonGroup.rotation.x = 0.28;
+            rig.headPivot.add(rig.siphonGroup);
+
+            const siphonTube = createVoxelBox(0.95, 1.35, 0.95, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.skinDark, PALETTE.skinPinkTint, PALETTE.skinLight], false),
+                bottom: (ctx, w, h) => px(ctx, 0, 0, PALETTE.eyeSocket, w, h)
+            }, { roughness: 0.45 });
+            rig.siphonGroup.add(siphonTube);
+
+            const siphonRim = createVoxelBox(1.15, 0.42, 1.15, {
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.suckerRing, w, h),
+                bottom: (ctx, w, h) => px(ctx, 0, 0, PALETTE.eyeSocket, w, h)
+            }, { roughness: 0.45 });
+            siphonRim.position.set(0, -0.65, 0);
+            rig.siphonGroup.add(siphonRim);
+
+            // Barnacle & Moss Encrusted Tricorn/Bicorn Hat with Vibrant Gold Trim
+            rig.hatGroup.position.set(0, 6.2, 0);
+            rig.headPivot.add(rig.hatGroup);
+
+            const hatCrown = createVoxelBox(8.6, 3.6, 8.6, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.coatDarkest, PALETTE.coatBase, PALETTE.coatMid, PALETTE.coatAlgae], true)
+            });
+            hatCrown.position.set(0, 1.6, 0);
+            rig.hatGroup.add(hatCrown);
+
+            const hatBrimCenter = createVoxelBox(11.6, 1.1, 10.6, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.coatDarkest, PALETTE.coatBase, PALETTE.coatMid, PALETTE.coatAlgae], true)
+            });
+            hatBrimCenter.position.set(0, 0.2, -0.2);
+            rig.hatGroup.add(hatBrimCenter);
+
+            [-6.2, 6.2].forEach((wx) => {
+                const isLeft = wx > 0;
+                const wingBrim = createVoxelBox(3.4, 1.4, 7.6, {
+                    all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatMoss, PALETTE.hatTrimLight], true)
+                });
+                wingBrim.position.set(wx, 0.65, 0.2);
+                wingBrim.rotation.z = isLeft ? 0.24 : -0.24;
+                rig.hatGroup.add(wingBrim);
+            });
+
+            // Iconic Split High Front Flaps with bold golden-ochre trim along the top edges (matching reference photo!)
+            const leftHatPeak = createVoxelBox(7.2, 5.5, 1.6, {
+                front: (ctx, w, h) => {
+                    fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatLight, PALETTE.coatAlgae], true);
+                    for (let x = 0; x < w; x++) px(ctx, x, 0, x % 2 === 0 ? PALETTE.hatTrimLight : PALETTE.hatTrimGold);
+                    px(ctx, 1, 2, PALETTE.spongeTan, 2, 2);
+                    px(ctx, 4, 1, PALETTE.barnacleLight);
+                    px(ctx, 5, 3, PALETTE.coatKelpBright, 2, 1);
+                },
+                top: (ctx, w, h) => px(ctx, 0, 0, PALETTE.hatTrimLight, w, h),
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatMoss, PALETTE.hatTrimGold], true)
+            });
+            leftHatPeak.position.set(3.45, 2.85, 4.35);
+            leftHatPeak.rotation.z = -0.19;
+            leftHatPeak.rotation.y = -0.22;
+            leftHatPeak.rotation.x = -0.12;
+            rig.hatGroup.add(leftHatPeak);
+
+            const rightHatPeak = createVoxelBox(7.2, 5.5, 1.6, {
+                front: (ctx, w, h) => {
+                    fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatLight, PALETTE.coatAlgae], true);
+                    for (let x = 0; x < w; x++) px(ctx, x, 0, x % 2 === 0 ? PALETTE.hatTrimLight : PALETTE.hatTrimGold);
+                    px(ctx, 2, 2, PALETTE.barnacleLight, 2, 1);
+                    px(ctx, 4, 3, PALETTE.coatKelpBright, 2, 1);
+                },
+                top: (ctx, w, h) => px(ctx, 0, 0, PALETTE.hatTrimLight, w, h),
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatMoss, PALETTE.hatTrimGold], true)
+            });
+            rightHatPeak.position.set(-3.45, 2.85, 4.35);
+            rightHatPeak.rotation.z = 0.19;
+            rightHatPeak.rotation.y = 0.22;
+            rightHatPeak.rotation.x = -0.12;
+            rig.hatGroup.add(rightHatPeak);
+
+            const backHatFlap = createVoxelBox(12.6, 4.0, 1.5, {
+                back: (ctx, w, h) => {
+                    fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatMid, PALETTE.coatAlgae], true);
+                    for (let x = 0; x < w; x++) px(ctx, x, 0, PALETTE.hatTrimLight);
+                    px(ctx, 3, 2, PALETTE.starfishOrange, 2, 2);
+                },
+                top: (ctx, w, h) => px(ctx, 0, 0, PALETTE.hatTrimGold, w, h),
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatMid, PALETTE.coatMoss], true)
+            });
+            backHatFlap.position.set(0, 2.0, -4.65);
+            backHatFlap.rotation.x = 0.16;
+            rig.hatGroup.add(backHatFlap);
+
+            const hatBarnacles = [
+                [-4.9, 3.0, 4.9, 1.3, 1.3, 0.9],
+                [ 4.7, 3.4, 4.8, 1.1, 1.5, 0.9],
+                [-6.4, 1.3, 2.1, 1.3, 1.1, 1.3],
+                [ 6.5, 1.4, 1.8, 1.2, 1.2, 1.2],
+                [ 2.1, 4.1, 4.6, 1.0, 1.0, 0.9],
+                [-2.6, 3.6, -4.9, 1.2, 1.2, 0.9]
+            ];
+            hatBarnacles.forEach(([bx, by, bz, bw, bh, bd]) => {
+                const bMesh = createVoxelBox(bw, bh, bd, {
+                    all: (ctx, w, h) => {
+                        px(ctx, 0, 0, PALETTE.barnacleLight, w, h);
+                        if (w >= 1 && h >= 1) px(ctx, 0, 0, PALETTE.barnacleHole);
+                    }
+                });
+                bMesh.position.set(bx, by, bz);
+                rig.hatGroup.add(bMesh);
+            });
+
+            rig.beardGroup.position.set(0, 3.0, 3.85);
+            rig.headPivot.add(rig.beardGroup);
+
+            // Creates a richly graded warm peach-salmon tentacle segment with crimson-violet sucker crevices
+            function createTentacleSegment(w, h, d, tintVariant = 0, suckerSide = 'both', add3DSuckers = false) {
+                const primary = tintVariant === 0 ? PALETTE.skinLight : (tintVariant === 1 ? PALETTE.skinBase : PALETTE.skinPinkTint);
+                const secondary = tintVariant === 0 ? PALETTE.skinBase : (tintVariant === 1 ? PALETTE.skinMid : PALETTE.skinDark);
+
+                const segMesh = createVoxelBox(w, h, d, {
+                    front: (ctx, cw, ch) => {
+                        for (let y = 0; y < ch; y++) {
+                            for (let x = 0; x < cw; x++) {
+                                const isHighlight = (x === Math.floor(cw / 2)) && (y % 2 === 0);
+                                px(ctx, x, y, isHighlight ? PALETTE.skinWetHighlight : ((y % 2 === 0) ? primary : secondary));
+                            }
+                        }
+                    },
+                    left: (ctx, cw, ch) => {
+                        for (let y = 0; y < ch; y++) {
+                            for (let x = 0; x < cw; x++) {
+                                if ((suckerSide === 'left' || suckerSide === 'both') && y % 2 === 0 && x >= cw - 2) {
+                                    px(ctx, x, y, x === cw - 1 ? PALETTE.suckerRing : PALETTE.suckerHole);
+                                } else {
+                                    px(ctx, x, y, y % 2 === 0 ? secondary : PALETTE.skinPinkTint);
+                                }
+                            }
+                        }
+                    },
+                    right: (ctx, cw, ch) => {
+                        for (let y = 0; y < ch; y++) {
+                            for (let x = 0; x < cw; x++) {
+                                if ((suckerSide === 'right' || suckerSide === 'both') && y % 2 === 0 && x <= 1) {
+                                    px(ctx, x, y, x === 0 ? PALETTE.suckerRing : PALETTE.suckerHole);
+                                } else {
+                                    px(ctx, x, y, y % 2 === 0 ? secondary : PALETTE.skinPinkTint);
+                                }
+                            }
+                        }
+                    },
+                    all: (ctx, cw, ch) => {
+                        for (let y = 0; y < ch; y++) {
+                            for (let x = 0; x < cw; x++) {
+                                px(ctx, x, y, y % 2 === 0 ? secondary : PALETTE.suckerHole);
+                            }
+                        }
+                    }
+                }, { texScale: 2, roughness: 0.44 });
+
+                if (add3DSuckers && h >= 2.5) {
+                    const count = Math.floor(h / 1.15);
+                    const sideSign = suckerSide === 'left' ? -1 : 1;
+                    for (let i = 0; i < count; i++) {
+                        const sy = (h / 2) - 0.55 - i * 1.1;
+                        const suckerPod = createVoxelBox(0.36, 0.48, 0.48, {
+                            all: (ctx, cw, ch) => px(ctx, 0, 0, PALETTE.suckerRing, cw, ch),
+                            front: (ctx, cw, ch) => {
+                                px(ctx, 0, 0, PALETTE.suckerRing, cw, ch);
+                                px(ctx, 0, 0, PALETTE.suckerHole, 1, 1);
+                            }
+                        }, { roughness: 0.42 });
+                        suckerPod.position.set(sideSign * (w / 2 + 0.12), sy, (i % 2 === 0 ? 0.12 : -0.08));
+                        segMesh.add(suckerPod);
+                    }
+                }
+                return segMesh;
+            }
+
+            // 1. Fleshy Bulbous Upper-Lip Arch directly under the nasal slits
+            const upperLipArch = createTentacleSegment(3.4, 1.15, 1.45, 0, 'none', false);
+            upperLipArch.position.set(0, 0.32, 0.65);
+            rig.beardGroup.add(upperLipArch);
+
+            const mouthCrevice = createVoxelBox(2.2, 0.55, 0.95, {
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.eyeSocket, w, h)
+            });
+            mouthCrevice.position.set(0, -0.32, 0.52);
+            rig.beardGroup.add(mouthCrevice);
+
+            // 2. Anatomical Lower Lip & Bulbous Cleft Chin directly under the mouth
+            const lowerLipMesh = createVoxelBox(1.95, 0.58, 1.28, {
+                front: (ctx, w, h) => {
+                    px(ctx, 0, 0, PALETTE.skinLight, w, 1);
+                    if (h > 1) px(ctx, 0, 1, PALETTE.skinPinkTint, w, h - 1);
+                },
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.skinBase, w, h)
+            }, { texScale: 2, roughness: 0.46 });
+            lowerLipMesh.position.set(0, -0.68, 0.62);
+            rig.beardGroup.add(lowerLipMesh);
+
+            const cleftChinMesh = createVoxelBox(2.15, 1.45, 1.32, {
+                front: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const isCleft = (x === Math.floor(w / 2)) && y >= 1;
+                            px(ctx, x, y, isCleft ? PALETTE.skinDark : (y === 0 ? PALETTE.skinLight : PALETTE.skinBase));
+                        }
+                    }
+                },
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.skinMid, w, h)
+            }, { texScale: 2, roughness: 0.46 });
+            cleftChinMesh.position.set(0, -1.55, 0.58);
+            rig.beardGroup.add(cleftChinMesh);
+
+            // 3. Multi-Stage S-Curved Beard Tentacles arranged in compact, non-intersecting 3D lanes
+            const tentacleConfigs = [
+                // PAIR 1: Two Central Chin Tentacles hanging closely together below the cleft chin
+                [-0.56, -2.15,  0.62,  0.92, 3.8,  0.78, 4.0,  0.62, 3.6,  -0.02, -0.01,  0.06, -0.05, -0.03,  0.04,  0.0, 0, 'left',  true],
+                [ 0.56, -2.15,  0.62,  0.92, 3.8,  0.78, 4.0,  0.62, 3.6,   0.02,  0.01, -0.06, -0.05, -0.03,  0.04,  0.3, 0, 'right', true],
+
+                // PAIR 2: Primary Mustache-Arch Tentacles framing the mouth in the forward-most Z layer
+                [-1.46,  0.10,  0.86,  1.16, 4.3,  0.96, 4.4,  0.78, 4.2,  -0.04,  0.05,  0.06, -0.08, -0.04,  0.05,  0.7, 0, 'right', true],
+                [ 1.46,  0.10,  0.86,  1.16, 4.3,  0.96, 4.4,  0.78, 4.2,   0.04, -0.05, -0.06, -0.08, -0.04,  0.05,  1.0, 0, 'left',  true],
+
+                // PAIR 3: Mid-Cheek Sweeping Tentacles tucked closely beside Pair 2
+                [-2.24,  0.12,  0.52,  1.06, 4.1,  0.88, 4.1,  0.70, 3.7,  -0.07,  0.06,  0.07, -0.04, -0.02,  0.05,  1.4, 0, 'left',  true],
+                [ 2.24,  0.12,  0.52,  1.06, 4.1,  0.88, 4.1,  0.70, 3.7,   0.07, -0.06, -0.07, -0.04, -0.02,  0.05,  1.7, 0, 'right', true],
+
+                // PAIR 4: Outer Lateral Cheek Tentacles draping compactly along the beard sides
+                [-2.88,  0.34,  0.18,  0.96, 3.6,  0.82, 3.5,  0.64, 3.1,  -0.10,  0.08,  0.08,  0.00,  0.02,  0.05,  2.1, 1, 'left',  true],
+                [ 2.88,  0.34,  0.18,  0.96, 3.6,  0.82, 3.5,  0.64, 3.1,   0.10, -0.08, -0.08,  0.00,  0.02,  0.05,  2.4, 1, 'right', true],
+
+                // PAIR 5: Upper Cheek Feelers Sweeping Outward Over the Shoulders (like reference image!)
+                [-3.38,  0.92, -0.18,  0.84, 2.8,  0.68, 2.6,  0.54, 2.2,  -0.26, -0.12,  0.08,  0.04,  0.05,  0.07,  2.8, 0, 'both',  false],
+                [ 3.38,  0.92, -0.18,  0.84, 2.8,  0.68, 2.6,  0.54, 2.2,   0.26,  0.12, -0.08,  0.04,  0.05,  0.07,  3.1, 0, 'both',  false],
+
+                // PAIR 6: Deep Under-Beard Layer recessed cleanly behind the front tentacles in Z
+                [-1.02, -1.55, -0.55,  1.00, 3.8,  0.84, 3.8,  0.68, 3.4,  -0.04,  0.02,  0.05,  0.05,  0.04,  0.04,  0.5, 1, 'both',  false],
+                [ 1.02, -1.55, -0.55,  1.00, 3.8,  0.84, 3.8,  0.68, 3.4,   0.04, -0.02, -0.05,  0.05,  0.04,  0.04,  0.8, 1, 'both',  false],
+                [-1.96, -1.25, -0.62,  0.96, 3.6,  0.80, 3.5,  0.64, 3.0,  -0.07,  0.04,  0.06,  0.06,  0.05,  0.05,  1.2, 2, 'both',  false],
+                [ 1.96, -1.25, -0.62,  0.96, 3.6,  0.80, 3.5,  0.64, 3.0,   0.07, -0.04, -0.06,  0.06,  0.05,  0.05,  1.5, 2, 'both',  false]
+            ];
+
+            tentacleConfigs.forEach(([
+                tx, ty, tz, uw, uh, mw, mh, lw, lh,
+                uRotZ, mRotZ, lRotZ, uRotX, mRotX, lRotX,
+                phase, tint, suckerSide, add3DSuckers
+            ]) => {
+                const upperPivot = new THREE.Group();
+                upperPivot.position.set(tx, ty, tz);
+                upperPivot.rotation.z = uRotZ;
+                upperPivot.rotation.x = uRotX;
+
+                const upperMesh = createTentacleSegment(uw, uh, uw, tint, suckerSide, add3DSuckers);
+                upperMesh.position.set(0, -uh / 2, 0);
+                upperPivot.add(upperMesh);
+
+                const midPivot = new THREE.Group();
+                midPivot.position.set(0, -uh + 0.18, 0);
+                midPivot.rotation.z = mRotZ;
+                midPivot.rotation.x = mRotX;
+                upperPivot.add(midPivot);
+
+                const midMesh = createTentacleSegment(mw, mh, mw, tint, suckerSide, add3DSuckers);
+                midMesh.position.set(0, -mh / 2, 0.05);
+                midPivot.add(midMesh);
+
+                const lowerPivot = new THREE.Group();
+                lowerPivot.position.set(0, -mh + 0.18, 0.05);
+                lowerPivot.rotation.z = lRotZ;
+                lowerPivot.rotation.x = lRotX;
+                midPivot.add(lowerPivot);
+
+                const lowerMesh = createTentacleSegment(lw, lh, lw, tint, suckerSide, false);
+                lowerMesh.position.set(0, -lh / 2, 0.08);
+                lowerPivot.add(lowerMesh);
+
+                const curlDir = tx < 0 ? -1 : 1;
+                const tipMid = createTentacleSegment(lw * 0.76, 1.45, lw * 0.76, 0, 'none', false);
+                tipMid.position.set(curlDir * 0.08, -lh - 0.52, 0.14);
+                tipMid.rotation.z = curlDir * 0.14;
+                tipMid.rotation.x = 0.14;
+                lowerPivot.add(tipMid);
+
+                const tipEnd = createTentacleSegment(lw * 0.54, 1.05, lw * 0.54, 0, 'none', false);
+                tipEnd.position.set(curlDir * 0.02, -lh - 1.35, 0.28);
+                tipEnd.rotation.z = -curlDir * 0.12;
+                tipEnd.rotation.x = 0.20;
+                lowerPivot.add(tipEnd);
+
+                const extraRadius = add3DSuckers ? 0.08 : 0.02;
+                rig.beardGroup.add(upperPivot);
+                rig.tentacles.push({
+                    upperPivot,
+                    midPivot,
+                    lowerPivot,
+                    tx,
+                    ty,
+                    tz,
+                    uh,
+                    mh,
+                    lh: lh + 1.35,
+                    ur: uw * 0.5 + extraRadius,
+                    mr: mw * 0.5 + extraRadius,
+                    lr: lw * 0.5 + 0.03,
+                    baseUZ: uRotZ,
+                    baseMZ: mRotZ,
+                    baseLZ: lRotZ,
+                    baseUX: uRotX,
+                    baseMX: mRotX,
+                    baseLX: lRotX,
+                    phase
+                });
+            });
+
+            rig.pipeGroup.position.set(0.58, -0.32, 0.72);
+            rig.beardGroup.add(rig.pipeGroup);
+
+            const pipeLipBit = createVoxelBox(0.46, 0.46, 0.68, {
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.pipeStemDark, w, h)
+            }, { roughness: 0.32, metalness: 0.25 });
+            pipeLipBit.position.set(0, 0, 0.12);
+            rig.pipeGroup.add(pipeLipBit);
+
+            const pipeStemUpper = createVoxelBox(0.38, 1.45, 0.38, {
+                front: (ctx, w, h) => {
+                    px(ctx, 0, 0, PALETTE.pipeStemDark, w, h);
+                    px(ctx, 0, 0, PALETTE.pipeStemHighlight, 1, h);
+                },
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.pipeStemDark, w, h)
+            }, { roughness: 0.28, metalness: 0.3 });
+            pipeStemUpper.position.set(0.16, -0.68, 0.38);
+            pipeStemUpper.rotation.z = -0.18;
+            pipeStemUpper.rotation.x = 0.34;
+            rig.pipeGroup.add(pipeStemUpper);
+
+            const pipeCollarRing = createVoxelBox(0.62, 0.38, 0.62, {
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.pipeBeadRing, w, h)
+            }, { roughness: 0.45 });
+            pipeCollarRing.position.set(0.32, -1.42, 0.66);
+            pipeCollarRing.rotation.z = -0.15;
+            pipeCollarRing.rotation.x = 0.26;
+            rig.pipeGroup.add(pipeCollarRing);
+
+            const pipeBulbBead1 = createVoxelBox(0.84, 0.68, 0.84, {
+                front: (ctx, w, h) => {
+                    px(ctx, 0, 0, PALETTE.pipeBeadMid, w, h);
+                    px(ctx, 0, 0, PALETTE.pipeStemHighlight, 1, h);
+                },
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.pipeBeadMid, w, h)
+            }, { roughness: 0.42 });
+            pipeBulbBead1.position.set(0.42, -1.88, 0.82);
+            pipeBulbBead1.rotation.z = -0.12;
+            pipeBulbBead1.rotation.x = 0.2;
+            rig.pipeGroup.add(pipeBulbBead1);
+
+            const pipeBulbBead2 = createVoxelBox(0.76, 0.56, 0.76, {
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.pipeStemDark, w, h)
+            }, { roughness: 0.45 });
+            pipeBulbBead2.position.set(0.52, -2.36, 0.96);
+            pipeBulbBead2.rotation.z = -0.10;
+            rig.pipeGroup.add(pipeBulbBead2);
+
+            const pipeBowlCore = createVoxelBox(1.52, 1.78, 1.52, {
+                front: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            px(ctx, x, y, x % 2 === 0 ? PALETTE.pipeBowlDark : PALETTE.pipeBowlRidge);
+                        }
+                    }
+                },
+                all: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            px(ctx, x, y, x % 2 === 0 ? PALETTE.pipeBowlMid : PALETTE.pipeBowlDark);
+                        }
+                    }
+                },
+                top: (ctx, w, h) => {
+                    px(ctx, 0, 0, PALETTE.pipeBowlDark, w, h);
+                    px(ctx, 1, 1, PALETTE.pipeEmber, Math.max(1, w - 2), Math.max(1, h - 2));
+                }
+            }, { texScale: 2, roughness: 0.68 });
+            pipeBowlCore.position.set(1.08, -2.42, 1.48);
+            pipeBowlCore.rotation.z = -0.08;
+            pipeBowlCore.rotation.x = 0.08;
+            rig.pipeGroup.add(pipeBowlCore);
+
+            const pipeBasePlate = createVoxelBox(1.92, 0.36, 1.92, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.pipeClawDark, PALETTE.pipeClawBase, PALETTE.pipeClawLight], false)
+            }, { roughness: 0.52, metalness: 0.22 });
+            pipeBasePlate.position.set(1.10, -3.28, 1.48);
+            pipeBasePlate.rotation.z = -0.08;
+            rig.pipeGroup.add(pipeBasePlate);
+
+            const clawClasperSpecs = [
+                [ 0.65, -2.58, 2.24, 0.42, 1.48, 0.38, -0.18,  0.15, -0.16],
+                [ 1.38, -2.55, 2.24, 0.42, 1.52, 0.38, -0.18, -0.15,  0.18],
+                [ 1.84, -2.56, 1.56, 0.38, 1.45, 0.44,  0.06,  0.00,  0.24],
+                [ 0.34, -2.58, 1.48, 0.38, 1.42, 0.44,  0.06,  0.00, -0.22]
+            ];
+            clawClasperSpecs.forEach(([cx, cy, cz, cw, ch, cd, rx, ry, rz]) => {
+                const prong = createVoxelBox(cw, ch, cd, {
+                    all: (ctx, w, h) => {
+                        for (let y = 0; y < h; y++) {
+                            px(ctx, 0, y, y === 0 ? PALETTE.pipeClawLight : (y % 2 === 0 ? PALETTE.pipeClawBase : PALETTE.pipeClawDark), w, 1);
+                        }
+                    }
+                }, { texScale: 2, roughness: 0.5, metalness: 0.25 });
+                prong.position.set(cx, cy, cz);
+                prong.rotation.set(rx, ry, rz);
+                rig.pipeGroup.add(prong);
+            });
+
+            rig.pipeFeederTendril.position.set(1.95, -0.45, 0.58);
+            rig.pipeGroup.add(rig.pipeFeederTendril);
+
+            const feederUpper = createTentacleSegment(0.62, 1.35, 0.62, 0, 'none', false);
+            feederUpper.position.set(0.15, -0.55, 0.35);
+            feederUpper.rotation.z = -0.35;
+            feederUpper.rotation.x = 0.48;
+            rig.pipeFeederTendril.add(feederUpper);
+
+            const feederLower = createTentacleSegment(0.48, 1.25, 0.48, 0, 'none', false);
+            feederLower.position.set(-0.32, -1.15, 0.85);
+            feederLower.rotation.z = 0.72;
+            feederLower.rotation.x = -0.22;
+            rig.pipeFeederTendril.add(feederLower);
+
+            // Hidden Dead Man's Chest Key nestled beneath the central beard tentacles
+            rig.chestKeyGroup.position.set(-0.35, -5.8, 0.58);
+            rig.beardGroup.add(rig.chestKeyGroup);
+
+            const keyBow = createVoxelBox(1.4, 1.4, 0.35, {
+                all: (ctx, w, h) => {
+                    px(ctx, 0, 0, PALETTE.keyHighlight, w, h);
+                    if (w > 1 && h > 1) px(ctx, 0, 0, PALETTE.keyShadow, 1, 1);
+                }
+            }, { metalness: 0.78, roughness: 0.25 });
+            rig.chestKeyGroup.add(keyBow);
+
+            const keyShaft = createVoxelBox(0.45, 2.4, 0.35, {
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.keySilver, w, h)
+            }, { metalness: 0.78, roughness: 0.25 });
+            keyShaft.position.set(0, -1.7, 0);
+            rig.chestKeyGroup.add(keyShaft);
+
+            const keyBit = createVoxelBox(0.95, 0.85, 0.35, {
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.keyHighlight, w, h)
+            }, { metalness: 0.78, roughness: 0.25 });
+            keyBit.position.set(0.32, -2.35, 0);
+            rig.chestKeyGroup.add(keyBit);
+
+            const torsoBox = createVoxelBox(8, 12, 4, {
+                front: (ctx, w, h) => {
+                    fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatMid, PALETTE.coatAlgae], true, false);
+                    px(ctx, 3, 0, '#121c24', 2, 5);
+                    px(ctx, 3, 2, PALETTE.barnacleLight, 1, 1);
+                    px(ctx, 4, 3, PALETTE.sashLight, 1, 1);
+
+                    // Coat lapels & bright gold-brass buttons
+                    for (let y = 1; y < 8; y++) {
+                        px(ctx, 2, y, PALETTE.hatTrimGold);
+                        px(ctx, 5, y, PALETTE.hatTrimGold);
+                        if (y % 2 === 1) {
+                            px(ctx, 1, y, PALETTE.brassHighlight);
+                            px(ctx, 6, y, PALETTE.brassHighlight);
+                        }
+                    }
+                    // Vibrant Crimson fabric waist sash (y=8,9,10)
+                    for (let x = 0; x < w; x++) {
+                        px(ctx, x, 8, PALETTE.sashLight);
+                        px(ctx, x, 9, PALETTE.sashBase);
+                        px(ctx, x, 10, PALETTE.sashDark);
+                    }
+                    // Warm mahogany leather belt over the sash (y=9)
+                    for (let x = 0; x < w; x++) {
+                        px(ctx, x, 9, (x % 2 === 0) ? PALETTE.beltLeather : PALETTE.beltEdge);
+                    }
+                },
+                all: (ctx, w, h) => {
+                    fillWeatheredFabric(ctx, w, h, [PALETTE.coatDarkest, PALETTE.coatBase, PALETTE.coatMid, PALETTE.coatAlgae], true);
+                    for (let x = 0; x < w; x++) {
+                        if (h >= 10) {
+                            px(ctx, x, 8, PALETTE.sashBase);
+                            px(ctx, x, 9, PALETTE.beltLeather);
+                        }
+                    }
+                }
+            });
+            torsoBox.position.set(0, 6, 0);
+            rig.torso.add(torsoBox);
+
+            const coatCollarBack = createVoxelBox(8.4, 2.2, 1.0, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.hatTrimLight], true)
+            });
+            coatCollarBack.position.set(0, 12.2, -1.9);
+            coatCollarBack.rotation.x = -0.18;
+            rig.torso.add(coatCollarBack);
+
+            // 3D Sculpted Coat Lapels with gold trim edges
+            [-2.3, 2.3].forEach((lx) => {
+                const isLeft = lx > 0;
+                const lapel = createVoxelBox(2.2, 6.8, 0.55, {
+                    front: (ctx, w, h) => {
+                        fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatLight, PALETTE.coatAlgae], true, false, isLeft ? 'left' : 'right');
+                        for (let y = 1; y < h; y += 2) {
+                            px(ctx, isLeft ? 1 : 0, y, PALETTE.brassHighlight);
+                        }
+                    },
+                    all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.coatBase, w, h)
+                });
+                lapel.position.set(lx, 8.2, 2.12);
+                lapel.rotation.z = isLeft ? 0.08 : -0.08;
+                rig.torso.add(lapel);
+            });
+
+            // 3D Diagonal Warm Mahogany Leather Baldric Strap across the chest
+            const chestBaldric = createVoxelBox(1.8, 10.6, 4.5, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.beltDark, PALETTE.beltLeather, PALETTE.beltEdge, PALETTE.barnacleLight], true)
+            });
+            chestBaldric.position.set(-0.2, 6.6, 0);
+            chestBaldric.rotation.z = -0.46;
+            rig.torso.add(chestBaldric);
+
+            // Ornate Gold Belt Buckle & Strap Tip
+            const beltBuckle = createVoxelBox(2.8, 2.2, 0.85, {
+                front: (ctx, w, h) => {
+                    px(ctx, 0, 0, PALETTE.buckleBright, w, h);
+                    if (w >= 3 && h >= 2) {
+                        px(ctx, 1, 0, PALETTE.beltDark);
+                        px(ctx, 1, 1, PALETTE.buckleGold);
+                    }
+                },
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.buckleGold, w, h)
+            }, { texScale: 2, metalness: 0.52, roughness: 0.42 });
+            beltBuckle.position.set(0.3, 2.8, 2.28);
+            rig.torso.add(beltBuckle);
+
+            const beltStrapEnd = createVoxelBox(2.4, 1.3, 0.65, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.beltDark, PALETTE.beltLeather, PALETTE.beltEdge], true)
+            });
+            beltStrapEnd.position.set(2.7, 2.75, 2.18);
+            beltStrapEnd.rotation.z = -0.08;
+            rig.torso.add(beltStrapEnd);
+
+            // Left & Right Front Coat Skirt Flaps with Frosted Barnacle & Gold Border Trim (matching reference figure!)
+            const leftCoatSkirt = createVoxelBox(3.8, 7.2, 1.15, {
+                front: (ctx, w, h) => {
+                    fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatLight, PALETTE.coatAlgae], true, false, 'left');
+                    for (let x = 0; x < w; x++) px(ctx, x, h - 1, PALETTE.barnacleLight);
+                    px(ctx, 1, 2, '#0d1317', 2, 2);
+                },
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.coatDarkest, PALETTE.coatBase, PALETTE.coatMid], true)
+            });
+            leftCoatSkirt.position.set(2.25, -2.0, 1.72);
+            leftCoatSkirt.rotation.x = -0.07;
+            leftCoatSkirt.rotation.z = 0.06;
+            rig.torso.add(leftCoatSkirt);
+
+            const rightCoatSkirt = createVoxelBox(3.5, 6.8, 1.1, {
+                front: (ctx, w, h) => {
+                    fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatLight, PALETTE.coatAlgae], true, false, 'right');
+                    for (let x = 0; x < w; x++) px(ctx, x, h - 1, PALETTE.hatTrimGold);
+                },
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.coatDarkest, PALETTE.coatBase, PALETTE.coatMid, PALETTE.coatMoss], true)
+            });
+            rightCoatSkirt.position.set(-2.35, -1.8, 1.55);
+            rightCoatSkirt.rotation.x = -0.06;
+            rightCoatSkirt.rotation.z = -0.08;
+            rig.torso.add(rightCoatSkirt);
+
+            const crimsonSashTail = createVoxelBox(2.5, 7.8, 0.95, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.sashDark, PALETTE.sashBase, PALETTE.sashLight], false)
+            });
+            crimsonSashTail.position.set(-1.85, -2.3, 1.92);
+            crimsonSashTail.rotation.z = -0.14;
+            rig.torso.add(crimsonSashTail);
+
+            // Articulated Tattered Back & Side Coattails with Gold-Ochre Hem Trim & Sea-Kelp
+            const coatTailDefs = [
+                [-3.2, 1.2, -1.8, 3.3, 10.2, 0.95,  0.14, -0.20, 'right'],
+                [ 0.0, 1.2, -2.0, 4.3, 10.8, 0.95,  0.18,  0.00, 'bottom'],
+                [ 3.2, 1.2, -1.8, 3.3, 10.2, 0.95,  0.14,  0.20, 'left'],
+                [-4.1, 1.2,  0.1, 1.05, 9.6, 3.6,   0.05, -0.22, 'right'],
+                [ 4.1, 1.2,  0.1, 1.05, 9.4, 3.5,   0.05,  0.18, 'left']
+            ];
+            coatTailDefs.forEach(([cx, cy, cz, cw, ch, cd, rx, rz, borderSide], idx) => {
+                const tailPivot = new THREE.Group();
+                tailPivot.position.set(cx, cy, cz);
+                tailPivot.rotation.x = rx;
+                tailPivot.rotation.z = rz;
+
+                const tailMesh = createVoxelBox(cw, ch, cd, {
+                    all: (ctx, w, h) => {
+                        fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatMid, PALETTE.coatAlgae], true, false, borderSide);
+                        if (h > 4) px(ctx, Math.floor(w / 2), h - 3, PALETTE.kelpMid, 1, 3);
+                    }
+                });
+                tailMesh.position.set(0, -ch / 2, 0);
+                tailPivot.add(tailMesh);
+                rig.torso.add(tailPivot);
+                rig.coatTails.push({ pivot: tailPivot, baseRx: rx, baseRz: rz, phase: idx * 0.85 });
+            });
+
+            rig.leftCapePivot.position.set(4.2, 11.8, 0.0);
+            rig.torso.add(rig.leftCapePivot);
+
+            const shoulderMantle = createVoxelBox(5.0, 2.2, 5.6, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.kelpDark, PALETTE.kelpMid, PALETTE.kelpLight, PALETTE.hatTrimGold], true)
+            });
+            shoulderMantle.position.set(1.1, -0.35, 0);
+            shoulderMantle.rotation.z = -0.22;
+            rig.leftCapePivot.add(shoulderMantle);
+
+            // Hanging Olive-Green Seaweed / Kelp Strips draping over the upper left crab arm (matching reference photo!)
+            const kelpFringeConfigs = [
+                [1.8, -1.6,  1.6, 0.9, 3.6, 0.7,  0.18,  0.22],
+                [2.6, -1.8,  0.6, 1.0, 4.2, 0.8,  0.08,  0.28],
+                [2.2, -1.7, -0.8, 0.9, 3.8, 0.8, -0.12,  0.25]
+            ];
+            kelpFringeConfigs.forEach(([kx, ky, kz, kw, kh, kd, rx, rz]) => {
+                const kelpStrip = createVoxelBox(kw, kh, kd, {
+                    all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.kelpDark, PALETTE.kelpMid, PALETTE.kelpLight, PALETTE.barnacleShell], false)
+                });
+                kelpStrip.position.set(kx, ky, kz);
+                kelpStrip.rotation.x = rx;
+                kelpStrip.rotation.z = rz;
+                rig.leftCapePivot.add(kelpStrip);
+            });
+
+            // Two-Stage Articulated Draped Left Side Cape with bold gold-ochre edge trim
+            const drapedCapeUpper = createVoxelBox(1.3, 8.6, 5.2, {
+                all: (ctx, w, h) => {
+                    fillWeatheredFabric(ctx, w, h, [PALETTE.coatDarkest, PALETTE.coatBase, PALETTE.coatMid, PALETTE.coatAlgae], true, true, 'left');
+                }
+            });
+            drapedCapeUpper.position.set(3.85, -4.4, -0.7);
+            drapedCapeUpper.rotation.z = 0.14;
+            rig.leftCapePivot.add(drapedCapeUpper);
+
+            rig.leftCapeLowerPivot.position.set(4.35, -8.5, -0.7);
+            rig.leftCapePivot.add(rig.leftCapeLowerPivot);
+
+            const drapedCapeLower = createVoxelBox(1.25, 8.4, 5.0, {
+                all: (ctx, w, h) => {
+                    fillWeatheredFabric(ctx, w, h, [PALETTE.coatDarkest, PALETTE.coatBase, PALETTE.coatMid, PALETTE.coatAlgae], true, true, 'left');
+                    px(ctx, 0, h - 1, PALETTE.hatTrimGold, w, 1);
+                }
+            });
+            drapedCapeLower.position.set(0.2, -4.1, 0);
+            drapedCapeLower.rotation.z = 0.08;
+            rig.leftCapeLowerPivot.add(drapedCapeLower);
+
+            rig.rightArmPivot.position.set(-6.0, 11.2, 0.0);
+            rig.torso.add(rig.rightArmPivot);
+
+            const rightUpperArm = createVoxelBox(4, 6.5, 4, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatMid, PALETTE.coatAlgae], true)
+            });
+            rightUpperArm.position.set(0, -2.8, 0);
+            rig.rightArmPivot.add(rightUpperArm);
+
+            // Striking Royal-Blue & Golden-Orange Flared Bivalve Shells / Fan Coral on outer right shoulder (matching reference photo!)
+            const rightShoulderShells = [
+                [-2.2,  0.4, -0.2, 1.6, 2.2, 1.1,  0.15,  0.48, PALETTE.shellRoyalBlue, PALETTE.shellBrightBlue],
+                [-2.4, -0.6,  0.7, 1.8, 1.8, 1.2, -0.12,  0.62, PALETTE.shellGoldOrange, PALETTE.shellBrightOrange],
+                [-2.3, -1.7, -0.4, 1.5, 1.6, 1.0,  0.10,  0.55, PALETTE.shellRoyalBlue, PALETTE.shellBrightBlue],
+                [-2.1, -2.8,  0.5, 1.4, 1.3, 1.0, -0.08,  0.45, PALETTE.shellGoldOrange, PALETTE.barnacleLight]
+            ];
+            rightShoulderShells.forEach(([sx, sy, sz, sw, sh, sd, rx, rz, cBase, cHigh]) => {
+                const shellFan = createVoxelBox(sw, sh, sd, {
+                    all: (ctx, w, h) => {
+                        px(ctx, 0, 0, cBase, w, h);
+                        px(ctx, 0, 0, cHigh, w, 1);
+                        if (h > 1) px(ctx, w - 1, h - 1, PALETTE.shellNavyEdge, 1, 1);
+                    }
+                }, { texScale: 2, roughness: 0.5 });
+                shellFan.position.set(sx, sy, sz);
+                shellFan.rotation.x = rx;
+                shellFan.rotation.z = rz;
+                rig.rightArmPivot.add(shellFan);
+            });
+
+            rig.rightForearmPivot.position.set(0, -6.0, 0);
+            rig.rightArmPivot.add(rig.rightForearmPivot);
+
+            // Large Turned-Back Pirate Coat Cuff with bold Gold-Ochre Borders (matching reference image!)
+            const rightCuff = createVoxelBox(4.8, 3.6, 4.8, {
+                all: (ctx, w, h) => {
+                    fillWeatheredFabric(ctx, w, h, [PALETTE.coatDark, PALETTE.coatBase, PALETTE.coatLight, PALETTE.coatAlgae], true);
+                    for (let x = 0; x < w; x++) {
+                        px(ctx, x, 0, PALETTE.hatTrimLight);
+                        px(ctx, x, h - 1, PALETTE.hatTrimGold);
+                    }
+                }
+            });
+            rightCuff.position.set(0, -1.5, 0);
+            rig.rightForearmPivot.add(rightCuff);
+
+            // Crisp Off-White / Cream Ruffled Linen Inner Shirt Cuff peeking out below the coat cuff (matching reference photo!)
+            const rightLinenFrill = createVoxelBox(4.1, 1.35, 4.1, {
+                all: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            px(ctx, x, y, (x + y) % 2 === 0 ? PALETTE.linenCuffLight : PALETTE.linenCuffMid);
+                        }
+                    }
+                }
+            }, { texScale: 2, roughness: 0.78 });
+            rightLinenFrill.position.set(0, -3.45, 0);
+            rig.rightForearmPivot.add(rightLinenFrill);
+
+            // Warm Fleshy Peach-Tan Right Hand with Tentacle-like Ridges
+            const rightHand = createVoxelBox(3.4, 2.8, 3.4, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.skinDark, PALETTE.skinMid, PALETTE.skinBase, PALETTE.skinLight], false)
+            }, { roughness: 0.48 });
+            rightHand.position.set(0, -4.6, 0);
+            rig.rightForearmPivot.add(rightHand);
+
+            // Davy Jones's Barnacle-Encrusted Broadsword + Coiled Whip-Tendril Loop around the Hilt (matching reference photo!)
+            rig.swordGroup.position.set(0, -4.8, 1.0);
+            rig.rightForearmPivot.add(rig.swordGroup);
+
+            const swordGrip = createVoxelBox(1.1, 1.1, 4.8, {
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.hiltBronze, w, h)
+            });
+            swordGrip.position.set(0, 0, -0.5);
+            rig.swordGroup.add(swordGrip);
+
+            const swordPommel = createVoxelBox(1.6, 1.6, 1.2, {
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.hiltGold, w, h)
+            }, { metalness: 0.55, roughness: 0.45 });
+            swordPommel.position.set(0, 0, -3.1);
+            rig.swordGroup.add(swordPommel);
+
+            const swordGuard = createVoxelBox(2.8, 3.6, 1.3, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.hiltBronze, PALETTE.hiltGold, PALETTE.coatMoss], true)
+            }, { metalness: 0.55, roughness: 0.45 });
+            swordGuard.position.set(0, 0.2, 1.6);
+            rig.swordGroup.add(swordGuard);
+
+            const knuckleBow = createVoxelBox(0.65, 2.1, 3.6, {
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.hiltGold, w, h)
+            }, { metalness: 0.55, roughness: 0.45 });
+            knuckleBow.position.set(0, -1.15, 0.0);
+            rig.swordGroup.add(knuckleBow);
+
+            const swordBlade = createVoxelBox(0.6, 1.65, 18.2, {
+                all: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            let c = y === 0 ? PALETTE.bladeEdge : (x % 3 === 0 ? PALETTE.bladeLight : PALETTE.bladeBase);
+                            if (x < 6 && (x + y) % 2 === 0) c = PALETTE.bladeRust;
+                            else if (x < 4 && y > 0) c = PALETTE.coatMoss;
+                            px(ctx, x, y, c);
+                        }
+                    }
+                }
+            }, { metalness: 0.72, roughness: 0.32 });
+            swordBlade.position.set(0, 0.25, 11.3);
+            rig.swordGroup.add(swordBlade);
+
+            const swordTip = createVoxelBox(0.5, 1.0, 2.5, {
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.bladeEdge, w, h)
+            }, { metalness: 0.78, roughness: 0.26 });
+            swordTip.position.set(0, 0.42, 21.4);
+            rig.swordGroup.add(swordTip);
+
+            // Warm Peach-Orange Coiled Tentacle Ring & Blade Tendril Wraps on his right hand/hilt
+            const bladeTentacleWrap1 = createTentacleSegment(0.95, 2.6, 1.2, 0, 'none', false);
+            bladeTentacleWrap1.position.set(0.55, 0.3, 3.2);
+            bladeTentacleWrap1.rotation.x = 0.6;
+            bladeTentacleWrap1.rotation.z = -0.35;
+            rig.swordGroup.add(bladeTentacleWrap1);
+
+            const bladeTentacleWrap2 = createTentacleSegment(0.88, 2.3, 1.1, 0, 'none', false);
+            bladeTentacleWrap2.position.set(-0.45, -0.2, 5.2);
+            bladeTentacleWrap2.rotation.x = -0.55;
+            bladeTentacleWrap2.rotation.z = 0.3;
+            rig.swordGroup.add(bladeTentacleWrap2);
+
+            // Calypso's Golden Heart-Shaped Music Box Locket
+            rig.locketGroup.position.set(0, -5.0, 2.2);
+            rig.locketGroup.visible = false;
+            rig.rightForearmPivot.add(rig.locketGroup);
+
+            const locketBody = createVoxelBox(2.8, 2.8, 1.1, {
+                front: (ctx, w, h) => {
+                    px(ctx, 0, 0, PALETTE.locketBright, w, h);
+                    px(ctx, 1, 1, PALETTE.locketDark, 1, 1);
+                },
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.locketGold, w, h)
+            }, { texScale: 2, metalness: 0.68, roughness: 0.32 });
+            rig.locketGroup.add(locketBody);
+
+            const locketChain = createVoxelBox(0.4, 2.4, 0.4, {
+                all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.locketBright, w, h)
+            }, { metalness: 0.7, roughness: 0.3 });
+            locketChain.position.set(0, 1.8, 0);
+            rig.locketGroup.add(locketChain);
+
+            rig.leftArmPivot.position.set(5.8, 10.8, 0.0);
+            rig.torso.add(rig.leftArmPivot);
+
+            // Segmented Red-Orange Crustacean Upper Arm beneath the left shoulder kelp (matching reference photo!)
+            const leftUpperSleeve = createVoxelBox(3.9, 4.8, 3.9, {
+                all: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const isJointRing = (y % 2 === 0);
+                            px(ctx, x, y, isJointRing ? PALETTE.clawCrimson : PALETTE.clawDark);
+                        }
+                    }
+                }
+            }, { texScale: 2, roughness: 0.42, metalness: 0.12 });
+            leftUpperSleeve.position.set(0, -2.0, 0);
+            rig.leftArmPivot.add(leftUpperSleeve);
+
+            rig.leftClawPivot.position.set(0.2, -4.4, 0.1);
+            rig.leftArmPivot.add(rig.leftClawPivot);
+
+            // Spiny Crustacean Carpus / Forearm Joint in Rich Crimson-Orange
+            const clawCarpus = createVoxelBox(4.2, 2.2, 4.4, {
+                all: (ctx, w, h) => fillCrabCarapace(ctx, w, h, false)
+            }, { texScale: 2, roughness: 0.38, metalness: 0.14 });
+            clawCarpus.position.set(0.1, -0.6, 0.1);
+            rig.leftClawPivot.add(clawCarpus);
+
+            // Massive Propodus / Claw Palm Shell in Vivid Vermilion-Red & Burnt-Orange with Glossy Chitin Finish
+            const clawPalm = createVoxelBox(4.9, 5.4, 5.3, {
+                all: (ctx, w, h) => fillCrabCarapace(ctx, w, h, false)
+            }, { texScale: 2, roughness: 0.36, metalness: 0.15 });
+            clawPalm.position.set(0.25, -3.0, 0.3);
+            rig.leftClawPivot.add(clawPalm);
+
+            // Bright Golden-Yellow Pincer Hinge Condyle / Knuckle Bump (distinctive detail on the reference crab claw!)
+            const clawYellowKnuckle = createVoxelBox(1.15, 1.15, 5.6, {
+                all: (ctx, w, h) => {
+                    px(ctx, 0, 0, PALETTE.clawKnuckleYellow, w, h);
+                    if (w > 1) px(ctx, 0, h - 1, PALETTE.clawKnuckleShadow, w, 1);
+                }
+            }, { roughness: 0.35, metalness: 0.18 });
+            clawYellowKnuckle.position.set(-0.75, -5.05, 0.45);
+            rig.leftClawPivot.add(clawYellowKnuckle);
+
+            // Calcified White-Cream Chitin Tubercles (Spines) along outer ridge of crab claw
+            [[-1.6, 2.65], [-3.0, 2.75], [-4.4, 2.65], [-5.8, 2.45]].forEach(([cy, cx]) => {
+                const chitinSpine = createVoxelBox(1.15, 0.9, 1.15, {
+                    all: (ctx, w, h) => px(ctx, 0, 0, PALETTE.clawTooth, w, h)
+                }, { roughness: 0.4 });
+                chitinSpine.position.set(cx, cy, 0.4);
+                chitinSpine.rotation.z = -0.35;
+                rig.leftClawPivot.add(chitinSpine);
+            });
+
+            // Massive Curved Outer Pincer (Upper Fixed Claw) grading from bright vermilion-orange to a glossy pitch-black tip
+            const upperPincerMid = createVoxelBox(3.2, 4.3, 4.0, {
+                all: (ctx, w, h) => fillCrabCarapace(ctx, w, h, false)
+            }, { texScale: 2, roughness: 0.36, metalness: 0.15 });
+            upperPincerMid.position.set(1.05, -6.6, 0.6);
+            upperPincerMid.rotation.z = 0.18;
+            rig.leftClawPivot.add(upperPincerMid);
+
+            const upperPincerTip = createVoxelBox(2.0, 3.5, 2.6, {
+                all: (ctx, w, h) => fillCrabCarapace(ctx, w, h, true)
+            }, { texScale: 2, roughness: 0.28, metalness: 0.2 });
+            upperPincerTip.position.set(0.6, -9.45, 0.6);
+            upperPincerTip.rotation.z = -0.26;
+            rig.leftClawPivot.add(upperPincerTip);
+
+            // Calcified White Crushing Teeth along inner edge of Upper Pincer
+            const upperTeeth = createVoxelBox(0.85, 2.8, 1.8, {
+                all: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        px(ctx, 0, y, y % 2 === 0 ? PALETTE.clawTooth : PALETTE.clawTipBlack, w, 1);
+                    }
+                }
+            });
+            upperTeeth.position.set(-0.35, -6.8, 0.6);
+            rig.leftClawPivot.add(upperTeeth);
+
+            // Articulated Inner/Lower Pincer (Dactylus) grading from crimson-orange into a glossy pitch-black tip
+            rig.clawLowerPincer.position.set(-1.1, -5.0, 0.6);
+            rig.leftClawPivot.add(rig.clawLowerPincer);
+
+            const lowerPincerBody = createVoxelBox(2.2, 4.9, 2.8, {
+                all: (ctx, w, h) => fillCrabCarapace(ctx, w, h, true)
+            }, { texScale: 2, roughness: 0.32, metalness: 0.18 });
+            lowerPincerBody.position.set(-0.2, -2.35, 0);
+            lowerPincerBody.rotation.z = -0.22;
+            rig.clawLowerPincer.add(lowerPincerBody);
+
+            const lowerTeeth = createVoxelBox(0.8, 2.6, 1.6, {
+                all: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        px(ctx, 0, y, y % 2 === 1 ? PALETTE.clawTooth : PALETTE.clawTipBlack, w, 1);
+                    }
+                }
+            });
+            lowerTeeth.position.set(0.75, -2.2, 0);
+            rig.clawLowerPincer.add(lowerTeeth);
+
+            // RIGHT LEG: Tattered Mossy Olive-Green Breeches + Vivid Red-Orange-to-Black Graded Crab/Peg Leg (matching reference figure!)
+            rig.rightLegPivot.position.set(-2.1, 0, 0);
+            rig.pelvis.add(rig.rightLegPivot);
+
+            const rightThigh = createVoxelBox(4.1, 5.4, 4.1, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [
+                    PALETTE.breechesOliveDark,
+                    PALETTE.breechesOliveBase,
+                    PALETTE.breechesOliveLight,
+                    PALETTE.breechesOliveHighlight
+                ], true)
+            });
+            rightThigh.position.set(0, -2.6, 0);
+            rig.rightLegPivot.add(rightThigh);
+
+            // Tattered Olive-Green Breeches Hem shreds overhanging the crimson peg-leg joint
+            const breechesTatterFront = createVoxelBox(4.2, 1.4, 4.2, {
+                all: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            px(ctx, x, y, (x % 2 === 0) ? PALETTE.breechesOliveLight : PALETTE.pegCrimson);
+                        }
+                    }
+                }
+            }, { texScale: 2 });
+            breechesTatterFront.position.set(0, -5.3, 0);
+            rig.rightLegPivot.add(breechesTatterFront);
+
+            // Upper Peg Socket in Deep Crimson-Vermilion Carapace
+            const pegSocket = createVoxelBox(3.5, 1.6, 3.5, {
+                all: (ctx, w, h) => fillCrabCarapace(ctx, w, h, false)
+            }, { texScale: 2, roughness: 0.42 });
+            pegSocket.position.set(0, -6.2, 0);
+            rig.rightLegPivot.add(pegSocket);
+
+            // Mid Peg Shaft in Bright Vermilion-Orange with Calcified Speckles
+            const pegUpper = createVoxelBox(2.5, 3.2, 2.5, {
+                all: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const r = rand();
+                            let c = PALETTE.pegVermilion;
+                            if (r < 0.38) c = PALETTE.pegOrange;
+                            else if (r < 0.58) c = PALETTE.pegAmberHighlight;
+                            else if (r > 0.90) c = PALETTE.clawTooth;
+                            px(ctx, x, y, c);
+                        }
+                    }
+                }
+            }, { texScale: 2, roughness: 0.4 });
+            pegUpper.position.set(0, -8.1, 0);
+            rig.rightLegPivot.add(pegUpper);
+
+            // Tapered Lower Peg Tip grading from burnt orange into charred dark brown/black at ground contact (y = -12)
+            const pegLower = createVoxelBox(1.6, 3.0, 1.6, {
+                all: (ctx, w, h) => {
+                    for (let y = 0; y < h; y++) {
+                        const yNorm = y / Math.max(1, h - 1);
+                        for (let x = 0; x < w; x++) {
+                            let c = PALETTE.pegOrange;
+                            if (yNorm > 0.65) c = PALETTE.pegTip;
+                            else if (yNorm > 0.35) c = PALETTE.pegCharredMid;
+                            px(ctx, x, y, c);
+                        }
+                    }
+                }
+            }, { texScale: 2, roughness: 0.38 });
+            pegLower.position.set(0, -10.5, 0);
+            rig.rightLegPivot.add(pegLower);
+
+            // LEFT LEG: Seaweed-Green Encrusted Breeches + Barnacle-Encrusted Pirate Boot
+            rig.leftLegPivot.position.set(2.1, 0, 0);
+            rig.pelvis.add(rig.leftLegPivot);
+
+            const leftLegCore = createVoxelBox(4.0, 12.0, 4.0, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [
+                    PALETTE.kelpDark,
+                    PALETTE.breechesOliveDark,
+                    PALETTE.coatMoss,
+                    PALETTE.barnacleShell
+                ], true)
+            });
+            leftLegCore.position.set(0, -6.0, 0);
+            rig.leftLegPivot.add(leftLegCore);
+
+            // Folded Cavalier Bucket-Top Boot Cuff encrusted with frosted barnacles & coral
+            const leftBootFold = createVoxelBox(4.9, 2.2, 4.9, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.coatDarkest, PALETTE.coatDark, PALETTE.barnacleLight, PALETTE.coralPink], true)
+            });
+            leftBootFold.position.set(0.1, -5.2, 0.1);
+            rig.leftLegPivot.add(leftBootFold);
+
+            const leftBootCuff = createVoxelBox(4.6, 5.2, 4.6, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.coatDarkest, PALETTE.coatDark, PALETTE.coatMoss, PALETTE.barnacleShell], true)
+            });
+            leftBootCuff.position.set(0.1, -8.2, 0);
+            rig.leftLegPivot.add(leftBootCuff);
+
+            const leftBootToe = createVoxelBox(4.4, 2.2, 5.8, {
+                all: (ctx, w, h) => fillWeatheredFabric(ctx, w, h, [PALETTE.coatDarkest, PALETTE.beltDark, PALETTE.coatMoss, PALETTE.barnacleLight], true)
+            });
+            leftBootToe.position.set(0.1, -10.9, 0.75);
+            rig.leftLegPivot.add(leftBootToe);
+
+            const particleGroup = new THREE.Group();
+            scene.add(particleGroup);
+            const particles = [];
+            const particleGeo = new THREE.BoxGeometry(0.65, 0.65, 0.65);
+            const particleMat = new THREE.MeshBasicMaterial({
+                color: 0x5eead4,
+                transparent: true,
+                opacity: 0.0
+            });
+
+            for (let i = 0; i < 22; i++) {
+                const m = new THREE.Mesh(particleGeo, particleMat.clone());
+                m.visible = false;
+                particleGroup.add(m);
+                particles.push({
+                    mesh: m,
+                    angle: (i / 22) * Math.PI * 2,
+                    radius: 5.2 + (i % 4) * 2.3,
+                    speed: 1.5 + (i % 3) * 0.5,
+                    yOffset: (i % 6) * 2.5
+                });
+            }
+
+            const smokePuffs = [];
+            const smokeGeo = new THREE.BoxGeometry(0.52, 0.52, 0.52);
+            const smokeMat = new THREE.MeshBasicMaterial({
+                color: 0xcbd5e1,
+                transparent: true,
+                opacity: 0.0
+            });
+            for (let i = 0; i < 6; i++) {
+                const sm = new THREE.Mesh(smokeGeo, smokeMat.clone());
+                rig.pipeGroup.add(sm);
+                smokePuffs.push({
+                    mesh: sm,
+                    offset: i / 6
+                });
+            }
+
+            let currentAnim = 'idle';
+            let animTime = 0;
+
+            function damp(current, target, lambda, dt) {
+                return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-lambda * dt));
+            }
+
+            function updateAnimation(dt) {
+                animTime += dt;
+                const t = animTime;
+
+                let pelvisY = 12;
+                let pelvisRotX = 0, pelvisRotY = 0, pelvisRotZ = 0;
+                let torsoRotX = 0, torsoRotY = 0, torsoRotZ = 0;
+                let headRotX = 0, headRotY = 0, headRotZ = 0;
+                let browY = 5.45, browRotZ = 0;
+
+                let rArmX = 0.02, rArmY = 0.0, rArmZ = 0.05;
+                let rForearmX = -0.06, rForearmY = 0.0, rForearmZ = 0.0;
+                let lArmX = 0.02, lArmY = 0.0, lArmZ = -0.05;
+                let lClawX = -0.05, lClawZ = 0.02;
+                let pincerAngle = 0.14;
+                let swordPitchX = 0.22;
+
+                let rLegX = 0, rLegZ = -0.02;
+                let lLegX = 0, lLegZ = 0.02;
+                let tentacleWaveAmp = 1.0;
+                let tentacleFreq = 2.2;
+                let capeSwing = 0;
+                let showLocket = false;
+
+                if (currentAnim === 'idle') {
+                    const breath = Math.sin(t * 2.0);
+                    const slowSway = Math.sin(t * 0.95);
+
+                    pelvisY = 12 + breath * 0.14;
+                    pelvisRotZ = slowSway * 0.012;
+                    torsoRotX = breath * 0.015;
+                    torsoRotY = slowSway * 0.035;
+
+                    headRotX = -breath * 0.015;
+                    headRotY = Math.sin(t * 0.65) * 0.09;
+                    headRotZ = slowSway * 0.018;
+                    browY = 5.45 + Math.sin(t * 1.4) * 0.04;
+
+                    rArmX = 0.02 + breath * 0.025;
+                    rArmY = -0.03;
+                    rArmZ = 0.05 + (breath * 0.5 + 0.5) * 0.02;
+                    rForearmX = -0.06 + Math.cos(t * 2.0) * 0.02;
+                    rForearmY = 0.0;
+                    swordPitchX = 0.25;
+
+                    lArmX = 0.02 - breath * 0.025;
+                    lArmY = 0.03;
+                    lArmZ = -0.05 - (breath * 0.5 + 0.5) * 0.02;
+                    lClawX = -0.05;
+                    lClawZ = 0.02;
+                    pincerAngle = 0.14 + (Math.sin(t * 1.7) * 0.5 + 0.5) * 0.20;
+
+                    rLegZ = -0.02 - slowSway * 0.01;
+                    lLegZ = 0.02 - slowSway * 0.01;
+                    capeSwing = Math.sin(t * 1.6 - 0.5) * 0.05;
+
+                } else if (currentAnim === 'walk') {
+                    const wSpeed = 4.2;
+                    const phase = t * wSpeed;
+                    const stride = Math.sin(phase);
+                    const stepUp = Math.abs(Math.cos(phase));
+
+                    const pegDip = Math.max(0, Math.sin(phase)) * 0.58;
+                    pelvisY = 11.85 + stepUp * 0.55 - pegDip;
+                    pelvisRotZ = stride * 0.08;
+                    pelvisRotY = -stride * 0.13;
+
+                    torsoRotX = 0.08 + Math.sin(phase * 2) * 0.035;
+                    torsoRotY = stride * 0.16;
+                    torsoRotZ = -stride * 0.05;
+
+                    headRotY = -stride * 0.08;
+                    headRotX = 0.02 + Math.cos(phase * 2) * 0.03;
+
+                    rLegX = stride * 0.58;
+                    lLegX = -stride * 0.52;
+
+                    rArmX = -stride * 0.35 + 0.08;
+                    rArmZ = 0.10;
+                    rForearmX = -0.25 - Math.max(0, stride) * 0.18;
+                    rForearmY = 0.08;
+                    swordPitchX = 0.15;
+
+                    lArmX = stride * 0.38 + 0.06;
+                    lArmZ = -0.10;
+                    lClawX = -0.20;
+                    pincerAngle = 0.22 + Math.sin(phase * 2) * 0.16;
+
+                    tentacleWaveAmp = 1.55;
+                    tentacleFreq = 4.0;
+                    capeSwing = Math.max(0, -stride) * 0.2 + 0.08;
+
+                } else if (currentAnim === 'attack') {
+                    const cycle = (t * 0.85) % 1.0;
+                    browY = 5.32;
+                    browRotZ = 0.05;
+                    swordPitchX = 0.0;
+
+                    if (cycle < 0.32) {
+                        const p = THREE.MathUtils.smoothstep(cycle, 0.0, 0.32);
+                        pelvisY = 12 - p * 0.4;
+                        torsoRotY = -p * 0.52;
+                        torsoRotX = -p * 0.12;
+                        headRotY = p * 0.35;
+
+                        rArmX = THREE.MathUtils.lerp(0.04, -1.35, p);
+                        rArmY = THREE.MathUtils.lerp(-0.04, -0.45, p);
+                        rArmZ = THREE.MathUtils.lerp(0.06, 0.48, p);
+                        rForearmX = THREE.MathUtils.lerp(-0.08, -0.2, p);
+                        rForearmY = 0.0;
+
+                        lArmX = 0.35 * p;
+                        pincerAngle = 0.55 * p;
+                        rLegX = -0.22 * p;
+                        lLegX = 0.25 * p;
+                    } else if (cycle < 0.58) {
+                        const p = THREE.MathUtils.smoothstep(cycle, 0.32, 0.46);
+                        pelvisY = 11.4;
+                        torsoRotY = THREE.MathUtils.lerp(-0.52, 0.58, p);
+                        torsoRotX = THREE.MathUtils.lerp(-0.12, 0.26, p);
+                        headRotY = THREE.MathUtils.lerp(0.35, -0.32, p);
+
+                        rArmX = THREE.MathUtils.lerp(-1.35, 0.72, p);
+                        rArmY = THREE.MathUtils.lerp(-0.45, 0.42, p);
+                        rArmZ = THREE.MathUtils.lerp(0.48, -0.15, p);
+                        rForearmX = -0.12;
+                        rForearmY = 0.15;
+
+                        lArmX = THREE.MathUtils.lerp(0.35, -0.45, p);
+                        pincerAngle = 0.65;
+                        rLegX = 0.28 * p;
+                        lLegX = -0.32 * p;
+                        capeSwing = 0.34 * p;
+                    } else if (cycle < 0.82) {
+                        const p = THREE.MathUtils.smoothstep(cycle, 0.58, 0.72);
+                        torsoRotY = THREE.MathUtils.lerp(0.58, -0.48, p);
+                        torsoRotX = 0.18;
+                        headRotY = THREE.MathUtils.lerp(-0.32, 0.3, p);
+
+                        rArmX = 0.35;
+                        rArmZ = 0.22;
+                        lArmX = THREE.MathUtils.lerp(-0.45, -1.05, p);
+                        lArmY = THREE.MathUtils.lerp(0.05, -0.38, p);
+                        lClawX = -0.22;
+                        pincerAngle = cycle < 0.70 ? 0.78 : 0.01;
+                        capeSwing = 0.4;
+                    } else {
+                        const p = THREE.MathUtils.smoothstep(cycle, 0.82, 1.0);
+                        torsoRotY = THREE.MathUtils.lerp(-0.48, 0, p);
+                        torsoRotX = THREE.MathUtils.lerp(0.18, 0.0, p);
+                        rArmX = THREE.MathUtils.lerp(0.35, 0.02, p);
+                        lArmX = THREE.MathUtils.lerp(-1.05, 0.02, p);
+                        pincerAngle = THREE.MathUtils.lerp(0.01, 0.14, p);
+                    }
+                    tentacleWaveAmp = 2.2;
+                    tentacleFreq = 6.0;
+
+                } else if (currentAnim === 'locket') {
+                    showLocket = true;
+                    const breath = Math.sin(t * 1.5);
+                    pelvisY = 11.95 + breath * 0.12;
+                    torsoRotX = 0.12 + breath * 0.02;
+                    torsoRotY = -0.12 + Math.sin(t * 0.8) * 0.05;
+
+                    headRotX = 0.26 + Math.sin(t * 1.2) * 0.04;
+                    headRotY = -0.22 + Math.cos(t * 0.9) * 0.06;
+                    headRotZ = -0.06;
+                    browY = 5.55;
+
+                    rArmX = -0.58 + breath * 0.04;
+                    rArmY = 0.32;
+                    rArmZ = 0.08;
+                    rForearmX = -0.88;
+                    rForearmY = 0.35;
+
+                    lArmX = -0.45 + breath * 0.03;
+                    lArmY = -0.28;
+                    lArmZ = -0.08;
+                    lClawX = -0.55;
+                    pincerAngle = 0.12 + Math.sin(t * 2.2) * 0.06;
+
+                    tentacleWaveAmp = 1.3;
+                    tentacleFreq = 2.6;
+                    capeSwing = 0.05;
+
+                } else if (currentAnim === 'special') {
+                    pelvisY = 12.1 + Math.sin(t * 2.5) * 0.25;
+                    torsoRotX = -0.15 + Math.sin(t * 2.5) * 0.05;
+                    torsoRotY = Math.sin(t * 1.4) * 0.22;
+
+                    headRotX = -0.18 + Math.cos(t * 3.0) * 0.06;
+                    headRotY = Math.sin(t * 1.8) * 0.24;
+                    browY = 5.3;
+
+                    rArmX = -2.15 + Math.sin(t * 3.5) * 0.12;
+                    rArmZ = 0.28;
+                    rForearmX = -0.25;
+                    rForearmY = 0.0;
+                    swordPitchX = 0.0;
+
+                    lArmX = -1.25 + Math.cos(t * 3.5) * 0.15;
+                    lArmZ = -0.35;
+                    lClawX = -0.3;
+                    pincerAngle = 0.06 + Math.abs(Math.sin(t * 5.5)) * 0.68;
+
+                    tentacleWaveAmp = 3.0;
+                    tentacleFreq = 7.0;
+                    capeSwing = 0.3 + Math.sin(t * 4.0) * 0.12;
+                }
+
+                rig.locketGroup.visible = showLocket;
+                rig.swordGroup.visible = !showLocket;
+                rig.locketGroup.rotation.y = t * 1.4;
+
+                const s = 14;
+                rig.pelvis.position.y = damp(rig.pelvis.position.y, pelvisY, s, dt);
+                rig.pelvis.rotation.x = damp(rig.pelvis.rotation.x, pelvisRotX, s, dt);
+                rig.pelvis.rotation.y = damp(rig.pelvis.rotation.y, pelvisRotY, s, dt);
+                rig.pelvis.rotation.z = damp(rig.pelvis.rotation.z, pelvisRotZ, s, dt);
+
+                rig.torso.rotation.x = damp(rig.torso.rotation.x, torsoRotX, s, dt);
+                rig.torso.rotation.y = damp(rig.torso.rotation.y, torsoRotY, s, dt);
+                rig.torso.rotation.z = damp(rig.torso.rotation.z, torsoRotZ, s, dt);
+
+                rig.headPivot.rotation.x = damp(rig.headPivot.rotation.x, headRotX, s, dt);
+                rig.headPivot.rotation.y = damp(rig.headPivot.rotation.y, headRotY, s, dt);
+                rig.headPivot.rotation.z = damp(rig.headPivot.rotation.z, headRotZ, s, dt);
+
+                rig.eyeBrows.position.y = damp(rig.eyeBrows.position.y, browY, s, dt);
+                rig.eyeBrows.rotation.z = damp(rig.eyeBrows.rotation.z, browRotZ, s, dt);
+
+                const siphonPulse = 1.0 + Math.sin(t * 3.2) * 0.15 * Math.max(1, tentacleWaveAmp * 0.6);
+                rig.siphonGroup.scale.set(siphonPulse, 1.0 - (siphonPulse - 1.0) * 0.35, siphonPulse);
+
+                rig.rightArmPivot.rotation.x = damp(rig.rightArmPivot.rotation.x, rArmX, s, dt);
+                rig.rightArmPivot.rotation.y = damp(rig.rightArmPivot.rotation.y, rArmY, s, dt);
+                rig.rightArmPivot.rotation.z = damp(rig.rightArmPivot.rotation.z, rArmZ, s, dt);
+
+                rig.rightForearmPivot.rotation.x = damp(rig.rightForearmPivot.rotation.x, rForearmX, s, dt);
+                rig.rightForearmPivot.rotation.y = damp(rig.rightForearmPivot.rotation.y, rForearmY, s, dt);
+                rig.rightForearmPivot.rotation.z = damp(rig.rightForearmPivot.rotation.z, rForearmZ, s, dt);
+                rig.swordGroup.rotation.x = damp(rig.swordGroup.rotation.x, swordPitchX, s, dt);
+
+                rig.leftArmPivot.rotation.x = damp(rig.leftArmPivot.rotation.x, lArmX, s, dt);
+                rig.leftArmPivot.rotation.y = damp(rig.leftArmPivot.rotation.y, lArmY, s, dt);
+                rig.leftArmPivot.rotation.z = damp(rig.leftArmPivot.rotation.z, lArmZ, s, dt);
+
+                rig.leftClawPivot.rotation.x = damp(rig.leftClawPivot.rotation.x, lClawX, s, dt);
+                rig.leftClawPivot.rotation.z = damp(rig.leftClawPivot.rotation.z, lClawZ, s, dt);
+                rig.clawLowerPincer.rotation.z = damp(rig.clawLowerPincer.rotation.z, -pincerAngle, 18, dt);
+
+                rig.rightLegPivot.rotation.x = damp(rig.rightLegPivot.rotation.x, rLegX, s, dt);
+                rig.rightLegPivot.rotation.z = damp(rig.rightLegPivot.rotation.z, rLegZ, s, dt);
+
+                rig.leftLegPivot.rotation.x = damp(rig.leftLegPivot.rotation.x, lLegX, s, dt);
+                rig.leftLegPivot.rotation.z = damp(rig.leftLegPivot.rotation.z, lLegZ, s, dt);
+
+                const clampedAmp = Math.min(tentacleWaveAmp, 2.0);
+                rig.tentacles.forEach((tent) => {
+                    const sideSign = tent.tx < 0 ? -1 : 1;
+                    const waveX = Math.sin(t * tentacleFreq + tent.phase) * 0.028 * clampedAmp;
+                    const waveZ = Math.cos(t * tentacleFreq * 0.85 + tent.phase) * 0.022 * clampedAmp * sideSign;
+                    const midWaveX = Math.sin(t * tentacleFreq - 0.7 + tent.phase) * 0.042 * clampedAmp;
+                    const lowerWaveX = Math.sin(t * tentacleFreq - 1.4 + tent.phase) * 0.055 * clampedAmp;
+
+                    tent.upperPivot.rotation.x = tent.baseUX + waveX;
+                    tent.upperPivot.rotation.z = tent.baseUZ + waveZ;
+                    tent.midPivot.rotation.x = tent.baseMX + midWaveX;
+                    tent.midPivot.rotation.z = tent.baseMZ + waveZ * 0.35;
+                    tent.lowerPivot.rotation.x = tent.baseLX + lowerWaveX;
+                    tent.lowerPivot.rotation.z = tent.baseLZ - waveZ * 0.45;
+                });
+
+                // Iterative 3D Segment-to-Segment Non-Clipping Repulsion Solver
+                const tentCount = rig.tentacles.length;
+                const chainPts = new Array(tentCount);
+
+                function computeTentacleChain(tent) {
+                    const uz = tent.upperPivot.rotation.z;
+                    const ux = tent.upperPivot.rotation.x;
+                    const mz = uz + tent.midPivot.rotation.z;
+                    const mx = ux + tent.midPivot.rotation.x;
+                    const lz = mz + tent.lowerPivot.rotation.z;
+                    const lx = mx + tent.lowerPivot.rotation.x;
+
+                    const p0 = { x: tent.tx, y: tent.ty, z: tent.tz };
+                    const p1 = {
+                        x: p0.x + tent.uh * Math.sin(uz),
+                        y: p0.y - tent.uh * Math.cos(uz) * Math.cos(ux),
+                        z: p0.z - tent.uh * Math.sin(ux)
+                    };
+                    const p2 = {
+                        x: p1.x + tent.mh * Math.sin(mz),
+                        y: p1.y - tent.mh * Math.cos(mz) * Math.cos(mx),
+                        z: p1.z - tent.mh * Math.sin(mx)
+                    };
+                    const p3 = {
+                        x: p2.x + tent.lh * Math.sin(lz),
+                        y: p2.y - tent.lh * Math.cos(lz) * Math.cos(lx),
+                        z: p2.z - tent.lh * Math.sin(lx) + 0.18
+                    };
+
+                    return [
+                        { x: (p0.x + p1.x) * 0.5, y: (p0.y + p1.y) * 0.5, z: (p0.z + p1.z) * 0.5, r: tent.ur, stage: 0 },
+                        { x: p1.x,                y: p1.y,                z: p1.z,                r: tent.ur, stage: 0 },
+                        { x: (p1.x + p2.x) * 0.5, y: (p1.y + p2.y) * 0.5, z: (p1.z + p2.z) * 0.5, r: tent.mr, stage: 1 },
+                        { x: p2.x,                y: p2.y,                z: p2.z,                r: tent.mr, stage: 1 },
+                        { x: (p2.x + p3.x) * 0.5, y: (p2.y + p3.y) * 0.5, z: (p2.z + p3.z) * 0.5, r: tent.lr, stage: 2 },
+                        { x: p3.x,                y: p3.y,                z: p3.z,                r: tent.lr, stage: 2 }
+                    ];
+                }
+
+                for (let iter = 0; iter < 3; iter++) {
+                    for (let i = 0; i < tentCount; i++) {
+                        chainPts[i] = computeTentacleChain(rig.tentacles[i]);
+                    }
+                    for (let i = 0; i < tentCount; i++) {
+                        const ti = rig.tentacles[i];
+                        const ptsI = chainPts[i];
+                        for (let j = i + 1; j < tentCount; j++) {
+                            const tj = rig.tentacles[j];
+                            const ptsJ = chainPts[j];
+
+                            for (let si = 0; si < ptsI.length; si++) {
+                                const a = ptsI[si];
+                                for (let sj = 0; sj < ptsJ.length; sj++) {
+                                    const b = ptsJ[sj];
+                                    const dy = a.y - b.y;
+                                    if (Math.abs(dy) > 1.8) continue;
+
+                                    const dx = a.x - b.x;
+                                    const dz = a.z - b.z;
+                                    const distSq = dx * dx + dy * dy * 0.35 + dz * dz;
+                                    const minDist = a.r + b.r + 0.02;
+
+                                    if (distSq < minDist * minDist) {
+                                        const dist = Math.max(0.001, Math.sqrt(distSq));
+                                        const overlap = (minDist - dist) * 0.55;
+                                        const nx = dx / dist;
+                                        const nz = dz / dist;
+
+                                        if (a.stage === 0) {
+                                            ti.upperPivot.rotation.z += (nx * overlap) / ti.uh;
+                                            ti.upperPivot.rotation.x -= (nz * overlap) / ti.uh;
+                                        } else if (a.stage === 1) {
+                                            ti.midPivot.rotation.z += (nx * overlap) / ti.mh;
+                                            ti.midPivot.rotation.x -= (nz * overlap) / ti.mh;
+                                        } else {
+                                            ti.lowerPivot.rotation.z += (nx * overlap) / ti.lh;
+                                            ti.lowerPivot.rotation.x -= (nz * overlap) / ti.lh;
+                                        }
+
+                                        if (b.stage === 0) {
+                                            tj.upperPivot.rotation.z -= (nx * overlap) / tj.uh;
+                                            tj.upperPivot.rotation.x += (nz * overlap) / tj.uh;
+                                        } else if (b.stage === 1) {
+                                            tj.midPivot.rotation.z -= (nx * overlap) / tj.mh;
+                                            tj.midPivot.rotation.x += (nz * overlap) / tj.mh;
+                                        } else {
+                                            tj.lowerPivot.rotation.z -= (nx * overlap) / tj.lh;
+                                            tj.lowerPivot.rotation.x += (nz * overlap) / tj.lh;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                const keyLift = currentAnim === 'locket' ? 0.65 : 0.0;
+                rig.chestKeyGroup.position.z = damp(rig.chestKeyGroup.position.z, 0.58 + keyLift, 8, dt);
+                rig.chestKeyGroup.rotation.z = Math.sin(t * 2.2) * 0.12;
+                rig.chestKeyGroup.rotation.y = Math.cos(t * 1.7) * 0.25 + (currentAnim === 'locket' ? 0.4 : 0);
+
+                rig.pipeGroup.rotation.x = Math.sin(t * 2.0) * 0.035;
+                rig.pipeGroup.rotation.z = Math.cos(t * 1.6) * 0.025;
+                rig.pipeFeederTendril.rotation.z = Math.sin(t * 2.4) * 0.06;
+
+                smokePuffs.forEach((sp, i) => {
+                    const cycle = (t * 0.42 + sp.offset) % 1.0;
+                    sp.mesh.position.set(
+                        1.08 + Math.sin(t * 2.0 + i) * 0.32 * cycle,
+                        -1.45 + cycle * 4.4,
+                        1.48 + Math.cos(t * 1.6 + i) * 0.25 * cycle
+                    );
+                    const sc = 0.48 + cycle * 0.92;
+                    sp.mesh.scale.set(sc, sc, sc);
+                    sp.mesh.material.opacity = Math.sin(cycle * Math.PI) * 0.36;
+                });
+
+                rig.leftCapePivot.rotation.z = damp(rig.leftCapePivot.rotation.z, capeSwing, 10, dt);
+                rig.leftCapePivot.rotation.x = damp(rig.leftCapePivot.rotation.x, Math.sin(t * 2.2) * 0.04 + capeSwing * 0.3, 10, dt);
+                rig.leftCapeLowerPivot.rotation.z = damp(rig.leftCapeLowerPivot.rotation.z, capeSwing * 0.65 + Math.sin(t * 3.0 - 1.0) * 0.06 * tentacleWaveAmp, 10, dt);
+
+                rig.coatTails.forEach((tail) => {
+                    const flutter = Math.sin(t * (tentacleFreq * 0.9) + tail.phase) * 0.05 * tentacleWaveAmp;
+                    tail.pivot.rotation.x = tail.baseRx + capeSwing * 0.65 + Math.abs(flutter);
+                    tail.pivot.rotation.z = tail.baseRz + flutter * 0.5;
+                });
+
+                particles.forEach((p, idx) => {
+                    if (currentAnim === 'special') {
+                        p.mesh.visible = true;
+                        const a = p.angle + t * p.speed;
+                        const hCycle = ((t * 5.0 + p.yOffset) % 24);
+                        const r = p.radius + Math.sin(t * 2 + idx) * 1.2;
+                        p.mesh.position.set(
+                            Math.cos(a) * r,
+                            1.0 + hCycle,
+                            Math.sin(a) * r
+                        );
+                        p.mesh.rotation.x += dt * 2.5;
+                        p.mesh.rotation.y += dt * 3.0;
+                        p.mesh.material.opacity = Math.sin((hCycle / 24) * Math.PI) * 0.72;
+                    } else {
+                        p.mesh.material.opacity = damp(p.mesh.material.opacity, 0, 10, dt);
+                        if (p.mesh.material.opacity < 0.02) p.mesh.visible = false;
+                    }
+                });
+            }
+
+            const animButtons = document.querySelectorAll('.anim-btn');
+            animButtons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    animButtons.forEach((b) => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentAnim = btn.getAttribute('data-anim');
+                });
+            });
+
+            const toggleDeckBtn = document.getElementById('toggle-deck-btn');
+            toggleDeckBtn.addEventListener('click', () => {
+                deckGroup.visible = !deckGroup.visible;
+                toggleDeckBtn.classList.toggle('active', deckGroup.visible);
+            });
+
+            let resettingCamera = false;
+            document.getElementById('reset-camera-btn').addEventListener('click', () => {
+                resettingCamera = true;
+            });
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            controls.addEventListener('start', () => {
+                resettingCamera = false;
+            });
+
+            let lastTime = performance.now();
+            function animateLoop(now) {
+                requestAnimationFrame(animateLoop);
+
+                const rawDt = (now - lastTime) / 1000;
+                lastTime = now;
+                const dt = Math.min(rawDt, 0.05);
+
+                if (resettingCamera) {
+                    camera.position.lerp(DEFAULT_CAM_POS, 1 - Math.exp(-10 * dt));
+                    controls.target.lerp(DEFAULT_CAM_TARGET, 1 - Math.exp(-10 * dt));
+                    if (camera.position.distanceTo(DEFAULT_CAM_POS) < 0.08) {
+                        camera.position.copy(DEFAULT_CAM_POS);
+                        controls.target.copy(DEFAULT_CAM_TARGET);
+                        resettingCamera = false;
+                    }
+                }
+
+                updateAnimation(dt);
+                controls.update();
+                renderer.render(scene, camera);
+            }
+
+            requestAnimationFrame(animateLoop);
+        };
+    </script>
+</body>
+</html>

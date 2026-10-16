@@ -1,0 +1,1610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Darth Vader — 16x16 Vanilla+ Model Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0f1115;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #f3f4f6;
+    }
+
+    #viewport {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      outline: none;
+    }
+
+    /* Sleek Floating Bottom Pill Bar */
+    .pill-bar {
+      background: rgba(20, 23, 30, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.65), 0 0 20px rgba(239, 35, 60, 0.08);
+    }
+
+    .anim-btn {
+      position: relative;
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      color: #9ca3af;
+    }
+
+    .anim-btn:hover {
+      color: #f9fafb;
+    }
+
+    .anim-btn.active {
+      color: #ffffff;
+      background: rgba(239, 35, 60, 0.22);
+      border-color: rgba(239, 35, 60, 0.55);
+      box-shadow: 0 0 16px rgba(239, 35, 60, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+
+    .reset-btn {
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      color: #9ca3af;
+    }
+
+    .reset-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
+      transform: rotate(-15deg);
+    }
+
+    .reset-btn:active {
+      transform: scale(0.92) rotate(-35deg);
+    }
+  </style>
+</head>
+<body class="relative w-full h-full overflow-hidden">
+
+  <canvas id="viewport"></canvas>
+
+  <!-- Ultra-Minimal Floating Bottom Pill Bar -->
+  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 p-1.5 rounded-full pill-bar">
+    <button data-anim="idle" class="anim-btn active px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-transparent tracking-wide">
+      Idle
+    </button>
+    <button data-anim="walk" class="anim-btn px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-transparent tracking-wide">
+      Walk
+    </button>
+    <button data-anim="attack" class="anim-btn px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-transparent tracking-wide">
+      Attack
+    </button>
+    <button data-anim="special" class="anim-btn px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-transparent tracking-wide">
+      Special
+    </button>
+
+    <div class="w-px h-5 bg-white/10 mx-1"></div>
+
+    <button id="resetCameraBtn" title="Reset Camera" aria-label="Reset Camera" class="reset-btn p-2 rounded-full border border-transparent flex items-center justify-center">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+    </button>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ============================================================================
+      // 1. SCENE, CAMERA, RENDERER & ORBIT CONTROLS
+      // ============================================================================
+      const canvas = document.getElementById('viewport');
+      const renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        powerPreference: 'high-performance'
+      });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color('#0f1115');
+      scene.fog = new THREE.FogExp2('#0f1115', 0.045);
+
+      const DEFAULT_CAM_POS = new THREE.Vector3(2.1, 1.45, 3.65);
+      const DEFAULT_CAM_TARGET = new THREE.Vector3(0, 1.08, 0);
+
+      const camera = new THREE.PerspectiveCamera(
+        38,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        100
+      );
+      camera.position.copy(DEFAULT_CAM_POS);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.copy(DEFAULT_CAM_TARGET);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.065;
+      controls.minDistance = 1.4;
+      controls.maxDistance = 9.0;
+      controls.maxPolarAngle = Math.PI / 2 + 0.06;
+      controls.update();
+
+      // Studio Lighting tailored for glossy obsidian armor & crimson bounce light
+      const ambientLight = new THREE.HemisphereLight('#c8d4e8', '#15171e', 0.85);
+      scene.add(ambientLight);
+
+      const keyLight = new THREE.DirectionalLight('#f4f7ff', 1.45);
+      keyLight.position.set(3.5, 5.8, 4.2);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.width = 2048;
+      keyLight.shadow.mapSize.height = 2048;
+      keyLight.shadow.camera.near = 0.5;
+      keyLight.shadow.camera.far = 16;
+      const d = 2.6;
+      keyLight.shadow.camera.left = -d;
+      keyLight.shadow.camera.right = d;
+      keyLight.shadow.camera.top = d;
+      keyLight.shadow.camera.bottom = -d;
+      keyLight.shadow.bias = -0.0005;
+      scene.add(keyLight);
+
+      // Cool rim light from behind-left to highlight helmet dome & shoulder silhouette
+      const rimLight = new THREE.DirectionalLight('#7a8fb8', 0.9);
+      rimLight.position.set(-3.8, 3.2, -3.5);
+      scene.add(rimLight);
+
+      // Subtle crimson under-fill inspired by reference image 3
+      const sithFillLight = new THREE.DirectionalLight('#e6192e', 0.32);
+      sithFillLight.position.set(-2.2, 0.6, 2.0);
+      scene.add(sithFillLight);
+
+      // Soft shadow-receiving ground plane
+      const groundGeo = new THREE.PlaneGeometry(30, 30);
+      const groundMat = new THREE.ShadowMaterial({ opacity: 0.48 });
+      const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+      groundMesh.rotation.x = -Math.PI / 2;
+      groundMesh.position.y = 0;
+      groundMesh.receiveShadow = true;
+      scene.add(groundMesh);
+
+      // Subtle dark-platform ring decal under Vader's boots
+      const floorRingCanvas = document.createElement('canvas');
+      floorRingCanvas.width = 64;
+      floorRingCanvas.height = 64;
+      const fCtx = floorRingCanvas.getContext('2d');
+      const grad = fCtx.createRadialGradient(32, 32, 4, 32, 32, 30);
+      grad.addColorStop(0, 'rgba(220, 20, 40, 0.12)');
+      grad.addColorStop(0.55, 'rgba(25, 30, 40, 0.22)');
+      grad.addColorStop(1, 'rgba(15, 17, 21, 0)');
+      fCtx.fillStyle = grad;
+      fCtx.fillRect(0, 0, 64, 64);
+      const floorTex = new THREE.CanvasTexture(floorRingCanvas);
+      floorTex.magFilter = THREE.NearestFilter;
+      const pedestalDisc = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.6, 2.6),
+        new THREE.MeshBasicMaterial({ map: floorTex, transparent: true, depthWrite: false })
+      );
+      pedestalDisc.rotation.x = -Math.PI / 2;
+      pedestalDisc.position.y = 0.002;
+      scene.add(pedestalDisc);
+
+      // ============================================================================
+      // 2. PROCEDURAL PIXEL-ART TEXTURE ENGINE (16x16 TEXEL RESOLUTION)
+      // ============================================================================
+      // Scale factor: 16 texels = 1.0 world unit (1 texel = 0.0625 world units)
+      const PX = 1 / 16;
+
+      /**
+       * Creates a crisp pixel-art THREE.CanvasTexture using NearestFilter
+       */
+      function makePixelTexture(w, h, drawCallback) {
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(w));
+        c.height = Math.max(1, Math.round(h));
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        drawCallback(ctx, c.width, c.height);
+
+        const tex = new THREE.CanvasTexture(c);
+        tex.magFilter = THREE.NearestFilter;
+        tex.minFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        tex.encoding = THREE.sRGBEncoding;
+        tex.needsUpdate = true;
+        return tex;
+      }
+
+      /**
+       * Helper to fill rectangle of pixels cleanly
+       */
+      function rect(ctx, x, y, w, h, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, w, h);
+      }
+
+      /**
+       * Helper to set a single pixel
+       */
+      function pxl(ctx, x, y, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, 1, 1);
+      }
+
+      /**
+       * Helper to build a 6-faced Box mesh where each face (+X, -X, +Y, -Y, +Z, -Z)
+       * has an exact integer-texel procedural canvas texture.
+       */
+      function createTexturedBox(wPx, hPx, dPx, faceDrawers, matOptions = {}) {
+        const rw = Math.max(1, Math.round(wPx));
+        const rh = Math.max(1, Math.round(hPx));
+        const rd = Math.max(1, Math.round(dPx));
+
+        const defaultDraw = faceDrawers.all || ((ctx, w, h) => rect(ctx, 0, 0, w, h, '#141619'));
+
+        const faces = [
+          { draw: faceDrawers.right || faceDrawers.side || defaultDraw, w: rd, h: rh },  // +X (Right side of mesh)
+          { draw: faceDrawers.left || faceDrawers.side || defaultDraw, w: rd, h: rh },   // -X (Left side of mesh)
+          { draw: faceDrawers.top || defaultDraw, w: rw, h: rd },                        // +Y (Top)
+          { draw: faceDrawers.bottom || defaultDraw, w: rw, h: rd },                     // -Y (Bottom)
+          { draw: faceDrawers.front || defaultDraw, w: rw, h: rh },                      // +Z (Front)
+          { draw: faceDrawers.back || faceDrawers.side || defaultDraw, w: rw, h: rh }    // -Z (Back)
+        ];
+
+        const materials = faces.map((f) => {
+          const tex = makePixelTexture(f.w, f.h, f.draw);
+          const params = {
+            map: tex,
+            roughness: matOptions.roughness !== undefined ? matOptions.roughness : 0.45,
+            metalness: matOptions.metalness !== undefined ? matOptions.metalness : 0.25,
+            transparent: !!matOptions.transparent,
+            opacity: matOptions.opacity !== undefined ? matOptions.opacity : 1.0
+          };
+          if (matOptions.emissiveFace && f === faces[4]) {
+            const emTex = makePixelTexture(f.w, f.h, matOptions.emissiveFace);
+            params.emissive = new THREE.Color('#ffffff');
+            params.emissiveMap = emTex;
+            params.emissiveIntensity = matOptions.emissiveIntensity || 1.2;
+          }
+          return new THREE.MeshStandardMaterial(params);
+        });
+
+        const geo = new THREE.BoxGeometry(wPx * PX, hPx * PX, dPx * PX);
+        const mesh = new THREE.Mesh(geo, materials);
+        mesh.castShadow = matOptions.castShadow !== undefined ? matOptions.castShadow : true;
+        mesh.receiveShadow = matOptions.receiveShadow !== undefined ? matOptions.receiveShadow : true;
+        return mesh;
+      }
+
+      // ============================================================================
+      // 3. DARTH VADER PIXEL-ART TEXTURE PAINTERS
+      // ============================================================================
+
+      // --- Quilted Leather Suit Pattern (Vertical ribbed leather from Ref 1 & 2) ---
+      function drawQuiltedLeather(ctx, w, h, vertical = true) {
+        rect(ctx, 0, 0, w, h, '#14161a');
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            if (vertical) {
+              const col = x % 2 === 0 ? '#1b1e24' : '#0e1013';
+              pxl(ctx, x, y, col);
+              if (y % 3 === 0 && x % 2 === 0) {
+                pxl(ctx, x, y, '#252932');
+              }
+            } else {
+              const col = y % 2 === 0 ? '#1c1f26' : '#0e1013';
+              pxl(ctx, x, y, col);
+              if (x % 3 === 0 && y % 2 === 0) {
+                pxl(ctx, x, y, '#262a33');
+              }
+            }
+          }
+        }
+      }
+
+      // --- Glossy Obsidian Helmet Surface with Vanilla+ Specular Streaks ---
+      function drawGlossyObsidian(ctx, w, h, withHighlight = true) {
+        rect(ctx, 0, 0, w, h, '#0b0d10');
+        // Subtle pixel bevel border
+        for (let x = 0; x < w; x++) {
+          pxl(ctx, x, 0, '#1e222a');
+          pxl(ctx, x, h - 1, '#060709');
+        }
+        if (withHighlight && w >= 4) {
+          const hx = Math.floor(w * 0.28);
+          for (let y = 1; y < h - 1; y++) {
+            pxl(ctx, hx, y, '#4a5264');
+            if (hx + 1 < w) pxl(ctx, hx + 1, y, '#252a34');
+          }
+        }
+      }
+
+      // --- Reworked Vader Faceplate (16x16 HD Vanilla+ grid on 8x8x8 head core) ---
+      function drawVaderFace(ctx, w, h) {
+        // Deep jet-black obsidian mask base
+        rect(ctx, 0, 0, w, h, '#0b0d10');
+
+        // Upper brow shadow recess (y: 0..2)
+        rect(ctx, 0, 0, w, 3, '#060709');
+        // Center widow's peak highlight above nose bridge
+        rect(ctx, 7, 1, 2, 2, '#3a414f');
+
+        // Left & Right Recessed Curved Eye Sockets (x: 1..6 and x: 9..14, y: 3..7)
+        // Outer socket rim bevel
+        rect(ctx, 1, 3, 6, 5, '#1b1f27');
+        rect(ctx, 9, 3, 6, 5, '#1b1f27');
+        // Glossy dark smoked-obsidian & deep-amber bubble lenses
+        rect(ctx, 2, 3, 4, 4, '#090a0d');
+        rect(ctx, 10, 3, 4, 4, '#090a0d');
+        rect(ctx, 1, 4, 6, 3, '#0c090b');
+        rect(ctx, 9, 4, 6, 3, '#0c090b');
+        // Subtle dark reddish-amber undertones at lower inner lenses
+        rect(ctx, 2, 6, 3, 1, '#260d10');
+        rect(ctx, 11, 6, 3, 1, '#260d10');
+        // Crisp studio window reflection arcs on upper-right of each curved lens (from Ref 1)
+        pxl(ctx, 4, 4, '#8d96a6');
+        pxl(ctx, 5, 4, '#cfd7e3');
+        pxl(ctx, 5, 5, '#6c7482');
+        pxl(ctx, 12, 4, '#8d96a6');
+        pxl(ctx, 13, 4, '#cfd7e3');
+        pxl(ctx, 13, 5, '#6c7482');
+
+        // Horizontally Ribbed Nose Bridge between eye lenses (x: 7..8, y: 3..7)
+        for (let y = 3; y <= 7; y++) {
+          const ribColor = (y % 2 === 1) ? '#6e7787' : '#181b22';
+          pxl(ctx, 7, y, ribColor);
+          pxl(ctx, 8, y, y % 2 === 1 ? '#525966' : '#111318');
+        }
+
+        // Two-Tone Asymmetric/Sculpted Gunmetal Cheekbone Shelves & Hollows (Ref 1 & 2)
+        // Left cheek facet (x: 1..5, y: 8..12)
+        rect(ctx, 1, 8, 5, 1, '#687180'); // Bright horizontal cheekbone ridge under eye
+        rect(ctx, 1, 9, 4, 3, '#3f4550'); // Angled gunmetal cheek hollow
+        pxl(ctx, 1, 10, '#5a6270');
+        pxl(ctx, 2, 11, '#2b3038');
+        // Right cheek facet (x: 10..14, y: 8..12)
+        rect(ctx, 10, 8, 5, 1, '#58606e'); // Horizontal cheekbone ridge under eye
+        rect(ctx, 11, 9, 4, 3, '#353a44'); // Angled gunmetal cheek hollow
+        pxl(ctx, 14, 10, '#525a68');
+        pxl(ctx, 13, 11, '#252930');
+
+        // Outer black mandible jawlines (x: 0 & 15)
+        rect(ctx, 0, 7, 1, 9, '#08090c');
+        rect(ctx, 15, 7, 1, 9, '#08090c');
+
+        // Lower Jaw & Inverted-Triangle Diamond-Mesh Chin Vent (x: 5..10, y: 13..15)
+        rect(ctx, 4, 13, 8, 3, '#12151a');
+        // Diamond mesh pattern inside chin triangle (y: 13..15)
+        for (let y = 13; y <= 15; y++) {
+          const minX = 5 + (y - 13);
+          const maxX = 10 - (y - 13);
+          for (let x = minX; x <= maxX; x++) {
+            const isMeshHighlight = ((x + y) % 2 === 0);
+            pxl(ctx, x, y, isMeshHighlight ? '#6d7685' : '#1b1f26');
+          }
+        }
+      }
+
+      // --- 3D Extruded Triangular Snout / Respirator Grill (10x8 HD texels) ---
+      function drawRespiratorSnout(ctx, w, h) {
+        rect(ctx, 0, 0, w, h, '#090b0e');
+
+        // Rounded Silver / Pewter Nose Button at Top Apex (x: 4..5, y: 0..1)
+        rect(ctx, 4, 0, 2, 2, '#d0d8e6');
+        pxl(ctx, 4, 0, '#ffffff');
+        pxl(ctx, 5, 1, '#8c95a4');
+
+        // Angled Triangular Metallic Frame Bevels marching down left & right sides
+        for (let y = 2; y < h - 1; y++) {
+          const inset = Math.max(0, Math.floor((h - 1 - y) * 0.55));
+          pxl(ctx, inset, y, '#586170');
+          pxl(ctx, inset + 1, y, '#282d36');
+          pxl(ctx, w - 1 - inset, y, '#49515e');
+          pxl(ctx, w - 2 - inset, y, '#22262e');
+        }
+
+        // Recessed Black Triangular Respirator Cavity with 4 Vertical Chrome-Edged Slats
+        rect(ctx, 2, 2, 6, 5, '#050608');
+        for (let y = 2; y <= 6; y++) {
+          // 4 distinct vertical silver/pewter grill bars (Ref 1 close-up)
+          pxl(ctx, 2, y, y >= 4 ? '#9aa3b2' : '#323842');
+          pxl(ctx, 4, y, '#b8c2d1');
+          pxl(ctx, 5, y, '#6e7787');
+          pxl(ctx, 7, y, y >= 4 ? '#9aa3b2' : '#323842');
+        }
+
+        // Horizontal bottom lip bar of the triangle (y: 7)
+        rect(ctx, 1, h - 1, w - 2, 1, '#4f5766');
+        rect(ctx, 2, h - 1, w - 4, 1, '#7c8596');
+
+        // Bright Silver Corner Cheek Tusks / Anodized Studs at bottom-left & bottom-right
+        rect(ctx, 0, h - 2, 2, 2, '#e2eaf5');
+        pxl(ctx, 0, h - 2, '#ffffff');
+        rect(ctx, w - 2, h - 2, 2, 2, '#e2eaf5');
+        pxl(ctx, w - 1, h - 2, '#ffffff');
+      }
+
+      // --- Alternating Gunmetal & Obsidian Upper Chest Armor Plastron (Ref 1, 2, 3) ---
+      function drawChestArmorFront(ctx, w, h) {
+        // Exact alternating vertical strips of gunmetal grey and glossy black
+        for (let x = 0; x < w; x++) {
+          const isGunmetal = (x === 1 || x === 3 || x === 4 || x === 6);
+          for (let y = 0; y < h; y++) {
+            if (isGunmetal) {
+              const shade = y === 0 ? '#69707d' : (y === h - 1 ? '#3b4047' : '#505661');
+              pxl(ctx, x, y, shade);
+            } else {
+              const shade = y === 0 ? '#272b33' : '#121418';
+              pxl(ctx, x, y, shade);
+            }
+          }
+        }
+        // Collar silver chain/clasp accents at top center
+        pxl(ctx, 2, 0, '#8d95a3');
+        pxl(ctx, 5, 0, '#8d95a3');
+        pxl(ctx, 3, 0, '#363b45');
+        pxl(ctx, 4, 0, '#363b45');
+      }
+
+      // --- Chest Control Box (5x5 pixel grid matching Ref 1, 2, 3) ---
+      function drawChestBoxFront(ctx, w, h) {
+        // Metallic outer housing frame
+        rect(ctx, 0, 0, w, h, '#22262e');
+        rect(ctx, 0, 0, w, 1, '#454c59'); // top frame rim
+
+        // Inner recessed panel
+        rect(ctx, 1, 1, w - 2, h - 2, '#111317');
+
+        // Left side: 3 horizontal silver slot bars with red/orange surrounds (x: 1, y: 1..3)
+        pxl(ctx, 1, 1, '#d94136');
+        pxl(ctx, 2, 1, '#ced4de');
+        pxl(ctx, 1, 2, '#d94136');
+        pxl(ctx, 2, 2, '#ced4de');
+        pxl(ctx, 1, 3, '#d94136');
+        pxl(ctx, 2, 3, '#ced4de');
+
+        // Right side: Bright Green LED on top (y:1), Bright Red LED below (y:2), Blue accent (y:3)
+        pxl(ctx, 3, 1, '#00f55c'); // Vivid green square switch
+        pxl(ctx, 3, 2, '#ff2626'); // Vivid red square switch
+        pxl(ctx, 3, 3, '#2b95ff'); // Crisp blue indicator (Ref 3)
+
+        // Bottom row: 4 vertical silver & grey rocker switches (y: 4)
+        pxl(ctx, 1, 4, '#d8dfe8');
+        pxl(ctx, 2, 4, '#adb5c2');
+        pxl(ctx, 3, 4, '#5a6270');
+      }
+
+      function drawChestBoxEmissive(ctx, w, h) {
+        rect(ctx, 0, 0, w, h, '#000000');
+        pxl(ctx, 1, 1, '#ff3b2f');
+        pxl(ctx, 1, 2, '#ff3b2f');
+        pxl(ctx, 1, 3, '#ff3b2f');
+        pxl(ctx, 3, 1, '#00ff66');
+        pxl(ctx, 3, 2, '#ff1e1e');
+        pxl(ctx, 3, 3, '#1e90ff');
+      }
+
+      // --- Belt Buckle & Glowing Belt Light Boxes (Ref 1 & 2) ---
+      function drawBeltBuckle(ctx, w, h) {
+        rect(ctx, 0, 0, w, h, '#b8c0cc');
+        // Left black horizontal slots & right silver/dark circle
+        pxl(ctx, 0, 0, '#8d96a3');
+        if (w >= 3 && h >= 2) {
+          pxl(ctx, 0, 1, '#252930');
+          pxl(ctx, 1, 0, '#dce3ed');
+          pxl(ctx, 1, 1, '#505763');
+          pxl(ctx, 2, 0, '#9aa3b0');
+          pxl(ctx, 2, 1, '#9aa3b0');
+        }
+      }
+
+      function drawBeltBoxFront(ctx, w, h, isLeft) {
+        rect(ctx, 0, 0, w, h, '#2c3230'); // Olive/gunmetal housing
+        if (isLeft) {
+          // Outer red lights, inner green lights (Ref 1)
+          pxl(ctx, 0, 0, '#ff2a2a');
+          pxl(ctx, 0, 1, '#ff2a2a');
+          pxl(ctx, 1, 0, '#00f55c');
+          pxl(ctx, 1, 1, '#00c449');
+        } else {
+          pxl(ctx, 0, 0, '#00f55c');
+          pxl(ctx, 0, 1, '#00c449');
+          pxl(ctx, 1, 0, '#ff2a2a');
+          pxl(ctx, 1, 1, '#ff2a2a');
+        }
+      }
+
+      function drawBeltBoxEmissive(ctx, w, h, isLeft) {
+        rect(ctx, 0, 0, w, h, '#000000');
+        if (isLeft) {
+          pxl(ctx, 0, 0, '#ff2222');
+          pxl(ctx, 0, 1, '#ff2222');
+          pxl(ctx, 1, 0, '#00ff66');
+          pxl(ctx, 1, 1, '#00cc52');
+        } else {
+          pxl(ctx, 0, 0, '#00ff66');
+          pxl(ctx, 0, 1, '#00cc52');
+          pxl(ctx, 1, 0, '#ff2222');
+          pxl(ctx, 1, 1, '#ff2222');
+        }
+      }
+
+      // --- Padded Leather Codpiece with Recessed Center Oval (Ref 1 & 2) ---
+      function drawCodpiece(ctx, w, h) {
+        rect(ctx, 0, 0, w, h, '#1d2026');
+        // Outer highlight bevel
+        for (let y = 0; y < h; y++) {
+          pxl(ctx, 0, y, '#292d36');
+          pxl(ctx, w - 1, y, '#14161b');
+        }
+        // Center recessed oval groove
+        rect(ctx, 1, 1, w - 2, h - 2, '#101216');
+        if (w >= 4 && h >= 4) {
+          pxl(ctx, 1, 1, '#262a33');
+          pxl(ctx, 2, 1, '#181b21');
+          pxl(ctx, 1, 2, '#262a33');
+          pxl(ctx, 2, 2, '#181b21');
+        }
+      }
+
+      // ============================================================================
+      // 4. HIERARCHICAL 16x16 BLOCKBENCH MODEL CONSTRUCTION
+      // ============================================================================
+      const vaderRoot = new THREE.Group();
+      scene.add(vaderRoot);
+
+      // Whole-body pivot at waist (12 pixels above ground = 0.75 units)
+      const bodyPivot = new THREE.Group();
+      bodyPivot.position.set(0, 12 * PX, 0);
+      vaderRoot.add(bodyPivot);
+
+      // ----------------------------------------------------------------------------
+      // A. TORSO, CHEST ARMOR, CONTROL BOX, BELT & CODPIECE
+      // ----------------------------------------------------------------------------
+      const torsoGroup = new THREE.Group();
+      // Torso extends from y = 0 to y = 12*PX relative to bodyPivot
+      bodyPivot.add(torsoGroup);
+
+      // 1. Core Torso Box (8 x 12 x 4)
+      const torsoMesh = createTexturedBox(8, 12, 4, {
+        front: (ctx, w, h) => {
+          drawQuiltedLeather(ctx, w, h, true);
+          // Pleated dark inner tunic strips flanking the chest box
+          rect(ctx, 0, 0, 2, h, '#0d0f12');
+          rect(ctx, w - 2, 0, 2, h, '#0d0f12');
+          for (let y = 0; y < h; y++) {
+            pxl(ctx, 1, y, '#191c22');
+            pxl(ctx, w - 2, y, '#191c22');
+          }
+        },
+        back: (ctx, w, h) => drawQuiltedLeather(ctx, w, h, true),
+        side: (ctx, w, h) => drawQuiltedLeather(ctx, w, h, false),
+        top: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#14161a'),
+        bottom: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#0c0d10')
+      }, { roughness: 0.65, metalness: 0.15 });
+      torsoMesh.position.set(0, 6 * PX, 0);
+      torsoGroup.add(torsoMesh);
+
+      // 2. Extruded Upper Chest & Shoulder Armor Plastron (8.6 x 3.8 x 4.6)
+      const plastronMesh = createTexturedBox(8, 4, 5, {
+        front: drawChestArmorFront,
+        back: drawChestArmorFront,
+        side: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#484e58');
+          rect(ctx, 1, 0, 2, h, '#15181c');
+        },
+        top: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#454b54');
+          rect(ctx, 2, 1, 4, 3, '#14161a');
+        }
+      }, { roughness: 0.25, metalness: 0.65 });
+      plastronMesh.scale.set(8.6 / 8, 3.6 / 4, 4.6 / 5);
+      plastronMesh.position.set(0, 10.25 * PX, 0);
+      torsoGroup.add(plastronMesh);
+
+      // 3. Extruded 3D Chest Control Box (4.4 x 4.4 x 1.0)
+      const chestBoxMesh = createTexturedBox(5, 5, 1, {
+        front: drawChestBoxFront,
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#282c34')
+      }, {
+        roughness: 0.3,
+        metalness: 0.5,
+        emissiveFace: drawChestBoxEmissive,
+        emissiveIntensity: 1.35
+      });
+      chestBoxMesh.scale.set(4.2 / 5, 4.2 / 5, 0.9);
+      chestBoxMesh.position.set(0, 5.8 * PX, 2.35 * PX);
+      torsoGroup.add(chestBoxMesh);
+
+      // 4. Utility Belt Strap (8.6 x 1.8 x 4.6)
+      const beltMesh = createTexturedBox(8, 2, 4, {
+        all: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#101215');
+          rect(ctx, 0, 0, w, 1, '#1d2026');
+        }
+      }, { roughness: 0.4, metalness: 0.35 });
+      beltMesh.scale.set(8.6 / 8, 1.8 / 2, 4.6 / 4);
+      beltMesh.position.set(0, 1.2 * PX, 0);
+      torsoGroup.add(beltMesh);
+
+      // 5. Center Silver Belt Buckle (2.6 x 1.9 x 0.6)
+      const buckleMesh = createTexturedBox(3, 2, 1, {
+        front: drawBeltBuckle,
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#8f97a3')
+      }, { roughness: 0.22, metalness: 0.8 });
+      buckleMesh.scale.set(2.5 / 3, 1.85 / 2, 0.55);
+      buckleMesh.position.set(0, 1.2 * PX, 2.45 * PX);
+      torsoGroup.add(buckleMesh);
+
+      // 6. Left & Right Illuminated Belt Boxes (2.1 x 2.0 x 0.9)
+      const leftBeltBox = createTexturedBox(2, 2, 1, {
+        front: (ctx, w, h) => drawBeltBoxFront(ctx, w, h, true),
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#252a28')
+      }, {
+        roughness: 0.35,
+        metalness: 0.5,
+        emissiveFace: (ctx, w, h) => drawBeltBoxEmissive(ctx, w, h, true),
+        emissiveIntensity: 1.4
+      });
+      leftBeltBox.scale.set(1.0, 1.0, 0.85);
+      leftBeltBox.position.set(3.0 * PX, 1.2 * PX, 2.45 * PX);
+      torsoGroup.add(leftBeltBox);
+
+      const rightBeltBox = createTexturedBox(2, 2, 1, {
+        front: (ctx, w, h) => drawBeltBoxFront(ctx, w, h, false),
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#252a28')
+      }, {
+        roughness: 0.35,
+        metalness: 0.5,
+        emissiveFace: (ctx, w, h) => drawBeltBoxEmissive(ctx, w, h, false),
+        emissiveIntensity: 1.4
+      });
+      rightBeltBox.scale.set(1.0, 1.0, 0.85);
+      rightBeltBox.position.set(-3.0 * PX, 1.2 * PX, 2.45 * PX);
+      torsoGroup.add(rightBeltBox);
+
+      // 7. Padded Codpiece Armor (4.0 x 3.8 x 1.0)
+      const codpieceMesh = createTexturedBox(4, 4, 1, {
+        front: drawCodpiece,
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#171a1f')
+      }, { roughness: 0.55, metalness: 0.2 });
+      codpieceMesh.scale.set(3.8 / 4, 3.6 / 4, 0.85);
+      codpieceMesh.position.set(0, -1.2 * PX, 2.15 * PX);
+      torsoGroup.add(codpieceMesh);
+
+      // ----------------------------------------------------------------------------
+      // B. HEAD & LAYERED 3D HELMET ASSEMBLY (Pivot at neck: y = 12*PX)
+      // ----------------------------------------------------------------------------
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 12 * PX, 0);
+      torsoGroup.add(headGroup);
+
+      // 1. Sculpted Gunmetal/Obsidian Neck Brace Collar & Metallic Cape Chain (Ref 1 close-up)
+      const neckCollarMesh = createTexturedBox(12, 4, 12, {
+        front: (ctx, w, h) => {
+          // Smooth gunmetal-sheen contoured neck brace with chin shadow
+          rect(ctx, 0, 0, w, h, '#282d36');
+          rect(ctx, 2, 0, w - 4, 1, '#12151a');
+          rect(ctx, 3, 1, w - 6, 1, '#48505e');
+          rect(ctx, 4, 2, w - 8, 1, '#5d6675');
+          // Rectangular-link metallic cape chain draped across lower neck (Ref 1)
+          for (let x = 1; x < w - 1; x++) {
+            pxl(ctx, x, h - 1, x % 2 === 0 ? '#7c8594' : '#1b1f26');
+          }
+        },
+        all: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#1c2027');
+          rect(ctx, 0, h - 1, w, 1, '#0e1014');
+        }
+      }, { roughness: 0.28, metalness: 0.68 });
+      neckCollarMesh.scale.set(6.8 / 12, 2.0 / 4, 6.8 / 12);
+      neckCollarMesh.position.set(0, 0.85 * PX, 0.15 * PX);
+      headGroup.add(neckCollarMesh);
+
+      // 2. Core Sculpted Faceplate & Mask Head (7.8 x 7.6 x 7.8 units with 16x16 HD face texels)
+      const headCore = createTexturedBox(16, 16, 16, {
+        front: drawVaderFace,
+        side: (ctx, w, h) => {
+          drawGlossyObsidian(ctx, w, h, false);
+          // Gunmetal side cheek plate & jaw tube detail
+          rect(ctx, 10, 8, 6, 5, '#333944');
+          rect(ctx, 11, 9, 4, 3, '#181b21');
+          pxl(ctx, 12, 13, '#6b7382');
+        },
+        back: (ctx, w, h) => drawGlossyObsidian(ctx, w, h, true),
+        top: (ctx, w, h) => drawGlossyObsidian(ctx, w, h, true),
+        bottom: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#0d0f13')
+      }, { roughness: 0.18, metalness: 0.72 });
+      headCore.scale.set(7.8 / 16, 7.6 / 16, 7.8 / 16);
+      headCore.position.set(0, 4.4 * PX, 0.1 * PX);
+      headGroup.add(headCore);
+
+      // 3. 3D Extruded Angled Cheekbone Facets (Left & Right two-tone gunmetal shelves under lenses)
+      function buildCheekFacet(isLeft) {
+        const xSign = isLeft ? 1 : -1;
+        const cheekMesh = createTexturedBox(4, 4, 2, {
+          front: (ctx, w, h) => {
+            rect(ctx, 0, 0, w, h, isLeft ? '#4e5563' : '#404754');
+            rect(ctx, 0, 0, w, 1, '#7e8796'); // Sharp upper cheekbone highlight rim
+            rect(ctx, 1, 2, w - 1, 2, '#1c2026'); // Shadowed cheek hollow
+          },
+          all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#252a32')
+        }, { roughness: 0.22, metalness: 0.72 });
+        cheekMesh.scale.set(2.35 / 4, 2.3 / 4, 0.9 / 2);
+        cheekMesh.position.set(xSign * 2.45 * PX, 3.35 * PX, 4.02 * PX);
+        cheekMesh.rotation.y = xSign * 0.24;
+        cheekMesh.rotation.x = -0.08;
+        return cheekMesh;
+      }
+      headGroup.add(buildCheekFacet(true));
+      headGroup.add(buildCheekFacet(false));
+
+      // 4. 3D Protruding Triangular Respirator Snout & Lower Chin Mesh Wedge
+      const snoutGroup = new THREE.Group();
+      snoutGroup.position.set(0, 2.75 * PX, 4.25 * PX);
+      headGroup.add(snoutGroup);
+
+      // Upper/Main Triangular Grill Box (angled forward like Vader's wedge snout)
+      const snoutMesh = createTexturedBox(10, 8, 3, {
+        front: drawRespiratorSnout,
+        top: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#1d2129');
+          rect(ctx, 4, 0, 2, h, '#c8d2e0'); // Silver nose bridge button top
+        },
+        side: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#3d4452');
+          rect(ctx, 0, 1, w, h - 2, '#161920');
+        },
+        bottom: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#282d36')
+      }, { roughness: 0.20, metalness: 0.78 });
+      snoutMesh.scale.set(4.1 / 10, 3.25 / 8, 1.35 / 3);
+      snoutMesh.rotation.x = -0.14; // Tilted outward at bottom
+      snoutGroup.add(snoutMesh);
+
+      // 3D Extruded Silver Cheek Tusks at Bottom Corners of Triangular Respirator
+      const tuskGeo = new THREE.BoxGeometry(0.65 * PX, 0.65 * PX, 0.95 * PX);
+      const tuskMat = new THREE.MeshStandardMaterial({
+        color: '#e6eef8',
+        roughness: 0.12,
+        metalness: 0.92
+      });
+      const leftTusk = new THREE.Mesh(tuskGeo, tuskMat);
+      leftTusk.position.set(1.85 * PX, -1.25 * PX, 0.55 * PX);
+      leftTusk.rotation.y = 0.2;
+      snoutGroup.add(leftTusk);
+
+      const rightTusk = new THREE.Mesh(tuskGeo, tuskMat);
+      rightTusk.position.set(-1.85 * PX, -1.25 * PX, 0.55 * PX);
+      rightTusk.rotation.y = -0.2;
+      snoutGroup.add(rightTusk);
+
+      // 3D Protruding Silver Nose Button at Apex of Snout
+      const noseButtonMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.95 * PX, 0.85 * PX, 0.65 * PX),
+        tuskMat
+      );
+      noseButtonMesh.position.set(0, 1.35 * PX, 0.48 * PX);
+      noseButtonMesh.rotation.x = -0.2;
+      snoutGroup.add(noseButtonMesh);
+
+      // 5. Sculpted Gull-Wing Brow Rim (Arched Left/Right Brow + Center Widow's Peak V-Dip)
+      const browGroup = new THREE.Group();
+      browGroup.position.set(0, 6.25 * PX, 4.38 * PX);
+      headGroup.add(browGroup);
+
+      const browDraw = {
+        front: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#0d0f13');
+          rect(ctx, 0, h - 1, w, 1, '#586273'); // Crisp metallic specular rim along bottom edge of brow
+          pxl(ctx, Math.floor(w / 2), 0, '#98a3b5');
+        },
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#0a0c0f')
+      };
+
+      // Left Arched Brow Wing
+      const leftBrowWing = createTexturedBox(8, 2, 2, browDraw, { roughness: 0.12, metalness: 0.85 });
+      leftBrowWing.scale.set(4.55 / 8, 1.15 / 2, 1.25 / 2);
+      leftBrowWing.position.set(2.15 * PX, 0.12 * PX, 0);
+      leftBrowWing.rotation.z = 0.14;
+      leftBrowWing.rotation.y = -0.12;
+      browGroup.add(leftBrowWing);
+
+      // Right Arched Brow Wing
+      const rightBrowWing = createTexturedBox(8, 2, 2, browDraw, { roughness: 0.12, metalness: 0.85 });
+      rightBrowWing.scale.set(4.55 / 8, 1.15 / 2, 1.25 / 2);
+      rightBrowWing.position.set(-2.15 * PX, 0.12 * PX, 0);
+      rightBrowWing.rotation.z = -0.14;
+      rightBrowWing.rotation.y = 0.12;
+      browGroup.add(rightBrowWing);
+
+      // Center Widow's Peak Nose-Bridge Beak
+      const centerBrowPeak = createTexturedBox(3, 3, 2, {
+        front: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#14181f');
+          rect(ctx, 1, 0, 1, h, '#8c96a8'); // Bright vertical highlight continuing from dome crest
+        },
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#0b0d11')
+      }, { roughness: 0.12, metalness: 0.85 });
+      centerBrowPeak.scale.set(1.45 / 3, 1.45 / 3, 1.35 / 2);
+      centerBrowPeak.position.set(0, -0.08 * PX, 0.12 * PX);
+      browGroup.add(centerBrowPeak);
+
+      // 6. Multi-Tiered Rounded-Look Glossy Obsidian Dome Shell (Ref 1 & 2)
+      // Lower Main Dome Tier (9.4 x 3.2 x 9.4)
+      const domeLowerMesh = createTexturedBox(16, 6, 16, {
+        front: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#0a0c0f');
+          // Twin bright studio vertical reflection bands flanking the center sagittal ridge (Ref 1 close-up!)
+          rect(ctx, 5, 0, 2, h, '#c4cedc');
+          rect(ctx, 6, 0, 1, h, '#ffffff');
+          rect(ctx, 9, 0, 2, h, '#9aa4b4');
+          rect(ctx, 9, 0, 1, h, '#d8e2f0');
+          // Subtle outer dome curve shading
+          rect(ctx, 0, 0, 2, h, '#060709');
+          rect(ctx, w - 2, 0, 2, h, '#060709');
+        },
+        side: (ctx, w, h) => drawGlossyObsidian(ctx, w, h, true),
+        back: (ctx, w, h) => drawGlossyObsidian(ctx, w, h, true),
+        top: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#0a0c0f');
+          rect(ctx, 5, 1, 2, h - 2, '#7d8796');
+          rect(ctx, 9, 1, 2, h - 2, '#5c6473');
+        },
+        bottom: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#050608')
+      }, { roughness: 0.10, metalness: 0.86 });
+      domeLowerMesh.scale.set(9.4 / 16, 3.1 / 6, 9.5 / 16);
+      domeLowerMesh.position.set(0, 7.6 * PX, -0.15 * PX);
+      headGroup.add(domeLowerMesh);
+
+      // Upper Tapered Crown Tier for Authentic Curved Helmet Silhouette (8.2 x 1.35 x 8.4)
+      const domeUpperMesh = createTexturedBox(14, 3, 14, {
+        front: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#0c0e12');
+          rect(ctx, 4, 0, 2, h, '#b8c2d1');
+          rect(ctx, 8, 0, 2, h, '#8892a3');
+        },
+        top: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#0e1116');
+          rect(ctx, 4, 1, 2, h - 2, '#6d7685');
+          rect(ctx, 8, 1, 2, h - 2, '#4d5461');
+        },
+        all: (ctx, w, h) => drawGlossyObsidian(ctx, w, h, true)
+      }, { roughness: 0.10, metalness: 0.86 });
+      domeUpperMesh.scale.set(8.2 / 14, 1.35 / 3, 8.4 / 14);
+      domeUpperMesh.position.set(0, 9.65 * PX, -0.15 * PX);
+      headGroup.add(domeUpperMesh);
+
+      // 7. Prominent Raised Sagittal Center Crest Spine (Runs from front brow peak over crown)
+      const domeCrest = createTexturedBox(2, 10, 16, {
+        front: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#222730');
+          rect(ctx, 0, 0, 1, h, '#adb7c7'); // Crisp left edge studio highlight from Ref 1
+        },
+        top: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#252a34');
+          rect(ctx, 0, 0, 1, h, '#8c96a6');
+        },
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#181c24')
+      }, { roughness: 0.10, metalness: 0.88 });
+      domeCrest.scale.set(1.25 / 2, 4.65 / 10, 10.05 / 16);
+      domeCrest.position.set(0, 8.35 * PX, 0.02 * PX);
+      headGroup.add(domeCrest);
+
+      // 8. Dramatic Outward-Flared Helmet Skirt (Left, Right, Back & Angled Cheek Rim Flanges)
+      const skirtDraw = {
+        front: (ctx, w, h) => {
+          rect(ctx, 0, 0, w, h, '#0b0d11');
+          // Bright metallic rolled outer edge highlight along the flared skirt rim (Ref 1 & 2)
+          rect(ctx, 0, 0, 1, h, '#8d97a8');
+          rect(ctx, w - 1, 0, 1, h, '#8d97a8');
+          rect(ctx, 0, h - 1, w, 1, '#7a8494');
+        },
+        side: (ctx, w, h) => {
+          drawGlossyObsidian(ctx, w, h, true);
+          rect(ctx, 0, h - 1, w, 1, '#687180'); // Rolled bottom rim highlight
+          rect(ctx, 0, 0, 1, h, '#7b8494');     // Front leading edge highlight
+        },
+        all: (ctx, w, h) => drawGlossyObsidian(ctx, w, h, true)
+      };
+
+      // Left Flared Skirt Plate (+X)
+      const leftSkirt = createTexturedBox(2, 12, 16, skirtDraw, { roughness: 0.12, metalness: 0.84 });
+      leftSkirt.scale.set(1.15 / 2, 6.85 / 12, 9.4 / 16);
+      leftSkirt.position.set(4.85 * PX, 3.25 * PX, -0.25 * PX);
+      leftSkirt.rotation.z = 0.29; // Iconic wide flare framing the mask
+      leftSkirt.rotation.y = 0.06;
+      headGroup.add(leftSkirt);
+
+      // Right Flared Skirt Plate (-X)
+      const rightSkirt = createTexturedBox(2, 12, 16, skirtDraw, { roughness: 0.12, metalness: 0.84 });
+      rightSkirt.scale.set(1.15 / 2, 6.85 / 12, 9.4 / 16);
+      rightSkirt.position.set(-4.85 * PX, 3.25 * PX, -0.25 * PX);
+      rightSkirt.rotation.z = -0.29; // Iconic wide flare framing the mask
+      rightSkirt.rotation.y = -0.06;
+      headGroup.add(rightSkirt);
+
+      // Back Flared Neck-Guard Skirt Plate (-Z)
+      const backSkirt = createTexturedBox(16, 12, 2, skirtDraw, { roughness: 0.12, metalness: 0.84 });
+      backSkirt.scale.set(9.8 / 16, 6.75 / 12, 1.15 / 2);
+      backSkirt.position.set(0, 3.2 * PX, -4.85 * PX);
+      backSkirt.rotation.x = -0.24;
+      headGroup.add(backSkirt);
+
+      // ----------------------------------------------------------------------------
+      // C. ARMS, PAULDRONS, GLOVES & CRIMSON LIGHTSABER
+      // ----------------------------------------------------------------------------
+      function buildVaderArm(isRightArm) {
+        const armGroup = new THREE.Group();
+        const xSign = isRightArm ? -1 : 1;
+        // Pivot at shoulder joint: x = +-6*PX, y = 10.5*PX
+        armGroup.position.set(xSign * 6 * PX, 10.5 * PX, 0);
+
+        // 1. Core Arm (4 x 12 x 4) - Ribbed leather sleeve + black gauntlet
+        const armMesh = createTexturedBox(4, 12, 4, {
+          all: (ctx, w, h) => {
+            // Top 3px under pauldron
+            rect(ctx, 0, 0, w, 3, '#17191f');
+            // Mid 5px horizontal ribbed leather sleeve (Ref 2)
+            for (let y = 3; y < 8; y++) {
+              rect(ctx, 0, y, w, 1, y % 2 === 0 ? '#232730' : '#0f1115');
+            }
+            // Bottom 4px vertical quilted leather glove/gauntlet
+            for (let y = 8; y < 12; y++) {
+              for (let x = 0; x < w; x++) {
+                pxl(ctx, x, y, x % 2 === 0 ? '#1c2027' : '#0d0f13');
+              }
+            }
+          },
+          bottom: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#0e1014')
+        }, { roughness: 0.5, metalness: 0.25 });
+        armMesh.position.set(0, -4.5 * PX, 0);
+        armGroup.add(armMesh);
+
+        // 2. Extruded Shoulder Pauldron Armor (4.6 x 4.0 x 4.6)
+        // Matches the two-tone gunmetal grey & glossy black shoulder bells in Ref 1, 2, 3
+        const pauldronMesh = createTexturedBox(4, 4, 4, {
+          all: (ctx, w, h) => {
+            rect(ctx, 0, 0, w, h, '#4a505c');
+            rect(ctx, 1, 0, 2, h, '#14171c');
+            rect(ctx, 0, h - 1, w, 1, '#262a32');
+          },
+          top: (ctx, w, h) => {
+            rect(ctx, 0, 0, w, h, '#4d5360');
+            rect(ctx, 1, 0, 2, h, '#181b21');
+          }
+        }, { roughness: 0.25, metalness: 0.68 });
+        pauldronMesh.scale.set(4.55 / 4, 3.8 / 4, 4.55 / 4);
+        pauldronMesh.position.set(0, -0.3 * PX, 0);
+        armGroup.add(pauldronMesh);
+
+        // 3. Extruded Gauntlet Cuff (4.4 x 3.8 x 4.4)
+        const gauntletCuff = createTexturedBox(4, 4, 4, {
+          all: (ctx, w, h) => {
+            for (let x = 0; x < w; x++) {
+              rect(ctx, x, 0, 1, h, x % 2 === 0 ? '#20242c' : '#101216');
+            }
+            rect(ctx, 0, 0, w, 1, '#2d323d');
+          }
+        }, { roughness: 0.35, metalness: 0.45 });
+        gauntletCuff.scale.set(4.35 / 4, 3.6 / 4, 4.35 / 4);
+        gauntletCuff.position.set(0, -7.2 * PX, 0);
+        armGroup.add(gauntletCuff);
+
+        return armGroup;
+      }
+
+      const rightArmGroup = buildVaderArm(true);
+      const leftArmGroup = buildVaderArm(false);
+      torsoGroup.add(rightArmGroup);
+      torsoGroup.add(leftArmGroup);
+
+      // ----------------------------------------------------------------------------
+      // D. DARTH VADER'S MPP LIGHTSABER (Attached to Right Hand)
+      // ----------------------------------------------------------------------------
+      const saberPivot = new THREE.Group();
+      // Positioned in the right gloved fist (y = -9.2*PX relative to shoulder)
+      saberPivot.position.set(0, -9.2 * PX, 0.8 * PX);
+      // Orient hilt forward along +Z (blade extends along local +Y of saberPivot)
+      saberPivot.rotation.x = Math.PI / 2;
+      rightArmGroup.add(saberPivot);
+
+      // 1. Lightsaber Hilt (1.4 x 5.5 x 1.4) - Chrome tube, black emitter shroud & grips
+      const saberHilt = createTexturedBox(2, 6, 2, {
+        all: (ctx, w, h) => {
+          // Black angled emitter shroud at top (y: 0..1)
+          rect(ctx, 0, 0, w, 2, '#14171c');
+          pxl(ctx, 0, 1, '#c8d0dc');
+          // Brushed silver chrome body (y: 2..3)
+          rect(ctx, 0, 2, w, 2, '#d0d8e4');
+          pxl(ctx, 1, 3, '#252930'); // Activation clamp box
+          // Black vertical T-track grips at bottom pommel (y: 4..5)
+          rect(ctx, 0, 4, w, 2, '#121418');
+          pxl(ctx, 0, 4, '#5a6270');
+          pxl(ctx, 0, 5, '#5a6270');
+        },
+        top: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#ff3333'),
+        bottom: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#282c34')
+      }, { roughness: 0.2, metalness: 0.85 });
+      saberHilt.scale.set(1.3 / 2, 5.4 / 6, 1.3 / 2);
+      saberHilt.position.set(0, 0.2 * PX, 0);
+      saberPivot.add(saberHilt);
+
+      // 2. Crimson Plasma Blade Assembly (White-hot core + Layered Red Glow Shells)
+      const bladeGroup = new THREE.Group();
+      bladeGroup.position.set(0, 2.9 * PX, 0);
+      saberPivot.add(bladeGroup);
+
+      const BLADE_LEN = 20.5 * PX;
+
+      // Inner Pure White Core
+      const bladeCoreGeo = new THREE.BoxGeometry(0.68 * PX, BLADE_LEN, 0.68 * PX);
+      const bladeCoreMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+      const bladeCoreMesh = new THREE.Mesh(bladeCoreGeo, bladeCoreMat);
+      bladeCoreMesh.position.y = BLADE_LEN / 2;
+      bladeGroup.add(bladeCoreMesh);
+
+      // Mid Bright Crimson Aura Shell
+      const bladeMidGeo = new THREE.BoxGeometry(1.18 * PX, BLADE_LEN + 0.4 * PX, 1.18 * PX);
+      const bladeMidMat = new THREE.MeshBasicMaterial({
+        color: '#ff1a1a',
+        transparent: true,
+        opacity: 0.82,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const bladeMidMesh = new THREE.Mesh(bladeMidGeo, bladeMidMat);
+      bladeMidMesh.position.y = BLADE_LEN / 2;
+      bladeGroup.add(bladeMidMesh);
+
+      // Outer Soft Sith Red Halo Shell
+      const bladeOuterGeo = new THREE.BoxGeometry(1.85 * PX, BLADE_LEN + 0.9 * PX, 1.85 * PX);
+      const bladeOuterMat = new THREE.MeshBasicMaterial({
+        color: '#e60012',
+        transparent: true,
+        opacity: 0.34,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const bladeOuterMesh = new THREE.Mesh(bladeOuterGeo, bladeOuterMat);
+      bladeOuterMesh.position.y = BLADE_LEN / 2;
+      bladeGroup.add(bladeOuterMesh);
+
+      // Dynamic Crimson PointLight attached to blade mid-point for real-time armor reflections
+      const saberLight = new THREE.PointLight('#ff1926', 1.75, 3.2, 2.0);
+      saberLight.position.set(0, BLADE_LEN * 0.55, 0);
+      bladeGroup.add(saberLight);
+
+      // ----------------------------------------------------------------------------
+      // E. LEGS, SHIN GUARDS & INNER ROBE SKIRT PANELS
+      // ----------------------------------------------------------------------------
+      function buildVaderLeg(isRightLeg) {
+        const legGroup = new THREE.Group();
+        const xSign = isRightLeg ? -1 : 1;
+        // Hip pivot at y = 12*PX from ground (y = 0 in bodyPivot)
+        legGroup.position.set(xSign * 2.05 * PX, 0, 0);
+
+        // 1. Core Leg (4 x 12 x 4) - Vertically quilted black leather trousers
+        const legMesh = createTexturedBox(4, 12, 4, {
+          all: (ctx, w, h) => drawQuiltedLeather(ctx, w, h, true),
+          top: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#101216'),
+          bottom: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#090a0d')
+        }, { roughness: 0.6, metalness: 0.2 });
+        legMesh.position.set(0, -6 * PX, 0);
+        legGroup.add(legMesh);
+
+        // 2. Extruded Glossy Obsidian Shin Armor & Boot (4.35 x 7.2 x 4.4)
+        const shinArmor = createTexturedBox(4, 7, 4, {
+          front: (ctx, w, h) => {
+            drawGlossyObsidian(ctx, w, h, false);
+            // Knee diamond/ridge cap at top (y: 0..1)
+            rect(ctx, 1, 0, 2, 2, '#3d4352');
+            // Central vertical specular reflection strip down shin guard (Ref 1, 2, 3)
+            rect(ctx, 1, 2, 1, h - 2, '#4e5668');
+            rect(ctx, 2, 2, 1, h - 2, '#252932');
+          },
+          side: (ctx, w, h) => drawGlossyObsidian(ctx, w, h, true),
+          back: (ctx, w, h) => drawGlossyObsidian(ctx, w, h, false),
+          bottom: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#08090c')
+        }, { roughness: 0.16, metalness: 0.78 });
+        shinArmor.scale.set(4.32 / 4, 7.2 / 7, 4.38 / 4);
+        shinArmor.position.set(0, -8.4 * PX, 0.05 * PX);
+        legGroup.add(shinArmor);
+
+        // 3. Outer Flowing Inner-Tunic Robe Skirt Panel (1.1 x 10.5 x 4.5)
+        // Frames the outside of the thighs & knees just like Ref 1, 2, 3
+        const robeSkirt = createTexturedBox(1, 10, 4, {
+          all: (ctx, w, h) => {
+            rect(ctx, 0, 0, w, h, '#111318');
+            for (let y = 0; y < h; y++) {
+              if (y % 2 === 0) pxl(ctx, 0, y, '#191c24');
+            }
+          }
+        }, { roughness: 0.85, metalness: 0.05 });
+        robeSkirt.scale.set(0.95, 10.2 / 10, 4.5 / 4);
+        robeSkirt.position.set(xSign * 2.15 * PX, -5.2 * PX, 0);
+        robeSkirt.rotation.z = xSign * 0.06;
+        legGroup.add(robeSkirt);
+
+        return legGroup;
+      }
+
+      const rightLegGroup = buildVaderLeg(true);
+      const leftLegGroup = buildVaderLeg(false);
+      bodyPivot.add(rightLegGroup);
+      bodyPivot.add(leftLegGroup);
+
+      // ----------------------------------------------------------------------------
+      // F. ARTICULATED TWO-SEGMENT FLOWING CAPE (Pivoted at Upper Shoulders)
+      // ----------------------------------------------------------------------------
+      const capePivot = new THREE.Group();
+      capePivot.position.set(0, 11.7 * PX, -2.15 * PX);
+      torsoGroup.add(capePivot);
+
+      function drawCapeCloth(ctx, w, h, isInner) {
+        const base = isInner ? '#170f13' : '#0d0f13';
+        const foldLight = isInner ? '#24151b' : '#171a21';
+        const foldDark = '#08090c';
+        rect(ctx, 0, 0, w, h, base);
+        for (let x = 0; x < w; x++) {
+          const col = (x % 3 === 0) ? foldLight : ((x % 3 === 1) ? foldDark : base);
+          for (let y = 0; y < h; y++) {
+            pxl(ctx, x, y, col);
+          }
+        }
+      }
+
+      // Upper Cape Segment (13 x 11 x 0.8)
+      const upperCapeMesh = createTexturedBox(13, 11, 1, {
+        front: (ctx, w, h) => drawCapeCloth(ctx, w, h, true),
+        back: (ctx, w, h) => drawCapeCloth(ctx, w, h, false),
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#0b0d11')
+      }, { roughness: 0.88, metalness: 0.05 });
+      upperCapeMesh.scale.set(1.0, 1.0, 0.75);
+      upperCapeMesh.position.set(0, -5.5 * PX, 0);
+      capePivot.add(upperCapeMesh);
+
+      // Lower Cape Segment (14 x 12 x 0.8, hinged at bottom of Upper Cape)
+      const lowerCapePivot = new THREE.Group();
+      lowerCapePivot.position.set(0, -11.0 * PX, 0);
+      capePivot.add(lowerCapePivot);
+
+      const lowerCapeMesh = createTexturedBox(14, 12, 1, {
+        front: (ctx, w, h) => drawCapeCloth(ctx, w, h, true),
+        back: (ctx, w, h) => drawCapeCloth(ctx, w, h, false),
+        all: (ctx, w, h) => rect(ctx, 0, 0, w, h, '#0b0d11')
+      }, { roughness: 0.88, metalness: 0.05 });
+      lowerCapeMesh.scale.set(1.0, 1.0, 0.75);
+      lowerCapeMesh.position.set(0, -6.0 * PX, 0);
+      lowerCapePivot.add(lowerCapeMesh);
+
+      // ----------------------------------------------------------------------------
+      // G. SPECIAL ANIMATION DARK-SIDE FORCE PARTICLES (Pixel Cubes)
+      // ----------------------------------------------------------------------------
+      const forceParticlesGroup = new THREE.Group();
+      scene.add(forceParticlesGroup);
+
+      const forceParticles = [];
+      const particleGeo = new THREE.BoxGeometry(0.85 * PX, 0.85 * PX, 0.85 * PX);
+      for (let i = 0; i < 18; i++) {
+        const isCrimson = i % 2 === 0;
+        const pMat = new THREE.MeshBasicMaterial({
+          color: isCrimson ? '#ff1e2e' : '#3a0ca3',
+          transparent: true,
+          opacity: 0.0
+        });
+        const pMesh = new THREE.Mesh(particleGeo, pMat);
+        forceParticlesGroup.add(pMesh);
+        forceParticles.push({
+          mesh: pMesh,
+          angle: (i / 18) * Math.PI * 2,
+          radius: 0.45 + (i % 4) * 0.14,
+          speed: 1.8 + (i % 3) * 0.55,
+          yOffset: (i / 18) * 1.4
+        });
+      }
+
+      // ============================================================================
+      // 5. ANIMATION STATE MACHINE & SMOOTH INTERPOLATION RIGGING
+      // ============================================================================
+      let currentAnim = 'idle';
+      let animTime = 0;
+      let specialBlend = 0;
+
+      // Helper to smoothly damp current rotation/position toward target
+      function damp(current, target, lambda, dt) {
+        return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-lambda * dt));
+      }
+
+      function updateAnimations(dt) {
+        animTime += dt;
+
+        // Target pose values (in radians and world units)
+        let bodyY = 12 * PX;
+        let bodyRotX = 0, bodyRotY = 0, bodyRotZ = 0;
+        let torsoScaleY = 1.0, torsoRotX = 0, torsoRotY = 0;
+        let headRotX = 0, headRotY = 0, headRotZ = 0;
+
+        let rArmRotX = 0, rArmRotY = 0, rArmRotZ = 0;
+        let lArmRotX = 0, lArmRotY = 0, lArmRotZ = 0;
+        let saberRotX = Math.PI / 2, saberRotY = 0, saberRotZ = 0;
+
+        let rLegRotX = 0, rLegRotY = 0, rLegRotZ = 0;
+        let lLegRotX = 0, lLegRotY = 0, lLegRotZ = 0;
+
+        let capeUpperRotX = 0.08, capeUpperRotZ = 0;
+        let capeLowerRotX = 0.05;
+
+        // Subtle high-frequency lightsaber plasma flicker
+        const flicker = 0.94 + Math.sin(animTime * 43.0) * 0.04 + Math.cos(animTime * 29.0) * 0.03;
+        bladeMidMat.opacity = 0.80 * flicker;
+        bladeOuterMat.opacity = 0.34 * flicker;
+        saberLight.intensity = 1.65 * flicker;
+
+        // --------------------------------------------------------------------------
+        // 1. IDLE ANIMATION ("Imperial Presence")
+        // --------------------------------------------------------------------------
+        if (currentAnim === 'idle') {
+          // Deep mechanical respirator breathing (3.4s cycle)
+          const breath = Math.sin(animTime * 1.85);
+          torsoScaleY = 1.0 + breath * 0.014;
+          bodyY = (12 + breath * 0.12) * PX;
+
+          // Subtle menacing head scan
+          headRotY = Math.sin(animTime * 0.75) * 0.14;
+          headRotX = 0.04 + Math.cos(animTime * 1.85) * 0.025;
+
+          // Right arm holds crimson lightsaber angled diagonally downward across front (Ref 2 pose)
+          rArmRotX = -0.38 + breath * 0.03;
+          rArmRotZ = -0.10 - breath * 0.02;
+          rArmRotY = -0.18;
+          saberRotX = Math.PI / 2 + 0.42;
+          saberRotZ = 0.26;
+
+          // Left hand rests near belt buckle / hip
+          lArmRotX = -0.14 - breath * 0.02;
+          lArmRotZ = 0.09 + breath * 0.015;
+          lArmRotY = 0.12;
+
+          // Subtle cape breathing sway
+          capeUpperRotX = 0.07 + Math.sin(animTime * 1.4) * 0.025;
+          capeLowerRotX = 0.05 + Math.sin(animTime * 1.4 - 0.8) * 0.04;
+        }
+
+        // --------------------------------------------------------------------------
+        // 2. WALK ANIMATION ("Imperial March")
+        // --------------------------------------------------------------------------
+        else if (currentAnim === 'walk') {
+          const speed = 3.6;
+          const phase = animTime * speed;
+          const stride = Math.sin(phase);
+          const stepUp = Math.abs(Math.cos(phase));
+
+          // Weighted, deliberate vertical step bounce & forward lean
+          bodyY = (12 - stepUp * 0.42) * PX;
+          bodyRotX = 0.05;
+          torsoRotY = -stride * 0.10;
+
+          // Head stays locked on target with subtle counter-rotation
+          headRotY = stride * 0.07;
+          headRotX = 0.04 + stepUp * 0.02;
+
+          // Heavy alternating leg march
+          rLegRotX = stride * 0.48;
+          lLegRotX = -stride * 0.48;
+
+          // Commanding arm swing with ignited saber held at ready side
+          rArmRotX = -0.35 - stride * 0.26;
+          rArmRotZ = -0.14;
+          rArmRotY = -0.10;
+          saberRotX = Math.PI / 2 + 0.32;
+          saberRotZ = 0.14;
+
+          lArmRotX = stride * 0.34;
+          lArmRotZ = 0.10;
+
+          // Billowing two-segment cape follow-through
+          capeUpperRotX = 0.24 + stepUp * 0.08 + Math.sin(phase * 2 - 0.5) * 0.04;
+          capeUpperRotZ = stride * 0.05;
+          capeLowerRotX = 0.18 + Math.sin(phase * 2 - 1.3) * 0.10;
+        }
+
+        // --------------------------------------------------------------------------
+        // 3. ATTACK ANIMATION ("Sith Lightsaber Combo")
+        // --------------------------------------------------------------------------
+        else if (currentAnim === 'attack') {
+          // 2.0-second two-part cleave & backhand slash loop
+          const cycle = (animTime * 0.95) % 1.0;
+
+          if (cycle < 0.28) {
+            // Phase 1: Windup high overhead-right
+            const t = cycle / 0.28;
+            const ease = t * t * (3 - 2 * t);
+            bodyRotY = THREE.MathUtils.lerp(0, -0.42, ease);
+            torsoRotX = THREE.MathUtils.lerp(0, -0.12, ease);
+            headRotY = THREE.MathUtils.lerp(0, 0.32, ease);
+
+            rArmRotX = THREE.MathUtils.lerp(-0.4, -2.15, ease);
+            rArmRotZ = THREE.MathUtils.lerp(-0.1, -0.38, ease);
+            rArmRotY = THREE.MathUtils.lerp(-0.1, 0.35, ease);
+            saberRotX = THREE.MathUtils.lerp(Math.PI / 2 + 0.4, Math.PI / 2 - 0.25, ease);
+
+            lArmRotX = THREE.MathUtils.lerp(-0.15, -0.65, ease);
+            lArmRotZ = THREE.MathUtils.lerp(0.1, 0.35, ease);
+
+            rLegRotX = THREE.MathUtils.lerp(0, 0.22, ease);
+            lLegRotX = THREE.MathUtils.lerp(0, -0.22, ease);
+
+            capeUpperRotX = 0.15 + ease * 0.18;
+            capeLowerRotX = 0.12 + ease * 0.15;
+          } else if (cycle < 0.52) {
+            // Phase 2: Explosive diagonal downward cleave across body
+            const t = (cycle - 0.28) / 0.24;
+            const ease = 1 - Math.pow(1 - t, 3);
+            bodyRotY = THREE.MathUtils.lerp(-0.42, 0.48, ease);
+            torsoRotX = THREE.MathUtils.lerp(-0.12, 0.22, ease);
+            bodyY = (12 - Math.sin(t * Math.PI) * 0.7) * PX;
+            headRotY = THREE.MathUtils.lerp(0.32, -0.35, ease);
+
+            rArmRotX = THREE.MathUtils.lerp(-2.15, -0.35, ease);
+            rArmRotZ = THREE.MathUtils.lerp(-0.38, 0.45, ease);
+            rArmRotY = THREE.MathUtils.lerp(0.35, -0.65, ease);
+            saberRotX = THREE.MathUtils.lerp(Math.PI / 2 - 0.25, Math.PI / 2 + 0.65, ease);
+            saberRotZ = THREE.MathUtils.lerp(0, 0.55, ease);
+
+            lArmRotX = THREE.MathUtils.lerp(-0.65, 0.35, ease);
+            lArmRotZ = THREE.MathUtils.lerp(0.35, 0.45, ease);
+
+            rLegRotX = THREE.MathUtils.lerp(0.22, -0.32, ease);
+            lLegRotX = THREE.MathUtils.lerp(-0.22, 0.32, ease);
+
+            capeUpperRotX = 0.42;
+            capeUpperRotZ = -0.18 * ease;
+            capeLowerRotX = 0.38;
+            saberLight.intensity = 2.6;
+          } else if (cycle < 0.78) {
+            // Phase 3: Horizontal backhand riposte slash
+            const t = (cycle - 0.52) / 0.26;
+            const ease = t * t * (3 - 2 * t);
+            bodyRotY = THREE.MathUtils.lerp(0.48, -0.38, ease);
+            torsoRotX = THREE.MathUtils.lerp(0.22, 0.08, ease);
+            headRotY = THREE.MathUtils.lerp(-0.35, 0.28, ease);
+
+            rArmRotX = THREE.MathUtils.lerp(-0.35, -1.35, ease);
+            rArmRotZ = THREE.MathUtils.lerp(0.45, -0.75, ease);
+            rArmRotY = THREE.MathUtils.lerp(-0.65, 0.25, ease);
+            saberRotX = Math.MathUtils ? THREE.MathUtils.lerp(Math.PI / 2 + 0.65, Math.PI / 2 + 0.35, ease) : 1.9;
+            saberRotZ = THREE.MathUtils.lerp(0.55, -0.35, ease);
+
+            lArmRotX = THREE.MathUtils.lerp(0.35, -0.35, ease);
+            rLegRotX = THREE.MathUtils.lerp(-0.32, 0.15, ease);
+            lLegRotX = THREE.MathUtils.lerp(0.32, -0.15, ease);
+
+            capeUpperRotX = 0.48;
+            capeUpperRotZ = 0.22 * ease;
+            capeLowerRotX = 0.45;
+            saberLight.intensity = 2.4;
+          } else {
+            // Phase 4: Smooth recovery to Idle guard
+            const t = (cycle - 0.78) / 0.22;
+            const ease = t * t * (3 - 2 * t);
+            bodyRotY = THREE.MathUtils.lerp(-0.38, 0, ease);
+            torsoRotX = THREE.MathUtils.lerp(0.08, 0, ease);
+            headRotY = THREE.MathUtils.lerp(0.28, 0, ease);
+
+            rArmRotX = THREE.MathUtils.lerp(-1.35, -0.38, ease);
+            rArmRotZ = THREE.MathUtils.lerp(-0.75, -0.10, ease);
+            rArmRotY = THREE.MathUtils.lerp(0.25, -0.18, ease);
+            saberRotX = THREE.MathUtils.lerp(Math.PI / 2 + 0.35, Math.PI / 2 + 0.42, ease);
+            saberRotZ = THREE.MathUtils.lerp(-0.35, 0.26, ease);
+
+            lArmRotX = THREE.MathUtils.lerp(-0.35, -0.14, ease);
+            rLegRotX = THREE.MathUtils.lerp(0.15, 0, ease);
+            lLegRotX = THREE.MathUtils.lerp(-0.15, 0, ease);
+
+            capeUpperRotX = THREE.MathUtils.lerp(0.48, 0.08, ease);
+            capeLowerRotX = THREE.MathUtils.lerp(0.45, 0.05, ease);
+          }
+        }
+
+        // --------------------------------------------------------------------------
+        // 4. SPECIAL ANIMATION ("Force Choke & Dark Side Telekinesis")
+        // --------------------------------------------------------------------------
+        else if (currentAnim === 'special') {
+          const pulse = Math.sin(animTime * 3.2);
+          const tremor = Math.sin(animTime * 22.0) * 0.015;
+
+          // Commanding wide stance & slight levitating/telekinetic surge
+          bodyY = (12.15 + Math.sin(animTime * 2.2) * 0.2) * PX;
+          bodyRotY = -0.22;
+          torsoRotX = -0.06;
+
+          // Head tilted slightly with intense focus on the target
+          headRotY = 0.22;
+          headRotX = -0.06 + pulse * 0.03;
+          headRotZ = -0.05;
+
+          // Iconic Left Hand raised forward in Force Choke grip with subtle telekinetic tremor
+          lArmRotX = -1.48 + pulse * 0.05 + tremor;
+          lArmRotY = -0.18 + tremor;
+          lArmRotZ = 0.12;
+
+          // Right Arm holds crimson lightsaber swept back & low at the side, flaring crimson light
+          rArmRotX = 0.28 - pulse * 0.04;
+          rArmRotZ = -0.28;
+          rArmRotY = -0.22;
+          saberRotX = Math.PI / 2 + 0.35;
+          saberRotZ = -0.15;
+
+          // Braced stance
+          rLegRotZ = -0.06;
+          lLegRotZ = 0.06;
+          rLegRotX = 0.08;
+          lLegRotX = -0.08;
+
+          // Cape billows dramatically backward as if caught in a Dark Side vortex
+          capeUpperRotX = 0.38 + Math.sin(animTime * 4.5) * 0.08;
+          capeUpperRotZ = Math.cos(animTime * 3.2) * 0.06;
+          capeLowerRotX = 0.34 + Math.sin(animTime * 4.5 - 0.9) * 0.14;
+
+          saberLight.intensity = 2.4 + pulse * 0.45;
+        }
+
+        // Smoothly apply all target transforms via frame-rate independent damping
+        const k = 12.0;
+        bodyPivot.position.y = damp(bodyPivot.position.y, bodyY, k, dt);
+        bodyPivot.rotation.x = damp(bodyPivot.rotation.x, bodyRotX, k, dt);
+        bodyPivot.rotation.y = damp(bodyPivot.rotation.y, bodyRotY, k, dt);
+        bodyPivot.rotation.z = damp(bodyPivot.rotation.z, bodyRotZ, k, dt);
+
+        torsoGroup.scale.y = damp(torsoGroup.scale.y, torsoScaleY, k, dt);
+        torsoGroup.rotation.x = damp(torsoGroup.rotation.x, torsoRotX, k, dt);
+        torsoGroup.rotation.y = damp(torsoGroup.rotation.y, torsoRotY, k, dt);
+
+        headGroup.rotation.x = damp(headGroup.rotation.x, headRotX, k, dt);
+        headGroup.rotation.y = damp(headGroup.rotation.y, headRotY, k, dt);
+        headGroup.rotation.z = damp(headGroup.rotation.z, headRotZ, k, dt);
+
+        rightArmGroup.rotation.x = damp(rightArmGroup.rotation.x, rArmRotX, k, dt);
+        rightArmGroup.rotation.y = damp(rightArmGroup.rotation.y, rArmRotY, k, dt);
+        rightArmGroup.rotation.z = damp(rightArmGroup.rotation.z, rArmRotZ, k, dt);
+
+        leftArmGroup.rotation.x = damp(leftArmGroup.rotation.x, lArmRotX, k, dt);
+        leftArmGroup.rotation.y = damp(leftArmGroup.rotation.y, lArmRotY, k, dt);
+        leftArmGroup.rotation.z = damp(leftArmGroup.rotation.z, lArmRotZ, k, dt);
+
+        saberPivot.rotation.x = damp(saberPivot.rotation.x, saberRotX, k, dt);
+        saberPivot.rotation.y = damp(saberPivot.rotation.y, saberRotY, k, dt);
+        saberPivot.rotation.z = damp(saberPivot.rotation.z, saberRotZ, k, dt);
+
+        rightLegGroup.rotation.x = damp(rightLegGroup.rotation.x, rLegRotX, k, dt);
+        rightLegGroup.rotation.y = damp(rightLegGroup.rotation.y, rLegRotY, k, dt);
+        rightLegGroup.rotation.z = damp(rightLegGroup.rotation.z, rLegRotZ, k, dt);
+
+        leftLegGroup.rotation.x = damp(leftLegGroup.rotation.x, lLegRotX, k, dt);
+        leftLegGroup.rotation.y = damp(leftLegGroup.rotation.y, lLegRotY, k, dt);
+        leftLegGroup.rotation.z = damp(leftLegGroup.rotation.z, lLegRotZ, k, dt);
+
+        capePivot.rotation.x = damp(capePivot.rotation.x, capeUpperRotX, k * 0.8, dt);
+        capePivot.rotation.z = damp(capePivot.rotation.z, capeUpperRotZ, k * 0.8, dt);
+        lowerCapePivot.rotation.x = damp(lowerCapePivot.rotation.x, capeLowerRotX, k * 0.7, dt);
+
+        // Update Dark Side Force particles during 'Special' animation
+        specialBlend = damp(specialBlend, currentAnim === 'special' ? 1.0 : 0.0, 6.0, dt);
+        for (let i = 0; i < forceParticles.length; i++) {
+          const p = forceParticles[i];
+          if (specialBlend > 0.01) {
+            p.angle += p.speed * dt;
+            const yCycle = (p.yOffset + animTime * 0.55) % 1.8;
+            const radiusNow = p.radius + Math.sin(animTime * 2.5 + i) * 0.08;
+            p.mesh.position.set(
+              Math.cos(p.angle) * radiusNow,
+              0.15 + yCycle,
+              Math.sin(p.angle) * radiusNow
+            );
+            p.mesh.rotation.x += 2.0 * dt;
+            p.mesh.rotation.y += 2.5 * dt;
+            const fade = Math.sin((yCycle / 1.8) * Math.PI);
+            p.mesh.material.opacity = fade * specialBlend * 0.85;
+          } else {
+            p.mesh.material.opacity = 0;
+          }
+        }
+      }
+
+      // ============================================================================
+      // 6. UI INTERACTION & LOCKED 60 FPS RENDER LOOP
+      // ============================================================================
+      const animButtons = document.querySelectorAll('.anim-btn');
+      animButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          animButtons.forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentAnim = btn.getAttribute('data-anim');
+          animTime = 0;
+        });
+      });
+
+      // Smooth Camera Reset
+      let isResettingCamera = false;
+      document.getElementById('resetCameraBtn').addEventListener('click', () => {
+        isResettingCamera = true;
+      });
+
+      // Interrupt smooth camera reset if user grabs OrbitControls manually
+      controls.addEventListener('start', () => {
+        isResettingCamera = false;
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Fixed 60 FPS delta-time accumulator loop
+      const STEP = 1 / 60;
+      let lastTime = performance.now();
+      let accumulator = 0;
+
+      function animateLoop(now) {
+        requestAnimationFrame(animateLoop);
+
+        let frameTime = (now - lastTime) / 1000;
+        lastTime = now;
+        if (frameTime > 0.1) frameTime = 0.1;
+        accumulator += frameTime;
+
+        while (accumulator >= STEP) {
+          updateAnimations(STEP);
+
+          if (isResettingCamera) {
+            camera.position.lerp(DEFAULT_CAM_POS, 0.12);
+            controls.target.lerp(DEFAULT_CAM_TARGET, 0.12);
+            if (
+              camera.position.distanceTo(DEFAULT_CAM_POS) < 0.005 &&
+              controls.target.distanceTo(DEFAULT_CAM_TARGET) < 0.005
+            ) {
+              camera.position.copy(DEFAULT_CAM_POS);
+              controls.target.copy(DEFAULT_CAM_TARGET);
+              isResettingCamera = false;
+            }
+          }
+
+          accumulator -= STEP;
+        }
+
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      window.onload = function () {
+        lastTime = performance.now();
+        requestAnimationFrame(animateLoop);
+      };
+    })();
+  </script>
+</body>
+</html>

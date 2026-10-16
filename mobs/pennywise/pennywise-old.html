@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pennywise — Vanilla+ 16x16 Model Viewer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --pill-bg: rgba(20, 23, 30, 0.82);
+      --pill-border: rgba(255, 255, 255, 0.08);
+      --text-muted: #8b93a6;
+      --text-active: #f8fafc;
+      --accent-red: #b91c1c;
+      --accent-glow: rgba(220, 38, 38, 0.38);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    #viewport {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      outline: none;
+    }
+
+    .ui-bottom-bar {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      background: var(--pill-bg);
+      border: 1px solid var(--pill-border);
+      border-radius: 9999px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65);
+      z-index: 20;
+    }
+
+    .anim-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      padding: 9px 18px;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .anim-btn:hover {
+      color: var(--text-active);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .anim-btn.active {
+      color: var(--text-active);
+      background: var(--accent-red);
+      box-shadow: 0 2px 14px var(--accent-glow);
+    }
+
+    .reset-btn {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      width: 42px;
+      height: 42px;
+      border-radius: 9999px;
+      background: var(--pill-bg);
+      border: 1px solid var(--pill-border);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+      transition: all 0.2s ease;
+      z-index: 20;
+    }
+
+    .reset-btn:hover {
+      color: var(--text-active);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: scale(1.06);
+    }
+
+    .reset-btn:active {
+      transform: scale(0.96);
+    }
+
+    @media (max-width: 600px) {
+      .ui-bottom-bar {
+        bottom: 20px;
+        padding: 5px;
+        gap: 4px;
+      }
+      .anim-btn {
+        padding: 8px 13px;
+        font-size: 12px;
+      }
+      .reset-btn {
+        bottom: 20px;
+        right: 16px;
+        width: 38px;
+        height: 38px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="viewport"></canvas>
+
+  <nav class="ui-bottom-bar" aria-label="Animation Controls">
+    <button class="anim-btn active" data-anim="idle">Idle</button>
+    <button class="anim-btn" data-anim="walk">Walk</button>
+    <button class="anim-btn" data-anim="attack">Attack</button>
+    <button class="anim-btn" data-anim="special">Special</button>
+  </nav>
+
+  <button class="reset-btn" id="resetCamBtn" title="Reset Camera" aria-label="Reset Camera">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+      <path d="M3 3v5h5"/>
+    </svg>
+  </button>
+
+  <script>
+    window.onload = function () {
+      // 1 Minecraft block = 16x16x16 texels
+      const PX = 1 / 16;
+
+      // Lore-accurate IT (2017/2019) Pennywise color palette (Janie Bryant Victorian silk & porcelain makeup)
+      const PALETTE = {
+        // Cracked porcelain white paint
+        skinBase: '#dce4e8',
+        skinLight: '#edf3f6',
+        skinMid: '#c4d0d6',
+        skinShadow: '#9baab2',
+        skinDeep: '#75858e',
+        skinCrack: '#84939b',
+
+        // Crimson red greasepaint & pom-poms
+        redPaintDark: '#5e0808',
+        redPaintMain: '#8f1111',
+        redPaintBright: '#bc1818',
+        redBalloon: '#d91616',
+        redBalloonHi: '#ff4747',
+        redBalloonShade: '#8a0a0a',
+
+        // Glowing golden-amber Deadlights eyes
+        eyeGold: '#f59e0b',
+        eyeBright: '#fde047',
+        eyeIris: '#d97706',
+        eyePupil: '#140c06',
+        eyeSclera: '#d1d5db',
+
+        // Bozo-Victorian copper-orange hair
+        hairDark: '#6b2207',
+        hairBase: '#9e380e',
+        hairMid: '#c44d19',
+        hairLight: '#df6826',
+        hairHi: '#ec833d',
+
+        // Dusty antique silver-sage silk costume
+        silkLight: '#b8c4c1',
+        silkBase: '#9ca9a6',
+        silkMid: '#83918e',
+        silkShadow: '#697774',
+        silkDeep: '#4f5b59',
+        silkGrime: '#5c635c',
+
+        // Neck ruff & wrist lace (aged translucent gauze & cream pleats)
+        ruffBright: '#e3e8e6',
+        ruffLight: '#cdd5d2',
+        ruffMid: '#b0bbb7',
+        ruffDark: '#8b9692',
+        ruffEdge: '#f1f5f4',
+
+        // Twisted crimson & antique gold cord trim
+        cordRed: '#961414',
+        cordGold: '#c2b28f',
+        cordDark: '#4f0909',
+
+        // White gloves & teeth
+        gloveLight: '#eef2f1',
+        gloveMid: '#d5dddb',
+        gloveShade: '#acb8b5',
+        teethWhite: '#e6e2d6',
+        mouthDark: '#260507',
+        bootSole: '#232626'
+      };
+
+      function seededHash(x, y, seed = 1) {
+        let n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453;
+        return n - Math.floor(n);
+      }
+
+      function createPixelCanvas(w, h, drawFn) {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(w));
+        canvas.height = Math.max(1, Math.round(h));
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        drawFn(ctx, canvas.width, canvas.height);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.magFilter = THREE.NearestFilter;
+        tex.minFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        tex.needsUpdate = true;
+        return tex;
+      }
+
+      function setPx(ctx, x, y, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, 1, 1);
+      }
+
+      function fillRect(ctx, x, y, w, h, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, w, h);
+      }
+
+      function createBlockbenchBox(wPx, hPx, dPx, faceDrawers, options = {}) {
+        const w = Math.max(1, Math.round(wPx));
+        const h = Math.max(1, Math.round(hPx));
+        const d = Math.max(1, Math.round(dPx));
+
+        // Three.js BoxGeometry material order: +X (right), -X (left), +Y (top), -Y (bottom), +Z (front), -Z (back)
+        const faces = [
+          { key: 'right', w: d, h: h },
+          { key: 'left', w: d, h: h },
+          { key: 'top', w: w, h: d },
+          { key: 'bottom', w: w, h: d },
+          { key: 'front', w: w, h: h },
+          { key: 'back', w: w, h: h }
+        ];
+
+        const materials = faces.map((f) => {
+          const drawer = faceDrawers[f.key] || faceDrawers.all;
+          const tex = createPixelCanvas(f.w, f.h, (ctx, cw, ch) => {
+            if (drawer) drawer(ctx, cw, ch, f.key);
+          });
+          return new THREE.MeshStandardMaterial({
+            map: tex,
+            roughness: options.roughness !== undefined ? options.roughness : 0.84,
+            metalness: options.metalness !== undefined ? options.metalness : 0.05,
+            transparent: Boolean(options.transparent),
+            alphaTest: options.alphaTest || 0,
+            emissive: options.emissive ? new THREE.Color(options.emissive) : new THREE.Color(0x000000),
+            emissiveIntensity: options.emissiveIntensity || 0
+          });
+        });
+
+        const geom = new THREE.BoxGeometry(wPx * PX, hPx * PX, dPx * PX);
+        const mesh = new THREE.Mesh(geom, materials);
+        mesh.castShadow = options.castShadow !== false;
+        mesh.receiveShadow = options.receiveShadow !== false;
+        return mesh;
+      }
+
+      function paintPleatedSilk(ctx, w, h, seedOffset = 0, options = {}) {
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const n = seededHash(x, y, 10 + seedOffset);
+            // Vertical pleats every 2 texels
+            const pleat = x % 2 === 0;
+            let col = pleat ? PALETTE.silkBase : PALETTE.silkMid;
+            if (y === 0) col = PALETTE.silkLight;
+            if (y === h - 1) col = PALETTE.silkDeep;
+            if (n > 0.82) col = PALETTE.silkLight;
+            else if (n < 0.18) col = PALETTE.silkShadow;
+            if (options.grime && y > h * 0.65 && n < 0.42) col = PALETTE.silkGrime;
+            setPx(ctx, x, y, col);
+          }
+        }
+        // Optional subtle border shading
+        if (options.cordTop) {
+          for (let x = 0; x < w; x++) {
+            setPx(ctx, x, 0, x % 2 === 0 ? PALETTE.cordRed : PALETTE.cordGold);
+          }
+        }
+        if (options.cordBottom) {
+          for (let x = 0; x < w; x++) {
+            setPx(ctx, x, h - 1, x % 2 === 0 ? PALETTE.cordRed : PALETTE.cordGold);
+          }
+        }
+      }
+
+      function paintRuffGauze(ctx, w, h, seedOffset = 1) {
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const wave = (x + y) % 2 === 0;
+            const n = seededHash(x, y, 30 + seedOffset);
+            let col = wave ? PALETTE.ruffLight : PALETTE.ruffMid;
+            if (x === 0 || x === w - 1 || y === 0 || y === h - 1) {
+              col = (x + y) % 2 === 0 ? PALETTE.ruffBright : PALETTE.ruffDark;
+            } else if (n > 0.8) {
+              col = PALETTE.ruffBright;
+            } else if (n < 0.22) {
+              col = PALETTE.ruffDark;
+            }
+            setPx(ctx, x, y, col);
+          }
+        }
+      }
+
+      function paintCopperHair(ctx, w, h, seedOffset = 5) {
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const n = seededHash(x, y, 60 + seedOffset);
+            const strand = (x + Math.floor(y * 0.5)) % 2 === 0;
+            let col = strand ? PALETTE.hairMid : PALETTE.hairBase;
+            if (y === 0 || n > 0.84) col = PALETTE.hairHi;
+            else if (y < 2 || n > 0.65) col = PALETTE.hairLight;
+            else if (y === h - 1 || n < 0.2) col = PALETTE.hairDark;
+            setPx(ctx, x, y, col);
+          }
+        }
+      }
+
+      function paintCrackedPorcelain(ctx, w, h, seedOffset = 9) {
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const n = seededHash(x, y, 90 + seedOffset);
+            let col = PALETTE.skinBase;
+            if (y < 2 && x > 1 && x < w - 2) col = PALETTE.skinLight;
+            if (x === 0 || x === w - 1 || y === h - 1) col = PALETTE.skinMid;
+            if (n > 0.86) col = PALETTE.skinLight;
+            else if (n < 0.14) col = PALETTE.skinCrack;
+            setPx(ctx, x, y, col);
+          }
+        }
+      }
+
+      const canvas = document.getElementById('viewport');
+      const renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        powerPreference: 'high-performance'
+      });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.08;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f1115);
+      scene.fog = new THREE.FogExp2(0x0f1115, 0.085);
+
+      const camera = new THREE.PerspectiveCamera(
+        36,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        100
+      );
+      const DEFAULT_CAM_POS = new THREE.Vector3(0.45, 1.55, 4.35);
+      const DEFAULT_CAM_TARGET = new THREE.Vector3(0, 1.15, 0);
+      camera.position.copy(DEFAULT_CAM_POS);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.copy(DEFAULT_CAM_TARGET);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.065;
+      controls.minDistance = 1.8;
+      controls.maxDistance = 9.0;
+      controls.maxPolarAngle = Math.PI * 0.51;
+      controls.update();
+
+      // Atmospheric Derry sewer / storm-drain studio lighting
+      const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x1e242b, 0.72);
+      scene.add(hemiLight);
+
+      const keyLight = new THREE.DirectionalLight(0xf1f5f9, 1.15);
+      keyLight.position.set(2.8, 5.2, 3.6);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.width = 2048;
+      keyLight.shadow.mapSize.height = 2048;
+      keyLight.shadow.camera.near = 0.5;
+      keyLight.shadow.camera.far = 14;
+      const dCam = 2.6;
+      keyLight.shadow.camera.left = -dCam;
+      keyLight.shadow.camera.right = dCam;
+      keyLight.shadow.camera.top = dCam;
+      keyLight.shadow.camera.bottom = -dCam;
+      keyLight.shadow.bias = -0.0005;
+      scene.add(keyLight);
+
+      // Subtle cool rim light + eerie crimson bounce from the balloon
+      const rimLight = new THREE.DirectionalLight(0x64748b, 0.65);
+      rimLight.position.set(-3.2, 2.8, -2.6);
+      scene.add(rimLight);
+
+      const crimsonFill = new THREE.PointLight(0xdc2626, 0.42, 5.5);
+      crimsonFill.position.set(-0.6, 2.4, 1.2);
+      scene.add(crimsonFill);
+
+      // Soft shadow-receiving floor plane
+      const groundMat = new THREE.ShadowMaterial({ opacity: 0.42 });
+      const groundMesh = new THREE.Mesh(new THREE.PlaneGeometry(24, 24), groundMat);
+      groundMesh.rotation.x = -Math.PI / 2;
+      groundMesh.position.y = 0;
+      groundMesh.receiveShadow = true;
+      scene.add(groundMesh);
+
+      const rootGroup = new THREE.Group();
+      scene.add(rootGroup);
+
+      // Main pelvis/body root at waist height (12 pixels = 0.75u above ground)
+      const hipsPivot = new THREE.Group();
+      hipsPivot.position.set(0, 12 * PX, 0);
+      rootGroup.add(hipsPivot);
+
+      const torsoPivot = new THREE.Group();
+      torsoPivot.position.set(0, 0, 0);
+      hipsPivot.add(torsoPivot);
+
+      const neckPivot = new THREE.Group();
+      neckPivot.position.set(0, 12 * PX, 0);
+      torsoPivot.add(neckPivot);
+
+      const headPivot = new THREE.Group();
+      headPivot.position.set(0, 1.5 * PX, 0);
+      neckPivot.add(headPivot);
+
+      const leftShoulderPivot = new THREE.Group();
+      leftShoulderPivot.position.set(5.5 * PX, 11 * PX, 0);
+      torsoPivot.add(leftShoulderPivot);
+
+      const rightShoulderPivot = new THREE.Group();
+      rightShoulderPivot.position.set(-5.5 * PX, 11 * PX, 0);
+      torsoPivot.add(rightShoulderPivot);
+
+      const leftHipPivot = new THREE.Group();
+      leftHipPivot.position.set(2.3 * PX, 0, 0);
+      hipsPivot.add(leftHipPivot);
+
+      const rightHipPivot = new THREE.Group();
+      rightHipPivot.position.set(-2.3 * PX, 0, 0);
+      hipsPivot.add(rightHipPivot);
+
+      // 1. Lower Head (8x8x8 pixels) + Bulbous Upper Forehead Dome (9x5x8.5 pixels)
+      // Let's make the main head 8x9x8 and an extruded upper forehead dome so his iconic macrocephalic skull & furrowed brow match the photos!
+      const headMesh = createBlockbenchBox(8, 9, 8, {
+        front: (ctx, w, h) => {
+          // Base porcelain white face
+          paintCrackedPorcelain(ctx, w, h, 1);
+
+          // Heavy furrowed brow shading above eyes (row y=3)
+          fillRect(ctx, 1, 3, 6, 1, PALETTE.skinShadow);
+          setPx(ctx, 3, 3, PALETTE.skinDeep);
+          setPx(ctx, 4, 3, PALETTE.skinDeep);
+
+          // Dark sunken eye sockets (row y=4)
+          fillRect(ctx, 1, 4, 2, 1, PALETTE.eyePupil);
+          fillRect(ctx, 5, 4, 2, 1, PALETTE.eyePupil);
+          // Glowing golden-amber eyes looking slightly outward/upward
+          setPx(ctx, 1, 4, PALETTE.eyeBright);
+          setPx(ctx, 2, 4, PALETTE.eyeGold);
+          setPx(ctx, 5, 4, PALETTE.eyeGold);
+          setPx(ctx, 6, 4, PALETTE.eyeBright);
+
+          // Under-eye dark bags (row y=5)
+          setPx(ctx, 1, 5, PALETTE.skinDeep);
+          setPx(ctx, 6, 5, PALETTE.skinDeep);
+
+          // Iconic vertical crimson makeup lines:
+          // Starting on forehead (y=1,2), passing through eye (y=3,4,5), curving into mouth corners (y=6,7)
+          setPx(ctx, 2, 1, PALETTE.redPaintMain);
+          setPx(ctx, 5, 1, PALETTE.redPaintMain);
+          setPx(ctx, 2, 2, PALETTE.redPaintBright);
+          setPx(ctx, 5, 2, PALETTE.redPaintBright);
+          setPx(ctx, 2, 3, PALETTE.redPaintDark);
+          setPx(ctx, 5, 3, PALETTE.redPaintDark);
+          setPx(ctx, 1, 5, PALETTE.redPaintMain);
+          setPx(ctx, 6, 5, PALETTE.redPaintMain);
+          setPx(ctx, 1, 6, PALETTE.redPaintBright);
+          setPx(ctx, 6, 6, PALETTE.redPaintBright);
+
+          // Red clown nose tip at y=5, x=3..4
+          fillRect(ctx, 3, 5, 2, 1, PALETTE.redPaintBright);
+
+          // Sinister wide crimson smile & buck teeth (y=6,7,8)
+          fillRect(ctx, 2, 6, 4, 1, PALETTE.redPaintMain);
+          fillRect(ctx, 2, 7, 4, 1, PALETTE.mouthDark);
+          // Two prominent white buck teeth in the center
+          setPx(ctx, 3, 7, PALETTE.teethWhite);
+          setPx(ctx, 4, 7, PALETTE.teethWhite);
+          // Lower red lip & pointed chin shading
+          fillRect(ctx, 2, 8, 4, 1, PALETTE.redPaintDark);
+          setPx(ctx, 0, 8, PALETTE.skinShadow);
+          setPx(ctx, 7, 8, PALETTE.skinShadow);
+        },
+        left: (ctx, w, h) => {
+          paintCrackedPorcelain(ctx, w, h, 2);
+          // Sideburn/hairline shadow & ear detail
+          fillRect(ctx, 3, 4, 2, 3, PALETTE.skinShadow);
+          setPx(ctx, 3, 5, PALETTE.skinDeep);
+        },
+        right: (ctx, w, h) => {
+          paintCrackedPorcelain(ctx, w, h, 3);
+          fillRect(ctx, 3, 4, 2, 3, PALETTE.skinShadow);
+          setPx(ctx, 4, 5, PALETTE.skinDeep);
+        },
+        back: (ctx, w, h) => {
+          paintCopperHair(ctx, w, h, 4);
+        },
+        top: (ctx, w, h) => {
+          paintCrackedPorcelain(ctx, w, h, 5);
+        },
+        bottom: (ctx, w, h) => {
+          fillRect(ctx, 0, 0, w, h, PALETTE.skinDeep);
+        }
+      });
+      headMesh.position.set(0, 4.5 * PX, 0);
+      headPivot.add(headMesh);
+
+      // Extruded Upper Bulbous Cranium / Forehead (8.6 x 4 x 8.4) to capture Skarsgård's huge bulbous forehead & brow ridge
+      const craniumDome = createBlockbenchBox(9, 4, 8, {
+        front: (ctx, w, h) => {
+          paintCrackedPorcelain(ctx, w, h, 12);
+          // Subtle hairline cracks & top of the two red eye-lines reaching up the forehead
+          setPx(ctx, 3, 2, PALETTE.skinCrack);
+          setPx(ctx, 5, 1, PALETTE.skinCrack);
+          setPx(ctx, 2, 3, PALETTE.redPaintMain);
+          setPx(ctx, 6, 3, PALETTE.redPaintMain);
+          // Heavy overhanging brow shadow at bottom row
+          fillRect(ctx, 2, 3, 5, 1, PALETTE.skinMid);
+          setPx(ctx, 2, 3, PALETTE.redPaintMain);
+          setPx(ctx, 6, 3, PALETTE.redPaintMain);
+        },
+        left: (ctx, w, h) => paintCrackedPorcelain(ctx, w, h, 13),
+        right: (ctx, w, h) => paintCrackedPorcelain(ctx, w, h, 14),
+        back: (ctx, w, h) => paintCopperHair(ctx, w, h, 15),
+        top: (ctx, w, h) => {
+          paintCrackedPorcelain(ctx, w, h, 16);
+          // Copper hair encroaching from the back & sides of the crown
+          fillRect(ctx, 0, 0, w, 3, PALETTE.hairBase);
+        },
+        bottom: (ctx, w, h) => fillRect(ctx, 0, 0, w, h, PALETTE.skinShadow)
+      });
+      craniumDome.position.set(0, 7.6 * PX, 0.25 * PX);
+      headPivot.add(craniumDome);
+
+      // 3D Extruded Sculpted Red Clown Nose & Brow Ridge
+      const noseMesh = createBlockbenchBox(2, 1, 1, {
+        all: (ctx, w, h) => {
+          fillRect(ctx, 0, 0, w, h, PALETTE.redPaintBright);
+          setPx(ctx, 0, 0, PALETTE.redBalloonHi);
+        }
+      });
+      noseMesh.position.set(0, 3.6 * PX, 4.35 * PX);
+      headPivot.add(noseMesh);
+
+      // Left swept hair wing (stepped 2-layer volume so it flares outward like the photos)
+      const hairWingL1 = createBlockbenchBox(3, 6, 7, {
+        all: (ctx, w, h) => paintCopperHair(ctx, w, h, 21)
+      });
+      hairWingL1.position.set(5.1 * PX, 6.2 * PX, -0.3 * PX);
+      hairWingL1.rotation.z = -0.18;
+      headPivot.add(hairWingL1);
+
+      const hairWingL2 = createBlockbenchBox(2, 4, 5, {
+        all: (ctx, w, h) => paintCopperHair(ctx, w, h, 22)
+      });
+      hairWingL2.position.set(6.6 * PX, 7.2 * PX, -0.5 * PX);
+      hairWingL2.rotation.z = -0.32;
+      headPivot.add(hairWingL2);
+
+      // Right swept hair wing
+      const hairWingR1 = createBlockbenchBox(3, 6, 7, {
+        all: (ctx, w, h) => paintCopperHair(ctx, w, h, 23)
+      });
+      hairWingR1.position.set(-5.1 * PX, 6.2 * PX, -0.3 * PX);
+      hairWingR1.rotation.z = 0.18;
+      headPivot.add(hairWingR1);
+
+      const hairWingR2 = createBlockbenchBox(2, 4, 5, {
+        all: (ctx, w, h) => paintCopperHair(ctx, w, h, 24)
+      });
+      hairWingR2.position.set(-6.6 * PX, 7.2 * PX, -0.5 * PX);
+      hairWingR2.rotation.z = 0.32;
+      headPivot.add(hairWingR2);
+
+      // Top center pointed hair tuft at the very crown (seen in reference photo 1)
+      const hairCrownTuft = createBlockbenchBox(4, 3, 5, {
+        all: (ctx, w, h) => paintCopperHair(ctx, w, h, 25)
+      });
+      hairCrownTuft.position.set(0, 10.4 * PX, -0.8 * PX);
+      hairCrownTuft.rotation.x = -0.15;
+      headPivot.add(hairCrownTuft);
+
+      // Back hair volume covering the occiput
+      const hairBack = createBlockbenchBox(8, 7, 2, {
+        all: (ctx, w, h) => paintCopperHair(ctx, w, h, 26)
+      });
+      hairBack.position.set(0, 6.0 * PX, -4.4 * PX);
+      headPivot.add(hairBack);
+
+      // Upper dense pleated ruff ring framing the jaw
+      const ruffUpper = createBlockbenchBox(11, 2, 10, {
+        all: (ctx, w, h) => paintRuffGauze(ctx, w, h, 31)
+      });
+      ruffUpper.position.set(0, 1.2 * PX, 0.2 * PX);
+      neckPivot.add(ruffUpper);
+
+      // Middle wide flared pleated collar
+      const ruffMid = createBlockbenchBox(13, 2, 11, {
+        all: (ctx, w, h) => paintRuffGauze(ctx, w, h, 32)
+      });
+      ruffMid.position.set(0, -0.2 * PX, 0.3 * PX);
+      neckPivot.add(ruffMid);
+
+      // Lower draped ruffled bib over the upper chest (matches the cascading collar in both photos)
+      const ruffLower = createBlockbenchBox(10, 2, 9, {
+        all: (ctx, w, h) => paintRuffGauze(ctx, w, h, 33)
+      });
+      ruffLower.position.set(0, -1.6 * PX, 0.6 * PX);
+      neckPivot.add(ruffLower);
+
+      // Main Torso Doublet (8x12x4 pixels)
+      const torsoMesh = createBlockbenchBox(8, 12, 4, {
+        front: (ctx, w, h) => {
+          paintPleatedSilk(ctx, w, h, 40);
+          // Diagonal/chevron silk pleat lines converging toward center seam
+          for (let y = 1; y < 8; y++) {
+            setPx(ctx, 1, y, PALETTE.silkShadow);
+            setPx(ctx, 6, y, PALETTE.silkShadow);
+            setPx(ctx, 3, y, PALETTE.silkDeep);
+            setPx(ctx, 4, y, PALETTE.silkLight);
+          }
+          // High-waist cummerbund / belt (rows y=8..11) with crimson-and-gold twisted cord borders
+          fillRect(ctx, 0, 8, w, 4, PALETTE.silkMid);
+          for (let x = 0; x < w; x++) {
+            // Top & bottom twisted red/gold cord trim around the waist
+            setPx(ctx, x, 8, x % 2 === 0 ? PALETTE.cordRed : PALETTE.cordGold);
+            setPx(ctx, x, 11, x % 2 === 0 ? PALETTE.cordGold : PALETTE.cordRed);
+            if (x % 2 === 0) setPx(ctx, x, 9, PALETTE.silkShadow);
+          }
+        },
+        back: (ctx, w, h) => {
+          paintPleatedSilk(ctx, w, h, 41);
+          for (let x = 0; x < w; x++) {
+            setPx(ctx, x, 8, x % 2 === 0 ? PALETTE.cordRed : PALETTE.cordGold);
+            setPx(ctx, x, 11, x % 2 === 0 ? PALETTE.cordGold : PALETTE.cordRed);
+          }
+        },
+        left: (ctx, w, h) => {
+          paintPleatedSilk(ctx, w, h, 42);
+          for (let x = 0; x < w; x++) {
+            setPx(ctx, x, 8, x % 2 === 0 ? PALETTE.cordRed : PALETTE.cordGold);
+            setPx(ctx, x, 11, x % 2 === 0 ? PALETTE.cordGold : PALETTE.cordRed);
+          }
+        },
+        right: (ctx, w, h) => {
+          paintPleatedSilk(ctx, w, h, 43);
+          for (let x = 0; x < w; x++) {
+            setPx(ctx, x, 8, x % 2 === 0 ? PALETTE.cordRed : PALETTE.cordGold);
+            setPx(ctx, x, 11, x % 2 === 0 ? PALETTE.cordGold : PALETTE.cordRed);
+          }
+        },
+        top: (ctx, w, h) => paintPleatedSilk(ctx, w, h, 44),
+        bottom: (ctx, w, h) => paintPleatedSilk(ctx, w, h, 45)
+      });
+      torsoMesh.position.set(0, 6 * PX, 0);
+      torsoPivot.add(torsoMesh);
+
+      // 3 Extruded Fluffy Crimson Pom-Poms down the front center (chest, mid-torso, waist belt)
+      const pomHeights = [8.2 * PX, 5.2 * PX, 2.2 * PX];
+      pomHeights.forEach((py, idx) => {
+        const pom = createBlockbenchBox(2, 2, 1.5, {
+          all: (ctx, w, h) => {
+            for (let y = 0; y < h; y++) {
+              for (let x = 0; x < w; x++) {
+                const isCorner = (x === 0 || x === w - 1) && (y === 0 || y === h - 1);
+                setPx(ctx, x, y, isCorner ? PALETTE.redPaintDark : (x + y + idx) % 2 === 0 ? PALETTE.redPaintBright : PALETTE.redPaintMain);
+              }
+            }
+          }
+        });
+        pom.position.set((idx === 1 ? -0.15 : 0) * PX, py, 2.5 * PX);
+        torsoPivot.add(pom);
+      });
+
+      // Flared Peplum Skirt / Tunic Flaps below the waist belt (split in center like Reference 1)
+      const peplumLeft = createBlockbenchBox(4.5, 5, 5, {
+        all: (ctx, w, h) => paintPleatedSilk(ctx, w, h, 46, { grime: true })
+      });
+      peplumLeft.position.set(2.3 * PX, -2.0 * PX, 0);
+      peplumLeft.rotation.z = -0.1;
+      torsoPivot.add(peplumLeft);
+
+      const peplumRight = createBlockbenchBox(4.5, 5, 5, {
+        all: (ctx, w, h) => paintPleatedSilk(ctx, w, h, 47, { grime: true })
+      });
+      peplumRight.position.set(-2.3 * PX, -2.0 * PX, 0);
+      peplumRight.rotation.z = 0.1;
+      torsoPivot.add(peplumRight);
+
+      function buildPennywiseArm(isLeft) {
+        const armGroup = new THREE.Group();
+        const sideSign = isLeft ? 1 : -1;
+
+        // 1. Huge Upper Shoulder Melon Puff (5x5x5 pixels)
+        const upperPuff = createBlockbenchBox(5, 5, 5, {
+          all: (ctx, w, h) => paintPleatedSilk(ctx, w, h, isLeft ? 50 : 51, { cordBottom: true })
+        });
+        upperPuff.position.set(sideSign * 0.4 * PX, -2.0 * PX, 0);
+        armGroup.add(upperPuff);
+
+        // 2. Secondary Mid-Arm Puff cinched with crimson twisted cord (4x3x4 pixels)
+        const midPuff = createBlockbenchBox(4, 3, 4, {
+          all: (ctx, w, h) => paintPleatedSilk(ctx, w, h, isLeft ? 52 : 53, { cordTop: true, cordBottom: true })
+        });
+        midPuff.position.set(sideSign * 0.2 * PX, -5.8 * PX, 0);
+        armGroup.add(midPuff);
+
+        // 3. Fitted Forearm Pivot for elbow articulation
+        const forearmPivot = new THREE.Group();
+        forearmPivot.position.set(sideSign * 0.2 * PX, -7.2 * PX, 0);
+        armGroup.add(forearmPivot);
+
+        // Fitted wrapped forearm sleeve (3x3x3 pixels) with crimson wrist cord
+        const forearmSleeve = createBlockbenchBox(3, 3, 3, {
+          all: (ctx, w, h) => paintPleatedSilk(ctx, w, h, isLeft ? 54 : 55, { cordBottom: true })
+        });
+        forearmSleeve.position.set(0, -1.5 * PX, 0);
+        forearmPivot.add(forearmSleeve);
+
+        // 4. Dramatic Flared Ruffled Lace Wrist Cuff (4.5 x 2.5 x 4.5 pixels)
+        const wristCuff = createBlockbenchBox(4, 2, 4, {
+          all: (ctx, w, h) => paintRuffGauze(ctx, w, h, isLeft ? 56 : 57)
+        });
+        wristCuff.position.set(0, -3.4 * PX, 0);
+        forearmPivot.add(wristCuff);
+
+        // Extra long cascading lace drape on the underside of the wrist (visible in Reference 1 on his raised left arm!)
+        const laceDrape = createBlockbenchBox(3, 4, 2, {
+          all: (ctx, w, h) => paintRuffGauze(ctx, w, h, isLeft ? 58 : 59)
+        });
+        laceDrape.position.set(0, -4.8 * PX, -1.2 * PX);
+        laceDrape.rotation.x = 0.22;
+        forearmPivot.add(laceDrape);
+
+        // 5. White Gloved Hand (3x3x3 pixels)
+        const handMesh = createBlockbenchBox(3, 3, 3, {
+          all: (ctx, w, h) => {
+            for (let y = 0; y < h; y++) {
+              for (let x = 0; x < w; x++) {
+                const col = y === 0 ? PALETTE.gloveShade : (x + y) % 2 === 0 ? PALETTE.gloveLight : PALETTE.gloveMid;
+                setPx(ctx, x, y, col);
+              }
+            }
+          }
+        });
+        handMesh.position.set(0, -4.8 * PX, 0.2 * PX);
+        forearmPivot.add(handMesh);
+
+        return { armGroup, forearmPivot, handMesh };
+      }
+
+      const leftArmRig = buildPennywiseArm(true);
+      leftShoulderPivot.add(leftArmRig.armGroup);
+
+      const rightArmRig = buildPennywiseArm(false);
+      rightShoulderPivot.add(rightArmRig.armGroup);
+
+      const balloonAnchor = new THREE.Group();
+      // Attach string anchor to left gloved hand (matching Reference 1 where his left hand pinches the white string in front of his chest)
+      balloonAnchor.position.set(0, -5.0 * PX, 1.2 * PX);
+      leftArmRig.forearmPivot.add(balloonAnchor);
+
+      // We also create a world-aligned / counter-rotated group for the string + balloon so it always floats upright toward the sky!
+      const balloonUprightGroup = new THREE.Group();
+      balloonAnchor.add(balloonUprightGroup);
+
+      // Thin crisp white balloon string (0.35 x 22 x 0.35 pixels) passing right in front of his face like the two photos
+      const stringMesh = createBlockbenchBox(1, 22, 1, {
+        all: (ctx, w, h) => fillRect(ctx, 0, 0, w, h, '#e2e8f0')
+      });
+      stringMesh.scale.set(0.28, 1.0, 0.28);
+      stringMesh.position.set(0, 11 * PX, 0);
+      balloonUprightGroup.add(stringMesh);
+
+      // Balloon Pivot at top of string
+      const balloonHeadGroup = new THREE.Group();
+      balloonHeadGroup.position.set(0, 22 * PX, 0);
+      balloonUprightGroup.add(balloonHeadGroup);
+
+      // Balloon Knot (2x1x2 pixels)
+      const balloonKnot = createBlockbenchBox(2, 1, 2, {
+        all: (ctx, w, h) => fillRect(ctx, 0, 0, w, h, PALETTE.redBalloonShade)
+      });
+      balloonKnot.position.set(0, 0.5 * PX, 0);
+      balloonHeadGroup.add(balloonKnot);
+
+      // Lower tapered neck of the red balloon (6x2x6)
+      const balloonNeck = createBlockbenchBox(6, 2, 6, {
+        all: (ctx, w, h) => fillRect(ctx, 0, 0, w, h, PALETTE.redBalloon)
+      });
+      balloonNeck.position.set(0, 2.0 * PX, 0);
+      balloonHeadGroup.add(balloonNeck);
+
+      // Main bulbous glossy Red Balloon (9x9x9 pixels)
+      const balloonMain = createBlockbenchBox(9, 9, 9, {
+        all: (ctx, w, h, faceKey) => {
+          for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+              let col = PALETTE.redBalloon;
+              if (y >= h - 2 || x === 0 || x === w - 1) col = PALETTE.redBalloonShade;
+              if (faceKey === 'front' && x >= 2 && x <= 3 && y >= 2 && y <= 4) col = PALETTE.redBalloonHi;
+              if (faceKey === 'top' && x >= 2 && x <= 6 && y >= 2 && y <= 6) col = PALETTE.redBalloonHi;
+              setPx(ctx, x, y, col);
+            }
+          }
+        }
+      }, { roughness: 0.22, metalness: 0.08 });
+      balloonMain.position.set(0, 7.2 * PX, 0);
+      balloonHeadGroup.add(balloonMain);
+
+      function buildPennywiseLeg(isLeft) {
+        const legGroup = new THREE.Group();
+
+        // 1. Baggy Pleated Pumpkin Breeches / Pantaloons (4.5 x 6 x 4.5 pixels)
+        const breeches = createBlockbenchBox(5, 6, 5, {
+          front: (ctx, w, h) => {
+            paintPleatedSilk(ctx, w, h, isLeft ? 70 : 71, { grime: true, cordBottom: true });
+            // Vertical crimson-and-grey decorative seam down the front of the breeches
+            for (let y = 0; y < h - 1; y++) {
+              setPx(ctx, 2, y, y % 2 === 0 ? PALETTE.cordRed : PALETTE.silkDeep);
+            }
+          },
+          all: (ctx, w, h) => paintPleatedSilk(ctx, w, h, isLeft ? 72 : 73, { grime: true, cordBottom: true })
+        });
+        breeches.scale.set(0.92, 1.0, 0.92);
+        breeches.position.set(0, -3.5 * PX, 0);
+        legGroup.add(breeches);
+
+        // 2. Lower Leg / Knee Pivot
+        const kneePivot = new THREE.Group();
+        kneePivot.position.set(0, -6.5 * PX, 0);
+        legGroup.add(kneePivot);
+
+        // Lower Shin Stocking & Boot Shaft (3.5 x 4 x 3.5 pixels)
+        const shinMesh = createBlockbenchBox(4, 4, 4, {
+          all: (ctx, w, h) => {
+            for (let y = 0; y < h; y++) {
+              for (let x = 0; x < w; x++) {
+                let col = x % 2 === 0 ? PALETTE.silkShadow : PALETTE.silkDeep;
+                if (y >= 2) col = PALETTE.silkGrime;
+                setPx(ctx, x, y, col);
+              }
+            }
+          }
+        });
+        shinMesh.scale.set(0.88, 1.0, 0.88);
+        shinMesh.position.set(0, -2.0 * PX, 0);
+        kneePivot.add(shinMesh);
+
+        // 3. Weathered Victorian Clown Shoe (4 x 2 x 5.5 pixels) with crimson trim & toe pom-pom
+        const bootMesh = createBlockbenchBox(4, 2, 6, {
+          all: (ctx, w, h) => {
+            for (let y = 0; y < h; y++) {
+              for (let x = 0; x < w; x++) {
+                let col = y === h - 1 ? PALETTE.bootSole : PALETTE.silkMid;
+                if (y === 0 && (x === 0 || x === w - 1)) col = PALETTE.cordRed;
+                setPx(ctx, x, y, col);
+              }
+            }
+          }
+        });
+        bootMesh.position.set(0, -4.5 * PX, 0.8 * PX);
+        kneePivot.add(bootMesh);
+
+        // Small crimson pom-pom on the tip of the clown boot
+        const bootPom = createBlockbenchBox(1.5, 1.5, 1.5, {
+          all: (ctx, w, h) => fillRect(ctx, 0, 0, w, h, PALETTE.redPaintBright)
+        });
+        bootPom.position.set(0, -3.6 * PX, 3.6 * PX);
+        kneePivot.add(bootPom);
+
+        return { legGroup, kneePivot };
+      }
+
+      const leftLegRig = buildPennywiseLeg(true);
+      leftHipPivot.add(leftLegRig.legGroup);
+
+      const rightLegRig = buildPennywiseLeg(false);
+      rightHipPivot.add(rightLegRig.legGroup);
+
+      let currentAnim = 'idle';
+      let animTime = 0;
+      let attackPhaseTime = 0;
+
+      const animButtons = document.querySelectorAll('.anim-btn');
+      animButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          animButtons.forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentAnim = btn.getAttribute('data-anim');
+          if (currentAnim === 'attack') {
+            attackPhaseTime = 0;
+          }
+        });
+      });
+
+      document.getElementById('resetCamBtn').addEventListener('click', () => {
+        camera.position.copy(DEFAULT_CAM_POS);
+        controls.target.copy(DEFAULT_CAM_TARGET);
+        controls.update();
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      function damp(current, target, lambda, dt) {
+        return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-lambda * dt));
+      }
+
+      function updateAnimations(dt) {
+        animTime += dt;
+        const t = animTime;
+
+        // Target pose values
+        let hipsY = 12 * PX;
+        let hipsX = 0;
+        let hipsRotX = 0, hipsRotY = 0, hipsRotZ = 0;
+
+        let torsoRotX = 0, torsoRotY = 0, torsoRotZ = 0;
+        let neckRotX = 0, neckRotY = 0, neckRotZ = 0;
+        let headRotX = 0, headRotY = 0, headRotZ = 0;
+
+        let lArmX = 0, lArmY = 0, lArmZ = 0;
+        let lForearmX = 0, lForearmY = 0;
+        let rArmX = 0, rArmY = 0, rArmZ = 0;
+        let rForearmX = 0;
+
+        let lLegX = 0, lLegZ = 0, lKneeX = 0;
+        let rLegX = 0, rLegZ = 0, rKneeX = 0;
+
+        if (currentAnim === 'idle') {
+          // "You'll Float Too" — Predatory hunched crouch, head tilted down staring up from beneath heavy brow, left hand holding balloon string right across his face
+          const breath = Math.sin(t * 2.1);
+          const creepyTwitch = Math.sin(t * 17.0) * Math.pow(Math.max(0, Math.sin(t * 1.3)), 10) * 0.09;
+
+          hipsY = (11.8 + breath * 0.18) * PX;
+          torsoRotX = 0.14 + breath * 0.025;
+          torsoRotY = Math.sin(t * 0.8) * 0.05;
+
+          // Iconic Kubrick stare: head pitched down + slightly cocked sideways
+          headRotX = 0.22 - breath * 0.02;
+          headRotZ = -0.09 + Math.sin(t * 1.1) * 0.04 + creepyTwitch;
+          headRotY = Math.sin(t * 0.7) * 0.08 + creepyTwitch * 0.6;
+
+          // Left arm raised across chest pinching the balloon string (exact pose from Reference 1!)
+          lArmX = -0.58 + breath * 0.03;
+          lArmY = -0.38;
+          lArmZ = 0.18;
+          lForearmX = -0.78 + Math.sin(t * 1.8) * 0.04;
+          lForearmY = -0.35;
+
+          // Right arm hanging loosely with slight predatory curl
+          rArmX = 0.12 - breath * 0.03;
+          rArmZ = -0.14 - Math.sin(t * 2.1) * 0.03;
+          rForearmX = -0.32;
+
+          lLegX = -0.08;
+          lLegZ = 0.04;
+          lKneeX = 0.16;
+          rLegX = 0.06;
+          rLegZ = -0.04;
+          rKneeX = 0.12;
+        } else if (currentAnim === 'walk') {
+          // Stalking Derry sewer stride — heavy asymmetrical lurch while head stays locked forward
+          const wSpeed = 5.4;
+          const phase = t * wSpeed;
+          const stride = Math.sin(phase);
+          const bounce = Math.abs(Math.cos(phase));
+
+          hipsY = (11.4 + bounce * 0.85) * PX;
+          hipsX = Math.cos(phase) * 0.45 * PX;
+          hipsRotZ = Math.cos(phase) * 0.06;
+          hipsRotY = stride * 0.14;
+
+          torsoRotX = 0.22 + bounce * 0.05;
+          torsoRotY = -stride * 0.16;
+          torsoRotZ = -Math.cos(phase) * 0.05;
+
+          // Head stays eerily stabilized on the viewer while body lurches underneath
+          headRotX = 0.18 - bounce * 0.04;
+          headRotY = stride * 0.05;
+          headRotZ = Math.cos(phase) * 0.11;
+
+          // Left hand holds balloon steady in front while walking
+          lArmX = -0.52 + stride * 0.15;
+          lArmY = -0.32;
+          lArmZ = 0.2;
+          lForearmX = -0.72;
+
+          // Right arm swings wide and menacingly
+          rArmX = stride * 0.68;
+          rArmZ = -0.18 - bounce * 0.08;
+          rForearmX = -0.38 - Math.max(0, -stride) * 0.35;
+
+          lLegX = -stride * 0.65;
+          lKneeX = Math.max(0, stride) * 0.65 + 0.1;
+          rLegX = stride * 0.65;
+          rKneeX = Math.max(0, -stride) * 0.65 + 0.1;
+        } else if (currentAnim === 'attack') {
+          // Deadlights Lunge & Claw Slash
+          attackPhaseTime += dt;
+          const cycle = attackPhaseTime % 1.8;
+
+          if (cycle < 0.45) {
+            // Wind-up coil backward with violent head shudder
+            const p = cycle / 0.45;
+            const shudder = Math.sin(t * 45) * 0.08 * p;
+            hipsY = (12.0 - p * 1.4) * PX;
+            torsoRotX = -0.25 * p;
+            torsoRotY = 0.38 * p;
+            headRotX = -0.2 * p + shudder;
+            headRotZ = 0.22 * p + shudder;
+
+            rArmX = -1.45 * p;
+            rArmZ = -0.55 * p;
+            rForearmX = -0.55 * p;
+
+            lArmX = -0.45;
+            lForearmX = -0.65;
+            lLegX = 0.25 * p;
+            rLegX = -0.35 * p;
+          } else if (cycle < 0.85) {
+            // Explosive forward lunge & bite/slash
+            const p = (cycle - 0.45) / 0.4;
+            hipsY = (10.6 + Math.sin(p * Math.PI) * 1.8) * PX;
+            torsoRotX = 0.52;
+            torsoRotY = -0.42;
+            neckRotX = 0.25;
+            headRotX = -0.32 + Math.sin(t * 38) * 0.05;
+            headRotZ = -0.15;
+
+            rArmX = -1.1 + p * 1.65;
+            rArmY = 0.25;
+            rArmZ = -0.2;
+            rForearmX = -0.15;
+
+            lArmX = -0.25;
+            lArmZ = 0.42;
+            lForearmX = -0.55;
+
+            lLegX = -0.45;
+            lKneeX = 0.55;
+            rLegX = 0.48;
+            rKneeX = 0.25;
+          } else {
+            // Sinister recovery recoil
+            const p = (cycle - 0.85) / 0.95;
+            const ease = 1 - p;
+            hipsY = 11.8 * PX;
+            torsoRotX = 0.16 + ease * 0.22;
+            torsoRotY = -0.15 * ease;
+            headRotX = 0.22;
+            headRotZ = -0.12 * ease;
+
+            rArmX = 0.25 * ease;
+            rArmZ = -0.22;
+            rForearmX = -0.35;
+
+            lArmX = -0.55;
+            lArmY = -0.35;
+            lForearmX = -0.75;
+          }
+        } else if (currentAnim === 'special') {
+          // Iconic IT (2017) Pennywise Vaudeville Jig Dance!
+          // Frantic high-speed leg kicks side-to-side + pumping shoulders while his head remains eerily dead-still & locked on the camera!
+          const dSpeed = 14.5;
+          const beat = t * dSpeed;
+          const kick = Math.sin(beat);
+          const hop = Math.abs(Math.cos(beat));
+
+          hipsY = (11.6 + hop * 1.6) * PX;
+          hipsX = kick * 1.1 * PX;
+          hipsRotZ = kick * 0.16;
+
+          torsoRotX = 0.16;
+          torsoRotZ = -kick * 0.14;
+          torsoRotY = Math.sin(beat * 0.5) * 0.15;
+
+          // Counter-rotate head so it stays unnervingly locked forward despite the frantic body dance!
+          headRotX = 0.20;
+          headRotZ = kick * 0.02;
+          headRotY = -torsoRotY * 0.9;
+
+          // Both arms pumping rapidly up and down in a maniacal circus jig
+          lArmX = -0.48 + Math.cos(beat) * 0.35;
+          lArmZ = 0.38 + hop * 0.25;
+          lForearmX = -0.85 + Math.sin(beat) * 0.25;
+
+          rArmX = -0.35 - Math.cos(beat) * 0.55;
+          rArmZ = -0.45 - hop * 0.32;
+          rForearmX = -0.95 - Math.sin(beat) * 0.35;
+
+          // Wild side-to-side high kicks
+          if (kick > 0) {
+            lLegX = -0.65 * kick;
+            lLegZ = 0.55 * kick;
+            lKneeX = 0.75 * (1 - kick);
+            rLegX = 0.15;
+            rLegZ = -0.1;
+            rKneeX = 0.25;
+          } else {
+            const k = -kick;
+            rLegX = -0.65 * k;
+            rLegZ = -0.55 * k;
+            rKneeX = 0.75 * (1 - k);
+            lLegX = 0.15;
+            lLegZ = 0.1;
+            lKneeX = 0.25;
+          }
+        }
+
+        // Smooth exponential damping across all joints
+        const s = 14.0;
+        hipsPivot.position.y = damp(hipsPivot.position.y, hipsY, s, dt);
+        hipsPivot.position.x = damp(hipsPivot.position.x, hipsX, s, dt);
+        hipsPivot.rotation.x = damp(hipsPivot.rotation.x, hipsRotX, s, dt);
+        hipsPivot.rotation.y = damp(hipsPivot.rotation.y, hipsRotY, s, dt);
+        hipsPivot.rotation.z = damp(hipsPivot.rotation.z, hipsRotZ, s, dt);
+
+        torsoPivot.rotation.x = damp(torsoPivot.rotation.x, torsoRotX, s, dt);
+        torsoPivot.rotation.y = damp(torsoPivot.rotation.y, torsoRotY, s, dt);
+        torsoPivot.rotation.z = damp(torsoPivot.rotation.z, torsoRotZ, s, dt);
+
+        neckPivot.rotation.x = damp(neckPivot.rotation.x, neckRotX, s, dt);
+        neckPivot.rotation.y = damp(neckPivot.rotation.y, neckRotY, s, dt);
+        neckPivot.rotation.z = damp(neckPivot.rotation.z, neckRotZ, s, dt);
+
+        headPivot.rotation.x = damp(headPivot.rotation.x, headRotX, s, dt);
+        headPivot.rotation.y = damp(headPivot.rotation.y, headRotY, s, dt);
+        headPivot.rotation.z = damp(headPivot.rotation.z, headRotZ, s, dt);
+
+        leftShoulderPivot.rotation.x = damp(leftShoulderPivot.rotation.x, lArmX, s, dt);
+        leftShoulderPivot.rotation.y = damp(leftShoulderPivot.rotation.y, lArmY, s, dt);
+        leftShoulderPivot.rotation.z = damp(leftShoulderPivot.rotation.z, lArmZ, s, dt);
+        leftArmRig.forearmPivot.rotation.x = damp(leftArmRig.forearmPivot.rotation.x, lForearmX, s, dt);
+        leftArmRig.forearmPivot.rotation.y = damp(leftArmRig.forearmPivot.rotation.y, lForearmY, s, dt);
+
+        rightShoulderPivot.rotation.x = damp(rightShoulderPivot.rotation.x, rArmX, s, dt);
+        rightShoulderPivot.rotation.y = damp(rightShoulderPivot.rotation.y, rArmY, s, dt);
+        rightShoulderPivot.rotation.z = damp(rightShoulderPivot.rotation.z, rArmZ, s, dt);
+        rightArmRig.forearmPivot.rotation.x = damp(rightArmRig.forearmPivot.rotation.x, rForearmX, s, dt);
+
+        leftHipPivot.rotation.x = damp(leftHipPivot.rotation.x, lLegX, s, dt);
+        leftHipPivot.rotation.z = damp(leftHipPivot.rotation.z, lLegZ, s, dt);
+        leftLegRig.kneePivot.rotation.x = damp(leftLegRig.kneePivot.rotation.x, lKneeX, s, dt);
+
+        rightHipPivot.rotation.x = damp(rightHipPivot.rotation.x, rLegX, s, dt);
+        rightHipPivot.rotation.z = damp(rightHipPivot.rotation.z, rLegZ, s, dt);
+        rightLegRig.kneePivot.rotation.x = damp(rightLegRig.kneePivot.rotation.x, rKneeX, s, dt);
+
+        // Keep the red balloon floating upright in world space with buoyant secondary bobbing
+        balloonUprightGroup.rotation.set(0, 0, 0);
+        balloonAnchor.updateMatrixWorld();
+        const parentWorldQuat = new THREE.Quaternion();
+        balloonAnchor.getWorldQuaternion(parentWorldQuat);
+        balloonUprightGroup.quaternion.copy(parentWorldQuat.invert());
+
+        // Gentle buoyant sway on the balloon string & balloon head
+        balloonUprightGroup.rotation.z += Math.sin(t * 1.7) * 0.035;
+        balloonUprightGroup.rotation.x += Math.cos(t * 1.3) * 0.025;
+        balloonHeadGroup.position.y = (22 + Math.sin(t * 2.4) * 0.45) * PX;
+      }
+
+      let lastTime = performance.now();
+      const STEP = 1 / 60;
+      let accumulator = 0;
+
+      function animate(now) {
+        requestAnimationFrame(animate);
+
+        const frameDelta = Math.min((now - lastTime) / 1000, 0.1);
+        lastTime = now;
+        accumulator += frameDelta;
+
+        while (accumulator >= STEP) {
+          updateAnimations(STEP);
+          accumulator -= STEP;
+        }
+
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>
