@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 18:52
+- Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`): shoulders no longer sink into the torso.
+  - Arm IK: both arm bones turn the shortest way (no twist around the arm), so the square arm boxes stay square to the chest; the old frame twisted them ~45 degrees and pushed the shoulder corners up to 1.7 texel into the torso (tie straighten, axe chop, nail gun, card).
+  - Gestures fade in and out along a path bowed forward (fist never cuts the coat) and blend as rotations.
+  - Every sleeve (also solid ones) ends flush with the arm on the inner side; pistol arm straight out in front of the shoulder.
+  - Shoulder vs torso: 0 over 0.3 texel in all 10 outfits (was 0.85-1.7); shoulder top vs head: max 0.29 texel.
+
 ## 2026-10-16 17:45
 - Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`):
   - 10 outfits: overcoat, raincoat, black suit (new, from the references), suspenders, pinstripe, grey suit + business card, camel blazer, blue shirt + red tie, tuxedo, shorts. Walkman fit, orange headphones and blue clip removed.

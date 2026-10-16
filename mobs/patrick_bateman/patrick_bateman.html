@@ -874,8 +874,8 @@ function place(spec){
   if(up.startsWith('arm_')&&at[1]+size[1]>0) size[1]=-at[1];
   // ...and stay flush with the arm on the inner side (toward the torso, hidden): a raised arm's shoulder corner
   // then never reaches under the head (0.03 left so the two faces do not flicker)
-  const shell=spec.mode==='cut'||spec.mode==='glass';
-  if(up.startsWith('arm_')&&shell&&size[0]>4.5){ const trim=(size[0]-4)/2-0.03; size[0]-=trim; if(spec.side==='L') at[0]+=trim; }
+  // (every sleeve up to the shoulder, shell or solid; wrist parts like the watch keep their size)
+  if(up.startsWith('arm_')&&spec.side&&at[1]+size[1]>-0.01&&size[0]>4.05){ const trim=(size[0]-4)/2-0.03; size[0]-=trim; if(spec.side==='L') at[0]+=trim; }
   splitAt({...spec,at,size},up,low,-6);
 }
 let fitKey='overcoat', fit=FITS[fitKey];
@@ -939,9 +939,11 @@ const SWING={gun:0.6,axe:0.32,nail:0.55,phone:0.8,card:0.8,none:1};       // rig
 /* ───────── Arm IK ─────────
    Puts a fist (5 below the elbow) on a target in torso space (texels; torso pivot = hips, shoulders at (±6, SH_Y, 0),
    chest front z = 2, coat front z = 2.5). Upper arm 6, forearm to fist 5. pole = the way the elbow points.
-   The forearm bends toward its local +z, as in the FK poses. Scratch objects are reused: no new objects per frame. */
+   Returns [upper arm Euler x,y,z, forearm Euler x,y,z] (ZYX). Scratch objects are reused: no new objects per frame. */
 const _ik={u:new THREE.Vector3(),p:new THREE.Vector3(),a:new THREE.Vector3(),c:new THREE.Vector3(),
-  x:new THREE.Vector3(),y:new THREE.Vector3(),m:new THREE.Matrix4(),e:new THREE.Euler(0,0,0,'ZYX')};
+  down:new THREE.Vector3(0,-1,0),fwd:new THREE.Vector3(0,0,1),qa:new THREE.Quaternion(),
+  fold:new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI/2,0,0,'ZYX')),qf:new THREE.Quaternion(),qi:new THREE.Quaternion(),
+  e:new THREE.Euler(0,0,0,'ZYX')};
 function armIK(side,t,pole){
   const k=_ik, L1=6, L2=5;
   k.u.set(t[0]-(side==='right'?-6:6),t[1]-SH_Y,t[2]);
@@ -950,24 +952,56 @@ function armIK(side,t,pole){
   const inner=Math.acos(clamp((L1*L1+L2*L2-d*d)/(2*L1*L2),-1,1));            // elbow angle
   k.p.set(...pole); k.p.addScaledVector(k.u,-k.p.dot(k.u)).normalize();       // pole across the shoulder->fist line
   k.a.copy(k.u).multiplyScalar(Math.cos(a1)).addScaledVector(k.p,Math.sin(a1)); // upper arm direction
-  k.c.copy(k.u).multiplyScalar(d).addScaledVector(k.a,-L1);                   // elbow -> fist
-  k.c.addScaledVector(k.a,-k.c.dot(k.a));
-  if(k.c.lengthSq()<1e-8) k.c.copy(k.p).negate(); k.c.normalize();           // forearm bends toward local +z
-  k.y.copy(k.a).negate();                                                     // the arm hangs along local -y
-  k.x.crossVectors(k.y,k.c);
-  k.m.makeBasis(k.x,k.y,k.c); k.e.setFromRotationMatrix(k.m,'ZYX');
-  return [k.e.x,k.e.y,k.e.z,-(Math.PI-inner)];
+  // Shoulder guard: an upper arm that points in toward the chest pushes the shoulder block into the torso. Turn
+  // the pole outward (around the shoulder->fist line) by how far in it points; max(0,x)^2 keeps it smooth.
+  const sx=side==='right'?-1:1, inw=Math.max(0,-sx*k.a.x);
+  if(inw>0){
+    k.c.set(sx,0,0).addScaledVector(k.u,-sx*k.u.x);
+    if(k.c.lengthSq()>1e-6){
+      k.p.addScaledVector(k.c.normalize(),40*inw*inw).normalize();
+      k.a.copy(k.u).multiplyScalar(Math.cos(a1)).addScaledVector(k.p,Math.sin(a1));
+    }
+  }
+  k.c.copy(k.u).multiplyScalar(d).addScaledVector(k.a,-L1).normalize();       // elbow -> fist
+  // Both bones turn the shortest way from hanging straight down (no twist around their own length): the square
+  // arm boxes keep their faces square to the torso. A box twisted ~45 degrees around the arm (the old bend-plane
+  // frame) pushed its corners ~0.8 into the chest at the shoulder.
+  k.qa.setFromUnitVectors(k.down,k.a); k.e.setFromQuaternion(k.qa,'ZYX');
+  const ax=k.e.x, ay=k.e.y, az=k.e.z;
+  k.c.applyQuaternion(k.qi.copy(k.qa).invert());                              // forearm direction in upper-arm space
+  // forearm: the shortest turn from "folded straight forward" (an elbow never points back, so this never flips;
+  // from "hanging down" it flipped when the hand came up beside the head)
+  k.qf.setFromUnitVectors(k.fwd,k.c).multiply(k.fold); k.e.setFromQuaternion(k.qf,'ZYX');
+  return [ax,ay,az,k.e.x,k.e.y,k.e.z];
 }
 // Euler angles unwrapped by ± 2π to the side of ref: blends take the short way, no full-turn flip between frames
 const wrapNear=(v,r)=>v-TAU*Math.round((v-r)/TAU);
 const wrapEuler=(e,ref)=>[0,1,2].map(i=>wrapNear(e[i],ref[i]));
-// Blend an IK gesture over the FK pose of one arm (w 0..1, smooth curves only)
+// Blend an IK gesture over the FK pose of one arm (w 0..1, smooth curves only).
+// The fist travels from where the FK pose has it to the target on a line bowed out and forward (fists in front of
+// the body never cut through it), solved by IK all the way; each bone then eases from the FK rotation to that solution (slerp,
+// faster than w, so at w = 0 it is exactly the FK pose).
+const _gb={q0:new THREE.Quaternion(),q1:new THREE.Quaternion(),e:new THREE.Euler(0,0,0,'ZYX'),
+  v:new THREE.Vector3(),f:new THREE.Vector3(),tg:[0,0,0]};
 function gesture(Q,side,w,t,pole){
   if(w<=1e-4) return;
-  const g=armIK(side,t,pole), A=Q.r[`arm_${side}`]||(Q.r[`arm_${side}`]=[0,0,0]), F=Q.r[`forearm_${side}`]||(Q.r[`forearm_${side}`]=[0,0,0]);
-  const n=wrapEuler(g,A);
-  for(let i=0;i<3;i++) A[i]+=(n[i]-A[i])*w;
-  F[0]+=(g[3]-F[0])*w; F[1]*=1-w; F[2]*=1-w;
+  const A=Q.r[`arm_${side}`]||(Q.r[`arm_${side}`]=[0,0,0]), F=Q.r[`forearm_${side}`]||(Q.r[`forearm_${side}`]=[0,0,0]);
+  const k=_gb;
+  // FK fist position (torso space): shoulder + upper arm (6 down) + forearm (5 down)
+  k.q0.setFromEuler(k.e.set(A[0],A[1],A[2],'ZYX')); k.q1.setFromEuler(k.e.set(F[0],F[1],F[2],'ZYX'));
+  k.f.set(0,-5,0).applyQuaternion(k.q1); k.f.y-=6; k.f.applyQuaternion(k.q0);
+  k.f.x+=side==='right'?-6:6; k.f.y+=SH_Y;
+  const far=Math.hypot(t[0]-k.f.x,t[1]-k.f.y,t[2]-k.f.z);                    // short moves bow less (no forward pop)
+  const bulge=4*w*(1-w)*2.5*far*far/(far*far+16), sx=side==='right'?-1:1;    // the path bows out and forward: the
+  for(let i=0;i<3;i++) k.tg[i]=k.f.getComponent(i)+(t[i]-k.f.getComponent(i))*w;   // fist (4.5 wide) clears the coat corner
+  k.tg[0]+=0.3*sx*bulge; k.tg[2]+=bulge;                                     // mostly forward: out lifts the shoulder
+  const g=armIK(side,k.tg,pole), b=1-(1-w)**3;
+  // blend each bone as a rotation (slerp from the FK pose), not per Euler angle; unwrapped toward the FK angles
+  for(const [E,o] of [[A,0],[F,3]]){
+    k.q0.setFromEuler(k.e.set(E[0],E[1],E[2],'ZYX')); k.q1.setFromEuler(k.e.set(g[o],g[o+1],g[o+2],'ZYX'));
+    k.q0.slerp(k.q1,b); k.e.setFromQuaternion(k.q0,'ZYX');
+    const n=wrapEuler([k.e.x,k.e.y,k.e.z],E); E[0]=n[0]; E[1]=n[1]; E[2]=n[2];
+  }
 }
 const bump=(t,c,w)=>pos2(Math.cos(clamp((t-c)/w,-1,1)*Math.PI/2));        // smooth pulse around c, half width w
 
@@ -1059,7 +1093,9 @@ const USE_FN={
   gun(t,Q){
     const w=GUN_W(t), r=recoil(t,USE.gun.shots);
     Q.r.body[1]+=0.05*w; Q.r.body[0]-=0.02*r;                               // barely turns: the coat stays square at the waist
-    gesture(Q,'right',w,[-10.2,10.8+1.1*r,9.6-0.7*r],[-0.3,-1,0.05]);         // arm straight out, a bit wide of the head
+    // arm straight out in front of the right shoulder: no swing out to the side (that tilts the shoulder top up
+    // under the head)
+    gesture(Q,'right',w,[-6.4,10.8+1.1*r,10.4-0.7*r],[-0.3,-1,0.05]);
     aimProp(Q,w*w,[0.02,0.03,1],[0,-1,0]);                                   // gun level, straight ahead, top up (turns while the arm is up)
     Q.r.arm_left[0]+=0.12*w; Q.r.arm_left[2]+=0.06*w;
     Q.r.head[0]+=0.02*w-0.03*r;                                              // head straight: the eyes look down the barrel
@@ -1109,7 +1145,7 @@ const USE_FN={
     const w=CARD_W(t), tw=bump(t,2.15,0.1)+bump(t,2.4,0.1);
     gesture(Q,'right',w,[-2.4,9.6,8.2],[-1,-0.7,0]);                           // card up in front of his chest
     aimProp(Q,1,CARD_D(w),CARD_B(w));                                           // card upright, its printed face to the front
-    Q.r.head[0]+=0.08*w; Q.r.head[1]-=0.12*w;                                   // looks down at it
+    Q.r.head[0]+=0.08*w; Q.r.head[1]-=0.04*w;                                   // looks down at it (eyes do the turn)
     Q.f.look=-0.55*w; Q.f.glance=-0.35*w; Q.f.smile=0.4*w*(1-0.6*bump(t,2.3,0.4)); Q.f.arch=0.7*w; Q.f.squint=0.2*w;
     Q.f.twitch=tw; Q.f.brow=0.1*w;
     Q.fw=useFw(t,USE.card.T);
@@ -1135,7 +1171,7 @@ const idleTracks=tracks({
   'f.smile':[[0,0.06],[4.2,0.25],[4.7,0.12],[4.95,0.95],[5.5,0.95],[5.8,0.05],[10,0.06]],
   'f.teeth':[[0,0],[4.7,0],[4.95,0.8],[5.5,0.8],[5.8,0],[10,0]],
   'f.glance':[[0,0],[7.5,0],[8.0,-0.7],[9.2,-0.6],[9.8,0],[10,0]],
-  'fw':[[0,1],[1.4,1],[1.9,0],[4.2,0],[4.7,1],[7.3,1],[7.8,0.15],[9.6,0.15],[10,1]],   // off before the arm comes up
+  'fw':[[0,1],[1.0,1],[1.6,0],[4.2,0],[4.7,1],[7.3,1],[7.8,0.15],[9.6,0.15],[10,1]],   // off before the arm comes up
 });
 const idleTie=curve([[0,0],[2.0,0],[2.6,1],[3.6,1],[4.3,0],[10,0]]);
 
@@ -1423,7 +1459,7 @@ function updateFace(dt,fo,F){
   for(const f of FACE_KEYS) S.face[f]+=(fo[f]-S.face[f])*filt(dt,16);
   const fc=S.face, bl=S.blink;
   let blinkV=0;
-  if(bl.t<0){ bl.wait-=dt*(1-0.97*clamp(fc.stare,0,1)); if(bl.wait<=0){        // the dead stare holds the blinks back
+  if(bl.t<0){ bl.wait-=dt*(1-0.97*clamp(fc.stare,0,1)); if(bl.wait<=0){          // the dead stare holds the blinks back
     bl.t=0; bl.again=Math.random()<0.18; } }
   if(bl.t>=0){
     bl.t+=dt;

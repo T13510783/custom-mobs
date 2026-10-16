@@ -1,14 +1,13 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 17:45
-**Request:** Bateman: fix shooting waist, better animations, axe hang + two-handed chop, cigar toggle, phone call, glasses, black suit + headphones (toggle per outfit), web references, many outfits, no clipping, more expressions, own Idle 2, Dance button.
+**Date:** 2026-10-16 18:52
+**Request:** Fix the clipping, especially at Bateman's shoulders.
 
 **Done:**
-- 10 outfits, headphones + cigar toggles per outfit (`H` / `C`), Dance (key 5), 5 extra expressions (shared `MobViewer.addExpressions`).
-- Root bug: `aimProp` slerp returned the rest grip, so no item ever turned. Fixed; axe chop, phone call, card, pistol aim redesigned and checked by renders + probes.
-- Clip test: 7 outfits 0 clips; 3 touches up to 0.13 texel left (headphones forced on / mouse in a corner). Per-frame steps checked (item turns max ~0.15 rad at 120 fps).
-- Live UI test: keys 1-5, H, C, 10 outfit dots, expression menu, bones button: all work.
+- Cause: the arm IK twisted the upper-arm box ~45 degrees around the arm (it followed the elbow bend), so its corners went up to 1.7 texel into the chest.
+- Fix in `mobs/patrick_bateman/patrick_bateman.html`: twist-free arm IK, gestures fade along a forward-bowed path with rotation blending, all sleeves flush on the inner side, pistol arm straight forward.
+- Checked: clip test all 10 outfits (shoulder in torso: none over 0.3 texel, was 0.85-1.7; shoulder top under the head max 0.29), per-frame step probe, renders.
 
-**Files:** `mobs/patrick_bateman/patrick_bateman.html`, `mobs/_shared/viewer.js`, `CLAUDE.md`, docs.
+**Files:** `mobs/patrick_bateman/patrick_bateman.html`, docs.
 
-**Next:** `.bbmodel` + mod only when the user says Bateman is final. No release (viewer only).
+**Next:** PR #36 still waits for "merge". No release (viewer only).
