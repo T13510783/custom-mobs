@@ -11,7 +11,7 @@ version = mod_version
 group = mod_group_id
 
 base {
-    archivesName = jar_name   // custom-mobs-<version>.jar (in build/libs)
+    archivesName = jar_name   // sindicate-<version>.jar (in build/libs)
 }
 
 // Mojang ships Java 21 with Minecraft 1.21.1.
@@ -100,8 +100,8 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 /* ───────── Keep the newest 5 builds ─────────
-   Every build copies the jar to ../builds as custom-mobs-<version>-<date-time>.jar; ../builds and build/libs each keep
-   only their newest 5 jars (older ones, also the old theking-*.jar names, are deleted). GitHub Releases keep every version. */
+   Every build copies the jar to ../builds as sindicate-<version>-<date-time>.jar; ../builds and build/libs each keep
+   only their newest 5 jars (older ones, also the old theking-* / custom-mobs-* names, are deleted). GitHub Releases keep every version. */
 tasks.register('copyToBuilds') {
     dependsOn tasks.named('jar')
     doLast {
@@ -112,7 +112,7 @@ tasks.register('copyToBuilds') {
         def target = new File(outDir, "${jar_name}-${mod_version}-${stamp}.jar")
         target.bytes = jarFile.bytes
         def keep5 = { File dir ->
-            def jars = (dir.listFiles() ?: []).findAll { (it.name.startsWith("${jar_name}-") || it.name.startsWith("${mod_id}-")) && it.name.endsWith('.jar') }
+            def jars = (dir.listFiles() ?: []).findAll { ["${jar_name}-", "custom-mobs-", "theking-"].any { pre -> it.name.startsWith(pre) } && it.name.endsWith('.jar') }
                     .sort { -it.lastModified() }
             jars.drop(5).each { it.delete() }
             Math.min(jars.size(), 5)

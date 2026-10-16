@@ -1,7 +1,7 @@
 package com.custommobs.homelander;
 
 import com.custommobs.homelander.entity.HomelanderEntity;
-import com.custommobs.theking.TheKingMod;
+import com.custommobs.Sindicate;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -16,7 +16,6 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.common.DeferredSpawnEggItem;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
@@ -28,9 +27,9 @@ import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 /* ───────── Homelander: main class (both sides) ─────────
-   Same mod (jar + mod id "theking") as The King, own namespace "homelander" for its entity, egg, sounds, tab,
+   Part of the Sindicate mod (jar + mod id "sindicate"), own namespace "homelander" for its entity, egg, sounds, tab,
    textures and data. Registers the mob, its spawn egg, its sounds, its creative tab, spawn rules and the config. */
-@Mod(TheKingMod.MODID)
+@Mod(Sindicate.MODID)
 public final class HomelanderMod {
     public static final String NS = "homelander";
 
@@ -79,7 +78,6 @@ public final class HomelanderMod {
         ITEMS.register(modBus);
         SOUNDS.register(modBus);
         TABS.register(modBus);
-        container.registerConfig(ModConfig.Type.COMMON, HomelanderConfig.COMMON_SPEC, "theking-homelander-common.toml");
         modBus.addListener(EntityAttributeCreationEvent.class, e -> e.put(HOMELANDER.get(), HomelanderEntity.createAttributes().build()));
         modBus.addListener(RegisterSpawnPlacementsEvent.class, e -> e.register(HOMELANDER.get(), SpawnPlacementTypes.ON_GROUND,
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, HomelanderEntity::checkHomelanderSpawnRules, RegisterSpawnPlacementsEvent.Operation.REPLACE));

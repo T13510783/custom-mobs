@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-16 10:00
+- Mod renamed to **Sindicate** (`mod/gradle.properties`, `mod/src/main/java/com/custommobs/Sindicate*.java`): mod id `sindicate`, jar `sindicate-<version>.jar`, lang in `assets/sindicate/`.
+- Config screen (`mod/src/main/java/com/custommobs/config/`): Client/Server tabs, search, hover tooltips, reset buttons, key `K`; server settings per world, synced, editable by operators only when `opsCanEditConfig` is on.
+- Homelander (`HomelanderEntity.java`, `HomelanderAttackGoal.java`): 75 HP, 20 armor + 8 toughness, neutral by default, boss bar, many server options; American-flag spawn egg texture.
+- `.env.example` is no longer in git (`.gitignore`); rules: README update at every push, repo is public (`CLAUDE.md`, `AGENTS.md`, `README.md`).
+
 ## 2026-10-16 09:40
 - Homelander in the mod (`mod/src/main/java/com/custommobs/homelander/`): entity, spawn egg, creative tab, sounds + subtitles, config, en_us + nl_nl, loot table, biome modifier (`mod/src/main/resources/assets|data/homelander/`).
   - 1:1 runtime: cloth cape port (`anim/HomelanderCloth.java`), new step() port (`anim/HomelanderAnimator.java`); trace test: body within 2e-5 rad, cape exact while calm and at rest.

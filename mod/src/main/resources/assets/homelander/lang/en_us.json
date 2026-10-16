@@ -7,13 +7,5 @@
   "subtitles.homelander.grab": "Homelander grabs a throat",
   "subtitles.homelander.whoosh": "Something flies through the air",
   "subtitles.homelander.slap": "Homelander smacks someone's ears",
-  "subtitles.homelander.laser": "Heat vision burns",
-  "theking.configuration.attackPlayers": "Attack players",
-  "theking.configuration.attackVillagers": "Attack villagers",
-  "theking.configuration.attackAllMobs": "Attack all other mobs",
-  "theking.configuration.grabs": "Throat grabs (throw, throat laser)",
-  "theking.configuration.heatVision": "Heat vision",
-  "theking.configuration.headClap": "Head clap",
-  "theking.configuration.damageMultiplier": "Damage multiplier",
-  "theking.configuration.laserSetsBlocksOnFire": "Heat vision sets blocks on fire"
+  "subtitles.homelander.laser": "Heat vision burns"
 }

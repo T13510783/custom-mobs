@@ -37,6 +37,20 @@ Shared viewer UI for every mob: `mobs/_shared/` (`viewer.css`, `viewer.js`, `vie
 | `tools/` | test and helper scripts (PowerShell) |
 | `docs/` | changelog, latest session, who works on what |
 
+## The Sindicate mod
+
+All finished mobs live in one NeoForge mod: **Sindicate** (mod id `sindicate`, jar `sindicate-<version>.jar`).
+
+| What | Where |
+|---|---|
+| Spawn eggs | Creative tab per mob ("The King", "Homelander") + vanilla Spawn Eggs tab |
+| Settings | Mods list -> Sindicate -> Config, or key `K` in game. Tabs **Client** (your sounds, effects, updates) and **Server** (mob behaviour, per world). Hover any option for a short explanation. |
+| Who may change server settings | singleplayer: you. Multiplayer: operators, only when `Operators can edit config` is on |
+| Updates | "Check for Updates" button (title + pause screen), auto check every 5 min, changelog, "Update and Close Game" |
+
+Homelander: 75 HP, diamond-armor protection (20 armor, 8 toughness), neutral by default (only fights back when hurt).
+Attacks: punch, heat vision, throat grab + throw, throat grab + point-blank laser, ear clap. Boss bar while he fights.
+
 ## Run the mod
 
 Needs JDK 21. In PowerShell:
@@ -46,13 +60,13 @@ cd mod
 .\gradlew.bat runClient
 ```
 
-`.\gradlew.bat build` makes `custom-mobs-<version>.jar` (copied to `builds/`, newest 5 kept) and runs the tests.
+`.\gradlew.bat build` makes `sindicate-<version>.jar` (copied to `builds/`, newest 5 kept) and runs the tests.
 Releases: `tools\release.ps1 -Bump` (version `X.Y.Z-alpha`, changelog `mod/release_notes.md`); in game: "Check for Updates".
-Copy `.env.example` to `.env` for your own local paths.
+Local paths go in your own `.env` (git-ignored, never committed; `.env.example` is local too): `JAVA_HOME` (JDK 21), `BRAVE_EXE` (headless browser for `tools\cdp.ps1`), `MC_MODS_DIR` (your Minecraft `mods` folder).
 
 ## Working together
 
-Repo: https://github.com/T13510783/custom-mobs (private, owner `T13510783`).
+Repo: https://github.com/T13510783/custom-mobs (public, owner `T13510783`).
 Several people (and their AI assistants) work in this repo. **Read [`AGENTS.md`](AGENTS.md) first.**
 The rules for making mobs are in [`CLAUDE.md`](CLAUDE.md) (its "GitHub repo and teamwork" section has the short version).
 
@@ -69,11 +83,12 @@ gh repo clone T13510783/custom-mobs
 
 | Rule | Why |
 |---|---|
-| Never commit to `main`; use your own branch `<github-name>/<topic>` (lowercase) | `main` is not locked by GitHub (free private repo) |
+| Never commit to `main`; use your own branch `<github-name>/<topic>` (lowercase) | `main` has no branch protection |
 | Write who works on what in `docs/working_on.md`; one person per mob page | big HTML pages conflict badly |
 | After every change: commit -> fetch -> `pull --rebase` + `rebase origin/main` -> push | everyone stays in sync, small conflicts only |
 | Done + tested -> pull request (PR) -> squash merge | `main` gets one clean commit per topic |
 | Conflict -> backup branch first, keep both sides, re-test | no lost work |
 | Binary file conflict (png, ogg, mp4, jar) -> keep both, ask | git can't merge those |
 | No force push, no `reset --hard` / `clean -fd` on others' work | can delete someone's work |
-| No `.env`, tokens, build output, files over 50 MB | secrets stay private, GitHub limit is 100 MB |
+| No `.env` / `.env.example`, tokens, build output, files over 50 MB | secrets stay private, GitHub limit is 100 MB |
+| Update this README before every push | it is the repo's front page on GitHub |

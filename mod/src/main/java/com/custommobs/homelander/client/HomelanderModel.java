@@ -1,5 +1,6 @@
 package com.custommobs.homelander.client;
 
+import com.custommobs.config.SindicateConfig;
 import com.custommobs.homelander.anim.HomelanderAnimator;
 import com.custommobs.homelander.anim.HomelanderCloth;
 import com.custommobs.homelander.anim.HomelanderData;
@@ -122,7 +123,7 @@ public final class HomelanderModel extends EntityModel<HomelanderEntity> {
         }
         drawCape(vc, pose, a.cloth, d.cloth.thick, light, overlay, color);
         // Glow + beams last: asking for another buffer finishes the body's batch (vc is not used after this).
-        if (buffers != null && (a.glowOpacity > 0.003 || a.laserOpacity > 0.003)) drawGlow(buffers.getBuffer(RenderType.lightning()), pose, a, d);
+        if (buffers != null && ((a.glowOpacity > 0.003 && SindicateConfig.HL_EYE_GLOW.get()) || a.laserOpacity > 0.003)) drawGlow(buffers.getBuffer(RenderType.lightning()), pose, a, d);
         ps.popPose();
     }
 
@@ -195,7 +196,7 @@ public final class HomelanderModel extends EntityModel<HomelanderEntity> {
         int head = d.bone("head");
         double[] m = a.mat;
         int o = head * 12;
-        for (int e = 0; e < d.eyesX.length; e++) {
+        for (int e = 0; e < d.eyesX.length && SindicateConfig.HL_EYE_GLOW.get(); e++) {
             double x = d.eyesX[e];
             // red eye white, hot core on the pupil (moves with the glance), faint halo
             plane(g, pose, m, o, x, d.eyeY, d.glowZ[0], d.glowSize[0], d.glowColors[0], a.glowOpacity);
@@ -219,9 +220,9 @@ public final class HomelanderModel extends EntityModel<HomelanderEntity> {
                 if (target != null) aimAt(target, a);
                 len = clipLength(a, 16);
             }
-            double w = a.beamW;
-            beam(g, pose, len, d.beamR[0] * w / 16, d.beamSides[0], d.beamColors[0], a.laserOpacity);
-            beam(g, pose, len, d.beamR[1] * w / 16, d.beamSides[1], d.beamColors[1], a.laserCoreOpacity);
+            double w = a.beamW, bright = SindicateConfig.HL_BEAM_BRIGHTNESS.get();
+            beam(g, pose, len, d.beamR[0] * w / 16, d.beamSides[0], d.beamColors[0], a.laserOpacity * bright);
+            beam(g, pose, len, d.beamR[1] * w / 16, d.beamSides[1], d.beamColors[1], a.laserCoreOpacity * bright);
         }
     }
 

@@ -1,6 +1,7 @@
 package com.custommobs.update;
 
-import com.custommobs.theking.TheKingMod;
+import com.custommobs.Sindicate;
+import com.custommobs.config.SindicateConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.toasts.SystemToast;
@@ -12,7 +13,6 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
@@ -23,10 +23,10 @@ import java.util.function.DoubleConsumer;
 
 /* ───────── In-game updater (client only) ─────────
    - "Check for Updates" button on the title screen and the pause menu (top left).
-   - Automatic check every 5 minutes (UpdateConfig.AUTO_CHECK): a newer release shows a toast during play and
+   - Automatic check every 5 minutes (SindicateConfig.UPDATE_CHECK): a newer release shows a toast during play and
      opens the update screen on the next title / pause screen (once per version).
    - The update screen shows the release's changelog and "Update and Close Game". */
-@Mod(value = TheKingMod.MODID, dist = Dist.CLIENT)
+@Mod(value = Sindicate.MODID, dist = Dist.CLIENT)
 public final class UpdateClient {
     private static final org.slf4j.Logger LOG = com.mojang.logging.LogUtils.getLogger();
     private static AlphaVersion current;
@@ -35,16 +35,15 @@ public final class UpdateClient {
     private static AlphaVersion announced;                   // last version we told the player about
 
     public UpdateClient(ModContainer container) {
-        container.registerConfig(ModConfig.Type.CLIENT, UpdateConfig.SPEC, "theking-updates-client.toml");
         currentText = container.getModInfo().getVersion().toString();
         current = AlphaVersion.parse(currentText);
         NeoForge.EVENT_BUS.addListener(ScreenEvent.Init.Post.class, UpdateClient::addButton);
         NeoForge.EVENT_BUS.addListener(ScreenEvent.Opening.class, UpdateClient::showPending);
-        UpdateChecker.startAuto(() -> UpdateConfig.AUTO_CHECK.get() ? new String[]{UpdateConfig.REPO.get(), UpdateConfig.GITHUB_TOKEN.get()} : null,
-                current, UpdateClient::foundByTimer, err -> LOG.info("[Custom Mobs] update check failed: {}", err));
+        UpdateChecker.startAuto(() -> SindicateConfig.UPDATE_CHECK.get() ? new String[]{SindicateConfig.UPDATE_REPO.get(), SindicateConfig.UPDATE_TOKEN.get()} : null,
+                current, UpdateClient::foundByTimer, err -> LOG.info("[Sindicate] update check failed: {}", err));
         // Dev runs only (test datapack): chat "CMTEST ui" opens the pause menu, then a demo update screen, with a game
         // screenshot of each (run/screenshots/cm_ui_*.png). Client-side timing: a pause screen stops the server's ticks.
-        if (Boolean.getBoolean("theking.debug")) NeoForge.EVENT_BUS.addListener(net.neoforged.neoforge.client.event.ClientChatReceivedEvent.class, e -> {
+        if (Sindicate.DEBUG) NeoForge.EVENT_BUS.addListener(net.neoforged.neoforge.client.event.ClientChatReceivedEvent.class, e -> {
             if (!e.getMessage().getString().equals("CMTEST ui")) return;
             Minecraft mc = Minecraft.getInstance();
             UpdateChecker.Release demo = new UpdateChecker.Release(current == null ? new AlphaVersion(0, 0, 2) : current.next(), "Demo release",
@@ -72,10 +71,10 @@ public final class UpdateClient {
     /* ───────── "Check for Updates" button ───────── */
     private static void addButton(ScreenEvent.Init.Post e) {
         Screen s = e.getScreen();
-        if (!(s instanceof TitleScreen) && !(s instanceof PauseScreen)) return;
+        if (!SindicateConfig.UPDATE_BUTTON.get() || (!(s instanceof TitleScreen) && !(s instanceof PauseScreen))) return;
         if (s instanceof PauseScreen ps && !ps.showsPauseMenu()) return;   // F3+Esc: no menu, no button
         Button[] self = new Button[1];
-        self[0] = Button.builder(Component.translatable("custommobs.update.check"), b -> checkNow(s, self[0]))
+        self[0] = Button.builder(Component.translatable("sindicate.update.check"), b -> checkNow(s, self[0]))
                 .bounds(4, 4, 110, 20).build();
         e.addListener(self[0]);
     }
@@ -83,15 +82,15 @@ public final class UpdateClient {
     private static void checkNow(Screen from, Button b) {
         Minecraft mc = Minecraft.getInstance();
         b.active = false;
-        b.setMessage(Component.translatable("custommobs.update.checking"));
-        UpdateChecker.check(UpdateConfig.REPO.get(), UpdateConfig.GITHUB_TOKEN.get(), current).whenComplete((r, err) -> mc.execute(() -> {
+        b.setMessage(Component.translatable("sindicate.update.checking"));
+        UpdateChecker.check(SindicateConfig.UPDATE_REPO.get(), SindicateConfig.UPDATE_TOKEN.get(), current).whenComplete((r, err) -> mc.execute(() -> {
             b.active = true;
-            b.setMessage(Component.translatable("custommobs.update.check"));
+            b.setMessage(Component.translatable("sindicate.update.check"));
             if (err != null) {
                 Throwable c = err.getCause() != null ? err.getCause() : err;
-                toast(Component.translatable("custommobs.update.check_failed"), Component.literal(String.valueOf(c.getMessage())));
+                toast(Component.translatable("sindicate.update.check_failed"), Component.literal(String.valueOf(c.getMessage())));
             } else if (r == null) {
-                toast(Component.translatable("custommobs.update.up_to_date"), Component.literal("v" + currentText));
+                toast(Component.translatable("sindicate.update.up_to_date"), Component.literal("v" + currentText));
             } else {
                 announced = r.version();
                 pending = null;
@@ -109,7 +108,7 @@ public final class UpdateClient {
             if (mc.screen instanceof TitleScreen || mc.screen instanceof PauseScreen) mc.setScreen(new UpdateScreen(mc.screen, r, currentText));
             else {
                 pending = r;
-                toast(Component.translatable("custommobs.update.available", r.version().tag()), Component.translatable("custommobs.update.available_hint"));
+                toast(Component.translatable("sindicate.update.available", r.version().tag()), Component.translatable("sindicate.update.available_hint"));
             }
         });
     }
@@ -131,22 +130,22 @@ public final class UpdateClient {
     /** Download (background thread), arm the swap helper, close the game. onError runs on the game thread. */
     static void install(UpdateChecker.Release r, DoubleConsumer progress, Consumer<String> onError) {
         Minecraft mc = Minecraft.getInstance();
-        Path oldJar = ModList.get().getModFileById(TheKingMod.MODID).getFile().getFilePath();
+        Path oldJar = ModList.get().getModFileById(Sindicate.MODID).getFile().getFilePath();
         if (!Files.isRegularFile(oldJar)) {   // dev run: the mod is a classes folder, nothing to swap
             onError.accept("not installed from a jar (dev run)");
             return;
         }
         Thread t = new Thread(() -> {
             try {
-                Path jar = UpdateInstaller.download(r, UpdateConfig.GITHUB_TOKEN.get(), oldJar.getParent(), progress);
+                Path jar = UpdateInstaller.download(r, SindicateConfig.UPDATE_TOKEN.get(), oldJar.getParent(), progress);
                 UpdateInstaller.replaceOnExit(oldJar, jar);
-                LOG.info("[Custom Mobs] {} downloaded, swapping {} -> {} after the game closes", r.version().tag(), oldJar.getFileName(), jar.getFileName());
+                LOG.info("[Sindicate] {} downloaded, swapping {} -> {} after the game closes", r.version().tag(), oldJar.getFileName(), jar.getFileName());
                 mc.execute(mc::stop);
             } catch (Exception ex) {
-                LOG.warn("[Custom Mobs] update failed", ex);
+                LOG.warn("[Sindicate] update failed", ex);
                 mc.execute(() -> onError.accept(String.valueOf(ex.getMessage())));
             }
-        }, "custom-mobs-update-download");
+        }, "sindicate-update-download");
         t.setDaemon(true);
         t.start();
     }

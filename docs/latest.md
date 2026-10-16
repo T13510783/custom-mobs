@@ -1,13 +1,14 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 09:40
-**Request:** mega task phase 4 + 5: Homelander 1:1 in the mod (attacks on any mob, VFX, sounds, egg), GitHub release pipeline + in-game updater.
+**Date:** 2026-10-16 10:00
+**Request:** rename the mod to Sindicate, config screen, Homelander stats + neutral, flag egg, then cape/clap/voice/run/smash/hybrid fixes, clean all branches, release.
 
-**Done:**
-- Homelander mob in the mod: 1:1 model, cape cloth, face, all animations; punch, heat vision, throat grab + throw, throat laser, head clap ("I am god"); egg, sounds, config, lang, loot, spawns.
-- Tested in game (`gradlew runHomelanderTest`): every attack on a villager, zombie and the player; game screenshots checked; all 8 unit tests green.
-- Release pipeline (`tools/release.ps1`, `mod/release_notes.md`, version `0.0.1-alpha`) + updater (button, 5-min check, changelog screen, Update and Close Game).
+**Done (step 1 of 4):**
+- Mod renamed to Sindicate (id, name, jar); custom config screen (Client/Server tabs, tooltips, key `K`, ops-can-edit switch).
+- Homelander: 75 HP, diamond-armor stats, neutral, boss bar; American-flag spawn egg.
+- `.env.example` untracked + ignored; README-at-every-push rule.
+- `gradlew build`: all 8 tests green. Config screen not yet tested in game.
 
-**Files:** `mod/src/main/java/com/custommobs/homelander/**`, `mod/src/main/java/com/custommobs/update/**`, `mod/src/main/resources/assets|data/homelander/**`, `mod/build.gradle`, `mod/gradle.properties`, `mod/testworld/homelandertest/**`, `tools/release.ps1`, `CLAUDE.md`, `README.md`, `run.txt`, docs.
+**Files:** `mod/**`, `.gitignore`, `CLAUDE.md`, `AGENTS.md`, `README.md`, `run.txt`, `tools/release.ps1`, docs.
 
-**Next:** updater needs a GitHub token (private repo) or a public releases repo: user decides.
+**Next:** viewer fixes (cape on the arms, clap + dummy, I AM GOD sound, neck gap, run, smash-drag-throw, walk + attack), port to the mod, test in game, merge all branches, release v0.0.1-alpha.

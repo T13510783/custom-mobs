@@ -2,7 +2,7 @@ package com.custommobs.homelander.client;
 
 import com.custommobs.homelander.HomelanderMod;
 import com.custommobs.homelander.entity.HomelanderEntity;
-import com.custommobs.theking.TheKingMod;
+import com.custommobs.Sindicate;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.neoforged.neoforge.client.event.ClientChatReceivedEvent;
@@ -13,7 +13,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 
 /* ───────── Homelander: client-only setup (never loaded on a dedicated server) ───────── */
-@Mod(value = TheKingMod.MODID, dist = Dist.CLIENT)
+@Mod(value = Sindicate.MODID, dist = Dist.CLIENT)
 public final class HomelanderClient {
     public HomelanderClient(IEventBus modBus) {
         modBus.addListener(EntityRenderersEvent.RegisterRenderers.class, e -> e.registerEntityRenderer(HomelanderMod.HOMELANDER.get(), HomelanderRenderer::new));

@@ -5,7 +5,7 @@ param([switch]$Bump, [switch]$DryRun)
 #   tools\release.ps1 -Bump     count the version up first (0.0.9 -> 0.0.10, 0.0.99 -> 0.1.0, 0.99.99 -> 1.0.0; 99.99.99 = last)
 #   tools\release.ps1 -DryRun   check + build only, publish nothing
 # Steps: check version + notes -> gradlew build (tests run) -> tag vX.Y.Z-alpha on the pushed HEAD commit
-# -> GitHub release with custom-mobs-X.Y.Z-alpha.jar. GitHub keeps every release; locally builds/ keeps the last 5 jars.
+# -> GitHub release with sindicate-X.Y.Z-alpha.jar. GitHub keeps every release; locally builds/ keeps the last 5 jars.
 # Needs: gh (logged in), the current commit pushed. Release from main after the PR is merged.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -43,14 +43,14 @@ if ($LASTEXITCODE -eq 0) { throw "$tag is already on GitHub: run with -Bump for 
 # ───────── Build (runs the tests) ─────────
 & (Join-Path $root 'mod\gradlew.bat') -p (Join-Path $root 'mod') build --console=plain | Select-Object -Last 5
 if ($LASTEXITCODE -ne 0) { throw 'gradlew build failed' }
-$jar = Join-Path $root "mod\build\libs\custom-mobs-$ver.jar"
+$jar = Join-Path $root "mod\build\libs\sindicate-$ver.jar"
 if (-not (Test-Path $jar)) { throw "no $jar (did the version change without a rebuild?)" }
 
 # ───────── Publish ─────────
 $sha = (& git -C $root rev-parse HEAD).Trim()
 $pushed = & git -C $root branch -r --contains $sha
 if (-not $pushed) { throw "commit $sha is not pushed yet: push first" }
-$tmp = Join-Path $env:TEMP "custom-mobs-notes-$ver.md"
+$tmp = Join-Path $env:TEMP "sindicate-notes-$ver.md"
 [IO.File]::WriteAllText($tmp, $body, (New-Object Text.UTF8Encoding $false))
 if ($DryRun) { Write-Host "Dry run: would publish $tag ($([math]::Round((Get-Item $jar).Length / 1KB)) KB) on $sha"; Get-Content $tmp; exit 0 }
 & gh release create $tag $jar --title $tag --notes-file $tmp --target $sha

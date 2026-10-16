@@ -19,7 +19,7 @@ import java.util.function.Consumer;
 /* ───────── Asks GitHub Releases for a newer -alpha jar ─────────
    GET https://api.github.com/repos/<repo>/releases: the highest vX.Y.Z-alpha tag with a .jar asset that is newer
    than the running mod is "the update". Runs off the game thread (a small daemon thread): manual checks from the
-   button and an automatic check every 5 minutes. A private repo needs a token (UpdateConfig.GITHUB_TOKEN). */
+   button and an automatic check every 5 minutes. A private repo needs a token (SindicateConfig.UPDATE_TOKEN). */
 public final class UpdateChecker {
     /** One GitHub release: version, title, changelog (Added / Removed / Fixed), its jar. */
     public record Release(AlphaVersion version, String title, String notes, String jarName, String jarApiUrl, String jarDownloadUrl) {}
@@ -37,7 +37,7 @@ public final class UpdateChecker {
             try {
                 HttpRequest.Builder rq = HttpRequest.newBuilder(URI.create("https://api.github.com/repos/" + repo + "/releases?per_page=30"))
                         .timeout(Duration.ofSeconds(15)).header("Accept", "application/vnd.github+json")
-                        .header("X-GitHub-Api-Version", "2022-11-28").header("User-Agent", "custom-mobs-updater");
+                        .header("X-GitHub-Api-Version", "2022-11-28").header("User-Agent", "sindicate-updater");
                 if (token != null && !token.isBlank()) rq.header("Authorization", "Bearer " + token.trim());
                 HttpResponse<String> r = HTTP.send(rq.GET().build(), HttpResponse.BodyHandlers.ofString());
                 if (r.statusCode() == 404) throw new IllegalStateException("repo " + repo + " not found (private repo: set githubToken in the config)");
@@ -81,7 +81,7 @@ public final class UpdateChecker {
                                               Consumer<Release> found, Consumer<String> failed) {
         if (timer != null) return;
         timer = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "custom-mobs-update-check");
+            Thread t = new Thread(r, "sindicate-update-check");
             t.setDaemon(true);   // never keeps the game from closing
             return t;
         });

@@ -8,12 +8,12 @@ modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
 logoFile="theking_logo.png"
-authors="custom mobs"
+authors="Sindicate team"
 description='''
-Custom mobs, each one a 1:1 copy of its HTML viewer.
+Sindicate: custom mobs, each one a 1:1 copy of its HTML viewer.
 The King: a crowned troublemaker who dropkicks, punches, shouts voice lines and dances after every kill.
 Homelander: grabs victims by the throat, throws them sky high, burns them with heat vision and smacks their ears ("I am god").
-Spawn eggs in their own creative tabs. Settings: Mods -> Custom Mobs -> Config.
+Spawn eggs in their own creative tabs. Settings: Mods -> Sindicate -> Config, or press K in game (client + server tabs, hover for help).
 Updates: "Check for Updates" on the title screen / pause menu (also checks every 5 minutes).
 '''
 

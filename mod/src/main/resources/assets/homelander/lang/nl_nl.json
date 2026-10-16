@@ -7,13 +7,5 @@
   "subtitles.homelander.grab": "Homelander grijpt een keel",
   "subtitles.homelander.whoosh": "Iets vliegt door de lucht",
   "subtitles.homelander.slap": "Homelander slaat op iemands oren",
-  "subtitles.homelander.laser": "Hittezicht brandt",
-  "theking.configuration.attackPlayers": "Valt spelers aan",
-  "theking.configuration.attackVillagers": "Valt dorpelingen aan",
-  "theking.configuration.attackAllMobs": "Valt alle andere mobs aan",
-  "theking.configuration.grabs": "Keelgrepen (gooien, keellaser)",
-  "theking.configuration.heatVision": "Hittezicht",
-  "theking.configuration.headClap": "Oorklap",
-  "theking.configuration.damageMultiplier": "Schade-vermenigvuldiger",
-  "theking.configuration.laserSetsBlocksOnFire": "Hittezicht steekt blokken in brand"
+  "subtitles.homelander.laser": "Hittezicht brandt"
 }

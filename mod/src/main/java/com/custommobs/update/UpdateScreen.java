@@ -25,7 +25,7 @@ public final class UpdateScreen extends Screen {
     private volatile boolean busy;
 
     public UpdateScreen(Screen parent, UpdateChecker.Release release, String current) {
-        super(Component.translatable("custommobs.update.title"));
+        super(Component.translatable("sindicate.update.title"));
         this.parent = parent;
         this.release = release;
         this.current = current;
@@ -45,9 +45,9 @@ public final class UpdateScreen extends Screen {
             lines.addAll(font.split(c, w));
         }
         int by = height - 32;
-        updateButton = addRenderableWidget(Button.builder(Component.translatable("custommobs.update.install"), b -> install())
+        updateButton = addRenderableWidget(Button.builder(Component.translatable("sindicate.update.install"), b -> install())
                 .bounds(width / 2 - 154, by, 150, 20).build());
-        laterButton = addRenderableWidget(Button.builder(Component.translatable("custommobs.update.later"), b -> onClose())
+        laterButton = addRenderableWidget(Button.builder(Component.translatable("sindicate.update.later"), b -> onClose())
                 .bounds(width / 2 + 4, by, 150, 20).build());
         updateButton.active = laterButton.active = !busy;
     }
@@ -55,11 +55,11 @@ public final class UpdateScreen extends Screen {
     private void install() {
         busy = true;
         updateButton.active = laterButton.active = false;
-        status = Component.translatable("custommobs.update.downloading", "0").getString();
-        UpdateClient.install(release, p -> status = Component.translatable("custommobs.update.downloading", p < 0 ? "..." : String.valueOf((int) (p * 100))).getString(),
+        status = Component.translatable("sindicate.update.downloading", "0").getString();
+        UpdateClient.install(release, p -> status = Component.translatable("sindicate.update.downloading", p < 0 ? "..." : String.valueOf((int) (p * 100))).getString(),
                 err -> {   // back on the game thread
                     busy = false;
-                    status = Component.translatable("custommobs.update.failed", err).getString();
+                    status = Component.translatable("sindicate.update.failed", err).getString();
                     updateButton.active = laterButton.active = true;
                 });
     }
@@ -76,7 +76,7 @@ public final class UpdateScreen extends Screen {
     public void render(GuiGraphics g, int mx, int my, float pt) {
         super.render(g, mx, my, pt);
         g.drawCenteredString(font, title, width / 2, 14, 0xFFFFFF);
-        g.drawCenteredString(font, Component.translatable("custommobs.update.versions", current, release.version().toString()), width / 2, 28, 0xA0A0A0);
+        g.drawCenteredString(font, Component.translatable("sindicate.update.versions", current, release.version().toString()), width / 2, 28, 0xA0A0A0);
         g.drawCenteredString(font, Component.literal(release.title()).withStyle(ChatFormatting.WHITE), width / 2, 42, 0xFFFFFF);
         int x = width / 2 - Math.min(360, width - 40) / 2, y = 60, n = visibleLines();
         for (int i = (int) scroll; i < lines.size() && i < (int) scroll + n; i++, y += 10) g.drawString(font, lines.get(i), x, y, 0xE0E0E0);

@@ -1,14 +1,14 @@
 cd .\mod; .\gradlew.bat runClient
 
 # Paste the line above in a PowerShell terminal opened in the project folder (the VS Code terminal opens there).
-# Works wherever the repo was cloned (e.g. C:\custom-mobs or C:\custom mobs). It starts Minecraft 1.21.1 with the Custom Mobs mod.
+# Works wherever the repo was cloned (e.g. C:\custom-mobs or C:\custom mobs). It starts Minecraft 1.21.1 with the Sindicate mod.
 # The first start downloads Minecraft + NeoForge (a few minutes). After that it starts in ~1 minute.
 # In game: Creative inventory -> "The King" / "Homelander" tab -> spawn egg.
 #
 # Other commands (same folder):
 #   .\gradlew.bat runTestWorld        = opens the test world: the King fights a zombie, then you
 #   .\gradlew.bat runHomelanderTest   = Homelander test world: every attack on a villager, then a zombie, then you
-#   .\gradlew.bat build               = makes custom-mobs-<version>.jar (copied to builds\, newest 5 kept) + runs all tests
+#   .\gradlew.bat build               = makes sindicate-<version>.jar (copied to builds\, newest 5 kept) + runs all tests
 #   ..\tools\release.ps1 -Bump        = next version + GitHub release (from main, only when asked)
 #   .\gradlew.bat test           = only the 1:1 test (Java animation vs. the HTML viewer)
 # Old cmd.exe instead of PowerShell:  cd mod && gradlew.bat runClient

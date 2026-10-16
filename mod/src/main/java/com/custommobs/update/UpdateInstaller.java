@@ -14,7 +14,7 @@ import java.util.Locale;
 import java.util.function.DoubleConsumer;
 
 /* ───────── "Update and Close Game": download the new jar, swap it in after the game has closed ─────────
-   1. Download the release jar to <mods>/.custom-mobs-update/<name>.jar (checked: a real zip file).
+   1. Download the release jar to <mods>/.sindicate-update/<name>.jar (checked: a real zip file).
    2. Write a small helper script next to it (PowerShell on Windows, sh elsewhere).
    3. A JVM shutdown hook starts that helper as its own process (detached): it waits until this game process has
       ended (Windows keeps a running jar locked), deletes the old jar, moves the new one into the mods folder
@@ -27,14 +27,14 @@ public final class UpdateInstaller {
 
     /** Downloads the release jar; progress 0..1 (or -1 when the size is unknown). Returns the downloaded file. */
     public static Path download(UpdateChecker.Release r, String token, Path modsDir, DoubleConsumer progress) throws IOException, InterruptedException {
-        Path dir = modsDir.resolve(".custom-mobs-update");
+        Path dir = modsDir.resolve(".sindicate-update");
         Files.createDirectories(dir);
         Path out = dir.resolve(r.jarName());
         boolean auth = token != null && !token.isBlank();
         // private repo: the API asset URL with the token answers with a redirect to a signed download link
         URI uri = URI.create(auth ? r.jarApiUrl() : r.jarDownloadUrl());
         for (int hop = 0; hop < 6; hop++) {
-            HttpRequest.Builder rq = HttpRequest.newBuilder(uri).timeout(Duration.ofMinutes(2)).header("User-Agent", "custom-mobs-updater");
+            HttpRequest.Builder rq = HttpRequest.newBuilder(uri).timeout(Duration.ofMinutes(2)).header("User-Agent", "sindicate-updater");
             if (auth && hop == 0) rq.header("Authorization", "Bearer " + token.trim()).header("Accept", "application/octet-stream");
             HttpResponse<InputStream> res = HTTP.send(rq.GET().build(), HttpResponse.BodyHandlers.ofInputStream());
             int code = res.statusCode();
@@ -70,9 +70,9 @@ public final class UpdateInstaller {
             try {
                 launch(helper);
             } catch (IOException ignored) {
-                // nothing left to tell: the game is closing; the new jar stays in .custom-mobs-update
+                // nothing left to tell: the game is closing; the new jar stays in .sindicate-update
             }
-        }, "custom-mobs-apply-update"));
+        }, "sindicate-apply-update"));
     }
 
     private static boolean windows() { return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win"); }
@@ -84,7 +84,7 @@ public final class UpdateInstaller {
         boolean win = windows();
         Path helper = newJar.resolveSibling(win ? "apply_update.ps1" : "apply_update.sh");
         String script = win ? """
-                # Custom Mobs updater: waits for Minecraft (pid %d) to close, then swaps the mod jar.
+                # Sindicate updater: waits for Minecraft (pid %d) to close, then swaps the mod jar.
                 $ErrorActionPreference = 'SilentlyContinue'
                 Wait-Process -Id %d -Timeout 600
                 Start-Sleep -Seconds 1
@@ -95,7 +95,7 @@ public final class UpdateInstaller {
                 """.formatted(pid, pid, ps(oldJar), ps(newJar), ps(target), ps(newJar.getParent()))
                 : """
                 #!/bin/sh
-                # Custom Mobs updater: waits for Minecraft (pid %d) to close, then swaps the mod jar.
+                # Sindicate updater: waits for Minecraft (pid %d) to close, then swaps the mod jar.
                 while kill -0 %d 2>/dev/null; do sleep 0.5; done
                 sleep 1
                 rm -f '%s'

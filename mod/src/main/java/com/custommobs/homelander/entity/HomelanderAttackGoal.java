@@ -1,6 +1,6 @@
 package com.custommobs.homelander.entity;
 
-import com.custommobs.homelander.HomelanderConfig;
+import com.custommobs.config.SindicateConfig;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.level.pathfinder.Path;
@@ -62,7 +62,7 @@ public class HomelanderAttackGoal extends Goal {
         // forced one not in range yet, or hl_hold (no random attacks during a scripted test)
         boolean waiting = HomelanderEntity.DEBUG && mob.getTags().stream().anyMatch(s -> s.startsWith("hl_"));
         // Heat vision from a distance (needs a clear line from his eyes).
-        if (!waiting && HomelanderConfig.HEAT_VISION.get() && mob.laserCooldown <= 0 && see && dist >= 3 && dist <= 12 && r.nextInt(15) == 0) {
+        if (!waiting && SindicateConfig.HL_HEAT_VISION.get() && mob.laserCooldown <= 0 && see && dist >= 3 && dist <= SindicateConfig.HL_HEAT_RANGE.get() && r.nextInt(15) == 0) {
             mob.laserCooldown = 140 + r.nextInt(60);
             mob.start(HomelanderEntity.Action.LASER, t, HomelanderEntity.EV_LASER);
             return;
@@ -70,20 +70,21 @@ public class HomelanderAttackGoal extends Goal {
         // Close: the victim stands where the viewer's dummy stands (0.75-1.1 blocks from him).
         boolean close = see && dy < 1.2 && dist <= 1.5 + t.getBbWidth() / 2;
         if (close && !waiting) {
-            if (mob.grabCooldown <= 0 && mob.canGrab(t) && r.nextInt(3) == 0) {
+            boolean throwOk = SindicateConfig.HL_THROW.get(), burnOk = SindicateConfig.HL_BURN.get() && SindicateConfig.HL_HEAT_VISION.get();
+            if (mob.grabCooldown <= 0 && (throwOk || burnOk) && mob.canGrab(t) && r.nextInt(3) == 0) {
                 mob.grabCooldown = 160 + r.nextInt(80);
                 mob.punchCooldown = Math.max(mob.punchCooldown, 20);
-                boolean burn = HomelanderConfig.HEAT_VISION.get() && r.nextBoolean();
+                boolean burn = burnOk && (!throwOk || r.nextBoolean());
                 mob.start(burn ? HomelanderEntity.Action.BURN : HomelanderEntity.Action.THROW, t, burn ? HomelanderEntity.EV_BURN : HomelanderEntity.EV_THROW);
                 return;
             }
-            if (HomelanderConfig.HEAD_CLAP.get() && mob.clapCooldown <= 0 && r.nextInt(4) == 0) {
+            if (SindicateConfig.HL_CLAP.get() && mob.clapCooldown <= 0 && r.nextInt(4) == 0) {
                 mob.clapCooldown = 300 + r.nextInt(120);
                 mob.punchCooldown = Math.max(mob.punchCooldown, 20);
                 mob.start(HomelanderEntity.Action.CLAP, t, HomelanderEntity.EV_CLAP);
                 return;
             }
-            if (mob.punchCooldown <= 0) {
+            if (mob.punchCooldown <= 0 && SindicateConfig.HL_PUNCH.get()) {
                 mob.punchCooldown = 22 + r.nextInt(10);
                 mob.start(HomelanderEntity.Action.PUNCH, t, HomelanderEntity.EV_PUNCH);
                 return;

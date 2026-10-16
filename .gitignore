@@ -10,7 +10,6 @@ builds/
 # ───────── Local settings and secrets ─────────
 .env
 .env.*
-!.env.example
 .claude/settings.local.json
 
 # ───────── Test output and temp files (rule: never in the project) ─────────

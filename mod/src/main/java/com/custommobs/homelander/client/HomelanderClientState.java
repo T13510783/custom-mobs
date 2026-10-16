@@ -1,5 +1,6 @@
 package com.custommobs.homelander.client;
 
+import com.custommobs.config.SindicateConfig;
 import com.custommobs.homelander.HomelanderMod;
 import com.custommobs.homelander.anim.HomelanderAnimator;
 import com.custommobs.homelander.anim.HomelanderData;
@@ -93,7 +94,7 @@ public final class HomelanderClientState {
         var sm = Minecraft.getInstance().getSoundManager();
         if (name.startsWith("-")) { stopSfx(name.substring(1)); return; }
         stopSfx(name);
-        EntityBoundSoundInstance s = new EntityBoundSoundInstance(sound(name), SoundSource.HOSTILE, 1F, 1F, e, e.getRandom().nextLong());
+        EntityBoundSoundInstance s = new EntityBoundSoundInstance(sound(name), SoundSource.HOSTILE, SindicateConfig.HL_SFX_VOLUME.get().floatValue(), 1F, e, e.getRandom().nextLong());
         sm.play(s);
         sfx.put(name, s);
         sfxAnim.put(name, a.anim.name);
@@ -108,7 +109,7 @@ public final class HomelanderClientState {
     private void startVoice(HomelanderEntity e, int line, double now) {
         if (line < 0 || line >= d.voice.length || line >= HomelanderMod.VOICE.length) return;
         if (voiceSound != null) Minecraft.getInstance().getSoundManager().stop(voiceSound);
-        voiceSound = new EntityBoundSoundInstance(HomelanderMod.VOICE[line].get(), SoundSource.HOSTILE, 1F, 1F, e, e.getRandom().nextLong());
+        voiceSound = new EntityBoundSoundInstance(HomelanderMod.VOICE[line].get(), SoundSource.HOSTILE, SindicateConfig.HL_VOICE_VOLUME.get().floatValue(), 1F, e, e.getRandom().nextLong());
         Minecraft.getInstance().getSoundManager().play(voiceSound);
         voiceLine = line;
         voiceStart = now;

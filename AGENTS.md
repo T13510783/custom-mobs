@@ -7,9 +7,9 @@ Project rules for making mobs and the mod are in `CLAUDE.md` (also read it).
 
 ## 1. Branches
 
-- Repo: `https://github.com/T13510783/custom-mobs` (private; owner `T13510783`). Merging = squash only; merged branches are deleted by GitHub.
+- Repo: `https://github.com/T13510783/custom-mobs` (public; owner `T13510783`). Merging = squash only; merged branches are deleted by GitHub.
 - `main` = always working. Nobody commits straight to `main`; it only changes through pull requests (PRs).
-  GitHub can't lock `main` on a free private repo, so this rule is the only guard: follow it.
+  `main` has no branch protection, so this rule is the only guard: follow it.
 - Every person/agent works on **their own branch**: `<github-name>/<topic>` in lowercase, e.g. `t13510783/homelander`.
 - One topic per branch. Small, frequent PRs beat big ones.
 
@@ -63,7 +63,8 @@ Make or switch branches and open/merge PRs whenever needed.
 
 - Never `git push --force` to `main`. On your own branch only `git push --force-with-lease`.
 - Never rewrite or delete someone else's commits or branches.
-- Never commit secrets or local paths: `.env` is ignored; use `.env.example` for shared settings.
+- Never commit secrets or local paths: `.env` and `.env.example` are git-ignored (local only); shared settings are listed in `README.md`.
+- Before every push: update `README.md` (the GitHub front page) so it matches what you push.
 - Never commit build output (`mod/build/`, `mod/run/`, `builds/*.jar`) or test renders: see `.gitignore`.
 - Never `git reset --hard` / `git clean -fd` / `git checkout -- .` with uncommitted work from someone else.
 - Never force a rejected push: `git pull --rebase` first. Uncommitted work before a pull or branch switch: commit or stash it.

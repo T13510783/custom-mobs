@@ -1,6 +1,6 @@
 package com.custommobs.homelander.entity;
 
-import com.custommobs.homelander.HomelanderConfig;
+import com.custommobs.config.SindicateConfig;
 import com.custommobs.homelander.anim.HomelanderAnimator;
 import com.custommobs.homelander.anim.HomelanderData;
 import net.minecraft.core.BlockPos;
@@ -11,7 +11,10 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.BossEvent;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
@@ -68,7 +71,7 @@ public class HomelanderEntity extends Monster {
     public static final byte EV_PUNCH = 100, EV_LASER = 101, EV_THROW = 102, EV_CLAP = 103, EV_BURN = 104, EV_STOP = 105;
 
     // Dev runs only (gradlew runClient sets -Dtheking.debug=true): actions go to the log, for testing.
-    public static final boolean DEBUG = Boolean.getBoolean("theking.debug");
+    public static final boolean DEBUG = com.custommobs.Sindicate.DEBUG;
     public static final org.slf4j.Logger LOG = com.mojang.logging.LogUtils.getLogger();
 
     private static final EntityDataAccessor<Integer> VARIANT = SynchedEntityData.defineId(HomelanderEntity.class, EntityDataSerializers.INT);
@@ -106,13 +109,13 @@ public class HomelanderEntity extends Monster {
 
     public static AttributeSupplier.Builder createAttributes() {
         return Monster.createMonsterAttributes()
-                .add(Attributes.MAX_HEALTH, 150)
+                .add(Attributes.MAX_HEALTH, 75)      // config homelander.maxHealth / armor / armorToughness override these per world
                 .add(Attributes.ATTACK_DAMAGE, 8)
                 .add(Attributes.MOVEMENT_SPEED, 0.26)  // ~3 blocks/s when chasing: his walk animation speeds up to match
                 .add(Attributes.FOLLOW_RANGE, 40)
                 .add(Attributes.KNOCKBACK_RESISTANCE, 0.9)
-                .add(Attributes.ARMOR, 10)
-                .add(Attributes.ARMOR_TOUGHNESS, 4)
+                .add(Attributes.ARMOR, 20)           // a full diamond set
+                .add(Attributes.ARMOR_TOUGHNESS, 8)
                 .add(Attributes.STEP_HEIGHT, 1.0);
     }
 
@@ -124,19 +127,20 @@ public class HomelanderEntity extends Monster {
         goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 0.6));
         goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 12F));
         goalSelector.addGoal(7, new RandomLookAroundGoal(this));
+        // Neutral by default: he only fights whoever hits him (homelander.neutral). Off = he also hunts (huntPlayers / huntVillagers / huntMobs).
         targetSelector.addGoal(1, new HurtByTargetGoal(this, HomelanderEntity.class));
-        targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Player.class, 10, true, false, e -> HomelanderConfig.ATTACK_PLAYERS.get()));
+        targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Player.class, 10, true, false, e -> !SindicateConfig.HL_NEUTRAL.get() && SindicateConfig.HL_HUNT_PLAYERS.get()));
         targetSelector.addGoal(3, new NearestAttackableTargetGoal<>(this, LivingEntity.class, 10, true, false,
-                e -> (e instanceof AbstractVillager || e instanceof IronGolem) && HomelanderConfig.ATTACK_VILLAGERS.get()));
+                e -> !SindicateConfig.HL_NEUTRAL.get() && (e instanceof AbstractVillager || e instanceof IronGolem) && SindicateConfig.HL_HUNT_VILLAGERS.get()));
         targetSelector.addGoal(4, new NearestAttackableTargetGoal<>(this, Mob.class, 20, true, false,
-                e -> HomelanderConfig.ATTACK_ALL_MOBS.get() && !(e instanceof HomelanderEntity) && !(e instanceof AbstractVillager) && !(e instanceof IronGolem)));
+                e -> !SindicateConfig.HL_NEUTRAL.get() && SindicateConfig.HL_HUNT_MOBS.get() && !(e instanceof HomelanderEntity) && !(e instanceof AbstractVillager) && !(e instanceof IronGolem)));
     }
 
     /* ───────── Spawning ───────── */
     /** Natural spawns: any light, very rare, never another Homelander within 64 blocks. */
     public static boolean checkHomelanderSpawnRules(EntityType<HomelanderEntity> type, ServerLevelAccessor level, MobSpawnType spawnType, BlockPos pos, RandomSource random) {
         if (spawnType == MobSpawnType.NATURAL || spawnType == MobSpawnType.CHUNK_GENERATION) {
-            if (!HomelanderConfig.NATURAL_SPAWNS.get() || random.nextInt(4) != 0) return false;
+            if (!SindicateConfig.HL_NATURAL_SPAWNS.get() || random.nextDouble() >= SindicateConfig.HL_SPAWN_CHANCE.get()) return false;
             if (!level.getEntitiesOfClass(HomelanderEntity.class, new AABB(pos).inflate(64)).isEmpty()) return false;
         }
         return Monster.checkAnyLightMonsterSpawnRules(type, level, spawnType, pos, random);
@@ -146,6 +150,8 @@ public class HomelanderEntity extends Monster {
     @SuppressWarnings("deprecation") // NeoForge marks it "override-only": overriding is the intended use
     public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty, MobSpawnType spawnType, @Nullable SpawnGroupData data) {
         setVariant(random.nextInt(HomelanderData.get().variants.length));
+        applyConfig();
+        setHealth(getMaxHealth());
         return super.finalizeSpawn(level, difficulty, spawnType, data);
     }
 
@@ -185,9 +191,9 @@ public class HomelanderEntity extends Monster {
 
     public Action getAction() { return action; }
 
-    /** A victim he can lift by the throat: not too big, not riding anything, not a boss. */
+    /** A victim he can lift by the throat (or by the feet): not too big, not riding anything, not a boss. */
     public boolean canGrab(LivingEntity e) {
-        return HomelanderConfig.GRABS.get() && e.isAlive() && !(e instanceof HomelanderEntity) && !(e instanceof EnderDragon) && !(e instanceof WitherBoss)
+        return e.isAlive() && (SindicateConfig.HL_GRAB_PLAYERS.get() || !(e instanceof Player)) && !(e instanceof HomelanderEntity) && !(e instanceof EnderDragon) && !(e instanceof WitherBoss)
                 && e.getBbHeight() <= 2.3F && e.getBbWidth() <= 1.2F && !e.isPassenger() && !e.isVehicle()
                 && !(e instanceof Player p && (p.isCreative() || p.isSpectator()));
     }
@@ -254,7 +260,7 @@ public class HomelanderEntity extends Monster {
     }
 
     private double damage(double times) {
-        return getAttributeValue(Attributes.ATTACK_DAMAGE) * times * HomelanderConfig.DAMAGE.get();
+        return getAttributeValue(Attributes.ATTACK_DAMAGE) * times * SindicateConfig.HL_DAMAGE.get();
     }
 
     @Override
@@ -263,7 +269,44 @@ public class HomelanderEntity extends Monster {
         if (!level().isClientSide) serverTick();
     }
 
+    /* ───────── Settings that change his stats (server config, live: checked every 2 s) ───────── */
+    private void applyConfig() {
+        setBase(Attributes.MAX_HEALTH, SindicateConfig.HL_HEALTH.get());
+        setBase(Attributes.ARMOR, SindicateConfig.HL_ARMOR.get());
+        setBase(Attributes.ARMOR_TOUGHNESS, SindicateConfig.HL_TOUGHNESS.get());
+        if (getHealth() > getMaxHealth()) setHealth(getMaxHealth());
+    }
+
+    private void setBase(net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> a, double v) {
+        var inst = getAttribute(a);
+        if (inst != null && inst.getBaseValue() != v) inst.setBaseValue(v);
+    }
+
+    /* ───────── Boss bar while he fights (homelander.bossBar) ───────── */
+    private final ServerBossEvent bossBar = new ServerBossEvent(getDisplayName(), BossEvent.BossBarColor.RED, BossEvent.BossBarOverlay.NOTCHED_10);
+
+    @Override
+    public void startSeenByPlayer(ServerPlayer p) {
+        super.startSeenByPlayer(p);
+        bossBar.addPlayer(p);
+    }
+
+    @Override
+    public void stopSeenByPlayer(ServerPlayer p) {
+        super.stopSeenByPlayer(p);
+        bossBar.removePlayer(p);
+    }
+
+    @Override
+    public void setCustomName(@Nullable net.minecraft.network.chat.Component name) {
+        super.setCustomName(name);
+        bossBar.setName(getDisplayName());
+    }
+
     private void serverTick() {
+        if (tickCount % 40 == 1) applyConfig();
+        bossBar.setVisible(SindicateConfig.HL_BOSS_BAR.get() && getTarget() != null && isAlive());
+        bossBar.setProgress(Mth.clamp(getHealth() / getMaxHealth(), 0F, 1F));
         if (punchCooldown > 0) punchCooldown--;
         if (laserCooldown > 0) laserCooldown--;
         if (grabCooldown > 0) grabCooldown--;
@@ -305,7 +348,7 @@ public class HomelanderEntity extends Monster {
                     tg.stopRiding();
                     double[] h = hangPoint(tg);
                     tg.teleportTo(h[0], h[1], h[2]);
-                    tg.setDeltaMovement(0, HomelanderData.get().throwVy / 20.0, 0);
+                    tg.setDeltaMovement(0, HomelanderData.get().throwVy / 20.0 * SindicateConfig.HL_THROW_POWER.get(), 0);
                     tg.hurtMarked = true;  // players: send the new speed
                     tg.fallDistance = 0;
                     if (level() instanceof ServerLevel sl) sl.sendParticles(ParticleTypes.CLOUD, h[0], h[1], h[2], 12, 0.2, 0.1, 0.2, 0.05);
@@ -405,7 +448,7 @@ public class HomelanderEntity extends Monster {
                 hurtNoKnock(tg, damage(0.45));
             }
             tg.igniteForSeconds(5);
-        } else if (hit.getType() == HitResult.Type.BLOCK && actionTicks % 20 == 0 && HomelanderConfig.LASER_FIRE.get()
+        } else if (hit.getType() == HitResult.Type.BLOCK && actionTicks % 20 == 0 && SindicateConfig.HL_LASER_FIRE.get()
                 && sl.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)) {
             BlockPos fire = hit.getBlockPos().relative(hit.getDirection());
             if (level().getBlockState(fire).isAir() && hit.getDirection() != Direction.DOWN)
@@ -514,7 +557,7 @@ public class HomelanderEntity extends Monster {
     public boolean causeFallDamage(float distance, float multiplier, DamageSource source) { return false; } // he flies
 
     @Override
-    public boolean removeWhenFarAway(double distance) { return false; }
+    public boolean removeWhenFarAway(double distance) { return !SindicateConfig.HL_PERSISTENT.get(); }
 
     /* ───────── Sounds ───────── */
     @Override

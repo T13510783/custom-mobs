@@ -17,8 +17,8 @@ class UpdateInstallerTest {
     void helperSwapsJarAfterProcessEnds(@TempDir Path dir) throws Exception {
         Path mods = Files.createDirectories(dir.resolve("mods"));
         Path oldJar = Files.writeString(mods.resolve("the-king-crowned-brawler-1.0.0.jar"), "old");
-        Path tmp = Files.createDirectories(mods.resolve(".custom-mobs-update"));
-        Path newJar = Files.writeString(tmp.resolve("custom-mobs-0.0.2-alpha.jar"), "PKnew");
+        Path tmp = Files.createDirectories(mods.resolve(".sindicate-update"));
+        Path newJar = Files.writeString(tmp.resolve("sindicate-0.0.2-alpha.jar"), "PKnew");
         boolean win = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
         Process game = (win ? new ProcessBuilder("powershell.exe", "-NoProfile", "-Command", "Start-Sleep -Seconds 3")
                 : new ProcessBuilder("sleep", "3")).start();
@@ -28,7 +28,7 @@ class UpdateInstallerTest {
         assertTrue(Files.exists(oldJar), "old jar must stay while the game still runs");
 
         assertTrue(game.waitFor(20, TimeUnit.SECONDS));
-        Path target = mods.resolve("custom-mobs-0.0.2-alpha.jar");
+        Path target = mods.resolve("sindicate-0.0.2-alpha.jar");
         for (int i = 0; i < 60 && (Files.exists(oldJar) || !Files.exists(target) || Files.exists(tmp)); i++) Thread.sleep(250);
         assertFalse(Files.exists(oldJar), "old jar removed");
         assertEquals("PKnew", Files.readString(target), "new jar in the mods folder");
