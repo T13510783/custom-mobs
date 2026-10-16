@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 15:08
+- Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`): new film-based animations, all his own.
+  - Idle "the mask": rigid posture, dead stare (blinks held back), left hand straightens the tie with two tugs, fake teeth smile, right-eye twitch (3 pulses), slow scan of the room.
+  - Idle 2: "Hip to Be Square" groove on the beat (mouthing the words), freeze into the psycho stare, fake smile, mirror flex (double biceps with empty hands, one arm when holding a prop), impatient watch check with eye roll, sigh and foot taps.
+  - Walk: stiff executive strut, head nod on each step, smug glance at his reflection.
+  - New: 2-bone arm IK for hand gestures; face channels `twitch` and `stare`. Clip test 0 clips in all 5 outfits.
+
 ## 2026-10-16 14:49
 - Repo cleanup: PR #31 (Patrick Bateman rework, standard mouth rule, archive + reference renames) merged into `main`; worktree and branch removed; scan found no leftovers (root, names, sizes, `docs/working_on.md`).
 
