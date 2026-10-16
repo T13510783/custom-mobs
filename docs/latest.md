@@ -1,13 +1,12 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 23:15
-**Request:** Make Anton's face expressions and mouth better.
+**Date:** 2026-10-16 23:46
+**Request:** Improve Anton's expressions based on what he does, and improve his animations.
 
 **Done:**
-- `mobs/anton_chigurh/anton_chigurh.html`: darker lip line; new `smile` (line up/down + width) and `press` (tight lips) channels.
-- Expression menu: Happy grin, Sad drop, Angry bared teeth, Afraid open mouth; brows lower/thinner so raises stay visible under the bangs.
-- Mouth now moves in all 5 animations (idle 2 ends in a cold half-smile).
-- Checked: face renders per expression + idle 2 at 5.8 s, `#cliptest` 0 clips.
+- `mobs/anton_chigurh/anton_chigurh.html`: per-animation acting. Idle (weight shift, eyes lead the scan, narrowing, slow blink), Idle 2 (alert wide eyes), Walk (locked-on stare), Attack (polite line, lean-in, focus, look down + exhale), Special (smooth raise, flinch per shot, boots distaste).
+- New `bump()` helper (smooth cos² pulse); unused easing helpers removed.
+- Checked: face renders at 9 key moments, `#cliptest` 0 clips.
 
 **Files:** `mobs/anton_chigurh/anton_chigurh.html`, docs.
 
