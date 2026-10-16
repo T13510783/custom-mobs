@@ -72,6 +72,10 @@ public final class HomelanderAnimator {
     /** false = skip the cape (server: only the body pose is needed for hands and eyes). */
     public boolean clothOn = true;
     private final double[] animMove = new double[3];
+    /** Walk while attacking (viewer S.walkAtk / walkRate): 0..1 target weight, speed of the walk layer's own clock. */
+    public double walkAtk, walkRate = 1;
+    private double walkW, walkT;
+    private final HomelanderData.Anim walkAnim;
 
     /** Events the last step() passed (names from the animation's `events`), e.g. "voice", "grab", "hit". */
     public final String[] fired = new String[8];
@@ -121,6 +125,7 @@ public final class HomelanderAnimator {
         moodWait = 0.8 + rng() * 1.2;
         cloth = new HomelanderCloth(d.cloth, this::rng);
         anim = d.anim("idle");
+        walkAnim = d.anim("walk");
         System.arraycopy(d.restPos, 0, pos, 0, nb * 3);
         System.arraycopy(d.restRot, 0, rot, 0, nb * 3);
         Arrays.fill(scl, 1);
@@ -251,6 +256,23 @@ public final class HomelanderAnimator {
             yawLimit = A.yawLimit;
         }
 
+        // 1b. Walk while attacking: legs, pelvis and the root's height from the Walk (its own clock), everything
+        // above the pelvis stays the attack's. Only under one-shot attacks, never the calm loops.
+        String an = A.name;
+        boolean calm = an.equals("idle") || an.equals("idle2") || an.equals("walk") || an.equals("run") || an.equals("hover");
+        walkW += ((calm ? 0 : walkAtk) - walkW) * filt(dt, 6);
+        walkT = (walkT + dt * walkRate) % walkAnim.T;
+        if (walkW > 1e-4) {
+            double w = walkW;
+            for (int b : d.walkBones) for (int a = 0; a < 3; a++) {
+                int i = b * 3 + a;
+                out.r[i] += (HomelanderData.Anim.sample(walkAnim.rot[i], walkT, fps) - out.r[i]) * w;
+                out.p[i] += (HomelanderData.Anim.sample(walkAnim.pos[i], walkT, fps) - out.p[i]) * w;
+            }
+            int ry = d.walkRoot * 3 + 1;   // root: only its height (an attack's turn stays)
+            out.p[ry] += (HomelanderData.Anim.sample(walkAnim.pos[ry], walkT, fps) - out.p[ry]) * w;
+        }
+
         // 2. Random director on the face: the mood blends over the animation's face by its `mood` weight,
         // eye darts by the same weight, never-repeating twitches on brows/mouth always; angry flickers the eyes.
         double kw = filt(dt, 4);
@@ -365,7 +387,7 @@ public final class HomelanderAnimator {
         computeMatrices();
         if (!clothOn) return;
         double[] mv = move;
-        if (mv == null) { animMove[0] = 0; animMove[1] = 0; animMove[2] = A.move * dt; mv = animMove; }
+        if (mv == null) { animMove[0] = 0; animMove[1] = 0; animMove[2] = (A.move + walkAnim.move * walkW * walkRate) * dt; mv = animMove; }
         cloth.step(world, CHEST, time, dt, mv, rot);
         computeMatrices();
     }

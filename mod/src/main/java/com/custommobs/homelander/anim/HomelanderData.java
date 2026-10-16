@@ -107,6 +107,11 @@ public final class HomelanderData {
     // Victims: hand point (forearm_right space), dummy neck height, throw speed (blocks/s), grab lift time (s)
     public double[] hand;
     public double neck, scale, hangUp, hangOut, throwVy, grabLift;
+    /** Smash fling speed (blocks/s, forward / up) and the dummy's length soles..head top (texels). */
+    public double smashVz, smashVy, victimLen;
+    /** Walk while attacking: bones the Walk drives under an attack, and the root (only its height). */
+    public int[] walkBones;
+    public int walkRoot;
     public final Map<String, Victim> victims = new HashMap<>();
     public final Map<String, Anim> anims = new LinkedHashMap<>();
     private final Map<String, Integer> boneIndex = new HashMap<>();
@@ -267,6 +272,14 @@ public final class HomelanderData {
             v.release = o.has("release") ? doubles(o.getAsJsonArray("release")) : null;
             d.victims.put(e.getKey(), v);
         }
+        d.smashVz = victim.get("smashVz").getAsDouble();
+        d.smashVy = victim.get("smashVy").getAsDouble();
+        d.victimLen = victim.get("len").getAsDouble();
+        JsonObject wl = j.getAsJsonObject("walkLayer");
+        JsonArray wb = wl.getAsJsonArray("bones");
+        d.walkBones = new int[wb.size()];
+        for (int i = 0; i < wb.size(); i++) d.walkBones[i] = wb.get(i).getAsInt();
+        d.walkRoot = wl.get("root").getAsInt();
 
         JsonArray voice = j.getAsJsonArray("voice");
         d.voice = new VoiceLine[voice.size()];

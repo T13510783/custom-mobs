@@ -35,7 +35,7 @@ class HomelanderAnimatorTraceTest {
             trace = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
         }
         JsonArray frames = trace.getAsJsonArray("frames"), fx = trace.getAsJsonArray("fx");
-        JsonArray plan = trace.getAsJsonArray("plan");
+        JsonArray plan = trace.getAsJsonArray("plan"), walkAtk = trace.getAsJsonArray("walkAtk");
 
         HomelanderAnimator a = new HomelanderAnimator(d, 7);
         a.followOn = true;
@@ -57,6 +57,7 @@ class HomelanderAnimatorTraceTest {
             }
             a.lookYaw = 0.6 * Math.sin(0.7 * t);
             a.lookPitch = 0.1 * Math.sin(0.5 * t);
+            a.walkAtk = t >= walkAtk.get(0).getAsDouble() && t < walkAtk.get(1).getAsDouble() ? 1 : 0;   // walk-while-attacking window
             // the viewer's voice clock: mouth from the curve, 30 values per second since the "voice" event
             int k = talkStart >= 0 ? (int) Math.floor((a.time - talkStart) * 30) : -1;
             if (k >= line.env.length()) talkStart = -1;
