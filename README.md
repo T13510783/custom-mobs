@@ -49,7 +49,7 @@ All finished mobs live in one NeoForge mod: **Sindicate** (mod id `sindicate`, j
 | Spawn eggs | Creative tab per mob ("The King", "Homelander") + vanilla Spawn Eggs tab |
 | Settings | Mods list -> Sindicate -> Config, or key `K` in game. Tabs **Client** (your sounds, effects, updates) and **Server** (mob behaviour, per world). Hover any option for a short explanation. |
 | Who may change server settings | singleplayer: you. Multiplayer: operators, only when `Operators can edit config` is on |
-| Updates | "Check for Updates" button (title + pause screen), auto check every 5 min, changelog, "Update and Close Game" |
+| Updates | "Check for Updates" button (title + pause screen) or `/sindicate update`; auto check every 5 min: a new version pops up (toast + chat link `[Changelog + Update]`, or the update screen on a menu). The update screen shows the changelog; "Update and Close Game" downloads it and closes the game: start Minecraft again yourself |
 
 Homelander: 75 HP, diamond-armor protection (20 armor, 8 toughness), neutral by default (only fights back when hurt).
 Attacks: punch, heat vision, throat grab + throw, throat grab + point-blank laser, ear clap (victim falls and lies screaming); he mixes all of them in a fight. Runs ~2x player speed when the target is far away; punches and lasers while walking. Boss bar while he fights.
@@ -64,7 +64,7 @@ cd mod
 ```
 
 `.\gradlew.bat build` makes `sindicate-<version>.jar` (copied to `builds/`, newest 5 kept) and runs the tests.
-Download: newest `sindicate-<version>.jar` on the [Releases page](https://github.com/T13510783/custom-mobs/releases) (newest: `v0.0.2-alpha`), put it in your `mods` folder (NeoForge 1.21.1).
+Download: newest `sindicate-<version>.jar` on the [Releases page](https://github.com/T13510783/custom-mobs/releases) (newest: `v0.0.3-alpha`), put it in your `mods` folder (NeoForge 1.21.1).
 Releases: raise `mod_version` (`X.Y.Z-alpha`) + `mod/release_notes.md` in a PR, merge, then run `tools\release.ps1` on `main`; in game: "Check for Updates".
 Local paths go in your own `.env` (git-ignored, never committed; `.env.example` is local too): `JAVA_HOME` (JDK 21), `BRAVE_EXE` (headless browser for `tools\cdp.ps1`), `MC_MODS_DIR` (your Minecraft `mods` folder).
 

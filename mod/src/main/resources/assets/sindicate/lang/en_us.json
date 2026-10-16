@@ -10,7 +10,11 @@
   "sindicate.update.check_failed": "Update check failed",
   "sindicate.update.up_to_date": "Sindicate is up to date",
   "sindicate.update.available": "Sindicate %s is out",
-  "sindicate.update.available_hint": "Open the pause menu to see what changed",
+  "sindicate.update.available_hint": "Press T and click the link",
+  "sindicate.update.chat": "Update %s is out (you have %s).",
+  "sindicate.update.chat_open": "[Changelog + Update]",
+  "sindicate.update.chat_hover": "Show what changed, with an \"Update and Close Game\" button",
+  "sindicate.update.restart_hint": "The game closes after the download: start Minecraft again yourself.",
   "key.categories.sindicate": "Sindicate",
   "key.sindicate.settings": "Open Sindicate settings"
 }

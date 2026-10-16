@@ -1,15 +1,14 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 14:09
-**Request:** Homelander: drag at walk speed, AI uses all attacks; then remove the drag (Smash) attack completely; commit + push + release everything.
+**Date:** 2026-10-16 14:37
+**Request:** in-game updater: auto check every 5 min with a notification, manual check, changelog in game, "Update and Close Game" (manual restart); then commit + push + release.
 
 **Done:**
-- Took over the unfinished AI work of session "homelander" (user's choice): random pool of all ready specials, max 2 punches in a row.
-- Smash removed from viewer + mod (anim, button, key 0, victim pose, config `groundSmash`, events, data, test scenes, docs).
-- Tests: viewer cliptest ok, `gradlew build` 8 tests green, in-game `runHomelanderTest`: free fights use clap, laser, throw, punch; no errors.
-- Rule: release after every in-game test (`CLAUDE.md`).
-- Committed everything not git-ignored (also other mobs and references).
+- Already there: button (title + pause), 5-minute check, changelog screen, download + swap after close.
+- New: toast + clickable chat link `[Changelog + Update]` while playing (client command `/sindicate update`), restart hint, scroll arrow, toast cleared on the screen.
+- Tests: `gradlew build` 8 tests green; in game (`runHomelanderTest`, `CMTEST ui`): notice shown, link opens the update screen with the changelog.
+- Not tested in game: the real download + jar swap (dev run has no jar); covered by `UpdateInstallerTest`.
 
-**Files:** `mobs/homelander/homelander.html`, `mod/src/main/java/com/custommobs/**`, assets, test datapack, `CLAUDE.md`, `README.md`, docs, + other people's untracked mobs/references.
+**Files:** `mod/src/main/java/com/custommobs/update/UpdateClient.java`, `UpdateScreen.java`, lang, test timeline, `CLAUDE.md`, `README.md`, docs, version 0.0.3-alpha.
 
-**Next:** v0.0.2-alpha is released (https://github.com/T13510783/custom-mobs/releases/tag/v0.0.2-alpha).
+**Next:** v0.0.3-alpha released; players on v0.0.2 get the notice within 5 minutes.

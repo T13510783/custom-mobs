@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-16 14:37
+- Updater (`mod/src/main/java/com/custommobs/update/UpdateClient.java`, `UpdateScreen.java`): a new version found by the 5-minute check pops up a toast + a clickable chat line (`/sindicate update`, new client command) that opens the changelog with "Update and Close Game"; restart hint on the update screen; scroll arrow; toast cleared when the screen opens. Lang `en_us` + `nl_nl`.
+- Test (`mod/testworld/homelandertest/.../timeline.mcfunction`, `CMTEST ui`): also shoots the update notice and the changelog screen.
+- Version `0.0.3-alpha` (`mod/gradle.properties`, `mod/release_notes.md`, README).
+
 ## 2026-10-16 14:09
 - Homelander: Smash attack removed everywhere (viewer `mobs/homelander/homelander.html`: button, animation, victim pose; mod: `HomelanderEntity`, `HomelanderAttackGoal`, `HomelanderVictims`, `HomelanderClientState`, `HomelanderData`, `SindicateConfig` option `groundSmash`, mods.toml text, test timeline).
 - Homelander AI (`HomelanderAttackGoal.java`): every ready special joins one random pool (throw, throat laser, clap, point-blank heat vision), at most 2 punches in a row; lower first cooldowns; creative players can be grabbed (`HomelanderEntity.java`).
