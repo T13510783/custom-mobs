@@ -1,0 +1,2580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Dexter Morgan — Vanilla+ 16x16 3D Model Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Three.js r128 and OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0f1115;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #e5e7eb;
+    }
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at 50% 42%, #191d24 0%, #0f1115 72%);
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    /* Ultra-minimal floating bottom pill bar */
+    .pill-bar {
+      background: rgba(18, 21, 27, 0.84);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.4);
+    }
+
+    .pill-btn {
+      position: relative;
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      color: #9ca3af;
+    }
+    .pill-btn:hover {
+      color: #f3f4f6;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .pill-btn.active-anim {
+      color: #ffffff;
+      background: rgba(185, 28, 28, 0.85);
+      box-shadow: 0 2px 12px rgba(185, 28, 28, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    .pill-btn.active-fit {
+      color: #f3f4f6;
+      background: rgba(255, 255, 255, 0.12);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+    .pill-btn.active-shield {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.16);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.35);
+    }
+    .pill-btn.active-hood {
+      color: #e2e8f0;
+      background: rgba(148, 163, 184, 0.22);
+      box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.38);
+    }
+    .reset-btn {
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      color: #9ca3af;
+    }
+    .reset-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.09);
+      transform: rotate(-25deg);
+    }
+    .reset-btn:active {
+      transform: scale(0.92) rotate(-45deg);
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- Sleek Floating Bottom Pill Bar (Fits + Animations + Camera Reset) -->
+  <div class="fixed bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 max-w-[96vw]">
+    <div class="pill-bar rounded-full px-2 py-1.5 flex items-center gap-1 overflow-x-auto no-scrollbar">
+      <!-- Outfit / Fit Selector Pills (All Reference Fits) -->
+      <div class="flex items-center gap-0.5 pr-1" role="group" aria-label="Outfit Selection">
+        <button data-fit="henley" class="pill-btn active-fit text-xs font-medium px-3 py-1.5 rounded-full whitespace-nowrap" title="Olive Henley & Cargo Pants (Ref 1-3)">
+          Henley
+        </button>
+        <button data-fit="killroom" class="pill-btn text-xs font-medium px-3 py-1.5 rounded-full whitespace-nowrap" title="Kill Room Butcher Apron & Visor (Ref 4, 6, 7)">
+          Kill Room
+        </button>
+        <button data-fit="darkpassenger" class="pill-btn text-xs font-medium px-3 py-1.5 rounded-full whitespace-nowrap" title="Dark Passenger Trench Coat, Cowl Hood & Fingerless Gloves (Ref 5, 10-12)">
+          Dark Passenger
+        </button>
+        <button data-fit="miamimetro" class="pill-btn text-xs font-medium px-3 py-1.5 rounded-full whitespace-nowrap" title="Miami Metro Lab Shirt & Blood Slide (Ref 8, 9)">
+          Lab Fit
+        </button>
+        <button data-fit="santa" class="pill-btn text-xs font-medium px-3 py-1.5 rounded-full whitespace-nowrap" title="Miami Holiday Santa Suit & Shades (Ref 13)">
+          Santa
+        </button>
+      </div>
+
+      <!-- Kill Room Face Shield 3-Stage Selector (Only shown when Kill Room Fit is active) -->
+      <div id="shield-controls-wrapper" class="hidden items-center">
+        <div class="w-px h-5 bg-white/10 mx-0.5 shrink-0"></div>
+        <div id="shield-controls" class="flex items-center gap-0.5 px-1" role="group" aria-label="Kill Room Face Shield Stage">
+          <span class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold px-1.5 select-none">Shield</span>
+          <button data-shield="on" class="pill-btn text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap" title="Face Shield Flipped Down Over Face (On)">
+            On
+          </button>
+          <button data-shield="mid" class="pill-btn active-shield text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap" title="Face Shield Flipped Up on Forehead (Mid - Ref 4)">
+            Mid
+          </button>
+          <button data-shield="off" class="pill-btn text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap" title="No Face Shield (Off - Ref 6 & 7)">
+            Off
+          </button>
+        </div>
+      </div>
+
+      <!-- Dark Passenger Hood 3-Stage Selector (Only shown when Dark Passenger Fit is active) -->
+      <div id="hood-controls-wrapper" class="hidden items-center">
+        <div class="w-px h-5 bg-white/10 mx-0.5 shrink-0"></div>
+        <div id="hood-controls" class="flex items-center gap-0.5 px-1" role="group" aria-label="Dark Passenger Hood Stage">
+          <span class="text-[10px] uppercase tracking-wider text-gray-400 font-semibold px-1.5 select-none">Hood</span>
+          <button data-hood="on" class="pill-btn active-hood text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap" title="Peaked Dark Passenger Cowl Pulled Over Eyes (On - Ref 10 & 12)">
+            On
+          </button>
+          <button data-hood="mid" class="pill-btn text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap" title="Leather-Lined Hood Resting Midway Around Head & Neck (Mid - Ref 5 & 11)">
+            Mid
+          </button>
+          <button data-hood="off" class="pill-btn text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap" title="Hood Down & Hanging Against Upper Back (Off)">
+            Off
+          </button>
+        </div>
+      </div>
+
+      <!-- Subtle Vertical Divider -->
+      <div class="w-px h-5 bg-white/10 mx-0.5 shrink-0"></div>
+
+      <!-- 4 Animation Selector Pills -->
+      <div class="flex items-center gap-0.5 pl-1" role="group" aria-label="Animation Selection">
+        <button data-anim="idle" class="pill-btn active-anim text-xs font-medium px-3.5 py-1.5 rounded-full whitespace-nowrap">
+          Idle
+        </button>
+        <button data-anim="walk" class="pill-btn text-xs font-medium px-3.5 py-1.5 rounded-full whitespace-nowrap">
+          Walk
+        </button>
+        <button data-anim="attack" class="pill-btn text-xs font-medium px-3.5 py-1.5 rounded-full whitespace-nowrap">
+          Attack
+        </button>
+        <button data-anim="special" class="pill-btn text-xs font-medium px-3.5 py-1.5 rounded-full whitespace-nowrap">
+          Special
+        </button>
+      </div>
+
+      <!-- Subtle Vertical Divider -->
+      <div class="w-px h-5 bg-white/10 mx-0.5 shrink-0"></div>
+
+      <!-- Small Camera Reset Button -->
+      <button id="reset-camera-btn" class="reset-btn w-8 h-8 rounded-full flex items-center justify-center shrink-0" title="Reset Camera" aria-label="Reset Camera">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ============================================================================
+      // 1. SCENE, CAMERA, RENDERER & ORBIT CONTROLS SETUP
+      // ============================================================================
+      const container = document.getElementById('canvas-container');
+      const scene = new THREE.Scene();
+
+      // In our Blockbench space: 1 pixel = 1 unit, 16 units = 1 Minecraft block.
+      // Total humanoid height is ~32 units (2 blocks).
+      const camera = new THREE.PerspectiveCamera(
+        36,
+        window.innerWidth / window.innerHeight,
+        0.5,
+        300
+      );
+      const DEFAULT_CAM_POS = new THREE.Vector3(24, 24, 52);
+      const DEFAULT_CAM_TARGET = new THREE.Vector3(0, 16.5, 0);
+      camera.position.copy(DEFAULT_CAM_POS);
+
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance'
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.08;
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.copy(DEFAULT_CAM_TARGET);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.065;
+      controls.minDistance = 18;
+      controls.maxDistance = 110;
+      controls.maxPolarAngle = Math.PI / 2 + 0.06;
+      controls.minPolarAngle = 0.15;
+      controls.update();
+
+      const ambientLight = new THREE.HemisphereLight(0xdbe4f0, 0x181a20, 0.72);
+      scene.add(ambientLight);
+
+      const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.15);
+      keyLight.position.set(28, 48, 36);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.width = 2048;
+      keyLight.shadow.mapSize.height = 2048;
+      keyLight.shadow.camera.near = 10;
+      keyLight.shadow.camera.far = 120;
+      const d = 26;
+      keyLight.shadow.camera.left = -d;
+      keyLight.shadow.camera.right = d;
+      keyLight.shadow.camera.top = d;
+      keyLight.shadow.camera.bottom = -d;
+      keyLight.shadow.bias = -0.0005;
+      keyLight.shadow.radius = 3.5;
+      scene.add(keyLight);
+
+      // Cool rim light for dark silhouettes
+      const rimLight = new THREE.DirectionalLight(0x7dd3fc, 0.45);
+      rimLight.position.set(-30, 28, -28);
+      scene.add(rimLight);
+
+      // Subtle warm-crimson fill light from below-right ("Blood Spatter" mood accent)
+      const moodLight = new THREE.PointLight(0xdc2626, 0.28, 65);
+      moodLight.position.set(-16, 8, 18);
+      scene.add(moodLight);
+
+      // Crisp 16x16 Blockbench floor pedestal texture with radial alpha falloff
+      function createFloorGridTexture() {
+        const size = 64; // 4x4 blocks (64x64 texels)
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const cx = size / 2;
+        const cy = size / 2;
+        for (let y = 0; y < size; y++) {
+          for (let x = 0; x < size; x++) {
+            const dx = x - cx + 0.5;
+            const dy = y - cy + 0.5;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 30) continue;
+            const alpha = Math.max(0, 1 - Math.pow(dist / 30, 1.7));
+            const isBlockBorder = (x % 16 === 0) || (y % 16 === 0);
+            const isSubPixel = ((x + y) % 2 === 0);
+            if (isBlockBorder) {
+              ctx.fillStyle = `rgba(255, 255, 255, ${(0.075 * alpha).toFixed(3)})`;
+            } else {
+              const v = isSubPixel ? 26 : 22;
+              ctx.fillStyle = `rgba(${v}, ${v + 3}, ${v + 9}, ${(0.45 * alpha).toFixed(3)})`;
+            }
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.magFilter = THREE.NearestFilter;
+        tex.minFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        return tex;
+      }
+
+      const groundGeo = new THREE.PlaneGeometry(64, 64);
+      const groundMat = new THREE.MeshStandardMaterial({
+        map: createFloorGridTexture(),
+        transparent: true,
+        roughness: 0.95,
+        metalness: 0.05,
+        depthWrite: false
+      });
+      const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+      groundMesh.rotation.x = -Math.PI / 2;
+      groundMesh.position.y = 0.01;
+      groundMesh.receiveShadow = true;
+      scene.add(groundMesh);
+
+      const shadowPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(80, 80),
+        new THREE.ShadowMaterial({ opacity: 0.42 })
+      );
+      shadowPlane.rotation.x = -Math.PI / 2;
+      shadowPlane.position.y = 0.02;
+      shadowPlane.receiveShadow = true;
+      scene.add(shadowPlane);
+
+      // ============================================================================
+      // 2. STRICT 16x16 PIXEL-ART TEXTURE ENGINE (BLOCKBENCH VANILLA+ STYLE)
+      // ============================================================================
+
+      // Deterministic pseudo-random for consistent Vanilla+ texel noise
+      function hash2D(x, y, seed = 1) {
+        let n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123;
+        return n - Math.floor(n);
+      }
+
+      // Adjust hex color brightness by factor (-40 to +40)
+      function shadeHex(hex, amt) {
+        let col = hex.replace('#', '');
+        let num = parseInt(col, 16);
+        let r = Math.min(255, Math.max(0, (num >> 16) + amt));
+        let g = Math.min(255, Math.max(0, ((num >> 8) & 0x00ff) + amt));
+        let b = Math.min(255, Math.max(0, (num & 0x0000ff) + amt));
+        return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+      }
+
+      // Draw a single crisp pixel on a 2D context
+      function px(ctx, x, y, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
+      }
+
+      // Draw a rectangle of pixels
+      function rect(ctx, x, y, w, h, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.floor(x), Math.floor(y), Math.floor(w), Math.floor(h));
+      }
+
+      // Fill a face with cohesive Vanilla+ textured shading (subtle edge AO + micro-grain)
+      function fillVanillaFabric(ctx, w, h, baseHex, seed = 1, grain = 7, waffle = false) {
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const n = (hash2D(x, y, seed) - 0.5) * grain * 2;
+            // Subtle vertical gradient & edge darkening like Vanilla+ skins
+            const edgeX = (x === 0 || x === w - 1) ? -5 : 0;
+            const edgeY = (y === h - 1) ? -6 : (y === 0 ? 3 : 0);
+            const waffleDelta = waffle ? (((x + y) % 2 === 0) ? 3 : -3) : 0;
+            px(ctx, x, y, shadeHex(baseHex, Math.round(n + edgeX + edgeY + waffleDelta)));
+          }
+        }
+      }
+
+      /**
+       * Creates a Three.js Mesh with strict 1:1 texel-to-unit BoxGeometry.
+       * Face order in Three.js BoxGeometry:
+       * 0: Right (+x, d x h), 1: Left (-x, d x h),
+       * 2: Top (+y, w x d),   3: Bottom (-y, w x d),
+       * 4: Front (+z, w x h), 5: Back (-z, w x h)
+       */
+      function createVoxelBox(w, h, d, painters, options = {}) {
+        const inflate = options.inflate || 0;
+        const transparent = options.transparent || false;
+        const roughness = options.roughness !== undefined ? options.roughness : 0.86;
+        const metalness = options.metalness !== undefined ? options.metalness : 0.04;
+
+        const faceSpecs = [
+          { name: 'right',  pw: Math.max(1, Math.round(d)), ph: Math.max(1, Math.round(h)) },
+          { name: 'left',   pw: Math.max(1, Math.round(d)), ph: Math.max(1, Math.round(h)) },
+          { name: 'top',    pw: Math.max(1, Math.round(w)), ph: Math.max(1, Math.round(d)) },
+          { name: 'bottom', pw: Math.max(1, Math.round(w)), ph: Math.max(1, Math.round(d)) },
+          { name: 'front',  pw: Math.max(1, Math.round(w)), ph: Math.max(1, Math.round(h)) },
+          { name: 'back',   pw: Math.max(1, Math.round(w)), ph: Math.max(1, Math.round(h)) }
+        ];
+
+        const materials = faceSpecs.map((spec) => {
+          const canvas = document.createElement('canvas');
+          canvas.width = spec.pw;
+          canvas.height = spec.ph;
+          const ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = false;
+
+          if (painters && painters[spec.name]) {
+            painters[spec.name](ctx, spec.pw, spec.ph);
+          } else if (painters && painters.all) {
+            painters.all(ctx, spec.pw, spec.ph, spec.name);
+          }
+
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.magFilter = THREE.NearestFilter;
+          texture.minFilter = THREE.NearestFilter;
+          texture.generateMipmaps = false;
+          texture.encoding = THREE.sRGBEncoding;
+          texture.needsUpdate = true;
+
+          return new THREE.MeshStandardMaterial({
+            map: texture,
+            transparent: transparent,
+            alphaTest: transparent ? 0.08 : 0,
+            roughness: roughness,
+            metalness: metalness,
+            side: transparent ? THREE.DoubleSide : THREE.FrontSide
+          });
+        });
+
+        const geo = new THREE.BoxGeometry(
+          w + inflate * 2,
+          h + inflate * 2,
+          d + inflate * 2
+        );
+        const mesh = new THREE.Mesh(geo, materials);
+        mesh.castShadow = !options.noShadow;
+        mesh.receiveShadow = true;
+        return mesh;
+      }
+
+      // ============================================================================
+      // 3. COLOR PALETTES (1:1 FROM DEXTER REFERENCE IMAGES)
+      // ============================================================================
+      const PAL = {
+        // Skin & Facial Features (Michael C. Hall natural fair-warm complexion + subtle sandy-ginger stubble)
+        skinBase: '#ecc6ae',
+        skinLight: '#f6d8c5',
+        skinMid: '#dfb59b',
+        skinShade: '#cca085',
+        skinDeep: '#b5866b',
+        stubble: '#d4a68c',
+        stubbleDark: '#c39378',
+        lipUpper: '#b5796b',
+        lipCenter: '#a3685a',
+        lipCorner: '#c48979',
+        lipLower: '#d69d8c',
+        eyeWhite: '#f8fafc',
+        eyeIris: '#583e2a', // Warm hazel-brown eyes
+        eyePupil: '#18100a',
+        brow: '#6b442b',
+        browLight: '#825539',
+
+        // Tousled Warm Chestnut / Sandy Auburn-Brown Hair (Refs 1, 2, 3, 8, 9)
+        hairBase: '#684128',
+        hairLight: '#7e5134',
+        hairHighlight: '#946242',
+        hairDark: '#4d2e1b',
+
+        // Fit 1: Iconic Olive-Brown Thermal Waffle Henley & Cargo Pants (Refs 1, 2, 3)
+        henleyBase: '#544e39',
+        henleyDark: '#3f3b2a',
+        henleyLight: '#635c44',
+        henleyPlacket: '#484330',
+        buttonPearl: '#e5e5dc',
+        cargoBase: '#454832',
+        cargoDark: '#333624',
+        cargoLight: '#54583e',
+        bootBrown: '#251c16',
+        bootSole: '#14100d',
+
+        // Fit 2: Kill Room Apron, Sage Henley, Vinyl Sleeves & Latex Gloves (Refs 4, 6, 7)
+        sageHenley: '#696e52',
+        apronBlack: '#1f2226',
+        apronSheen: '#32373d',
+        apronStrap: '#c4c1b7',
+        vinylSleeve: '#78685c',
+        vinylSleeveLight: '#8c7a6d',
+        latexGlove: '#dfd9cc',
+        latexShade: '#c4bdb0',
+        rubberBoot: '#17191c',
+
+        // Fit 3: Dark Passenger Black Trench Coat, Hoodie & Fingerless Gloves (Ref 5)
+        trenchBlack: '#17181c',
+        trenchShade: '#101114',
+        trenchHighlight: '#25272e',
+        leatherPant: '#1b1d22',
+        gloveKnit: '#191a1f',
+
+        // Fit 4: Miami Metro Forensic Lab Shirt & Chinos (Refs 8, 9)
+        labShirt: '#c6d6e3',
+        labShirtShade: '#adc0d1',
+        labShirtLight: '#dde9f2',
+        khakiBase: '#8a775f',
+        khakiDark: '#705f4a',
+        badgeGold: '#eab308',
+        badgeBlue: '#1d4ed8',
+
+        // Fit 5: Miami Holiday Santa Suit & Sunglasses (Ref 13: image_f49502.jpg)
+        santaRed: '#9e1b1b',
+        santaRedLight: '#b92525',
+        santaRedDark: '#781212',
+        santaFur: '#f5f6f8',
+        santaFurShade: '#dfe3ea',
+        santaFurWhite: '#ffffff',
+        buckleGold: '#e5c158',
+        buckleGoldLight: '#fef08a',
+        beltBlack: '#14161a'
+      };
+
+      // ============================================================================
+      // 4. HIERARCHICAL RIG & ARTICULATED PIVOT STRUCTURE
+      // ============================================================================
+      const characterRoot = new THREE.Group();
+      scene.add(characterRoot);
+
+      // Pelvis / Hips center at y = 12 (top of 12-unit legs)
+      const pelvisGroup = new THREE.Group();
+      pelvisGroup.position.set(0, 12, 0);
+      characterRoot.add(pelvisGroup);
+
+      // Torso group pivots from waist (y = 0 relative to pelvis, so world y = 12)
+      const torsoGroup = new THREE.Group();
+      torsoGroup.position.set(0, 0, 0);
+      pelvisGroup.add(torsoGroup);
+
+      // Head group pivots from neck (y = 12 relative to torso, so world y = 24)
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 12, 0);
+      torsoGroup.add(headGroup);
+
+      // Left & Right Arm pivots at shoulders (y = 11 relative to torso, x = +-6)
+      // Pivot is placed at top-center of arm (2 units below top of 12-unit torso)
+      const rightArmGroup = new THREE.Group();
+      rightArmGroup.position.set(-6, 11, 0);
+      torsoGroup.add(rightArmGroup);
+
+      const leftArmGroup = new THREE.Group();
+      leftArmGroup.position.set(6, 11, 0);
+      torsoGroup.add(leftArmGroup);
+
+      // Hand sockets at the bottom of each arm (y = -9.5 relative to shoulder pivot)
+      const rightHandSocket = new THREE.Group();
+      rightHandSocket.position.set(0, -9.5, 0.5);
+      rightArmGroup.add(rightHandSocket);
+
+      const leftHandSocket = new THREE.Group();
+      leftHandSocket.position.set(0, -9.5, 0.5);
+      leftArmGroup.add(leftHandSocket);
+
+      // Left & Right Leg pivots at hips (y = 0 relative to pelvis, x = +-2)
+      const rightLegGroup = new THREE.Group();
+      rightLegGroup.position.set(-2, 0, 0);
+      pelvisGroup.add(rightLegGroup);
+
+      const leftLegGroup = new THREE.Group();
+      leftLegGroup.position.set(2, 0, 0);
+      pelvisGroup.add(leftLegGroup);
+
+      // ============================================================================
+      // 5. HEAD & 3D LAYERED HAIR (SHARED ACROSS FITS, WITH KILL-ROOM VISOR LAYER)
+      // ============================================================================
+      function buildDexterHead() {
+        const headContainer = new THREE.Group();
+
+        // Base 8x8x8 Head Cube (centered at y = 4 above neck)
+        const headMesh = createVoxelBox(8, 8, 8, {
+          front: (ctx, w, h) => {
+            // Clean, natural fair-warm skin base
+            fillVanillaFabric(ctx, w, h, PAL.skinBase, 10, 3);
+
+            // Forehead warmth & subtle temple shading
+            rect(ctx, 1, 1, 6, 1, PAL.skinLight);
+            px(ctx, 0, 1, PAL.skinMid);
+            px(ctx, 7, 1, PAL.skinMid);
+
+            // Feathered chestnut-auburn hairline along top edge (y = 0)
+            rect(ctx, 0, 0, 8, 1, PAL.hairBase);
+            px(ctx, 1, 0, PAL.hairLight);
+            px(ctx, 2, 0, PAL.hairHighlight);
+            px(ctx, 5, 0, PAL.hairLight);
+            px(ctx, 0, 1, PAL.hairDark);
+            px(ctx, 7, 1, PAL.hairDark);
+
+            // Distinct, low-set arched sandy-auburn eyebrows with clear glabella separation (y = 2)
+            px(ctx, 1, 2, PAL.browLight);
+            px(ctx, 2, 2, PAL.brow);
+            // Clear skin glabella furrow between eyebrows (no unibrow)
+            px(ctx, 3, 2, PAL.skinMid);
+            px(ctx, 4, 2, PAL.skinMid);
+            px(ctx, 3, 1, PAL.skinLight);
+            px(ctx, 4, 1, PAL.skinLight);
+            // Right eyebrow
+            px(ctx, 5, 2, PAL.brow);
+            px(ctx, 6, 2, PAL.browLight);
+
+            // Deep-set hazel-brown eyes (y = 3)
+            px(ctx, 1, 3, PAL.eyeWhite);
+            px(ctx, 2, 3, PAL.eyeIris);
+            px(ctx, 5, 3, PAL.eyeIris);
+            px(ctx, 6, 3, PAL.eyeWhite);
+
+            // Subtle lower eyelid & cheekbone structure (y = 4)
+            px(ctx, 1, 4, PAL.skinMid);
+            px(ctx, 2, 4, PAL.skinLight);
+            px(ctx, 5, 4, PAL.skinLight);
+            px(ctx, 6, 4, PAL.skinMid);
+
+            // Nose bridge & tip (x = 3..4, y = 3..4)
+            px(ctx, 3, 3, PAL.skinLight);
+            px(ctx, 4, 3, PAL.skinBase);
+            px(ctx, 3, 4, PAL.skinLight);
+            px(ctx, 4, 4, PAL.skinMid);
+
+            // Cheek contours
+            px(ctx, 0, 3, PAL.skinBase);
+            px(ctx, 7, 3, PAL.skinBase);
+            px(ctx, 0, 4, PAL.skinMid);
+            px(ctx, 7, 4, PAL.skinMid);
+
+            // Cohesive Vanilla+ 5 o'clock stubble along outer jaw & chin (no noisy checkerboard next to lips)
+            rect(ctx, 0, 5, 2, 3, PAL.stubble);
+            rect(ctx, 6, 5, 2, 3, PAL.stubble);
+            px(ctx, 0, 6, PAL.stubbleDark);
+            px(ctx, 7, 6, PAL.stubbleDark);
+            rect(ctx, 0, 7, 8, 1, PAL.stubbleDark);
+
+            // Upper lip & philtrum contour under nose (y = 5)
+            px(ctx, 1, 5, PAL.skinMid);
+            px(ctx, 2, 5, PAL.skinLight);
+            px(ctx, 3, 5, PAL.skinMid);   // Philtrum dimple
+            px(ctx, 4, 5, PAL.skinMid);   // Philtrum dimple
+            px(ctx, 5, 5, PAL.skinLight);
+            px(ctx, 6, 5, PAL.skinMid);
+
+            // Balanced, composed 4-pixel mouth across x = 2..5 (y = 6) with subtle right-corner smirk contour
+            px(ctx, 1, 6, PAL.stubble);
+            px(ctx, 2, 6, PAL.lipCorner); // Left mouth corner
+            px(ctx, 3, 6, PAL.lipCenter); // Center-left parted lip line
+            px(ctx, 4, 6, PAL.lipUpper);  // Center-right lip line
+            px(ctx, 5, 6, PAL.lipCorner); // Right mouth corner
+            px(ctx, 6, 6, PAL.skinMid);   // Subtle smirk crease highlight on cheek
+
+            // Clean lower lip cushion & rounded chin pad (y = 7)
+            px(ctx, 1, 7, PAL.stubbleDark);
+            px(ctx, 2, 7, PAL.stubble);
+            px(ctx, 3, 7, PAL.lipLower);  // Lower lip / chin highlight
+            px(ctx, 4, 7, PAL.skinBase);  // Chin pad highlight
+            px(ctx, 5, 7, PAL.stubble);
+            px(ctx, 6, 7, PAL.stubbleDark);
+          },
+          left: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.skinBase, 11, 3);
+            // Tapered chestnut-auburn hair side & temple crop
+            rect(ctx, 0, 0, 8, 2, PAL.hairBase);
+            rect(ctx, 2, 0, 4, 1, PAL.hairLight);
+            rect(ctx, 0, 2, 3, 3, PAL.hairBase);
+            rect(ctx, 0, 5, 2, 2, PAL.hairDark);
+            // Neat sideburn in front of ear (x = 5, y = 2..3)
+            px(ctx, 5, 2, PAL.hairLight);
+            px(ctx, 5, 3, PAL.hairBase);
+            // Ear detail
+            px(ctx, 3, 3, PAL.skinLight);
+            px(ctx, 4, 3, PAL.skinMid);
+            px(ctx, 3, 4, PAL.skinMid);
+            px(ctx, 4, 4, PAL.skinShade);
+            // Subtle jawline stubble
+            rect(ctx, 4, 6, 4, 1, PAL.stubble);
+            rect(ctx, 2, 7, 6, 1, PAL.stubbleDark);
+          },
+          right: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.skinBase, 12, 3);
+            // Tapered chestnut-auburn hair side & temple crop
+            rect(ctx, 0, 0, 8, 2, PAL.hairBase);
+            rect(ctx, 2, 0, 4, 1, PAL.hairLight);
+            rect(ctx, 5, 2, 3, 3, PAL.hairBase);
+            rect(ctx, 6, 5, 2, 2, PAL.hairDark);
+            // Neat sideburn in front of ear (x = 2, y = 2..3)
+            px(ctx, 2, 2, PAL.hairLight);
+            px(ctx, 2, 3, PAL.hairBase);
+            // Ear detail
+            px(ctx, 3, 3, PAL.skinMid);
+            px(ctx, 4, 3, PAL.skinLight);
+            px(ctx, 3, 4, PAL.skinShade);
+            px(ctx, 4, 4, PAL.skinMid);
+            // Subtle jawline stubble
+            rect(ctx, 0, 6, 4, 1, PAL.stubble);
+            rect(ctx, 0, 7, 6, 1, PAL.stubbleDark);
+          },
+          back: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.hairBase, 13, 7);
+            // Layered chestnut texture on back of head + tapered nape
+            rect(ctx, 1, 1, 6, 2, PAL.hairLight);
+            rect(ctx, 0, 6, 8, 1, PAL.hairDark);
+            rect(ctx, 0, 7, 8, 1, PAL.skinMid);
+            rect(ctx, 2, 7, 4, 1, PAL.hairDark);
+          },
+          top: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.hairBase, 14, 8);
+            // Tousled warm sandy-auburn highlights across crown
+            rect(ctx, 1, 1, 6, 6, PAL.hairLight);
+            px(ctx, 2, 2, PAL.hairHighlight);
+            px(ctx, 3, 3, PAL.hairHighlight);
+            px(ctx, 5, 2, PAL.hairHighlight);
+            px(ctx, 4, 5, PAL.hairHighlight);
+            px(ctx, 2, 4, PAL.hairBase);
+            px(ctx, 5, 4, PAL.hairBase);
+          },
+          bottom: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.skinDeep, 15, 3);
+          }
+        });
+        headMesh.position.set(0, 4, 0);
+        headContainer.add(headMesh);
+
+        // Outer Hair & Brow Layer (Blockbench Hat Layer with alpha cutouts for tousled bangs & 3D eyebrows)
+        const hairOuter = createVoxelBox(8, 8, 8, {
+          front: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            // Tousled short chestnut-auburn bangs parted slightly to the side (Refs 1, 2, 3, 8, 9)
+            rect(ctx, 0, 0, 8, 1, PAL.hairLight);
+            px(ctx, 2, 0, PAL.hairHighlight);
+            px(ctx, 5, 0, PAL.hairHighlight);
+            // Feathered piecey fringe across top of forehead (leaves forehead & temples natural)
+            px(ctx, 0, 1, PAL.hairBase);
+            px(ctx, 1, 1, PAL.hairLight);
+            px(ctx, 2, 1, PAL.hairHighlight);
+            px(ctx, 4, 1, PAL.hairLight);
+            px(ctx, 5, 1, PAL.hairHighlight);
+            px(ctx, 7, 1, PAL.hairBase);
+
+            // Subtle 3D arched eyebrow relief on outer layer (separated by 2px glabella gap)
+            px(ctx, 1, 2, PAL.browLight);
+            px(ctx, 2, 2, PAL.brow);
+            px(ctx, 5, 2, PAL.brow);
+            px(ctx, 6, 2, PAL.browLight);
+          },
+          left: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            rect(ctx, 0, 0, 8, 2, PAL.hairLight);
+            rect(ctx, 0, 2, 4, 3, PAL.hairBase);
+            rect(ctx, 0, 5, 2, 1, PAL.hairDark);
+            px(ctx, 5, 2, PAL.hairLight);
+          },
+          right: (ctx, w, h) => {
+            ctx.clearRect(0, 0, 8, 8);
+            rect(ctx, 0, 0, 8, 2, PAL.hairLight);
+            rect(ctx, 4, 2, 4, 3, PAL.hairBase);
+            rect(ctx, 6, 5, 2, 1, PAL.hairDark);
+            px(ctx, 2, 2, PAL.hairLight);
+          },
+          back: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            fillVanillaFabric(ctx, w, 6, PAL.hairBase, 22, 8);
+            rect(ctx, 1, 1, 6, 3, PAL.hairLight);
+          },
+          top: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.hairLight, 23, 8);
+            px(ctx, 2, 2, PAL.hairHighlight);
+            px(ctx, 5, 3, PAL.hairHighlight);
+            px(ctx, 3, 5, PAL.hairHighlight);
+          }
+        }, { inflate: 0.25, transparent: true });
+        hairOuter.position.set(0, 4, 0);
+        headContainer.add(hairOuter);
+
+        // 3D Layered Tousled Crown & Fringe Locks (Blockbench-style stepped voxel hair volume)
+        const crownLock = createVoxelBox(7.2, 0.75, 7.2, {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.hairLight, 30, 8)
+        });
+        crownLock.position.set(0, 8.35, -0.1);
+        headContainer.add(crownLock);
+
+        // Left-swept front tousled lock (matches Dexter's parted short fringe in Ref 1 & Ref 3)
+        const frontLockLeft = createVoxelBox(3.2, 1.1, 0.9, {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.hairHighlight, 31, 7)
+        });
+        frontLockLeft.position.set(-1.6, 7.65, 4.05);
+        frontLockLeft.rotation.z = 0.06;
+        headContainer.add(frontLockLeft);
+
+        // Right-swept front textured lock
+        const frontLockRight = createVoxelBox(2.6, 1.0, 0.85, {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.hairLight, 32, 7)
+        });
+        frontLockRight.position.set(1.7, 7.75, 4.02);
+        frontLockRight.rotation.z = -0.08;
+        headContainer.add(frontLockRight);
+
+        headContainer.userData.hairVolumes = [hairOuter, crownLock, frontLockLeft, frontLockRight];
+
+        return headContainer;
+      }
+
+      const dexterHeadMeshGroup = buildDexterHead();
+      headGroup.add(dexterHeadMeshGroup);
+
+      // ============================================================================
+      // 6. KILL-ROOM SURGICAL FACE SHIELD VISOR (REF IMAGE 4: image_f33465.jpg)
+      // ============================================================================
+      const visorGroup = new THREE.Group();
+      headGroup.add(visorGroup);
+
+      function buildSurgicalVisor() {
+        // Black cushioned brow headband (wraps around forehead at y = 6.2)
+        const headband = createVoxelBox(8.7, 1.3, 8.7, {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#181a1f', 40, 5)
+        });
+        headband.position.set(0, 6.2, 0);
+        visorGroup.add(headband);
+
+        // Silver hinge mounts on left & right temples
+        const hingeMat = {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#cbd5e1', 41, 6)
+        };
+        const leftHinge = createVoxelBox(0.6, 1.2, 1.2, hingeMat, { metalness: 0.6, roughness: 0.3 });
+        leftHinge.position.set(4.5, 6.4, 1.2);
+        visorGroup.add(leftHinge);
+
+        const rightHinge = createVoxelBox(0.6, 1.2, 1.2, hingeMat, { metalness: 0.6, roughness: 0.3 });
+        rightHinge.position.set(-4.5, 6.4, 1.2);
+        visorGroup.add(rightHinge);
+
+        // Pivoting Visor Shield (supports On / Mid / Off stages cleanly without clipping face)
+        const visorPivot = new THREE.Group();
+        visorPivot.position.set(0, 6.5, 1.2);
+        visorGroup.add(visorPivot);
+
+        // Silver aluminum top brow arch of the shield (with white manufacturer label strip in front like Ref 4)
+        const archTop = createVoxelBox(9.1, 1.2, 4.1, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#94a3b8', 42, 5);
+            rect(ctx, 2, 0, 5, 1, '#f8fafc'); // White manufacturer sticker from image_f33465.jpg
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#94a3b8', 43, 5)
+        }, { metalness: 0.5, roughness: 0.35 });
+        archTop.position.set(0, 2.1, 1.8);
+        visorPivot.add(archTop);
+
+        // Clear curved polycarbonate face shield (built as thin wrap-around front + side panels so it never clips the head when flipped down!)
+        const shieldCanvas = document.createElement('canvas');
+        shieldCanvas.width = 16;
+        shieldCanvas.height = 16;
+        const sctx = shieldCanvas.getContext('2d');
+        sctx.fillStyle = 'rgba(205, 230, 248, 0.22)';
+        sctx.fillRect(0, 0, 16, 16);
+        // Crisp diagonal pixel specular reflection
+        sctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        for (let i = 2; i < 13; i++) {
+          sctx.fillRect(i, i, 2, 1);
+        }
+        sctx.strokeStyle = 'rgba(226, 232, 240, 0.7)';
+        sctx.lineWidth = 1;
+        sctx.strokeRect(0.5, 0.5, 15, 15);
+
+        const shieldTex = new THREE.CanvasTexture(shieldCanvas);
+        shieldTex.magFilter = THREE.NearestFilter;
+        shieldTex.minFilter = THREE.NearestFilter;
+
+        const shieldMat = new THREE.MeshStandardMaterial({
+          map: shieldTex,
+          transparent: true,
+          opacity: 0.52,
+          roughness: 0.12,
+          metalness: 0.2,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+
+        // Front transparent visor plate
+        const frontPlate = new THREE.Mesh(new THREE.BoxGeometry(9.1, 6.8, 0.35), shieldMat);
+        frontPlate.position.set(0, -1.6, 3.68);
+        visorPivot.add(frontPlate);
+
+        // Left & right wrap-around cheek shield plates
+        const leftPlate = new THREE.Mesh(new THREE.BoxGeometry(0.35, 6.8, 3.8), shieldMat);
+        leftPlate.position.set(4.42, -1.6, 1.85);
+        visorPivot.add(leftPlate);
+
+        const rightPlate = new THREE.Mesh(new THREE.BoxGeometry(0.35, 6.8, 3.8), shieldMat);
+        rightPlate.position.set(-4.42, -1.6, 1.85);
+        visorPivot.add(rightPlate);
+
+        // Default flipped-up "Mid" pose on forehead (matches image_f33465.jpg!)
+        visorPivot.rotation.x = -0.88;
+        visorGroup.userData.visorPivot = visorPivot;
+      }
+      buildSurgicalVisor();
+
+      // ============================================================================
+      // 7. HELD PROPS (M99 SYRINGE, BUTCHER KNIFE, BLOOD SLIDE & TROPHY BOX)
+      // ============================================================================
+      const props = {
+        syringe: new THREE.Group(),
+        knife: new THREE.Group(),
+        bloodSlide: new THREE.Group(),
+        slideBox: new THREE.Group()
+      };
+
+      // 7A. M99 Tranquilizer Syringe (for Stalker Henley & Lab Fit)
+      (function buildSyringe() {
+        // Clear barrel with amber/clear fluid
+        const barrel = createVoxelBox(1.1, 4.2, 1.1, {
+          all: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#cbd5e1', 50, 4);
+            rect(ctx, 0, 1, w, 2, '#fef08a'); // M99 etorphine dose
+          }
+        });
+        barrel.position.set(0, 0, -1.8);
+        barrel.rotation.x = Math.PI / 2;
+        props.syringe.add(barrel);
+
+        // Plunger rod & thumb rest
+        const plunger = createVoxelBox(0.6, 2.4, 0.6, {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#f8fafc', 51, 3)
+        });
+        plunger.position.set(0, 0, 1.0);
+        plunger.rotation.x = Math.PI / 2;
+        props.syringe.add(plunger);
+
+        // Steel needle tip
+        const needle = createVoxelBox(0.28, 2.6, 0.28, {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#e2e8f0', 52, 2)
+        }, { metalness: 0.85, roughness: 0.2 });
+        needle.position.set(0, 0, -4.6);
+        needle.rotation.x = Math.PI / 2;
+        props.syringe.add(needle);
+
+        rightHandSocket.add(props.syringe);
+      })();
+
+      // 7B. Dark Passenger / Kill Room Butcher Knife
+      (function buildKnife() {
+        const handle = createVoxelBox(1.1, 1.2, 3.2, {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#18181b', 70, 5)
+        });
+        handle.position.set(0, 0, 0.2);
+        props.knife.add(handle);
+
+        const blade = createVoxelBox(0.4, 2.0, 6.2, {
+          all: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#e2e8f0', 71, 5);
+            rect(ctx, 0, h - 1, w, 1, '#f8fafc');
+          }
+        }, { metalness: 0.82, roughness: 0.2 });
+        blade.position.set(0, 0.2, -4.4);
+        props.knife.add(blade);
+
+        rightHandSocket.add(props.knife);
+      })();
+
+      // 7C. Glass Blood Slide Trophy (Right Hand) & Wooden Blood Slide Box (Left Hand)
+      (function buildBloodSlideAndBox() {
+        // Glass slide with bright crimson blood drop in the center
+        const slide = createVoxelBox(2.2, 0.35, 3.6, {
+          top: (ctx, w, h) => {
+            ctx.fillStyle = 'rgba(224, 242, 254, 0.55)';
+            ctx.fillRect(0, 0, w, h);
+            // Iconic round blood drop in center
+            ctx.fillStyle = '#b91c1c';
+            ctx.fillRect(0, 1, 2, 2);
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(1, 1, 1, 1);
+          },
+          all: (ctx, w, h) => {
+            ctx.fillStyle = 'rgba(224, 242, 254, 0.55)';
+            ctx.fillRect(0, 0, w, h);
+          }
+        }, { transparent: true, roughness: 0.15 });
+        slide.position.set(0, -0.4, -1.8);
+        props.bloodSlide.add(slide);
+        rightHandSocket.add(props.bloodSlide);
+
+        // Mahogany/Walnut Blood Slide Trophy Box (Left Hand)
+        const box = createVoxelBox(4.2, 2.4, 6.0, {
+          top: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#6b3e26', 80, 6);
+            // Interior slide slots + red blood slide row
+            rect(ctx, 1, 1, w - 2, h - 2, '#3d2214');
+            for (let z = 1; z < h - 1; z++) {
+              px(ctx, 2, z, (z % 2 === 0) ? '#dc2626' : '#cbd5e1');
+            }
+          },
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#5a321d', 81, 6);
+            px(ctx, 2, 1, '#eab308'); // Brass latch
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#5a321d', 82, 6)
+        });
+        box.position.set(1.2, -0.8, -2.0);
+        props.slideBox.add(box);
+        leftHandSocket.add(props.slideBox);
+      })();
+
+      // ============================================================================
+      // 8. BUILDING ALL 4 REFERENCE FITS (STRICT 16x16 BLOCKBENCH GEOMETRY)
+      // ============================================================================
+      const fitMeshes = {
+        henley: [],
+        killroom: [],
+        darkpassenger: [],
+        miamimetro: [],
+        santa: []
+      };
+
+      function registerFitMesh(fitKey, parentGroup, mesh) {
+        parentGroup.add(mesh);
+        fitMeshes[fitKey].push(mesh);
+        return mesh;
+      }
+
+      // ----------------------------------------------------------------------------
+      // FIT 1: "ICONIC OLIVE HENLEY & CARGO PANTS" (Ref Images 1, 2, 3)
+      // ----------------------------------------------------------------------------
+      (function buildHenleyFit() {
+        // Torso Base: Olive-Brown Thermal Waffle-Knit Henley with V-Neck Skin & 3 Pearl Buttons
+        const torso = createVoxelBox(8, 12, 4, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.henleyBase, 101, 5, true);
+            // Open V-neck skin exposure at throat (Refs 1, 2, 3)
+            rect(ctx, 2, 0, 4, 1, PAL.skinBase);
+            rect(ctx, 3, 1, 2, 2, PAL.skinMid);
+            px(ctx, 3, 2, PAL.skinShade); // Clavicle shadow
+            // Ribbed Henley collar trim & vertical placket
+            px(ctx, 1, 0, PAL.henleyLight);
+            px(ctx, 6, 0, PAL.henleyLight);
+            px(ctx, 2, 1, PAL.henleyLight);
+            px(ctx, 5, 1, PAL.henleyLight);
+            rect(ctx, 3, 3, 2, 3, PAL.henleyPlacket);
+            // 3 tiny off-white pearl buttons along placket (Ref 1 & 3)
+            px(ctx, 3, 2, PAL.buttonPearl);
+            px(ctx, 4, 3, PAL.buttonPearl);
+            px(ctx, 4, 5, PAL.buttonPearl);
+            // Subtle pectoral contour & horizontal fabric drape folds (Ref 1 & 2)
+            rect(ctx, 1, 5, 2, 1, PAL.henleyDark);
+            rect(ctx, 5, 5, 2, 1, PAL.henleyDark);
+            rect(ctx, 1, 9, 6, 1, PAL.henleyDark);
+            rect(ctx, 2, 11, 4, 1, PAL.henleyDark);
+          },
+          back: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.henleyBase, 102, 5, true);
+            rect(ctx, 1, 0, 6, 1, PAL.henleyLight); // Collar rim
+            rect(ctx, 3, 2, 2, 7, PAL.henleyDark);  // Subtle spine seam shading
+          },
+          left: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.henleyBase, 103, 5, true),
+          right: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.henleyBase, 104, 5, true),
+          top: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.henleyBase, 105, 4);
+            rect(ctx, 2, 1, 4, 2, PAL.skinMid);
+          },
+          bottom: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.henleyDark, 106, 4)
+        });
+        torso.position.set(0, 6, 0);
+        registerFitMesh('henley', torsoGroup, torso);
+
+        // 3D Layered Placket, Collar & Untucked Hem Overhang (Vanilla+ Outer Torso Layer)
+        const torsoOuter = createVoxelBox(8, 12, 4, {
+          front: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            // Raised 3D Henley collar & button placket
+            px(ctx, 2, 1, PAL.henleyLight);
+            px(ctx, 5, 1, PAL.henleyLight);
+            px(ctx, 2, 2, PAL.henleyLight);
+            px(ctx, 5, 2, PAL.henleyLight);
+            rect(ctx, 3, 3, 2, 3, PAL.henleyPlacket);
+            px(ctx, 2, 1, PAL.buttonPearl);
+            px(ctx, 3, 2, PAL.buttonPearl);
+            px(ctx, 4, 3, PAL.buttonPearl);
+            px(ctx, 4, 5, PAL.buttonPearl);
+            // Untucked curved Henley bottom hem (Ref 2 & 3)
+            rect(ctx, 0, 11, 8, 1, PAL.henleyBase);
+            rect(ctx, 1, 10, 6, 1, PAL.henleyLight);
+          },
+          back: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            rect(ctx, 0, 11, 8, 1, PAL.henleyBase);
+          },
+          left: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            rect(ctx, 0, 11, 4, 1, PAL.henleyBase);
+          },
+          right: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            rect(ctx, 0, 11, 4, 1, PAL.henleyBase);
+          }
+        }, { inflate: 0.22, transparent: true });
+        torsoOuter.position.set(0, 6, 0);
+        registerFitMesh('henley', torsoGroup, torsoOuter);
+
+        // Arms: Long Fitted Olive-Brown Waffle Sleeves + Ribbed Cuffs + Bare Hands (Refs 1, 2, 3)
+        [rightArmGroup, leftArmGroup].forEach((armGrp, idx) => {
+          const isRight = idx === 0;
+          const arm = createVoxelBox(4, 12, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top') {
+                fillVanillaFabric(ctx, w, h, PAL.henleyBase, 110 + idx, 5, true);
+                return;
+              }
+              if (face === 'bottom') {
+                fillVanillaFabric(ctx, w, h, PAL.skinMid, 112 + idx, 4);
+                return;
+              }
+              // Rows 0..8: Olive-brown waffle sleeve; Row 8: ribbed cuff; Rows 9..11: bare wrist & hand
+              fillVanillaFabric(ctx, w, h, PAL.henleyBase, 114 + idx, 5, true);
+              // Pushed-up forearm fabric creases (Ref 3)
+              rect(ctx, 0, 5, w, 1, PAL.henleyDark);
+              rect(ctx, 0, 7, w, 1, PAL.henleyDark);
+              rect(ctx, 0, 8, w, 1, PAL.henleyLight); // Cuff rim
+              // Bare hand (rows 9..11)
+              for (let y = 9; y < 12; y++) {
+                for (let x = 0; x < w; x++) {
+                  px(ctx, x, y, y === 11 ? PAL.skinMid : PAL.skinBase);
+                }
+              }
+              if (face === 'front') {
+                px(ctx, isRight ? 3 : 0, 10, PAL.skinLight); // Thumb highlight
+                px(ctx, 1, 11, PAL.skinShade); // Knuckle/finger separation
+                px(ctx, 2, 11, PAL.skinShade);
+              }
+            }
+          });
+          arm.position.set(0, -5, 0);
+          registerFitMesh('henley', armGrp, arm);
+
+          // 3D Extruded Forearm Ribbed Cuff Ring
+          const cuffLayer = createVoxelBox(4, 3, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top' || face === 'bottom') return;
+              fillVanillaFabric(ctx, w, h, PAL.henleyBase, 120 + idx, 5, true);
+              rect(ctx, 0, h - 1, w, 1, PAL.henleyDark);
+            }
+          }, { inflate: 0.22, transparent: true });
+          cuffLayer.position.set(0, -6.5, 0);
+          registerFitMesh('henley', armGrp, cuffLayer);
+        });
+
+        // Legs: Olive-Drab Cargo Pants with 3D Side Thigh Pockets & Dark Brown Boots (Refs 1 & 2)
+        [rightLegGroup, leftLegGroup].forEach((legGrp, idx) => {
+          const isRight = idx === 0;
+          const leg = createVoxelBox(4, 12, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top') {
+                fillVanillaFabric(ctx, w, h, PAL.cargoDark, 130, 4);
+                return;
+              }
+              if (face === 'bottom') {
+                fillVanillaFabric(ctx, w, h, PAL.bootSole, 131, 3);
+                return;
+              }
+              fillVanillaFabric(ctx, w, h, PAL.cargoBase, 132 + idx, 6);
+              // Waistband & belt loops at y = 0..1 (Ref 1)
+              rect(ctx, 0, 0, w, 1, PAL.cargoDark);
+              if (face === 'front') {
+                px(ctx, 1, 0, PAL.cargoLight); // Belt loop
+                // Diagonal front slash pocket & fly seam (Ref 1 & 2)
+                px(ctx, isRight ? 0 : 3, 2, PAL.cargoDark);
+                px(ctx, isRight ? 1 : 2, 3, PAL.cargoDark);
+                if (isRight) {
+                  rect(ctx, 3, 1, 1, 3, PAL.cargoDark); // Fly seam
+                  px(ctx, 3, 0, '#27291c'); // Waist button
+                }
+                // Articulated knee seam (y = 6..7)
+                rect(ctx, 0, 6, w, 1, PAL.cargoDark);
+                rect(ctx, 1, 5, 2, 1, PAL.cargoLight);
+              }
+              // Dark brown tactical boots at bottom 2 rows (y = 10..11)
+              rect(ctx, 0, 10, w, 2, PAL.bootBrown);
+              rect(ctx, 0, 11, w, 1, PAL.bootSole);
+            }
+          });
+          leg.position.set(0, -6, 0);
+          registerFitMesh('henley', legGrp, leg);
+
+          // 3D Extruded Bulky Side Cargo Pocket on Outer Thigh (Ref 1 & 2)
+          const pocket = createVoxelBox(0.7, 3.8, 2.8, {
+            all: (ctx, w, h) => {
+              fillVanillaFabric(ctx, w, h, PAL.cargoBase, 140 + idx, 6);
+              rect(ctx, 0, 0, w, 1, PAL.cargoLight); // Pocket flap
+              px(ctx, Math.floor(w / 2), 1, '#26281b'); // Pocket button
+            }
+          });
+          pocket.position.set(isRight ? -2.2 : 2.2, -5.8, 0);
+          registerFitMesh('henley', legGrp, pocket);
+        });
+      })();
+
+      // ----------------------------------------------------------------------------
+      // FIT 2: "KILL ROOM APRON & VISOR" (Ref Images 4, 6, 7)
+      // ----------------------------------------------------------------------------
+      (function buildKillRoomFit() {
+        // Torso: Lighter Sage-Olive Henley + Black Vinyl Butcher Apron Bib + Grey Neck Straps
+        const torso = createVoxelBox(8, 12, 4, {
+          front: (ctx, w, h) => {
+            // Sage-olive Henley base at shoulders/collar (Refs 4, 6, 7)
+            fillVanillaFabric(ctx, w, h, PAL.sageHenley, 201, 5, true);
+            // Open V-neck skin & Henley buttons peeking above apron bib
+            rect(ctx, 3, 0, 2, 3, PAL.skinMid);
+            px(ctx, 3, 2, PAL.buttonPearl);
+            // Light grey/taupe fabric apron neck straps (Refs 4, 6, 7)
+            rect(ctx, 1, 0, 1, 3, PAL.apronStrap);
+            rect(ctx, 6, 0, 1, 3, PAL.apronStrap);
+            // Glossy black vinyl butcher apron bib covering chest & stomach (y = 3..11)
+            for (let y = 3; y < 12; y++) {
+              for (let x = 1; x < 7; x++) {
+                const sheen = (x === 2 || x === 3) && (y % 3 !== 0) ? 10 : 0;
+                px(ctx, x, y, shadeHex(PAL.apronBlack, sheen));
+              }
+            }
+            rect(ctx, 0, 7, 8, 5, PAL.apronBlack);
+          },
+          back: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.sageHenley, 202, 5, true);
+            // Neck loop & waist tie straps on back
+            rect(ctx, 2, 0, 4, 1, PAL.apronStrap);
+            rect(ctx, 0, 8, 8, 1, PAL.apronBlack);
+          },
+          left: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.sageHenley, 203, 5, true);
+            rect(ctx, 0, 7, w, 5, PAL.apronBlack);
+          },
+          right: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.sageHenley, 204, 5, true);
+            rect(ctx, 0, 7, w, 5, PAL.apronBlack);
+          },
+          top: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.sageHenley, 205, 4),
+          bottom: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.apronBlack, 206, 4)
+        }, { roughness: 0.55 });
+        torso.position.set(0, 6, 0);
+        registerFitMesh('killroom', torsoGroup, torso);
+
+        // 3D Extruded Apron Bib & Neck Straps Layer
+        const apronBibOuter = createVoxelBox(8, 12, 4, {
+          front: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            // Straps
+            rect(ctx, 1, 0, 1, 3, PAL.apronStrap);
+            rect(ctx, 6, 0, 1, 3, PAL.apronStrap);
+            // Raised vinyl apron bib with specular leather/vinyl sheen (Ref 7: image_f33788.png)
+            rect(ctx, 1, 3, 6, 9, PAL.apronBlack);
+            rect(ctx, 1, 3, 6, 1, PAL.apronSheen);
+            px(ctx, 2, 5, PAL.apronSheen);
+            px(ctx, 3, 6, PAL.apronSheen);
+            px(ctx, 2, 8, PAL.apronSheen);
+            px(ctx, 4, 9, PAL.apronSheen);
+          },
+          back: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            rect(ctx, 0, 8, 8, 1, PAL.apronBlack);
+          }
+        }, { inflate: 0.26, transparent: true, roughness: 0.35 });
+        apronBibOuter.position.set(0, 6, 0);
+        registerFitMesh('killroom', torsoGroup, apronBibOuter);
+
+        // Arms: Sage-Olive Upper Sleeve + Translucent Brown/Taupe Vinyl Forearm Protectors + Cream Latex Gloves (Refs 4, 6, 7)
+        [rightArmGroup, leftArmGroup].forEach((armGrp, idx) => {
+          const arm = createVoxelBox(4, 12, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top') {
+                fillVanillaFabric(ctx, w, h, PAL.sageHenley, 210, 5);
+                return;
+              }
+              if (face === 'bottom') {
+                fillVanillaFabric(ctx, w, h, PAL.latexShade, 211, 3);
+                return;
+              }
+              // Rows 0..4: Sage-olive Henley upper arm
+              fillVanillaFabric(ctx, w, 5, PAL.sageHenley, 212 + idx, 5, true);
+              // Rows 5..9: Taupe/brown plastic protective forearm sleeves (Refs 4, 6, 7)
+              for (let y = 5; y < 10; y++) {
+                for (let x = 0; x < w; x++) {
+                  const highlight = (x === 1 && y % 2 === 0) ? 14 : 0;
+                  px(ctx, x, y, shadeHex(PAL.vinylSleeve, highlight));
+                }
+              }
+              // Elastic bands at top & bottom of vinyl sleeve
+              rect(ctx, 0, 5, w, 1, shadeHex(PAL.vinylSleeve, -15));
+              rect(ctx, 0, 9, w, 1, PAL.latexShade);
+              // Rows 10..11: Cream surgical latex gloves (Ref 4, 6, 7)
+              rect(ctx, 0, 10, w, 2, PAL.latexGlove);
+              rect(ctx, 0, 11, w, 1, PAL.latexShade);
+            }
+          }, { roughness: 0.5 });
+          arm.position.set(0, -5, 0);
+          registerFitMesh('killroom', armGrp, arm);
+
+          // 3D Baggy Vinyl Forearm Sleeve Layer (Refs 4, 6, 7 show puffed plastic sleeve over forearm)
+          const vinylSleeveOuter = createVoxelBox(4, 4.6, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top' || face === 'bottom') return;
+              fillVanillaFabric(ctx, w, h, PAL.vinylSleeve, 220 + idx, 8);
+              rect(ctx, 1, 1, 1, h - 2, PAL.vinylSleeveLight);
+            }
+          }, { inflate: 0.28, transparent: true, roughness: 0.35 });
+          vinylSleeveOuter.position.set(0, -6.2, 0);
+          registerFitMesh('killroom', armGrp, vinylSleeveOuter);
+        });
+
+        // Legs: Long Black Butcher Apron Skirt Draping to Shins + Sage Pants + Tall Black Rubber Boots (Ref 6: image_f334e0.png)
+        [rightLegGroup, leftLegGroup].forEach((legGrp, idx) => {
+          const leg = createVoxelBox(4, 12, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top' || face === 'bottom') {
+                fillVanillaFabric(ctx, w, h, PAL.rubberBoot, 230, 3);
+                return;
+              }
+              // Upper leg covered by black apron; knee shows sage pants (y = 7..8); shin has tall black rubber boots (y = 8..11)
+              fillVanillaFabric(ctx, w, h, PAL.sageHenley, 231 + idx, 5);
+              rect(ctx, 0, 0, w, 7, PAL.apronBlack);
+              // Tall glossy black waterproof boots (Ref 6)
+              rect(ctx, 0, 8, w, 4, PAL.rubberBoot);
+              if (face === 'front') {
+                rect(ctx, 1, 9, 1, 3, '#2d3138'); // Boot specular highlight
+              }
+            }
+          }, { roughness: 0.45 });
+          leg.position.set(0, -6, 0);
+          registerFitMesh('killroom', legGrp, leg);
+
+          // 3D Apron Skirt Overhang on Front & Sides of Legs (y = 0..-8)
+          const apronSkirt = createVoxelBox(4, 7.6, 4, {
+            front: (ctx, w, h) => {
+              fillVanillaFabric(ctx, w, h, PAL.apronBlack, 240 + idx, 5);
+              rect(ctx, 1, 1, 1, h - 2, PAL.apronSheen);
+            },
+            left: (ctx, w, h) => {
+              if (idx === 1) fillVanillaFabric(ctx, w, h, PAL.apronBlack, 242, 5);
+            },
+            right: (ctx, w, h) => {
+              if (idx === 0) fillVanillaFabric(ctx, w, h, PAL.apronBlack, 243, 5);
+            }
+          }, { inflate: 0.28, transparent: true, roughness: 0.35 });
+          apronSkirt.position.set(0, -3.8, 0);
+          registerFitMesh('killroom', legGrp, apronSkirt);
+        });
+      })();
+
+      // ----------------------------------------------------------------------------
+      // FIT 3: "DARK PASSENGER" (Refs: image_f33485.jpg, image_f419ba.png, image_f41c88.png, image_f41cc2.png, image_f43348.jpg)
+      // ----------------------------------------------------------------------------
+      const darkPassengerHoodStages = {
+        on: [],
+        mid: [],
+        off: []
+      };
+
+      function registerHoodMesh(stageKey, parentGroup, mesh) {
+        parentGroup.add(mesh);
+        darkPassengerHoodStages[stageKey].push(mesh);
+        return mesh;
+      }
+
+      (function buildDarkPassengerFit() {
+        // 1. Torso: Matte Black Inner Hooded Tunic + Glossy Black Leather Waist Apron + Trench Coat
+        const torso = createVoxelBox(8, 12, 4, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#141519', 301, 4);
+            // Exposed shadowed neck V-cut at throat (visible in image_f33485.jpg & image_f419ba.png)
+            rect(ctx, 3, 0, 2, 2, PAL.skinDeep);
+            px(ctx, 3, 0, PAL.skinShade);
+            // Diagonal inner tunic wrap seams below throat
+            px(ctx, 2, 1, '#242730');
+            px(ctx, 5, 1, '#242730');
+            px(ctx, 3, 2, '#242730');
+            // Upper matte black chest tunic (rows 2..5)
+            rect(ctx, 2, 2, 4, 4, '#111216');
+            // Horizontal glossy leather waist-apron/cummerbund seam at row 6 (image_f33485.jpg & image_f419ba.png)
+            rect(ctx, 2, 6, 4, 1, '#323640');
+            rect(ctx, 3, 6, 2, 1, '#434854');
+            // Lower black leather waist apron panel (rows 7..11)
+            rect(ctx, 2, 7, 4, 5, '#17191f');
+            rect(ctx, 3, 7, 1, 4, '#242730'); // Subtle vertical leather sheen
+            // Coat lapel inner edges flanking the chest
+            rect(ctx, 1, 1, 1, 11, '#22252c');
+            rect(ctx, 6, 1, 1, 11, '#22252c');
+          },
+          back: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.trenchBlack, 302, 5);
+            // Vertical center back coat vent seam & shoulder yoke
+            rect(ctx, 0, 2, w, 1, PAL.trenchHighlight);
+            rect(ctx, 3, 3, 1, h - 3, PAL.trenchShade);
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.trenchBlack, 303, 5)
+        }, { roughness: 0.55 });
+        torso.position.set(0, 6, 0);
+        registerFitMesh('darkpassenger', torsoGroup, torso);
+
+        // 2. 3D Extruded Trench Coat Lapels, Structured Shoulders & Open Front Coat Panels
+        const coatOuter = createVoxelBox(8, 12, 4, {
+          front: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            // Left and right heavy open trench coat front panels (Ref image_f33485.jpg & image_f419ba.png)
+            rect(ctx, 0, 0, 2, 12, PAL.trenchBlack);
+            rect(ctx, 6, 0, 2, 12, PAL.trenchBlack);
+            // Wide notched coat lapels & collar edge highlights
+            rect(ctx, 2, 1, 1, 6, PAL.trenchHighlight);
+            rect(ctx, 5, 1, 1, 6, PAL.trenchHighlight);
+            px(ctx, 1, 0, '#2e313b');
+            px(ctx, 6, 0, '#2e313b');
+            // Two subtle horizontal buttonhole stitches on inner lapel (Ref image_f33485.jpg)
+            px(ctx, 5, 5, '#2f333d');
+            px(ctx, 5, 8, '#2f333d');
+          },
+          back: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.trenchBlack, 304, 5);
+            rect(ctx, 1, 2, 6, 1, PAL.trenchHighlight);
+          },
+          left: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.trenchBlack, 305, 5);
+            rect(ctx, 0, 0, 1, h, PAL.trenchHighlight);
+          },
+          right: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.trenchBlack, 306, 5);
+            rect(ctx, w - 1, 0, 1, h, PAL.trenchHighlight);
+          }
+        }, { inflate: 0.32, transparent: true, roughness: 0.62 });
+        coatOuter.position.set(0, 6, 0);
+        registerFitMesh('darkpassenger', torsoGroup, coatOuter);
+
+        // 3. Arms: Heavy Black Trench Sleeves + Black Ribbed Fingerless Gloves with Exposed Fingers (Ref 5)
+        [rightArmGroup, leftArmGroup].forEach((armGrp, idx) => {
+          const arm = createVoxelBox(4, 12, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top') {
+                fillVanillaFabric(ctx, w, h, PAL.trenchBlack, 310, 5);
+                return;
+              }
+              if (face === 'bottom') {
+                fillVanillaFabric(ctx, w, h, PAL.skinMid, 311, 4);
+                return;
+              }
+              fillVanillaFabric(ctx, w, h, PAL.trenchBlack, 312 + idx, 5);
+              // Subtle vertical sleeve fold highlight along outer arm (Ref image_f33485.jpg & image_f419ba.png)
+              if (face === 'front' || face === 'left' || face === 'right') {
+                rect(ctx, 1, 1, 1, 7, PAL.trenchHighlight);
+              }
+              // Black ribbed knit fingerless gloves (rows 9..10) + bare skin fingertips at row 11 (Ref 5!)
+              rect(ctx, 0, 9, w, 2, PAL.gloveKnit);
+              rect(ctx, 0, 9, w, 1, '#262830'); // Ribbed wrist cuff
+              rect(ctx, 0, 11, w, 1, PAL.skinBase);
+              if (face === 'front') {
+                px(ctx, idx === 0 ? 3 : 0, 10, PAL.skinMid); // Exposed thumb in fingerless glove loop
+                px(ctx, 1, 11, PAL.skinLight);
+                px(ctx, 2, 11, PAL.skinLight);
+              }
+            }
+          });
+          arm.position.set(0, -5, 0);
+          registerFitMesh('darkpassenger', armGrp, arm);
+
+          // 3D Structured Trench Coat Sleeve & Flared Cuff
+          const coatSleeve = createVoxelBox(4, 9.2, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top' || face === 'bottom') return;
+              fillVanillaFabric(ctx, w, h, PAL.trenchBlack, 315 + idx, 5);
+              rect(ctx, 1, 1, 1, h - 2, '#22252d');
+              rect(ctx, 0, h - 1, w, 1, PAL.trenchHighlight);
+            }
+          }, { inflate: 0.28, transparent: true, roughness: 0.6 });
+          coatSleeve.position.set(0, -3.7, 0);
+          registerFitMesh('darkpassenger', armGrp, coatSleeve);
+        });
+
+        // 4. Legs: Glossy Black Leather Pants + Long Draping Trench Coat Tails (Ref 5)
+        [rightLegGroup, leftLegGroup].forEach((legGrp, idx) => {
+          const leg = createVoxelBox(4, 12, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top' || face === 'bottom') {
+                fillVanillaFabric(ctx, w, h, '#0f1014', 320, 3);
+                return;
+              }
+              fillVanillaFabric(ctx, w, h, PAL.leatherPant, 321 + idx, 5);
+              if (face === 'front') {
+                // Specular leather thigh highlight from Ref image_f33485.jpg
+                rect(ctx, 1, 1, 1, 7, '#2e313a');
+                px(ctx, 2, 3, '#252830');
+              }
+              rect(ctx, 0, 10, w, 2, '#111216');
+            }
+          }, { roughness: 0.36 });
+          leg.position.set(0, -6, 0);
+          registerFitMesh('darkpassenger', legGrp, leg);
+
+          // 3D Trench Coat Tails draping down sides & back of legs
+          const coatTail = createVoxelBox(4, 8.6, 4, {
+            front: (ctx, w, h) => {
+              ctx.clearRect(0, 0, w, h);
+              rect(ctx, idx === 0 ? 0 : 2, 0, 2, h, PAL.trenchBlack);
+              rect(ctx, idx === 0 ? 1 : 2, 0, 1, h, PAL.trenchHighlight);
+            },
+            back: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.trenchBlack, 325, 5),
+            left: (ctx, w, h) => {
+              if (idx === 1) fillVanillaFabric(ctx, w, h, PAL.trenchBlack, 326, 5);
+            },
+            right: (ctx, w, h) => {
+              if (idx === 0) fillVanillaFabric(ctx, w, h, PAL.trenchBlack, 327, 5);
+            }
+          }, { inflate: 0.30, transparent: true, roughness: 0.62 });
+          coatTail.position.set(0, -3.2, 0);
+          registerFitMesh('darkpassenger', legGrp, coatTail);
+        });
+
+        // ====================================================================
+        // 5. THREE-STAGE DARK PASSENGER HOOD ("ON", "MID", "OFF")
+        // ====================================================================
+
+        // --------------------------------------------------------------------
+        // STAGE 1: HOOD "ON" (Refs: image_f43348.jpg "The Dark Defender", image_f419ba.png & image_f41cc2.png)
+        // True hollow 3D bell/A-line cowl hood with a subtle pointed front brow
+        // peak, overhanging front brim that shades the eyes while leaving the
+        // lower nose, smirk mouth & stubbled chin completely clear, and wide
+        // flared collar flaps resting over the shoulders!
+        // --------------------------------------------------------------------
+        const hoodOnHeadGroup = new THREE.Group();
+        registerHoodMesh('on', headGroup, hoodOnHeadGroup);
+
+        // 1A. Subtle Upper-Face Eye Shadow Gradient (sits just over forehead & eyes at y = 4.25..8.0,
+        // leaving the lower nose, philtrum, mouth & chin at y = 0..4.25 100% uncovered like image_f43348.jpg!)
+        const eyeShadowVeil = createVoxelBox(8.08, 3.75, 0.12, {
+          front: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            // Deep hood shadow over forehead & eyes (rows 0..2), soft shadow edge across nose bridge (row 3)
+            ctx.fillStyle = 'rgba(7, 8, 11, 0.94)';
+            ctx.fillRect(0, 0, w, h - 1);
+            ctx.fillStyle = 'rgba(10, 12, 16, 0.68)';
+            ctx.fillRect(0, h - 1, w, 1);
+          },
+          all: (ctx, w, h) => ctx.clearRect(0, 0, w, h)
+        }, { transparent: true, roughness: 0.98, noShadow: true });
+        eyeShadowVeil.position.set(0, 6.12, 4.04);
+        hoodOnHeadGroup.add(eyeShadowVeil);
+
+        // 1B. Hollow 3D Upper Cowl Shell (Top Roof, Back Wall, Upper Side Walls & Overhanging Front Brow Visor)
+        // Constructed from distinct walls so the front opening below y = 4.35 is genuinely hollow!
+        const hoodRoofAndBrim = createVoxelBox(9.5, 1.1, 10.2, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#181a21', 330, 4);
+            rect(ctx, 1, h - 1, w - 2, 1, '#2a2e38'); // Front folded leather brim highlight
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#16181f', 331, 5)
+        }, { roughness: 0.55 });
+        hoodRoofAndBrim.position.set(0, 8.35, 0.45);
+        hoodOnHeadGroup.add(hoodRoofAndBrim);
+
+        // Low-profile pointed crown ridge along top of hood (matches the sleek peaked top in image_f43348.jpg without looking like a tall cone)
+        const hoodCrownMid = createVoxelBox(6.6, 0.85, 8.8, {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#1b1d25', 332, 5)
+        }, { roughness: 0.55 });
+        hoodCrownMid.position.set(0, 9.25, 0.55);
+        hoodOnHeadGroup.add(hoodCrownMid);
+
+        const hoodCrownPeak = createVoxelBox(3.4, 0.65, 7.2, {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#20232c', 333, 4)
+        }, { roughness: 0.55 });
+        hoodCrownPeak.position.set(0, 9.92, 0.75);
+        hoodOnHeadGroup.add(hoodCrownPeak);
+
+        // Overhanging Front Brow Brim (drapes down over forehead & eyes from y = 4.45 to 8.0, projecting forward to z = 5.45)
+        const frontBrowVisor = createVoxelBox(9.5, 3.55, 1.5, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#16181f', 334, 5);
+            // Subtle inverted-V fabric fold highlights converging toward the top peak (image_f43348.jpg)
+            px(ctx, 3, 0, '#2a2e38');
+            px(ctx, 6, 0, '#2a2e38');
+            px(ctx, 2, 1, '#262a34');
+            px(ctx, 7, 1, '#262a34');
+            px(ctx, 1, 2, '#242832');
+            px(ctx, 8, 2, '#242832');
+            rect(ctx, 1, h - 1, w - 2, 1, '#2c303b'); // Leather rim edge across bridge of nose
+          },
+          bottom: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#090a0d', 335, 3),
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#15171d', 336, 5)
+        }, { roughness: 0.55 });
+        frontBrowVisor.position.set(0, 6.22, 4.78);
+        hoodOnHeadGroup.add(frontBrowVisor);
+
+        // Back Wall of the Cowl (encloses back of head from y = 0.0 to 8.2)
+        const hoodBackWall = createVoxelBox(9.6, 8.2, 1.3, {
+          back: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#14161c', 337, 5);
+            rect(ctx, 4, 0, 2, h, '#0f1116'); // Center hood seam
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#121419', 338, 4)
+        }, { roughness: 0.58 });
+        hoodBackWall.position.set(0, 4.1, -4.35);
+        hoodOnHeadGroup.add(hoodBackWall);
+
+        // Upper Left & Right Temple Walls of the Hood (y = 4.0 to 8.0)
+        const hoodUpperLeftWall = createVoxelBox(1.15, 4.1, 9.6, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#191b22', 339, 4);
+            rect(ctx, 0, 0, 1, h, '#2c303a');
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#16181f', 340, 5)
+        }, { roughness: 0.56 });
+        hoodUpperLeftWall.position.set(4.35, 6.0, 0.25);
+        hoodOnHeadGroup.add(hoodUpperLeftWall);
+
+        const hoodUpperRightWall = createVoxelBox(1.15, 4.1, 9.6, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#181a20', 341, 4);
+            rect(ctx, w - 1, 0, 1, h, '#2c303a');
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#15171d', 342, 5)
+        }, { roughness: 0.56 });
+        hoodUpperRightWall.position.set(-4.35, 6.0, 0.25);
+        hoodOnHeadGroup.add(hoodUpperRightWall);
+
+        // Lower A-Line Flared Side Cheek Walls (y = 0.0 to 4.4) — stepped outward so the hood flares like a bell around his jaw & cheeks!
+        const hoodLowerLeftFlare = createVoxelBox(1.55, 4.4, 9.4, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#171920', 343, 4);
+            rect(ctx, 0, 0, 1, h, '#2d313c'); // Inner leather trim edge
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#15171e', 344, 5)
+        }, { roughness: 0.52 });
+        hoodLowerLeftFlare.position.set(4.65, 2.2, 0.15);
+        hoodOnHeadGroup.add(hoodLowerLeftFlare);
+
+        const hoodLowerRightFlare = createVoxelBox(1.85, 4.4, 9.6, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#16181f', 345, 4);
+            rect(ctx, w - 1, 0, 1, h, '#2d313c'); // Inner leather trim edge
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#14161c', 346, 5)
+        }, { roughness: 0.52 });
+        hoodLowerRightFlare.position.set(-4.85, 2.2, 0.20);
+        hoodOnHeadGroup.add(hoodLowerRightFlare);
+
+        // 1C. Wide Asymmetrical Flared Cowl Skirt & Right Shoulder Flap (attached to torsoGroup at collarbone y = 11.2..12.6, matching image_f43348.jpg!)
+        const hoodOnNeckFlare = new THREE.Group();
+        registerHoodMesh('on', torsoGroup, hoodOnNeckFlare);
+
+        // Right-side wide open cowl wing draping over right shoulder/collarbone (viewer-left in image_f43348.jpg)
+        const rightShoulderCowlFlap = createVoxelBox(3.6, 1.5, 6.4, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#14161c', 347, 5);
+            rect(ctx, 0, 0, w, 1, '#2b2f3a'); // Rolled leather hood rim
+          },
+          top: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#101217', 348, 5); // Textured dark inner lining visible in image_f43348.jpg
+            rect(ctx, 0, h - 1, w, 1, '#2b2f3a');
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#15171d', 349, 5)
+        }, { roughness: 0.50 });
+        rightShoulderCowlFlap.position.set(-4.2, 12.15, 0.55);
+        hoodOnNeckFlare.add(rightShoulderCowlFlap);
+
+        // Left-side cowl collar wing tucking into left shoulder lapel
+        const leftShoulderCowlFlap = createVoxelBox(2.8, 1.4, 5.8, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#15171e', 350, 5);
+            rect(ctx, 0, 0, w, 1, '#292d38');
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#15171d', 351, 5)
+        }, { roughness: 0.52 });
+        leftShoulderCowlFlap.position.set(3.8, 12.1, 0.35);
+        hoodOnNeckFlare.add(leftShoulderCowlFlap);
+
+        // Back nape cowl collar bridge
+        const backNapeBridge = createVoxelBox(9.2, 1.4, 2.2, {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#14161b', 352, 5)
+        }, { roughness: 0.55 });
+        backNapeBridge.position.set(0, 12.1, -2.1);
+        hoodOnNeckFlare.add(backNapeBridge);
+
+        // --------------------------------------------------------------------
+        // STAGE 2: HOOD "MID" (Refs: image_f41c88.png & image_f33485.jpg)
+        // Oversized leather-lined hood pushed halfway back off the crown so
+        // his full face & tousled hair are clear, while the wide folded leather
+        // hood cradles the back of his head, ears, and neck in clean voxel steps!
+        // --------------------------------------------------------------------
+        const hoodMidGroup = new THREE.Group();
+        registerHoodMesh('mid', torsoGroup, hoodMidGroup);
+
+        // Lower neck & collarbone leather-lined cowl base (y = 11.4..13.0, with V-opening at throat)
+        const midCollarBase = createVoxelBox(9.8, 1.7, 6.2, {
+          front: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            // Left and right overlapping leather hood lapels framing the throat (image_f33485.jpg)
+            rect(ctx, 0, 0, 3, h, '#1a1c23');
+            rect(ctx, w - 3, 0, 3, h, '#1c1f27');
+            rect(ctx, 1, 0, 2, 1, '#363b47'); // Glossy leather fold rim
+            rect(ctx, w - 3, 0, 2, 1, '#3c424f');
+            px(ctx, 3, h - 1, '#282c36');
+            px(ctx, w - 4, h - 1, '#282c36');
+          },
+          all: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#181a21', 353, 5);
+            rect(ctx, 0, 0, w, 1, '#2f343f');
+          }
+        }, { transparent: true, roughness: 0.40 });
+        midCollarBase.position.set(0, 12.15, -0.35);
+        hoodMidGroup.add(midCollarBase);
+
+        // Mid-level folded leather hood cradle behind ears & jaw (y = 12.9..15.3)
+        const midBackCradle = createVoxelBox(10.4, 2.5, 4.2, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#121419', 354, 4);
+            // Bright specular leather rim highlights on left & right wings (image_f41c88.png)
+            rect(ctx, 0, 0, 2, h, '#333844');
+            rect(ctx, w - 2, 0, 2, h, '#3d4352');
+            rect(ctx, 0, 0, w, 1, '#2d323d');
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#171920', 355, 5)
+        }, { roughness: 0.38 });
+        midBackCradle.position.set(0.15, 14.1, -2.55);
+        hoodMidGroup.add(midBackCradle);
+
+        // Left & right forward cheek/ear cradle wings (frame his jaw from behind ears like image_f41c88.png & image_f33485.jpg)
+        const midLeftEarWing = createVoxelBox(1.8, 2.7, 4.4, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#1c1f27', 356, 4);
+            rect(ctx, 0, 0, w, 1, '#434958'); // Rim-lit leather fold on camera-right (image_f41c88.png)
+            rect(ctx, 0, 1, 1, h - 1, '#323744');
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#191c23', 357, 5)
+        }, { roughness: 0.36 });
+        midLeftEarWing.position.set(4.55, 14.25, -0.55);
+        hoodMidGroup.add(midLeftEarWing);
+
+        const midRightEarWing = createVoxelBox(1.6, 2.3, 4.2, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#191b22', 358, 4);
+            rect(ctx, 0, 0, w, 1, '#353a46');
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#171920', 359, 5)
+        }, { roughness: 0.38 });
+        midRightEarWing.position.set(-4.4, 14.0, -0.65);
+        hoodMidGroup.add(midRightEarWing);
+
+        // --------------------------------------------------------------------
+        // STAGE 3: HOOD "OFF" ("then it hangs at his back")
+        // Clean open collar in front; the deflated pointed hood hangs down
+        // flat against his upper back between his shoulder blades!
+        // --------------------------------------------------------------------
+        const hoodOffBackGroup = new THREE.Group();
+        registerHoodMesh('off', torsoGroup, hoodOffBackGroup);
+
+        // Low flat collar rim at the nape of the neck connecting to the hanging hood
+        const offNeckRim = createVoxelBox(8.4, 1.1, 4.6, {
+          front: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            rect(ctx, 0, 0, 2, h, '#1d2027');
+            rect(ctx, w - 2, 0, 2, h, '#1d2027');
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#181a20', 360, 5)
+        }, { transparent: true, roughness: 0.55 });
+        offNeckRim.position.set(0, 11.85, -0.35);
+        hoodOffBackGroup.add(offNeckRim);
+
+        // Upper draped hood body hanging at upper back (y = 8.2..11.6, behind torso at z = -2.65)
+        const offBackUpper = createVoxelBox(7.0, 3.6, 1.5, {
+          back: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#171920', 361, 5);
+            // V-shaped draped fabric folds on the hanging hood
+            rect(ctx, 1, 0, 1, h, '#262a34');
+            rect(ctx, w - 2, 0, 1, h, '#262a34');
+            rect(ctx, 2, 1, w - 4, 1, '#101216');
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#16181e', 362, 5)
+        }, { roughness: 0.58 });
+        offBackUpper.position.set(0, 9.9, -2.65);
+        hoodOffBackGroup.add(offBackUpper);
+
+        // Middle tapered hood fold on back (y = 5.6..8.2)
+        const offBackMid = createVoxelBox(5.2, 2.8, 1.35, {
+          back: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#191c23', 363, 5);
+            rect(ctx, 1, 0, 1, h, '#282c36');
+            rect(ctx, w - 2, 0, 1, h, '#282c36');
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#171920', 364, 5)
+        }, { roughness: 0.58 });
+        offBackMid.position.set(0, 6.9, -2.58);
+        hoodOffBackGroup.add(offBackMid);
+
+        // Pointed hood tip hanging down between the shoulder blades (y = 3.6..5.6)
+        const offBackTip = createVoxelBox(3.0, 2.2, 1.15, {
+          back: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, '#1d2028', 365, 5);
+            px(ctx, 1, h - 1, '#2d313c');
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, '#1a1d24', 366, 5)
+        }, { roughness: 0.58 });
+        offBackTip.position.set(0, 4.6, -2.48);
+        hoodOffBackGroup.add(offBackTip);
+      })();
+
+      // ----------------------------------------------------------------------------
+      // FIT 4: "MIAMI METRO LAB FIT" (Ref Images 8 & 9: Pale Blue Shirt, ID Badge, Chinos)
+      // ----------------------------------------------------------------------------
+      (function buildMiamiMetroFit() {
+        // Torso: Pale Ice-Blue Collared Button-Down Shirt (Ref 9: image_f33c46.jpg) + Miami Metro ID Badge
+        const torso = createVoxelBox(8, 12, 4, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.labShirt, 401, 4);
+            // Open V-neck skin & crisp white/blue collar lapels (Ref 9)
+            rect(ctx, 3, 0, 2, 2, PAL.skinMid);
+            rect(ctx, 2, 0, 1, 3, PAL.labShirtLight);
+            rect(ctx, 5, 0, 1, 3, PAL.labShirtLight);
+            // Center button placket
+            rect(ctx, 3, 2, 2, 10, PAL.labShirtLight);
+            px(ctx, 4, 3, '#ffffff');
+            px(ctx, 4, 6, '#ffffff');
+            px(ctx, 4, 9, '#ffffff');
+            // Chest pocket on left side
+            rect(ctx, 5, 4, 2, 3, PAL.labShirtShade);
+          },
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.labShirt, 402, 4)
+        });
+        torso.position.set(0, 6, 0);
+        registerFitMesh('miamimetro', torsoGroup, torso);
+
+        // 3D Extruded Shirt Collar & Miami Metro Forensic ID Badge
+        const collarAndBadge = createVoxelBox(8, 12, 4, {
+          front: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            // Popped dress shirt collar (Ref 9)
+            rect(ctx, 1, 0, 2, 2, PAL.labShirtLight);
+            rect(ctx, 5, 0, 2, 2, PAL.labShirtLight);
+            // Miami Metro Police ID Clip Badge on left chest
+            rect(ctx, 5, 4, 2, 3, '#f8fafc');
+            rect(ctx, 5, 4, 2, 1, PAL.badgeBlue);
+            px(ctx, 6, 5, PAL.badgeGold);
+          }
+        }, { inflate: 0.22, transparent: true });
+        collarAndBadge.position.set(0, 6, 0);
+        registerFitMesh('miamimetro', torsoGroup, collarAndBadge);
+
+        // Arms: Rolled-up Pale Blue Shirt Sleeves + Bare Forearms & Hands
+        [rightArmGroup, leftArmGroup].forEach((armGrp, idx) => {
+          const arm = createVoxelBox(4, 12, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top') {
+                fillVanillaFabric(ctx, w, h, PAL.labShirt, 410, 4);
+                return;
+              }
+              if (face === 'bottom') {
+                fillVanillaFabric(ctx, w, h, PAL.skinMid, 411, 4);
+                return;
+              }
+              // Rows 0..4: Pale blue sleeve; Rows 5..11: Bare forearm & hand
+              fillVanillaFabric(ctx, w, h, PAL.labShirt, 412 + idx, 4);
+              rect(ctx, 0, 4, w, 1, PAL.labShirtLight); // Rolled cuff
+              rect(ctx, 0, 5, w, 7, PAL.skinBase);
+              rect(ctx, 0, 11, w, 1, PAL.skinMid);
+            }
+          });
+          arm.position.set(0, -5, 0);
+          registerFitMesh('miamimetro', armGrp, arm);
+
+          // 3D Rolled-Up Cuff Ring at Elbow
+          const rolledCuff = createVoxelBox(4, 1.5, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top' || face === 'bottom') return;
+              fillVanillaFabric(ctx, w, h, PAL.labShirtLight, 415, 4);
+            }
+          }, { inflate: 0.24, transparent: true });
+          rolledCuff.position.set(0, -2.8, 0);
+          registerFitMesh('miamimetro', armGrp, rolledCuff);
+        });
+
+        // Legs: Khaki Chinos & Brown Leather Shoes
+        [rightLegGroup, leftLegGroup].forEach((legGrp, idx) => {
+          const leg = createVoxelBox(4, 12, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top' || face === 'bottom') {
+                fillVanillaFabric(ctx, w, h, PAL.bootBrown, 420, 4);
+                return;
+              }
+              fillVanillaFabric(ctx, w, h, PAL.khakiBase, 421 + idx, 5);
+              rect(ctx, 0, 0, w, 1, '#3b281e'); // Leather belt
+              if (face === 'front' && idx === 0) px(ctx, 3, 0, '#d4af37'); // Belt buckle
+              rect(ctx, 0, 10, w, 2, PAL.bootBrown);
+            }
+          });
+          leg.position.set(0, -6, 0);
+          registerFitMesh('miamimetro', legGrp, leg);
+        });
+      })();
+
+      // ----------------------------------------------------------------------------
+      // FIT 5: "MIAMI HOLIDAY SANTA SUIT & SHADES" (Ref Image 13: image_f49502.jpg)
+      // ----------------------------------------------------------------------------
+      (function buildSantaFit() {
+        // 1. HEADWEAR (Attached to headGroup - Glasses removed per user request)
+        const santaHeadGear = new THREE.Group();
+        registerFitMesh('santa', headGroup, santaHeadGear);
+
+        // 1A. Plush White Faux-Fur Santa Hat Brim (wraps around forehead at y = 7.15)
+        const hatFurBrim = createVoxelBox(9.2, 2.3, 9.2, {
+          all: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.santaFur, 505, 6);
+            rect(ctx, 0, 0, w, 1, PAL.santaFurWhite);
+            rect(ctx, 1, h - 1, w - 2, 1, PAL.santaFurShade);
+          }
+        }, { roughness: 0.92 });
+        hatFurBrim.position.set(0, 7.15, 0.15);
+        santaHeadGear.add(hatFurBrim);
+
+        // 1B. Red Velvet Santa Hat Crown (drooping to Dexter's left / viewer's right +X like image_f49502.jpg)
+        const hatCrownBase = createVoxelBox(8.2, 2.0, 8.2, {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.santaRed, 506, 6)
+        }, { roughness: 0.78 });
+        hatCrownBase.position.set(0.35, 9.1, 0.0);
+        santaHeadGear.add(hatCrownBase);
+
+        const hatCrownMid = createVoxelBox(6.6, 1.6, 6.8, {
+          all: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.santaRed, 507, 6);
+            rect(ctx, 0, 0, w, 1, PAL.santaRedLight);
+          }
+        }, { roughness: 0.78 });
+        hatCrownMid.position.set(1.25, 10.45, -0.1);
+        santaHeadGear.add(hatCrownMid);
+
+        // Sloping Side Fold of the Santa Hat (draping over to +X)
+        const hatDroopUpper = createVoxelBox(4.4, 1.5, 5.2, {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.santaRedLight, 508, 6)
+        }, { roughness: 0.78 });
+        hatDroopUpper.position.set(3.4, 10.1, -0.15);
+        santaHeadGear.add(hatDroopUpper);
+
+        const hatDroopTail = createVoxelBox(2.8, 2.2, 3.8, {
+          all: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.santaRed, 509, 6)
+        }, { roughness: 0.78 });
+        hatDroopTail.position.set(5.15, 8.85, -0.15);
+        santaHeadGear.add(hatDroopTail);
+
+        // Fluffy White Pom-Pom Ball hanging at the tip on viewer's right (+X, y = 7.3)
+        const hatPomPom = createVoxelBox(2.6, 2.6, 2.6, {
+          all: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.santaFurWhite, 510, 6);
+            rect(ctx, 0, h - 1, w, 1, PAL.santaFurShade);
+          }
+        }, { roughness: 0.95 });
+        hatPomPom.position.set(6.05, 7.25, 0.1);
+        santaHeadGear.add(hatPomPom);
+
+        // 2. TORSO: Red Velvet Santa Coat, Plush White Fur Collar & Placket, Wide Black Belt & Tall Gold Buckle
+        const torso = createVoxelBox(8, 12, 4, {
+          front: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.santaRed, 511, 6);
+            // Slight V-neck skin exposure at throat above fur collar
+            rect(ctx, 3, 0, 2, 1, PAL.skinMid);
+            // White faux-fur collar around neck (rows 0..2)
+            rect(ctx, 1, 0, 2, 2, PAL.santaFur);
+            rect(ctx, 5, 0, 2, 2, PAL.santaFur);
+            rect(ctx, 2, 1, 4, 2, PAL.santaFurWhite);
+            // Vertical white faux-fur center placket down chest (rows 2..11)
+            rect(ctx, 3, 2, 2, 10, PAL.santaFur);
+            rect(ctx, 4, 2, 1, 10, PAL.santaFurWhite);
+            // Wide glossy black leather belt across waist (rows 8..10)
+            rect(ctx, 0, 8, 8, 2, PAL.beltBlack);
+            // Silver/brass belt eyelets on left side of belt (Ref image_f49502.jpg)
+            px(ctx, 1, 9, '#94a3b8');
+            px(ctx, 2, 9, '#94a3b8');
+            // Tall rectangular gold belt buckle in center (x = 3..4, y = 7..10)
+            rect(ctx, 3, 7, 2, 4, PAL.buckleGold);
+            px(ctx, 3, 7, PAL.buckleGoldLight);
+            rect(ctx, 4, 8, 1, 2, PAL.beltBlack); // Inner buckle cutout
+            // White faux-fur bottom coat hem at row 11
+            rect(ctx, 0, 11, 8, 1, PAL.santaFur);
+          },
+          back: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.santaRed, 512, 6);
+            rect(ctx, 0, 0, w, 2, PAL.santaFur);
+            rect(ctx, 0, 8, w, 2, PAL.beltBlack);
+            rect(ctx, 0, 11, w, 1, PAL.santaFur);
+          },
+          left: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.santaRed, 513, 6);
+            rect(ctx, 0, 0, w, 1, PAL.santaFur);
+            rect(ctx, 0, 8, w, 2, PAL.beltBlack);
+            rect(ctx, 0, 11, w, 1, PAL.santaFur);
+          },
+          right: (ctx, w, h) => {
+            fillVanillaFabric(ctx, w, h, PAL.santaRed, 514, 6);
+            rect(ctx, 0, 0, w, 1, PAL.santaFur);
+            rect(ctx, 0, 8, w, 2, PAL.beltBlack);
+            rect(ctx, 0, 11, w, 1, PAL.santaFur);
+          },
+          top: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.santaFur, 515, 5),
+          bottom: (ctx, w, h) => fillVanillaFabric(ctx, w, h, PAL.santaRedDark, 516, 5)
+        }, { roughness: 0.78 });
+        torso.position.set(0, 6, 0);
+        registerFitMesh('santa', torsoGroup, torso);
+
+        // 3D Extruded Plush White Faux-Fur Collar, Center Placket, Belt & Gold Buckle
+        const torsoOuter = createVoxelBox(8, 12, 4, {
+          front: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            // 3D Shawl Fur Collar wrapping neck (Ref image_f49502.jpg)
+            rect(ctx, 1, 0, 2, 2, PAL.santaFurWhite);
+            rect(ctx, 5, 0, 2, 2, PAL.santaFurWhite);
+            rect(ctx, 2, 1, 4, 2, PAL.santaFur);
+            // 3D Plush Vertical Center Fur Strip (slightly offset/overlapping like the photo)
+            rect(ctx, 3, 2, 2, 6, PAL.santaFurWhite);
+            px(ctx, 5, 4, PAL.santaFurShade);
+            px(ctx, 5, 6, PAL.santaFurShade);
+            // 3D Wide Black Leather Belt & Tall Gold Frame Buckle
+            rect(ctx, 0, 8, 8, 2, PAL.beltBlack);
+            px(ctx, 1, 9, '#cbd5e1');
+            px(ctx, 2, 9, '#cbd5e1');
+            rect(ctx, 3, 7, 2, 4, PAL.buckleGoldLight);
+            px(ctx, 4, 8, PAL.beltBlack);
+            px(ctx, 4, 9, PAL.buckleGold); // Buckle prong
+            // Lower fur placket & flared white fur coat hem below belt
+            rect(ctx, 0, 11, 8, 1, PAL.santaFurWhite);
+            rect(ctx, 3, 10, 2, 2, PAL.santaFurWhite);
+          },
+          back: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            rect(ctx, 0, 0, w, 2, PAL.santaFurWhite);
+            rect(ctx, 0, 8, w, 2, PAL.beltBlack);
+            rect(ctx, 0, 11, w, 1, PAL.santaFurWhite);
+          },
+          left: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            rect(ctx, 0, 8, w, 2, PAL.beltBlack);
+            rect(ctx, 0, 11, w, 1, PAL.santaFurWhite);
+          },
+          right: (ctx, w, h) => {
+            ctx.clearRect(0, 0, w, h);
+            rect(ctx, 0, 8, w, 2, PAL.beltBlack);
+            rect(ctx, 0, 11, w, 1, PAL.santaFurWhite);
+          }
+        }, { inflate: 0.30, transparent: true, roughness: 0.65 });
+        torsoOuter.position.set(0, 6, 0);
+        registerFitMesh('santa', torsoGroup, torsoOuter);
+
+        // 3. ARMS: Red Velvet Sleeves, Plush White Fur Cuffs, Left-Wrist Silver Watch & Bare Hands
+        [rightArmGroup, leftArmGroup].forEach((armGrp, idx) => {
+          const isLeftArm = (idx === 1); // Viewer's right in image_f49502.jpg has wristwatch
+          const arm = createVoxelBox(4, 12, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top') {
+                fillVanillaFabric(ctx, w, h, PAL.santaRed, 520 + idx, 5);
+                return;
+              }
+              if (face === 'bottom') {
+                fillVanillaFabric(ctx, w, h, PAL.skinMid, 522 + idx, 4);
+                return;
+              }
+              // Rows 0..6: Crimson red velvet sleeve
+              fillVanillaFabric(ctx, w, h, PAL.santaRed, 524 + idx, 6);
+              rect(ctx, 0, 5, w, 1, PAL.santaRedDark); // Velvet sleeve crease
+              // Rows 7..8: Plush white faux-fur wrist cuff
+              rect(ctx, 0, 7, w, 2, PAL.santaFur);
+              rect(ctx, 0, 7, w, 1, PAL.santaFurWhite);
+              // Rows 9..11: Bare wrist & hand
+              for (let y = 9; y < 12; y++) {
+                for (let x = 0; x < w; x++) {
+                  px(ctx, x, y, y === 11 ? PAL.skinMid : PAL.skinBase);
+                }
+              }
+              // Silver wristwatch on Dexter's left wrist (row 9) just below white fur cuff (Ref image_f49502.jpg)
+              if (isLeftArm) {
+                rect(ctx, 0, 9, w, 1, '#94a3b8');
+                if (face === 'front' || face === 'left') {
+                  px(ctx, 1, 9, '#f8fafc'); // Watch dial face
+                  px(ctx, 2, 9, '#cbd5e1');
+                }
+              }
+            }
+          }, { roughness: 0.78 });
+          arm.position.set(0, -5, 0);
+          registerFitMesh('santa', armGrp, arm);
+
+          // 3D Plush White Faux-Fur Cuff Ring around wrist
+          const furCuff = createVoxelBox(4, 2.4, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top' || face === 'bottom') return;
+              fillVanillaFabric(ctx, w, h, PAL.santaFurWhite, 530 + idx, 6);
+              rect(ctx, 0, h - 1, w, 1, PAL.santaFurShade);
+            }
+          }, { inflate: 0.32, transparent: true, roughness: 0.92 });
+          furCuff.position.set(0, -5.8, 0);
+          registerFitMesh('santa', armGrp, furCuff);
+        });
+
+        // 4. LEGS: Matching Crimson Red Velvet Santa Trousers & Dark Boots
+        [rightLegGroup, leftLegGroup].forEach((legGrp, idx) => {
+          const leg = createVoxelBox(4, 12, 4, {
+            all: (ctx, w, h, face) => {
+              if (face === 'top' || face === 'bottom') {
+                fillVanillaFabric(ctx, w, h, PAL.bootSole, 540, 3);
+                return;
+              }
+              fillVanillaFabric(ctx, w, h, PAL.santaRed, 541 + idx, 6);
+              // White fur coat skirt overhang at very top of thigh (row 0)
+              rect(ctx, 0, 0, w, 1, PAL.santaFur);
+              if (face === 'front') {
+                // Soft velvet trouser crease highlight
+                rect(ctx, 1, 2, 1, 6, PAL.santaRedLight);
+              }
+              // Dark boots at bottom (rows 10..11)
+              rect(ctx, 0, 10, w, 2, PAL.bootBrown);
+              rect(ctx, 0, 11, w, 1, PAL.bootSole);
+            }
+          }, { roughness: 0.78 });
+          leg.position.set(0, -6, 0);
+          registerFitMesh('santa', legGrp, leg);
+        });
+      })();
+
+      // ============================================================================
+      // 9. STATE MANAGEMENT FOR FITS, PROPS & ANIMATIONS
+      // ============================================================================
+      let currentFit = 'henley';
+      let currentAnim = 'idle';
+      let shieldStage = 'mid'; // 'on' | 'mid' | 'off' (for Kill Room)
+      let hoodStage = 'on';    // 'on' | 'mid' | 'off' (for Dark Passenger)
+      let animTime = 0;
+
+      // Subtle mouse pointer head tracking target
+      const pointerNDC = new THREE.Vector2(0, 0);
+      window.addEventListener('pointermove', (e) => {
+        pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+        pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      });
+
+      function updateFitAndProps() {
+        // Toggle outfit meshes
+        Object.keys(fitMeshes).forEach((key) => {
+          const visible = (key === currentFit);
+          fitMeshes[key].forEach((m) => { m.visible = visible; });
+        });
+
+        // Toggle Kill Room Face Shield Visor ONLY when Kill Room fit is selected and shieldStage !== 'off'
+        visorGroup.visible = (currentFit === 'killroom' && shieldStage !== 'off');
+
+        // Toggle Dark Passenger 3-Stage Hood ONLY when Dark Passenger fit is selected
+        Object.keys(darkPassengerHoodStages).forEach((stageKey) => {
+          const showStage = (currentFit === 'darkpassenger' && hoodStage === stageKey);
+          darkPassengerHoodStages[stageKey].forEach((m) => {
+            m.visible = showStage;
+          });
+        });
+
+        // Hide protruding 3D hair locks when Dark Passenger Hood is pulled 'on' or when wearing the Santa Hat so zero hair clips through
+        if (dexterHeadMeshGroup && dexterHeadMeshGroup.userData.hairVolumes) {
+          const hideAllHairVolumes = (currentFit === 'darkpassenger' && hoodStage === 'on');
+          const isSanta = (currentFit === 'santa');
+          dexterHeadMeshGroup.userData.hairVolumes.forEach((hMesh, idx) => {
+            // For Santa fit, keep idx 0 (sideburns/temple hair layer) visible under the hat brim like image_f49502.jpg, but hide top crown/bangs boxes (idx 1..3)
+            if (hideAllHairVolumes) {
+              hMesh.visible = false;
+            } else if (isSanta) {
+              hMesh.visible = (idx === 0);
+            } else {
+              hMesh.visible = true;
+            }
+          });
+        }
+
+        // Show Shield controls only on Kill Room fit, and Hood controls only on Dark Passenger fit
+        const shieldWrapper = document.getElementById('shield-controls-wrapper');
+        if (shieldWrapper) {
+          shieldWrapper.classList.toggle('hidden', currentFit !== 'killroom');
+          shieldWrapper.classList.toggle('flex', currentFit === 'killroom');
+        }
+        const hoodWrapper = document.getElementById('hood-controls-wrapper');
+        if (hoodWrapper) {
+          hoodWrapper.classList.toggle('hidden', currentFit !== 'darkpassenger');
+          hoodWrapper.classList.toggle('flex', currentFit === 'darkpassenger');
+        }
+
+        // Determine active props based on Fit & Animation (Drill removed as requested)
+        props.syringe.visible = false;
+        props.knife.visible = false;
+        props.bloodSlide.visible = false;
+        props.slideBox.visible = false;
+
+        if (currentAnim === 'special') {
+          // In Special ("Tonight's the Night" Trophy Inspection / Visor Ritual)
+          if (currentFit === 'killroom') {
+            props.bloodSlide.visible = true;
+          } else {
+            props.bloodSlide.visible = true;
+            props.slideBox.visible = true;
+          }
+        } else if (currentAnim === 'attack') {
+          if (currentFit === 'henley') props.syringe.visible = true;
+          else if (currentFit === 'killroom') props.knife.visible = true;
+          else if (currentFit === 'darkpassenger') props.knife.visible = true;
+          else if (currentFit === 'miamimetro') props.syringe.visible = true;
+          else if (currentFit === 'santa') props.syringe.visible = true;
+        } else {
+          // In Idle / Walk: Kill Room is hands-free (like Ref 6 & 7); Dark Passenger holds his ritual knife
+          if (currentFit === 'darkpassenger') props.knife.visible = true;
+        }
+      }
+
+      updateFitAndProps();
+
+      // ============================================================================
+      // 10. PROCEDURAL ANIMATION ENGINE (IDLE, WALK, ATTACK, SPECIAL)
+      // ============================================================================
+      function lerp(a, b, t) {
+        return a + (b - a) * t;
+      }
+
+      function dampEuler(euler, tx, ty, tz, speed, dt) {
+        const factor = 1 - Math.exp(-speed * dt);
+        euler.x = lerp(euler.x, tx, factor);
+        euler.y = lerp(euler.y, ty, factor);
+        euler.z = lerp(euler.z, tz, factor);
+      }
+
+      function dampVec3(vec, tx, ty, tz, speed, dt) {
+        const factor = 1 - Math.exp(-speed * dt);
+        vec.x = lerp(vec.x, tx, factor);
+        vec.y = lerp(vec.y, ty, factor);
+        vec.z = lerp(vec.z, tz, factor);
+      }
+
+      function updateAnimation(dt) {
+        animTime += dt;
+        const t = animTime;
+
+        // Target transforms for each joint
+        let pelvisPos = { x: 0, y: 12, z: 0 };
+        let pelvisRot = { x: 0, y: 0, z: 0 };
+        let torsoRot  = { x: 0, y: 0, z: 0 };
+        let headRot   = { x: 0, y: 0, z: 0 };
+        let rArmPos   = { x: -6, y: 11, z: 0 };
+        let lArmPos   = { x: 6, y: 11, z: 0 };
+        let rArmRot   = { x: 0, y: 0, z: 0 };
+        let lArmRot   = { x: 0, y: 0, z: 0 };
+        let rLegRot   = { x: 0, y: 0, z: 0 };
+        let lLegRot   = { x: 0, y: 0, z: 0 };
+
+        // Base visor angle from user's 3-stage selection:
+        // 'on' = flipped down over face (0.04 rad), 'mid' = flipped up on forehead (-0.88 rad, Ref 4)
+        let visorRotX = (shieldStage === 'on') ? 0.04 : -0.88;
+
+        // Subtle cursor head-tracking offset
+        const lookYaw = THREE.MathUtils.clamp(pointerNDC.x * 0.28, -0.35, 0.35);
+        const lookPitch = THREE.MathUtils.clamp(-pointerNDC.y * 0.18, -0.25, 0.25);
+
+        if (currentAnim === 'idle') {
+          // ------------------------------------------------------------------
+          // IDLE: Cycles smoothly between Ref 1 Crossed-Arms Stare & Analytical Stance
+          // ------------------------------------------------------------------
+          const breath = Math.sin(t * 2.1);
+          const slowCycle = Math.sin(t * 0.55);
+          const foldBlend = currentFit === 'henley'
+            ? THREE.MathUtils.smoothstep(slowCycle, -0.2, 0.4)
+            : 0; // In Henley mode, smoothly folds arms like Ref 1 (`image_f333eb.jpg`)!
+
+          pelvisPos.y = 12 + breath * 0.08;
+          torsoRot.x = breath * 0.025;
+          torsoRot.y = Math.sin(t * 0.8) * 0.06;
+
+          // Intense Dexter head tilt + subtle cursor tracking
+          // When Dark Passenger hood is ON, keep head level so lower nose, mouth & chin sit clearly in the cowl opening
+          const hoodChinTilt = (currentFit === 'darkpassenger' && hoodStage === 'on') ? 0.03 : 0.04;
+          headRot.x = hoodChinTilt + breath * 0.02 + lookPitch;
+          headRot.y = Math.sin(t * 0.9) * 0.14 + lookYaw;
+          headRot.z = Math.sin(t * 0.65) * 0.045;
+
+          if (currentFit === 'killroom') {
+            // Composed Kill Room butcher stance from Ref 6 (`image_f334e0.png`) & Ref 7 (`image_f33788.png`)
+            rArmRot.x = -0.10 + breath * 0.03;
+            rArmRot.z = 0.09;
+            lArmRot.x = -0.08 - breath * 0.03;
+            lArmRot.z = -0.09;
+          } else if (currentFit === 'darkpassenger') {
+            // Brooding Dark Passenger stance from Ref 5 (`image_f33485.jpg`) & Ref 10 (`image_f419ba.png`)
+            rArmRot.x = -0.14 + breath * 0.03;
+            rArmRot.z = 0.11;
+            lArmRot.x = -0.12 - breath * 0.03;
+            lArmRot.z = -0.11;
+          } else {
+            // Interpolate between relaxed analytical stance and iconic Ref 1 Crossed Arms
+            rArmPos.z = lerp(0, 1.4, foldBlend);
+            lArmPos.z = lerp(0, 1.5, foldBlend);
+            rArmPos.x = lerp(-6, -4.8, foldBlend);
+            lArmPos.x = lerp(6, 4.8, foldBlend);
+
+            rArmRot.x = lerp(0.06 + breath * 0.03, -1.18, foldBlend);
+            rArmRot.y = lerp(0, -0.55, foldBlend);
+            rArmRot.z = lerp(0.06, -0.52, foldBlend);
+
+            lArmRot.x = lerp(-0.05 - breath * 0.03, -1.12, foldBlend);
+            lArmRot.y = lerp(0, 0.58, foldBlend);
+            lArmRot.z = lerp(-0.06, 0.50, foldBlend);
+          }
+
+          // Subtle wide-stance leg weight shift (Ref 1 & 2)
+          rLegRot.z = -0.04;
+          lLegRot.z = 0.04;
+          rLegRot.y = -0.05;
+          lLegRot.y = 0.05;
+
+        } else if (currentAnim === 'walk') {
+          // ------------------------------------------------------------------
+          // WALK: Predatory Stalking Stride (Ref 3 `image_f33429.png`)
+          // ------------------------------------------------------------------
+          const speed = 4.6;
+          const phase = t * speed;
+          const stride = Math.sin(phase);
+          const bounce = Math.abs(Math.cos(phase));
+
+          pelvisPos.y = 12 - bounce * 0.45;
+          pelvisPos.x = Math.cos(phase) * 0.25;
+          pelvisRot.y = -stride * 0.08;
+          pelvisRot.z = Math.cos(phase) * 0.03;
+
+          // Predatory slight forward lean & shoulder counter-rotation
+          torsoRot.x = 0.08 + bounce * 0.03;
+          torsoRot.y = stride * 0.14;
+
+          // Head stays locked forward on target while body stalks
+          const walkChinTilt = (currentFit === 'darkpassenger' && hoodStage === 'on') ? 0.06 : -0.04;
+          headRot.x = walkChinTilt + lookPitch * 0.6;
+          headRot.y = -stride * 0.10 + lookYaw * 0.7;
+          headRot.z = Math.sin(phase * 0.5) * 0.03;
+
+          // Leg stride with natural knee-lift asymmetry
+          rLegRot.x = stride * 0.62;
+          lLegRot.x = -stride * 0.62;
+          rLegRot.z = -0.02;
+          lLegRot.z = 0.02;
+
+          // Arm swing with elbow follow-through
+          rArmRot.x = -stride * 0.48 - 0.08;
+          lArmRot.x = stride * 0.48 - 0.08;
+          rArmRot.z = 0.07;
+          lArmRot.z = -0.07;
+
+        } else if (currentAnim === 'attack') {
+          // ------------------------------------------------------------------
+          // ATTACK: M99 Syringe / Ritual Knife Precision Lunge
+          // ------------------------------------------------------------------
+          const cycle = (t * 1.35) % 1; // 0..1 loop
+
+          if (cycle < 0.32) {
+            // Phase 1: Stealthy coiled wind-up
+            const p = THREE.MathUtils.smoothstep(cycle, 0, 0.32);
+            pelvisPos.y = lerp(12, 10.9, p);
+            pelvisPos.z = lerp(0, -1.2, p);
+            torsoRot.x = lerp(0, 0.22, p);
+            torsoRot.y = lerp(0, -0.48, p);
+            headRot.y = lerp(0, 0.42, p);
+            headRot.x = lerp(0, -0.12, p);
+
+            // Right hand coils weapon high; left hand reaches out to grab/subdue
+            rArmRot.x = lerp(0, -2.05, p);
+            rArmRot.y = lerp(0, -0.28, p);
+            rArmRot.z = lerp(0, -0.28, p);
+
+            lArmRot.x = lerp(0, -1.15, p);
+            lArmRot.y = lerp(0, 0.30, p);
+
+            rLegRot.x = lerp(0, 0.38, p);
+            lLegRot.x = lerp(0, -0.35, p);
+
+          } else if (cycle < 0.56) {
+            // Phase 2: Explosive precision strike forward!
+            const p = THREE.MathUtils.smoothstep(cycle, 0.32, 0.52);
+            pelvisPos.y = lerp(10.9, 11.4, p);
+            pelvisPos.z = lerp(-1.2, 2.2, p);
+            torsoRot.x = lerp(0.22, 0.32, p);
+            torsoRot.y = lerp(-0.48, 0.52, p);
+            headRot.y = lerp(0.42, -0.45, p);
+            headRot.x = -0.15;
+
+            // Right arm drives weapon forward and down into target neck/chest
+            rArmRot.x = lerp(-2.05, -0.78, p);
+            rArmRot.y = lerp(-0.28, 0.42, p);
+            rArmRot.z = lerp(-0.28, 0.12, p);
+            rArmPos.z = lerp(0, 1.2, p);
+
+            // Left arm pulls back for torque
+            lArmRot.x = lerp(-1.15, 0.35, p);
+            lArmRot.z = -0.22;
+
+            rLegRot.x = lerp(0.38, -0.42, p);
+            lLegRot.x = lerp(-0.35, 0.45, p);
+
+          } else {
+            // Phase 3: Composed recovery & cold analytical head tilt
+            const p = THREE.MathUtils.smoothstep(cycle, 0.56, 1.0);
+            pelvisPos.y = lerp(11.4, 12, p);
+            pelvisPos.z = lerp(2.2, 0, p);
+            torsoRot.x = lerp(0.32, 0, p);
+            torsoRot.y = lerp(0.52, 0, p);
+            headRot.y = lerp(-0.45, 0, p);
+            headRot.z = Math.sin(p * Math.PI) * 0.12;
+
+            rArmRot.x = lerp(-0.82, 0, p);
+            rArmRot.y = lerp(0.42, 0, p);
+            lArmRot.x = lerp(0.35, 0, p);
+
+            rLegRot.x = lerp(-0.42, 0, p);
+            lLegRot.x = lerp(0.45, 0, p);
+          }
+
+        } else if (currentAnim === 'special') {
+          // ------------------------------------------------------------------
+          // SPECIAL: "Tonight's the Night" — Blood Slide Trophy Inspection / Visor Ritual
+          // ------------------------------------------------------------------
+          const cycle = (t * 0.45) % 1;
+          const lift = Math.sin(cycle * Math.PI);
+
+          pelvisPos.y = 12 + Math.sin(t * 2.0) * 0.07;
+          torsoRot.x = -0.06 * lift;
+          torsoRot.y = Math.sin(cycle * Math.PI * 2) * 0.12;
+
+          if (currentFit === 'killroom') {
+            // Left hand raised to forehead adjusting the clear surgical visor while right hand holds up a fresh Blood Slide trophy
+            lArmRot.x = -2.25 - Math.sin(t * 3.0) * 0.06;
+            lArmRot.y = 0.35;
+            lArmRot.z = 0.28;
+            lArmPos.z = 1.1;
+
+            rArmRot.x = lerp(-0.85, -1.55, lift);
+            rArmRot.y = lerp(-0.18, -0.35, lift);
+            rArmRot.z = -0.15;
+            rArmPos.z = 1.1;
+
+            headRot.x = -0.10;
+            headRot.y = 0.15 * Math.sin(t * 1.4);
+            headRot.z = -0.06;
+            if (shieldStage === 'mid') {
+              visorRotX = -0.82 + Math.sin(t * 2.2) * 0.12;
+            }
+          } else {
+            // Left hand holds open the Wooden Blood Slide Box;
+            // Right hand lifts the crimson Glass Blood Slide up to eye level (Ref 9 `image_f33c46.jpg`)
+            lArmRot.x = -1.05;
+            lArmRot.y = 0.38;
+            lArmRot.z = 0.15;
+            lArmPos.z = 1.0;
+
+            rArmRot.x = lerp(-0.9, -1.68, lift);
+            rArmRot.y = lerp(-0.2, -0.42, lift);
+            rArmRot.z = -0.18;
+            rArmPos.z = 1.2;
+
+            // Head tilts to admire the blood slide at eye level
+            headRot.x = lerp(0.12, -0.08, lift);
+            headRot.y = -0.18 * lift;
+            headRot.z = 0.09 * lift;
+          }
+        }
+
+        // Apply smooth exponential damping to all rig joints
+        const dampSpeed = 14.0;
+        dampVec3(pelvisGroup.position, pelvisPos.x, pelvisPos.y, pelvisPos.z, dampSpeed, dt);
+        dampEuler(pelvisGroup.rotation, pelvisRot.x, pelvisRot.y, pelvisRot.z, dampSpeed, dt);
+        dampEuler(torsoGroup.rotation, torsoRot.x, torsoRot.y, torsoRot.z, dampSpeed, dt);
+        dampEuler(headGroup.rotation, headRot.x, headRot.y, headRot.z, dampSpeed, dt);
+
+        dampVec3(rightArmGroup.position, rArmPos.x, rArmPos.y, rArmPos.z, dampSpeed, dt);
+        dampVec3(leftArmGroup.position, lArmPos.x, lArmPos.y, lArmPos.z, dampSpeed, dt);
+        dampEuler(rightArmGroup.rotation, rArmRot.x, rArmRot.y, rArmRot.z, dampSpeed, dt);
+        dampEuler(leftArmGroup.rotation, lArmRot.x, lArmRot.y, lArmRot.z, dampSpeed, dt);
+
+        dampEuler(rightLegGroup.rotation, rLegRot.x, rLegRot.y, rLegRot.z, dampSpeed, dt);
+        dampEuler(leftLegGroup.rotation, lLegRot.x, lLegRot.y, lLegRot.z, dampSpeed, dt);
+
+        if (visorGroup.userData.visorPivot) {
+          const vp = visorGroup.userData.visorPivot;
+          vp.rotation.x = lerp(vp.rotation.x, visorRotX, 1 - Math.exp(-12 * dt));
+        }
+      }
+
+      // ============================================================================
+      // 11. UI EVENT LISTENERS & CAMERA RESET
+      // ============================================================================
+      const animButtons = document.querySelectorAll('[data-anim]');
+      const fitButtons = document.querySelectorAll('[data-fit]');
+      const shieldButtons = document.querySelectorAll('[data-shield]');
+      const hoodButtons = document.querySelectorAll('[data-hood]');
+      const resetCamBtn = document.getElementById('reset-camera-btn');
+
+      animButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          currentAnim = btn.getAttribute('data-anim');
+          animTime = 0;
+          animButtons.forEach((b) => b.classList.remove('active-anim'));
+          btn.classList.add('active-anim');
+          updateFitAndProps();
+        });
+      });
+
+      fitButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          currentFit = btn.getAttribute('data-fit');
+          fitButtons.forEach((b) => b.classList.remove('active-fit'));
+          btn.classList.add('active-fit');
+          updateFitAndProps();
+        });
+      });
+
+      shieldButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          shieldStage = btn.getAttribute('data-shield');
+          shieldButtons.forEach((b) => b.classList.remove('active-shield'));
+          btn.classList.add('active-shield');
+          // Automatically switch to Kill Room fit if user clicks a Shield stage while in another fit
+          if (currentFit !== 'killroom') {
+            currentFit = 'killroom';
+            fitButtons.forEach((b) => {
+              b.classList.toggle('active-fit', b.getAttribute('data-fit') === 'killroom');
+            });
+          }
+          updateFitAndProps();
+        });
+      });
+
+      hoodButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          hoodStage = btn.getAttribute('data-hood');
+          hoodButtons.forEach((b) => b.classList.remove('active-hood'));
+          btn.classList.add('active-hood');
+          // Automatically switch to Dark Passenger fit if user clicks a Hood stage while in another fit
+          if (currentFit !== 'darkpassenger') {
+            currentFit = 'darkpassenger';
+            fitButtons.forEach((b) => {
+              b.classList.toggle('active-fit', b.getAttribute('data-fit') === 'darkpassenger');
+            });
+          }
+          updateFitAndProps();
+        });
+      });
+
+      let isResettingCamera = false;
+      resetCamBtn.addEventListener('click', () => {
+        isResettingCamera = true;
+      });
+
+      controls.addEventListener('start', () => {
+        isResettingCamera = false;
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // ============================================================================
+      // 12. LOCKED 60 FPS DELTA-TIME RENDER LOOP
+      // ============================================================================
+      let lastFrameTime = performance.now();
+
+      function animate(now) {
+        requestAnimationFrame(animate);
+
+        const rawDt = (now - lastFrameTime) / 1000;
+        lastFrameTime = now;
+        const dt = Math.min(rawDt, 0.05); // Clamp delta time to prevent jumps on tab switch
+
+        if (isResettingCamera) {
+          const factor = 1 - Math.exp(-8.5 * dt);
+          camera.position.lerp(DEFAULT_CAM_POS, factor);
+          controls.target.lerp(DEFAULT_CAM_TARGET, factor);
+          if (
+            camera.position.distanceTo(DEFAULT_CAM_POS) < 0.05 &&
+            controls.target.distanceTo(DEFAULT_CAM_TARGET) < 0.05
+          ) {
+            camera.position.copy(DEFAULT_CAM_POS);
+            controls.target.copy(DEFAULT_CAM_TARGET);
+            isResettingCamera = false;
+          }
+        }
+
+        controls.update();
+        updateAnimation(dt);
+        renderer.render(scene, camera);
+      }
+
+      window.onload = function () {
+        lastFrameTime = performance.now();
+        requestAnimationFrame(animate);
+      };
+    })();
+  </script>
+</body>
+</html>

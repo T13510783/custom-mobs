@@ -1,13 +1,12 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 23:46
-**Request:** Improve Anton's expressions based on what he does, and improve his animations.
+**Date:** 2026-10-17 00:00
+**Request:** Commit + push everything.
 
 **Done:**
-- `mobs/anton_chigurh/anton_chigurh.html`: per-animation acting. Idle (weight shift, eyes lead the scan, narrowing, slow blink), Idle 2 (alert wide eyes), Walk (locked-on stare), Attack (polite line, lean-in, focus, look down + exhale), Special (smooth raise, flinch per shot, boots distaste).
-- New `bump()` helper (smooth cos² pulse); unused easing helpers removed.
-- Checked: face renders at 9 key moments, `#cliptest` 0 clips.
+- Committed the uncommitted team work: Dexter, Freddy Fazbear, Saw (Billy, John Kramer) viewers + references, `run.txt`; README mobs table updated.
+- Not committed: 10 images + `freddy_fazbear_3d_animatronic.html` in the root. They are exact copies of files already in `references/` / `mobs/freddy_fazbear/`; deleting them was blocked by the permission check.
 
-**Files:** `mobs/anton_chigurh/anton_chigurh.html`, docs.
+**Files:** `mobs/dexter/`, `mobs/freddy_fazbear/`, `mobs/saw(belong together)/`, `references/` (same 3), `run.txt`, `README.md`, docs.
 
-**Next:** merge the PR (needs the user's "merge"); `run.txt` has an uncommitted edit not from this session (left alone).
+**Next:** user deletes the root duplicates; the Saw folder name and the UUID image names break the naming rule (rename once their owner is done).
