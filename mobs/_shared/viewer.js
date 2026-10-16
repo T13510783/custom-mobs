@@ -17,7 +17,9 @@
      look  -1..1  gaze / head down .. up
      roll  -1..1  head tilted to its right .. left
      shake  0..1  trembling (afraid) / shaking with rage (angry)
-   Mobs without a face (masks, helmets) show the expression with the head: MobViewer.head (pitch, roll in rad). */
+   Mobs without a face (masks, helmets) show the expression with the head: MobViewer.head (pitch, roll in rad).
+   A page may add its own extra expressions (MobViewer.addExpressions): they join the menu after the five standard
+   ones, only on that page. Their x = { channel: value } holds page channels (e.g. a sneer), smoothed in state.x. */
 window.MobViewer = (() => {
   const EXPRESSIONS = {
     auto:   null,
@@ -34,7 +36,7 @@ window.MobViewer = (() => {
     EXPRESSIONS, KEYS,
     // Smoothed state: w = how much the forced face is applied (0 = animation's own face, 1 = forced),
     // the channels ease to the picked expression (same per-frame filter as the faces: never snaps).
-    state: { w: 0, brow: 0, tilt: 0, smile: 0, open: 0, eyes: 0, look: 0, roll: 0, shake: 0, time: 0 },
+    state: { w: 0, brow: 0, tilt: 0, smile: 0, open: 0, eyes: 0, look: 0, roll: 0, shake: 0, time: 0, x: {} },
     // Head offsets for the forced expression (rad, already weighted by w): add them to the head bone after the
     // animation pose. pitch + = chin down (three.js x). Small: stays inside each rig's head limits.
     head: { pitch: 0, roll: 0 },
@@ -52,6 +54,9 @@ window.MobViewer = (() => {
       const k = 1 - Math.exp(-Math.min(dt, 0.1) * 10);
       s.w += ((target ? 1 : 0) - s.w) * k;
       if (target) for (const c of KEYS) s[c] += (target[c] - s[c]) * k;
+      // page channels of extra expressions: ease to the picked value, or back to 0 when it has none
+      const tx = (target && target.x) || {};
+      for (const c of new Set([...Object.keys(tx), ...Object.keys(s.x)])) s.x[c] = (s.x[c] || 0) + ((tx[c] || 0) - (s.x[c] || 0)) * k;
       // Tremble: two fast sines (never a hard step), scaled by shake
       s.time += dt;
       const tr = s.shake * (0.6 * Math.sin(s.time * 47) + 0.4 * Math.sin(s.time * 31 + 1.3));
@@ -70,6 +75,18 @@ window.MobViewer = (() => {
     faceOverlay(THREE, head, o) {
       this.overlay = buildOverlay(THREE, head, o);
       return this.overlay;
+    },
+    // Extra expressions for one page (opt-in): { key: { label, icon (inner SVG of a 24x24 line icon), brow, tilt,
+    // smile, open, eyes, look, roll, shake, x: { page channels } } }. Missing channels are 0. Call it any time.
+    addExpressions(defs) {
+      for (const [k, d] of Object.entries(defs)) {
+        if (k in EXPRESSIONS) continue;
+        const { label, icon: ic, ...ch } = d;
+        EXPRESSIONS[k] = { brow: 0, tilt: 0, smile: 0, open: 0, eyes: 0, look: 0, roll: 0, shake: 0, ...ch };
+        LABELS[k] = label || k; ICONS[k] = ic || ICONS.auto;
+        if (menu) addItem(k);
+      }
+      sync();
     },
     // Blend helper: v = the animation's own value, forced = the value for this expression.
     mix(v, forced) { return v + (forced - v) * this.state.w; },
@@ -182,6 +199,15 @@ window.MobViewer = (() => {
     }
   }
 
+  // One list entry (icon + word) per expression
+  function addItem(k) {
+    const it = document.createElement('button');
+    it.type = 'button'; it.className = 'mv-expr-item'; it.dataset.expr = k; it.setAttribute('role', 'option');
+    it.innerHTML = `${icon(k)}<span>${LABELS[k]}</span>`;
+    it.addEventListener('click', () => { api.set(k); open(false); btn.focus(); });
+    menu.appendChild(it); items.push(it);
+  }
+
   function build() {
     if (document.getElementById('expr')) return;
     // Pill button (icon + word + chevron) with a small list of the expressions under it
@@ -194,13 +220,7 @@ window.MobViewer = (() => {
       '<div class="mv-expr-menu" role="listbox" aria-label="Expression"></div>';
     btn = select.querySelector('.mv-expr-btn');
     menu = select.querySelector('.mv-expr-menu');
-    for (const k of Object.keys(EXPRESSIONS)) {
-      const it = document.createElement('button');
-      it.type = 'button'; it.className = 'mv-expr-item'; it.dataset.expr = k; it.setAttribute('role', 'option');
-      it.innerHTML = `${icon(k)}<span>${LABELS[k]}</span>`;
-      it.addEventListener('click', () => { api.set(k); open(false); btn.focus(); });
-      menu.appendChild(it); items.push(it);
-    }
+    for (const k of Object.keys(EXPRESSIONS)) addItem(k);
     btn.addEventListener('click', () => open(!select.classList.contains('open')));
     // Keys inside the menu never reach the page (number keys, R, B ...); arrows move, Esc closes
     select.addEventListener('keydown', (e) => {

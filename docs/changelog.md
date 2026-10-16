@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-16 18:52
+- Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`): shoulders no longer sink into the torso.
+  - Arm IK: both arm bones turn the shortest way (no twist around the arm), so the square arm boxes stay square to the chest; the old frame twisted them ~45 degrees and pushed the shoulder corners up to 1.7 texel into the torso (tie straighten, axe chop, nail gun, card).
+  - Gestures fade in and out along a path bowed forward (fist never cuts the coat) and blend as rotations.
+  - Every sleeve (also solid ones) ends flush with the arm on the inner side; pistol arm straight out in front of the shoulder.
+  - Shoulder vs torso: 0 over 0.3 texel in all 10 outfits (was 0.85-1.7); shoulder top vs head: max 0.29 texel.
+
+## 2026-10-16 17:45
+- Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`):
+  - 10 outfits: overcoat, raincoat, black suit (new, from the references), suspenders, pinstripe, grey suit + business card, camel blazer, blue shirt + red tie, tuxedo, shorts. Walkman fit, orange headphones and blue clip removed.
+  - Toggles per outfit (dock buttons + keys `H` / `C`): black on-ear headphones with Y-cord, cigar with ember and smoke.
+  - Held items really turn now (`aimProp` slerp bug: every item stayed in its rest grip). Two-handed axe chop in front of him, axe hangs straight down at rest (standing reference), phone held on the cheek during a call, card shown in front of the chest, pistol aimed with no waist twist.
+  - Idle 2 is its own idle (hair slick in the mirror, flex, watch check); new Dance button / key 5 ("so catchy" dance).
+  - Wayfarer sunglasses fixed; 5 extra expressions in the menu (smug, psycho, grin, disgust, surprised).
+  - Clip test: 0 clips in 7 outfits; 3 small touches (max 0.13 texel) left with headphones forced on / mouse in a corner.
+- `mobs/_shared/viewer.js`: pages can add their own expressions (`MobViewer.addExpressions`).
+- `CLAUDE.md`: lessons on slerp into a separate quaternion, big item turns via a middle key, near-black parts on the dark background.
+
 ## 2026-10-16 16:00
 - Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`): buttons and expression menu no longer vanish when the page cannot reach `mobs/_shared/`: `viewer.css` / `viewer.js` then load from the public repo (jsDelivr).
 - `mobs/_shared/viewer_template.html`: same fallback. `CLAUDE.md` rule 10: shared links get this fallback.

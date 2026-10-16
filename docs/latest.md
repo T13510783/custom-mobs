@@ -1,13 +1,13 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 16:00
-**Request:** All buttons gone on the Bateman page: fix, then commit and push.
+**Date:** 2026-10-16 18:52
+**Request:** Fix the clipping, especially at Bateman's shoulders.
 
 **Done:**
-- Cause: the page could not load `mobs/_shared/viewer.css` + `viewer.js` (page opened where `../_shared/` is missing): buttons fall below the 3D view, no expression menu. Reproduced headless.
-- Fix: `onerror` fallback to the same files on jsDelivr (public repo). Tested: a copy without `_shared` and the normal path both show the dock, reset button and expression menu.
-- Same fallback in the template; rule in `CLAUDE.md`.
+- Cause: the arm IK twisted the upper-arm box ~45 degrees around the arm (it followed the elbow bend), so its corners went up to 1.7 texel into the chest.
+- Fix in `mobs/patrick_bateman/patrick_bateman.html`: twist-free arm IK, gestures fade along a forward-bowed path with rotation blending, all sleeves flush on the inner side, pistol arm straight forward.
+- Checked: clip test all 10 outfits (shoulder in torso: none over 0.3 texel, was 0.85-1.7; shoulder top under the head max 0.29), per-frame step probe, renders.
 
-**Files:** `mobs/patrick_bateman/patrick_bateman.html`, `mobs/_shared/viewer_template.html`, `CLAUDE.md`, docs.
+**Files:** `mobs/patrick_bateman/patrick_bateman.html`, docs.
 
-**Next:** other mobs get the fallback when they are worked on. No release (viewer only).
+**Next:** PR #36 still waits for "merge". No release (viewer only).
