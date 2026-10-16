@@ -1328,8 +1328,8 @@
       const sm = (x) => x * x * (3 - 2 * x);                                   // smoothstep 0..1
       const ramp = (t, a, b) => sm(clamp((t - a) / (b - a), 0, 1));             // smooth 0 -> 1 between a and b
       const pos2 = (x) => (x > 0 ? x * x : 0);                                  // max(0, x)^2: no corner
-      const easeInOutCubic = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
-      const easeOutBack = (x) => 1 + 2.70158 * Math.pow(x - 1, 3) + 1.70158 * Math.pow(x - 1, 2);
+      // Smooth bump around time c with half-width w: 0 -> 1 -> 0, zero speed at both ends and the peak (cos²)
+      const bump = (t, c, w) => { const x = (t - c) / w; return x > -1 && x < 1 ? Math.cos(x * Math.PI / 2) ** 2 : 0; };
       // Keyframes [[time, value], ...] eased with smoothstep (zero speed at every key: no corners)
       function keys(t, ks) {
         for (let i = 1; i < ks.length; i++) {
@@ -1343,25 +1343,30 @@
 
       const ANIMS = {
         // 1 · Idle: cold, still corridor stance. Slow breathing, a slow scan left/right, gun and tank hang heavy.
+        //     Face: the eyes lead the scan, narrow as they settle on each side (sizing someone up), one slow
+        //     reptile blink as the head passes the middle; lips stay set.
         idle: { T: 7, fn(t, Q) {
           const b = Math.sin(2 * TAU * t / 7);           // breath (3.5 s)
           const look = Math.sin(TAU * t / 7);            // slow scan
-          const sway = Math.sin(TAU * t / 7 + 1.2);
-          Q.r.torso = [0.03 + 0.012 * b, 0.05 * look, 0.008 * sway];
-          Q.r.head = [0.03 + 0.02 * Math.cos(2 * TAU * t / 7), 0.17 * look, 0.035 * sway];
+          const sway = Math.sin(TAU * t / 7 + 1.2);      // weight shift: + = weight on his left leg
+          const assess = look * look;                    // 0 in the middle, 1 at both ends of the scan
+          Q.r.torso = [0.03 + 0.012 * b, 0.05 * look, 0.012 * sway];
+          Q.r.head = [0.03 + 0.02 * Math.cos(2 * TAU * t / 7) + 0.02 * assess, 0.17 * look, 0.035 * sway];
           Q.r.arm_right = [-0.06 + 0.015 * b, 0, -0.05];
           Q.r.forearm_right = [-0.1 - 0.01 * b, 0, 0];
           Q.r.arm_left = [0.04 - 0.015 * b, 0, 0.07];
           Q.r.forearm_left = [-0.06, 0, 0];
-          Q.r.leg_right = [-0.03, 0, -0.03];
-          Q.r.leg_left = [0.03, 0, 0.03];
-          Q.r.knee_right = [0.04, 0, 0];
-          Q.r.knee_left = [0.04, 0, 0];
+          Q.r.leg_right = [-0.03, 0, -0.03 - 0.012 * sway];
+          Q.r.leg_left = [0.03, 0, 0.03 - 0.012 * sway];
+          Q.r.knee_right = [0.04 + 0.035 * (1 + sway), 0, 0];   // the unloaded knee softens
+          Q.r.knee_left = [0.04 + 0.035 * (1 - sway), 0, 0];
           Q.v.tankRx = 0.02 * b;
-          Q.f.frown = 0.2 + 0.05 * b;
-          Q.f.glance = 0.35 * look;
+          Q.v.tankRz = -0.012 * sway;
+          Q.f.frown = 0.2 + 0.05 * b + 0.12 * assess;
+          Q.f.squint = 0.22 * assess + 1.1 * bump(t, 3.5, 0.32);   // slow heavy blink at the middle (~0.6 s)
+          Q.f.glance = 0.42 * Math.sin(TAU * t / 7 + 0.35);         // the eyes arrive first, the head follows
           Q.f.open = 0.03 + 0.03 * b;
-          Q.f.press = 0.35 - 0.1 * b;                    // lips set tight, ease a little on the breath out
+          Q.f.press = 0.35 - 0.1 * b + 0.1 * assess;     // lips set tight, ease a little on the breath out
         } },
 
         // 2 · Idle 2: turns his head to look over his right shoulder, comes back with the eerie head tilt
@@ -1389,6 +1394,8 @@
           Q.f.frown = keys(t, [[0, 0.2], [3.4, 0.15], [4.6, 0.5], [6.4, 0.45], [7.4, 0.2], [8, 0.2]]);
           Q.f.squint = keys(t, [[0, 0], [3.4, 0], [4.6, 0.45], [6.4, 0.45], [7.4, 0], [8, 0]]);
           Q.f.down = 0.5 * grip;
+          // he hears something: lids open wide for a moment, then the slow stare
+          Q.f.eyesOpen = keys(t, [[0, 0], [0.7, 0.9], [2.2, 0.5], [3.4, 0], [8, 0]]);
           // mouth: lips part a little at the sound (look left), press thin during the stare, then a cold half-smile
           Q.f.open = keys(t, [[0, 0.02], [1.0, 0.18], [2.0, 0.08], [3.0, 0.02], [8, 0.02]]);
           Q.f.press = keys(t, [[0, 0.25], [1.0, 0], [2.6, 0.2], [4.6, 0.6], [5.6, 0.3], [6.4, 0.45], [7.4, 0.25], [8, 0.25]]);
@@ -1414,8 +1421,10 @@
           Q.v.tankRz = 0.03 * c;
           Q.v.sag = 7 + 0.4 * Math.sin(2 * p);
           Q.v.bowX = 3.3;
-          Q.f.frown = 0.25;
-          Q.f.glance = 0.1 * Math.sin(TAU * t / 2 + 0.7);
+          // Face: locked on the target. Brows low, eyes narrowed, the head turn is cancelled by the eyes
+          Q.f.frown = 0.32 + 0.04 * Math.sin(2 * p);
+          Q.f.squint = 0.18;
+          Q.f.glance = 0.1 * Math.sin(TAU * t / 2 + 0.7) + 0.25 * s;
           Q.f.press = 0.3 + 0.08 * Math.sin(2 * p + 0.6);     // set jaw, a small breath on each step
           Q.f.open = 0.03 * (1 + Math.sin(2 * p + 0.6));
         } },
@@ -1428,8 +1437,10 @@
           const boltR = ramp(t, 0.1, 0.6) * (1 - ramp(t, 1.85, 2.3));
           const punch = t > 1.15 && t < 1.35 ? Math.sin((t - 1.15) / 0.2 * Math.PI) : 0;
           const recoil = punch * punch;
-          Q.r.torso = [0.03 - recoil * 0.05, aim * 0.22, 0];
-          Q.r.head = [-0.03, -aim * 0.06, -aim * 0.1];        // tilt toward his left shoulder, away from the raised arm
+          const lean = bump(t, 1.1, 0.22);                    // leans in to press the bolt on, just before it fires
+          const after = ramp(t, 1.6, 1.9) * (1 - ramp(t, 2.1, 2.4));   // looks down at the victim on the floor
+          Q.r.torso = [0.03 + 0.07 * lean - recoil * 0.05 + 0.04 * after, aim * 0.22, 0];
+          Q.r.head = [-0.03 + 0.1 * after, -aim * 0.06, -aim * 0.1];   // tilt toward his left shoulder, away from the raised arm
           Q.v.followW = 1 - ramp(t, 0.05, 0.3) * (1 - ramp(t, 2.05, 2.35));
           // z (applied first) swings the arm out, then x raises it: the raised arm points forward and a bit outward
           Q.r.arm_right = [-0.06 + (-1.42 + recoil * 0.25 + 0.06) * aim, 0, -0.05 - 0.15 * aim];
@@ -1446,23 +1457,27 @@
           Q.v.sag = 7 - 2.5 * boltR;
           Q.v.bowX = 3.2 * (1 - boltR);
           Q.v.bowZ = -1.2 + 8.2 * boltR;
-          const talk = Math.sin(clamp((t - 0.7) / 0.45, 0, 1) * Math.PI);   // "hold still" (0.7 - 1.15 s)
-          Q.f.open = 0.35 * talk * (0.5 + 0.5 * Math.sin(TAU * 3 * (t - 0.7)));
-          Q.f.browUp = 0.2 * aim;
-          Q.f.press = 0.4 * (1 - talk);                   // tight lips, open only for the words
-          Q.f.frown = 0.25 + 0.2 * recoil;
-          Q.f.squint = 0.15 * aim + 0.5 * recoil;
+          // Face: "Would you hold still, please?" said politely (brows up, the faintest smile), then dead-eyed
+          // focus as the bolt goes on (narrow eyes, lips pressed), a flinch at the punch, a calm breath out after
+          const talk = bump(t, 0.86, 0.3);                     // the line (0.56 - 1.16 s), mouth flaps ~3 per s
+          const focus = ramp(t, 1.0, 1.15) * (1 - ramp(t, 1.5, 1.9));
+          Q.f.open = 0.35 * talk * (0.5 + 0.5 * Math.sin(TAU * 3 * (t - 0.6))) + 0.12 * bump(t, 1.7, 0.2);
+          Q.f.smile = 0.25 * talk;
+          Q.f.browUp = 0.35 * talk + 0.1 * aim * (1 - focus);
+          Q.f.press = 0.4 * (1 - talk) + 0.3 * focus;     // tight lips, open only for the words
+          Q.f.frown = 0.15 + 0.25 * focus + 0.2 * recoil - 0.1 * talk;
+          Q.f.squint = 0.1 * aim + 0.35 * focus + 0.4 * recoil;
           Q.f.glance = -0.3 * aim;
+          Q.f.down = 0.55 * after;
         }, events: [[1.15, 'bolt']] },
 
         // 5 · Special: silenced shotgun. Raises it, three muffled shots (recoil, gas puffs, red shells),
         //     lowers it and glances down at his boots.
         special: { T: 3, fn(t, Q) {
-          let raise = 0, recoil = 0;
-          if (t < 0.15) raise = 0;                                 // head-follow fades out first (0 - 0.15 s)
-          else if (t < 0.6) raise = easeOutBack((t - 0.15) / 0.45);
-          else if (t < 1.95) raise = 1;
-          else if (t < 2.55) raise = 1 - easeInOutCubic((t - 1.95) / 0.6);
+          // raise: head-follow fades out first (0 - 0.15 s), a small overshoot as the gun snaps up, held, lowered
+          // (smoothstep keys: no corner at the start, unlike the old easeOutBack)
+          const raise = keys(t, [[0, 0], [0.15, 0], [0.5, 1.06], [0.64, 1], [1.95, 1], [2.55, 0], [3, 0]]);
+          let recoil = 0;
           for (const st of [0.65, 1.1, 1.55]) {
             const d = t - st;
             if (d > 0 && d < 0.32) recoil += Math.sin((d / 0.32) * Math.PI) * Math.exp(-d * 6);
@@ -1485,12 +1500,16 @@
           Q.v.sgY = -1.2 * raise;
           Q.v.sgZ = 1.5 * raise;
           Q.v.bowX = 3.4;
-          Q.f.frown = 0.3 + 0.2 * raise;
-          Q.f.squint = 0.25 * raise + 0.4 * Math.min(1, recoil);
+          // Face: cold aim (low brows, narrow eyes, lips set), a hard flinch-squint on every shot, then he checks
+          // his boots for blood: brows up, mouth turned down in quiet distaste
+          const kick = Math.min(1, recoil);
+          Q.f.frown = 0.3 + 0.2 * raise + 0.15 * kick - 0.25 * boots;
+          Q.f.squint = 0.25 * raise + 0.55 * kick;
           Q.f.down = boots;
-          Q.f.browUp = 0.1 * boots;
-          Q.f.press = 0.45 * raise * (1 - 0.6 * Math.min(1, recoil));   // lips set while aiming, jolt open on each shot
-          Q.f.open = 0.12 * Math.min(1, recoil);
+          Q.f.browUp = 0.35 * boots;
+          Q.f.press = 0.45 * raise * (1 - 0.6 * kick) + 0.3 * boots;   // lips set while aiming, jolt open on each shot
+          Q.f.open = 0.12 * kick;
+          Q.f.smile = -0.45 * boots;
         }, events: [[0.65, 'shot'], [1.1, 'shot'], [1.55, 'shot']] },
       };
 

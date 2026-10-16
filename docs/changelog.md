@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-16 23:46
+- Anton Chigurh (`mobs/anton_chigurh/anton_chigurh.html`): face acts with what he does, smoother animations.
+  - Idle: weight shift (knees + tank), eyes lead the scan and narrow at each side, one slow heavy blink in the middle.
+  - Idle 2: lids open wide when he hears the sound. Walk: locked-on stare (low brows, narrow eyes, eyes cancel the head turn).
+  - Attack: polite line (brows up, faint smile, slower mouth), leans in for the bolt, cold focus, looks down at the victim + breath out.
+  - Special: smooth raise (no start corner), hard flinch-squint per shot, boots check with quiet distaste.
+  - Tested: key-moment face renders, `#cliptest` 0 clips.
+
 ## 2026-10-16 23:15
 - Anton Chigurh (`mobs/anton_chigurh/anton_chigurh.html`): better mouth and expressions.
   - Darker lip line (was almost invisible); new face channels `smile` (whole line up + wider / down + narrower) and `press` (thin, tight lips).
