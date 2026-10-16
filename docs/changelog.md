@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 20:48
+- The Joker (`mobs/the_joker/the_joker.html`): better face and a mouth made for him.
+  - Clipping at the top of the face fixed: the hair crown starts on the head top and overhangs the forehead (it sat on the face plane and flickered).
+  - New mouth: blocky middle + two corner blocks inside his red lips; corners step up (smile, left one more for the smirk) or down (frown); the jaw drops down; upper + lower teeth rows with a dark gap (laugh, gritted snarl).
+  - New face parts: lower lids (smiling eyes), pupil size (pinpricks when manic / afraid / firing), brows pull in (anger). Standard faces use them too; new expression Snarl.
+  - Attack: gritted teeth while aiming, pinpricks while firing; dance: manic pinpricks, smiling eyes. Tested: face renders per expression, `#cliptest` max 0.38 texel, step probe max 0.084 rad.
+
 ## 2026-10-16 20:34
 - The Joker (`mobs/the_joker/the_joker.html`): mouth fix.
   - Cigarette moved to the mouth corner just past the line's end, pointing out to his right: it no longer covers the mouth.
