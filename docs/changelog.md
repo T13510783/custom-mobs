@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-16 14:38
+- Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`):
+  - Mouth: one connected pixel shape; corners step up (smile) / down (frown) beside the lip ends, mouth widens in a grin, teeth fill the opening, lips thin when open, no seam at rest.
+  - Arms: shoulder pivots flush with the torso top (were 0.4 lower); head on a 1.0 neck lift, softer up-tilt, even walk arm swing (0 clips, all outfits).
+  - Test stills (`#shot-...`) hide the UI; new `bust` camera.
+
 ## 2026-10-16 14:37
 - Updater (`mod/src/main/java/com/custommobs/update/UpdateClient.java`, `UpdateScreen.java`): a new version found by the 5-minute check pops up a toast + a clickable chat line (`/sindicate update`, new client command) that opens the changelog with "Update and Close Game"; restart hint on the update screen; scroll arrow; toast cleared when the screen opens. Lang `en_us` + `nl_nl`.
 - Test (`mod/testworld/homelandertest/.../timeline.mcfunction`, `CMTEST ui`): also shoots the update notice and the changelog screen.

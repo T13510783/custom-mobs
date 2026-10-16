@@ -1,14 +1,15 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 14:37
-**Request:** in-game updater: auto check every 5 min with a notification, manual check, changelog in game, "Update and Close Game" (manual restart); then commit + push + release.
+**Date:** 2026-10-16 14:38
+**Request:** Patrick Bateman viewer: check references, new UI, expressive face, Idle / Idle 2 / Walk (no attack, no special); keep one file; reorganise the repo; commit, push, release. Follow-up: fix the weird mouth, arms higher, check all faces.
 
 **Done:**
-- Already there: button (title + pause), 5-minute check, changelog screen, download + swap after close.
-- New: toast + clickable chat link `[Changelog + Update]` while playing (client command `/sindicate update`), restart hint, scroll arrow, toast cleared on the screen.
-- Tests: `gradlew build` 8 tests green; in game (`runHomelanderTest`, `CMTEST ui`): notice shown, link opens the update screen with the changelog.
-- Not tested in game: the real download + jar swap (dev run has no jar); covered by `UpdateInstallerTest`.
+- `mobs/patrick_bateman/patrick_bateman.html` (one file): shared UI + expression menu, 2-bone rig, moving face (lids, glances, brows, smile, jaw, toothy grin), new Idle / Idle 2 (hair slick, watch check, grin) / Walk, springs (fringe, tie, coat).
+- Follow-up: mouth is one connected pixel shape (stepped corners, wider grin, teeth); arms flush with the torso top; head lift 1.0.
+- Tests: `#cliptest` 0 clips in all 5 outfits (7 mouse spots), feet on the floor; renders of every animation + expression + outfit face checked.
+- Cleanup: `*-old.html` pages -> `archive/<mob>/<mob>_old.html`; hash-named references renamed by content; README mobs table complete.
+- No new release: v0.0.3-alpha (updater session) is the latest; this work is viewer-only (the jar does not change).
 
-**Files:** `mod/src/main/java/com/custommobs/update/UpdateClient.java`, `UpdateScreen.java`, lang, test timeline, `CLAUDE.md`, `README.md`, docs, version 0.0.3-alpha.
+**Files:** `mobs/patrick_bateman/patrick_bateman.html`, `archive/*`, `references/*`, `README.md`, docs.
 
-**Next:** v0.0.3-alpha released; players on v0.0.2 get the notice within 5 minutes.
+**Next:** Bateman is HTML only; `.bbmodel` + mod port when the user confirms him as final.

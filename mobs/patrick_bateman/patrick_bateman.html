@@ -206,11 +206,11 @@ function bone(name,parent,x,y,z,rr=[0,0,0]){
   parent.add(g); bones[name]=g; return g;
 }
 bone('body',root,0,12,0);                         // hips: the torso hangs up from here
-bone('head',R.body,0,12.8,0);                      // lifted 0.8 on a recessed neck block: turning never cuts the shoulders
+bone('head',R.body,0,13,0);                        // lifted 1.0 on a recessed neck block: turning never cuts the shoulders
 bone('tie',R.body,0,10.5,2);                       // suspenders tie blade (spring)
 bone('hair_lock',R.head,-1.5,8.3,4.15);            // messy fringe lock (spring)
 for(const [s,sx] of [['right',-1],['left',1]]){
-  bone(`arm_${s}`,R.body,sx*6,11.6,0);             // pivot on the arm's top edge, 0.4 below the torso top
+  bone(`arm_${s}`,R.body,sx*6,12,0);               // pivot on the arm's top edge, flush with the torso top (vanilla)
   bone(`forearm_${s}`,R[`arm_${s}`],0,-6,0);       // elbow
   bone(`leg_${s}`,root,sx*2,12,0);                 // hip
   bone(`knee_${s}`,R[`leg_${s}`],0,-6,0);          // knee (the shoe is a cube on the shin)
@@ -242,15 +242,19 @@ for(const [s,x] of [['right',-2],['left',2]]){
   const brow=bone(`brow_${s}`,R.head,x,4.5,FZ+0.12);                       // brow, row 3
   plane(brow,2,1,0,0,0,fmat(EYE.brow));
 }
-// Mouth (row 6): upper lip, dark inside + teeth (grow when open), lower lip on the jaw, two corner pixels
+// Mouth (row 6): one connected shape. Upper lip, lower lip (on the jaw), dark inside and teeth share one width
+// (set per frame); the corners hinge on the lip ends (pivot at their inner edge), so a smile curves the line up
+// instead of floating loose pixels. At rest: the 2 painted lip pixels + the light smirk pixel on his left.
 bone('mouth',R.head,0,1.5,FZ+0.05);
-bone('jaw',R.mouth,0,0,0.02);
-FACE.upper=plane(R.mouth,2,0.5,0,0.25,0.02,fmat(SK.lip));
-FACE.inside=plane(R.mouth,2,1,0,-0.5,0,fmat(MOUTH.in));
-FACE.teeth=plane(R.mouth,2,1,0,-0.2,0.01,fmat(MOUTH.teeth));
-FACE.lower=plane(R.jaw,2,0.5,0,-0.25,0,fmat(SK.lip));
-FACE.cornerR=plane(R.mouth,1,1,-1.5,0,0.015,fmat(SK.lipL,true));       // hidden at rest (smirk is one-sided)
-FACE.cornerL=plane(R.mouth,1,1,1.5,0,0.015,fmat(SK.lipL,true));        // the painted smirk pixel
+bone('jaw',R.mouth,0,0,0);
+bone('corner_right',R.mouth,-1,0,0.015); bone('corner_left',R.mouth,1,0,0.015);
+FACE.upper=plane(R.mouth,1,0.5,0,0.25,0.02,fmat(SK.lip));
+FACE.inside=plane(R.mouth,1,1,0,-0.5,0,fmat(MOUTH.in));
+FACE.teeth=plane(R.mouth,1,1,0,-0.2,0.01,fmat(MOUTH.teeth));
+FACE.lower=plane(R.jaw,1,0.5,0,-0.25,0.02,fmat(SK.lip));
+FACE.cornerR=plane(R.corner_right,1,1,-0.5,0,0,fmat(SK.lip,true));    // fades in with a smile / frown
+FACE.cornerL=plane(R.corner_left,1,1,0.5,0,0,fmat(SK.lipL,true));     // the painted smirk pixel
+const LIP=new THREE.Color(SK.lip), LIP_L=new THREE.Color(SK.lipL);     // reused every frame (no new objects)
 
 /* ───────── Shared painters ───────── */
 const HAIR_TOP=[HR.m,HR.l,HR.m,HR.h,HR.l,HR.m,HR.l,HR.d];
@@ -731,7 +735,7 @@ function buildFit(k){
   // hair layer: its lower side rows are see-through (clipLo: only the hair part counts in the clip test)
   add('head',{...inf([-4,0,-4],[8,8,8],0.5),paint:hatPaint(fit.hair),mode:'cut',seed:2,clipLo:2.9});
   // recessed neck block under the lifted head (shadowed skin, mostly hidden by the collar)
-  add('body',{at:[-2.5,11.6,-1.5],size:[5,1.4,3],tx:[5,1,3],seed:31,paint:q=>q.F==='F'?SK.s:SK.d});
+  add('body',{at:[-2.5,11.6,-1.5],size:[5,1.6,3],tx:[5,1,3],seed:31,paint:q=>q.F==='F'?SK.s:SK.d});
   if(fit.hair==='messy') add('hair_lock',lockSpec);
   for(const s of fit.parts()) place(s);
   for(const s of ['right','left']) add(`knee_${s}`,{at:[-2,-6,2],size:[4,1.5,0.7],tx:[4,2,1],paint:fit.toe||toePaint,seed:8});
@@ -825,6 +829,7 @@ const ANIMS={
     // headphones (Walkman) or a thick coat sleeve: the hand stays a bit wider during the hair slick
     const wider=fit.headphones?0.3:fit.coatSleeves?0.14:0;
     Q.r.forearm_left[0]+=wider*Q.r.arm_left[1]/1.5708;
+    if(fit.headphones) Q.r.arm_left[2]+=0.12*Q.r.arm_left[1]/1.5708;   // and the elbow goes wider
     const br=Math.sin(TAU*t/4);
     Q.r.body[0]+=0.012*br; Q.f.brow+=0.05*br;
   }},
@@ -840,13 +845,14 @@ const ANIMS={
     Q.r.leg_right[2]=-sway/12; Q.r.leg_left[2]=-sway/12;
     Q.r.body=[0.05+0.015*Math.cos(2*p),-0.08*s,0.03*Math.sin(p-Math.PI/2)];
     Q.r.head=[-0.03-0.012*Math.cos(2*p),0.06*s,-0.025*Math.sin(p-Math.PI/2)];
-    // arms swing a little further back than forward: the shoulder's front edge stays under the head
-    Q.r.arm_right=[0.36*a*sl+0.02,0,-0.08-(fit.weapon==='axe'?0.1:0)];
-    Q.r.arm_left=[-0.36*sl+0.02,0,0.08];
+    // arms swing evenly, a little out to the side (z): the shoulder edges stay under the head
+    const amp=fit.coatSleeves?0.31:0.34;                                  // thick coat sleeves swing a bit less
+    Q.r.arm_right=[amp*a*sl,0,-0.1-(fit.weapon==='axe'?0.1:0)];
+    Q.r.arm_left=[-amp*sl,0,0.1];
     Q.r.forearm_right=[-0.22-0.3*a*pos2(-sl),0,0];
     Q.r.forearm_left=[-0.22-0.3*pos2(sl),0,0];
     Q.f.smile=0.3; Q.f.brow=0.08+0.04*Math.cos(2*p); Q.f.open=0.03; Q.f.squint=0.12;
-    Q.fw=0.4;                                                              // eyes ahead: the head turns less while walking
+    Q.fw=0.35;                                                             // eyes ahead: the head turns less while walking
   }},
 };
 const ANIM_ORDER=Object.keys(ANIMS);
@@ -931,8 +937,8 @@ function step(dt){
     mix('wide',Math.max(0,xf.eyes)); mix('glance',0); mix('look',0.6*xf.look);
     H.x+=window.MobViewer.head.pitch; H.z+=window.MobViewer.head.roll;
   }
-  // Short recessed neck: soft tilt limits keep the chin out of the collar (chin down 0.1, up 0.14, roll 0.07)
-  H.x=H.x>0?softLim(H.x,0.1):softLim(H.x,0.14); H.z=softLim(H.z,0.07);
+  // Short recessed neck: soft tilt limits keep the chin out of the collar (chin down 0.1, up 0.1, roll 0.07)
+  H.x=softLim(H.x,0.1); H.z=softLim(H.z,0.07);
 
   springs(dt,fw);
   updateFace(dt,fo,F);
@@ -1009,18 +1015,26 @@ function applyFace(fc,blinkV,glance){
     brow.position.y=4.5+clamp(0.5*fc.brow+0.25*Math.max(0,fc.look)-0.12*Math.max(0,-fc.tilt),-0.35,0.6);
     brow.rotation.z=sg*0.32*clamp(fc.tilt,-1,1);
   }
-  // mouth: jaw drops with open, teeth show in a grin, corners lift with the smile
-  const open=clamp(fc.open,0,1), h=open*1.3, sm=clamp(fc.smile,-1,1);
-  R.mouth.scale.x=1+0.18*clamp(fc.wide,0,1)+0.22*Math.max(0,sm)*open;
+  // mouth: the jaw drops with open; a smile or a shout makes the mouth wider; teeth fill the top of the opening;
+  // the corners bend up (smile) or down (frown) from the lip ends, the line stays connected
+  // jaw gap: soft dead zone (open*open/(open+0.1)): tiny breathing values keep the lips closed, no seam
+  const open=clamp(fc.open,0,1), h=1.3*open*open/(open+0.1), sm=clamp(fc.smile,-1,1), up=Math.max(0,sm);
+  const W=2+0.9*up*(0.4+open)+0.5*clamp(fc.wide,0,1)*open;               // mouth width (texels), 2 at rest
+  FACE.upper.scale.x=W; FACE.lower.scale.x=W*(1-0.15*open);
   R.jaw.position.y=-h;
-  FACE.inside.visible=h>0.01; FACE.inside.scale.y=Math.max(0.001,h); FACE.inside.position.y=-h/2;
+  FACE.inside.visible=h>0.03; FACE.inside.scale.set(W,Math.max(0.001,h),1); FACE.inside.position.y=-h/2;
   const th=Math.min(h,0.45)*clamp(fc.teeth,0,1);
-  FACE.teeth.visible=th>0.01; FACE.teeth.scale.y=Math.max(0.001,th); FACE.teeth.position.y=-th/2;
-  const cy=0.45*sm-h*0.5;
-  FACE.cornerL.position.y=cy; FACE.cornerR.position.y=cy;
-  FACE.cornerR.material.opacity=Math.min(1,3*sm*sm);
+  FACE.teeth.visible=th>0.01; FACE.teeth.scale.set(W*0.92,Math.max(0.001,th),1); FACE.teeth.position.y=-th/2;
+  // lips get thinner as the mouth opens (a grin shows teeth, not a thick frame)
+  const lip=0.5-0.18*open;
+  FACE.upper.scale.y=FACE.lower.scale.y=lip/0.5; FACE.upper.position.y=lip/2; FACE.lower.position.y=-lip/2;
+  // corner pixels: straight (pixel style), they step up or down beside the lip ends but always touch them
+  const step=0.5*sm, ch=1-0.3*Math.min(1,Math.abs(sm));
+  R.corner_right.position.set(-W/2,-h/2+step,0.015); R.corner_left.position.set(W/2,-h/2+step,0.015);
+  FACE.cornerR.scale.y=FACE.cornerL.scale.y=ch;
+  FACE.cornerR.material.opacity=Math.min(1,4*sm*sm);
   FACE.cornerR.visible=FACE.cornerR.material.opacity>0.01;
-  FACE.cornerL.material.color.set(sm<0?SK.lip:SK.lipL);
+  FACE.cornerL.material.color.lerpColors(LIP_L,LIP,Math.min(1,2*Math.abs(sm)));
 }
 
 /* ───────── Show bones (B): a dot on every pivot, a line to its parent, updated every frame ───────── */
@@ -1096,7 +1110,7 @@ function followTarget(now){
   const F=S.follow; F.has=true;
   R.head.getWorldPosition(_h);
   if(now-ptrT<4000){ ray.setFromCamera(ptr,camera); ray.ray.at(camera.position.distanceTo(_h),_t); } else _t.copy(camera.position);
-  R.body.worldToLocal(_t); _t.y-=16.8;                           // head pivot (12.8) + eye height (4)
+  R.body.worldToLocal(_t); _t.y-=17;                             // head pivot (13) + eye height (4)
   let yaw=Math.atan2(_t.x,_t.z), pitch=-Math.atan2(_t.y,Math.hypot(_t.x,_t.z));
   if(Math.abs(yaw)>1.75){ yaw=0; pitch=0; }                      // behind him: look ahead
   F.tYaw=clamp(yaw,-0.85,0.85); F.tPitch=clamp(pitch,-0.45,0.4);
@@ -1204,7 +1218,8 @@ function clipTest(only){
 
 /* ───────── Still frames (#rest, #shot-<anim>-<variant>-<sec>[-<cam>[-<expression>]]) ─────────
    The picture goes into <pre id="shot"> as a PNG data URL; the loop stops so a screenshot sees the same. */
-const CAMS={full:[HOME.pos,HOME.tgt],face:[new THREE.Vector3(0.55,1.84,1.5),new THREE.Vector3(0,1.75,0)],
+const CAMS={full:[HOME.pos,HOME.tgt],face:[new THREE.Vector3(0.3,1.86,2.0),new THREE.Vector3(0,1.79,0)],
+  bust:[new THREE.Vector3(0.9,1.6,3.0),new THREE.Vector3(0,1.4,0)],
   side:[new THREE.Vector3(4.9,1.3,0.3),new THREE.Vector3(0,1.0,0)],back:[new THREE.Vector3(-2.6,1.7,-4.6),new THREE.Vector3(0,1.02,0)],
   front:[new THREE.Vector3(0,1.25,5.2),new THREE.Vector3(0,1.02,0)]};
 function dumpFrame(cam='full'){
@@ -1223,6 +1238,7 @@ if(hash.startsWith('cliptest')){ const v=hash.split('-')[1]; S.frozen=true; setT
 else if(hash==='rest'){ S.frozen=true; restPose(); dumpFrame('full'); }
 else if(hash.startsWith('shot-')){
   const [,anim,vi,sec,cam,expr]=hash.split('-');
+  document.head.insertAdjacentHTML('beforeend','<style>#dock,#topRight,#expr{display:none!important}</style>'); // clean still: no UI
   setVariant(+vi||0); resetSim(ANIMS[anim]?anim:'idle',0.18,0.1);
   if(expr&&window.MobViewer) window.MobViewer.set(expr);
   for(let t=0;t<(+sec||0);t+=1/120) step(1/120);
