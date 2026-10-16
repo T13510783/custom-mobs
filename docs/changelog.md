@@ -5,6 +5,16 @@
 - Test (`mod/testworld/homelandertest/.../timeline.mcfunction`, `CMTEST ui`): also shoots the update notice and the changelog screen.
 - Version `0.0.3-alpha` (`mod/gradle.properties`, `mod/release_notes.md`, README).
 
+## 2026-10-16 14:24
+- Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`, still one file):
+  - UI: shared viewer UI (`mobs/_shared/`): dock with Idle / Idle 2 / Walk, follow-mouse, show bones, 5 outfit dots; expression menu + reset top right.
+  - Rig: 2-bone arms and legs, coat panels split at the knee, prop on the forearm, head on a short recessed neck (no shoulder clipping).
+  - Face: painted eyes, brows and mouth are now moving planes (same pixels at rest): blinks with eyelids, glances, brows, smile/frown corners, jaw, toothy grin; pupils centred (no cross-eye).
+  - Animations: new Idle, Idle 2 (hair slick, watch check, "Hip to be square" grin) and Walk; Attack and Special (dance) removed. Springs: fringe lock, tie, coat panels.
+  - Tests: `#cliptest` (0 clips, all outfits), `#rest`, `#shot-...` modes.
+- Cleanup: old viewer copies `mobs/<mob>/<mob>-old.html` -> `archive/<mob>/<mob>_old.html` (bane, darth_vader, ghostface, pennywise, victor_perkins); hash-named reference images renamed by what they show (bane, black_noir, darth_vader, ghostface, michael_myers, pennywise, victor_perkins, the_king).
+- README: mobs table lists Bane, Davy Jones, Ghostface, Pennywise, Victor Perkins.
+
 ## 2026-10-16 14:09
 - Homelander: Smash attack removed everywhere (viewer `mobs/homelander/homelander.html`: button, animation, victim pose; mod: `HomelanderEntity`, `HomelanderAttackGoal`, `HomelanderVictims`, `HomelanderClientState`, `HomelanderData`, `SindicateConfig` option `groundSmash`, mods.toml text, test timeline).
 - Homelander AI (`HomelanderAttackGoal.java`): every ready special joins one random pool (throw, throat laser, clap, point-blank heat vision), at most 2 punches in a row; lower first cooldowns; creative players can be grabbed (`HomelanderEntity.java`).
