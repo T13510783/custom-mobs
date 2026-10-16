@@ -283,33 +283,40 @@ const JokerTextures = {
             p.px(3, 4, PALETTE.makeupRedLight);
             p.px(4, 4, PALETTE.makeupRedBase);
 
-            // Crimson mouth: row 6 (the mouth rig sits on it) + lower lip smear (row 7). Cheeks stay white (user,
-            // 2026-10-16): no red upturns or corner pixels beside the mouth.
+            // Wide smeared crimson smile (first look, user 2026-10-16: keep this paint): cheek upturns (row 5), mouth
+            // row 6 (the mouth rig sits on it), lower lip smear (row 7)
+            p.px(1, 5, PALETTE.makeupRedLight);
+            p.px(6, 5, PALETTE.makeupRedLight);
+            p.px(1, 6, PALETTE.makeupRedBase);
             p.rect(2, 6, 4, 1, PALETTE.makeupRedDark);
+            p.px(6, 6, PALETTE.makeupRedBase);
             p.px(3, 7, PALETTE.makeupRedBase);
             p.px(4, 7, PALETTE.makeupRedBase);
         },
         // Sides (first look): swept-back green hair on the top 2 rows and the back 5 columns (same clumpy noise as the
-        // locks); the face part in front of the hair is white greasepaint too (whole face white), the ear a grey shade
+        // locks). The white paint wraps only 2 columns round the cheek; ear and nape stay skin, so the face reads as the
+        // front of the head (an all-white side looked like one stretched slab, user 2026-10-16)
         right(p) {
-            p.fill(PALETTE.paintShade);
+            p.fill(PALETTE.skinBase);
             p.rect(0, 0, 8, 2, PALETTE.hairBase);
             p.rect(3, 0, 5, 7, PALETTE.hairBase);
             p.noise(3, 0, 5, 7, [PALETTE.hairLight, PALETTE.hairShade, PALETTE.hairDark], 0.55, 11);
-            p.rect(0, 2, 1, 6, PALETTE.paintBase);           // x 0 = front edge
-            p.rect(0, 7, 3, 1, PALETTE.paintDark);           // jaw underside edge
-            p.px(2, 3, PALETTE.paintDark);                   // ear
-            p.px(2, 4, PALETTE.paintDark);
+            p.rect(0, 2, 1, 6, PALETTE.paintBase);           // x 0 = front edge: cheek paint
+            p.rect(1, 2, 1, 6, PALETTE.paintShade);
+            p.px(1, 7, PALETTE.paintDark);
+            p.px(2, 3, PALETTE.skinShade);                   // ear
+            p.px(2, 4, PALETTE.skinDark);
         },
         left(p) {
-            p.fill(PALETTE.paintShade);
+            p.fill(PALETTE.skinBase);
             p.rect(0, 0, 8, 2, PALETTE.hairBase);
             p.rect(0, 0, 5, 7, PALETTE.hairBase);
             p.noise(0, 0, 5, 7, [PALETTE.hairLight, PALETTE.hairShade, PALETTE.hairDark], 0.55, 22);
-            p.rect(7, 2, 1, 6, PALETTE.paintBase);           // x 7 = front edge
-            p.rect(5, 7, 3, 1, PALETTE.paintDark);           // jaw underside edge
-            p.px(5, 3, PALETTE.paintDark);                   // ear
-            p.px(5, 4, PALETTE.paintDark);
+            p.rect(7, 2, 1, 6, PALETTE.paintBase);           // x 7 = front edge: cheek paint
+            p.rect(6, 2, 1, 6, PALETTE.paintShade);
+            p.px(6, 7, PALETTE.paintDark);
+            p.px(5, 3, PALETTE.skinShade);                   // ear
+            p.px(5, 4, PALETTE.skinDark);
         },
         top(p) {
             // Swept-back green hair strands
@@ -330,7 +337,8 @@ const JokerTextures = {
             p.noise(0, 0, 8, 8, [PALETTE.hairLight, PALETTE.hairDark, PALETTE.hairHighlight], 0.5, 44);
         },
         bottom(p) {
-            p.fill(PALETTE.paintDark);                       // painted chin underside, all white paint in shade
+            p.fill(PALETTE.skinDark);                        // neck (hidden by the torso)
+            p.rect(0, 0, 8, 2, PALETTE.paintDark);           // painted chin + jaw underside (y 0 = front)
         }
     },
 
