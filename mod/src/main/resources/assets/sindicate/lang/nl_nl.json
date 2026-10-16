@@ -10,7 +10,11 @@
   "sindicate.update.check_failed": "Zoeken naar updates mislukt",
   "sindicate.update.up_to_date": "Sindicate is up-to-date",
   "sindicate.update.available": "Sindicate %s is uit",
-  "sindicate.update.available_hint": "Open het pauzemenu om te zien wat er nieuw is",
+  "sindicate.update.available_hint": "Druk T en klik op de link",
+  "sindicate.update.chat": "Update %s is uit (jij hebt %s).",
+  "sindicate.update.chat_open": "[Wat is nieuw + Updaten]",
+  "sindicate.update.chat_hover": "Laat zien wat er veranderd is, met een knop \"Updaten en spel sluiten\"",
+  "sindicate.update.restart_hint": "Het spel sluit na het downloaden: start Minecraft daarna zelf opnieuw.",
   "key.categories.sindicate": "Sindicate",
   "key.sindicate.settings": "Sindicate-instellingen openen"
 }

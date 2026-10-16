@@ -2,17 +2,22 @@ package com.custommobs.update;
 
 import com.custommobs.Sindicate;
 import com.custommobs.config.SindicateConfig;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
@@ -23,9 +28,13 @@ import java.util.function.DoubleConsumer;
 
 /* ───────── In-game updater (client only) ─────────
    - "Check for Updates" button on the title screen and the pause menu (top left).
-   - Automatic check every 5 minutes (SindicateConfig.UPDATE_CHECK): a newer release shows a toast during play and
-     opens the update screen on the next title / pause screen (once per version).
-   - The update screen shows the release's changelog and "Update and Close Game". */
+   - Automatic check every 5 minutes (SindicateConfig.UPDATE_CHECK): a newer release is announced once per version.
+     On the title / pause screen the update screen opens right away; while playing a toast pops up plus a chat line
+     with a clickable "[Changelog + Update]" (runs the client command /sindicate update), and the next pause menu
+     opens the update screen too.
+   - /sindicate update: the update screen of the newest release (checks GitHub first when none is known yet).
+   - The update screen shows the release's changelog and "Update and Close Game": downloads the jar, closes the game;
+     the player starts Minecraft again by hand (no auto restart). */
 @Mod(value = Sindicate.MODID, dist = Dist.CLIENT)
 public final class UpdateClient {
     private static final org.slf4j.Logger LOG = com.mojang.logging.LogUtils.getLogger();
@@ -33,12 +42,15 @@ public final class UpdateClient {
     private static String currentText = "?";
     private static volatile UpdateChecker.Release pending;   // found by the automatic check, not shown yet
     private static AlphaVersion announced;                   // last version we told the player about
+    private static volatile UpdateChecker.Release latest;    // newest release seen (for /sindicate update)
 
     public UpdateClient(ModContainer container) {
         currentText = container.getModInfo().getVersion().toString();
         current = AlphaVersion.parse(currentText);
         NeoForge.EVENT_BUS.addListener(ScreenEvent.Init.Post.class, UpdateClient::addButton);
         NeoForge.EVENT_BUS.addListener(ScreenEvent.Opening.class, UpdateClient::showPending);
+        NeoForge.EVENT_BUS.addListener(RegisterClientCommandsEvent.class, e -> e.getDispatcher().register(
+                Commands.literal("sindicate").then(Commands.literal("update").executes(c -> { openFromCommand(); return 1; }))));
         UpdateChecker.startAuto(() -> SindicateConfig.UPDATE_CHECK.get() ? new String[]{SindicateConfig.UPDATE_REPO.get(), SindicateConfig.UPDATE_TOKEN.get()} : null,
                 current, UpdateClient::foundByTimer, err -> LOG.info("[Sindicate] update check failed: {}", err));
         // Dev runs only (test datapack): chat "CMTEST ui" opens the pause menu, then a demo update screen, with a game
@@ -61,7 +73,32 @@ public final class UpdateClient {
                     mc.execute(shot);
                     Thread.sleep(300);
                     mc.execute(() -> mc.setScreen(null));
-                } catch (InterruptedException ignored) {}
+                    Thread.sleep(500);
+                    // the notification of a found update (pretends v0.0.1-alpha is installed), then a click on its chat link
+                    AlphaVersion realV = current;
+                    String realT = currentText;
+                    current = new AlphaVersion(0, 0, 1);
+                    currentText = current.toString();
+                    UpdateChecker.Release r = UpdateChecker.check(SindicateConfig.UPDATE_REPO.get(), SindicateConfig.UPDATE_TOKEN.get(),
+                            current).get(30, java.util.concurrent.TimeUnit.SECONDS);
+                    LOG.info("[Sindicate] CMTEST update: found {}", r == null ? "nothing" : r.version().tag());
+                    if (r != null) {
+                        mc.execute(() -> notifyFound(r));
+                        Thread.sleep(1500);
+                        mc.execute(() -> net.minecraft.client.Screenshot.grab(mc.gameDirectory, "cm_ui_notify.png", mc.getMainRenderTarget(), c -> {}));
+                        Thread.sleep(300);
+                        mc.execute(() -> mc.player.connection.sendUnsignedCommand("sindicate update"));   // = clicking the chat link
+                        Thread.sleep(1500);
+                        mc.execute(() -> LOG.info("[Sindicate] CMTEST update: screen {}", mc.screen == null ? "-" : mc.screen.getClass().getSimpleName()));
+                        mc.execute(() -> net.minecraft.client.Screenshot.grab(mc.gameDirectory, "cm_ui_changelog.png", mc.getMainRenderTarget(), c -> {}));
+                        Thread.sleep(300);
+                        mc.execute(() -> mc.setScreen(null));
+                    }
+                    mc.execute(() -> { current = realV; currentText = realT; announced = null; latest = null; pending = null; });
+                } catch (Exception ex) {
+                    LOG.warn("[Sindicate] CMTEST ui failed", ex);
+                }
+                LOG.info("HLTEST done");   // the test script waits for this line
             }, "cm-ui-test");
             t.setDaemon(true);
             t.start();
@@ -93,24 +130,55 @@ public final class UpdateClient {
                 toast(Component.translatable("sindicate.update.up_to_date"), Component.literal("v" + currentText));
             } else {
                 announced = r.version();
+                latest = r;
                 pending = null;
                 mc.setScreen(new UpdateScreen(from, r, currentText));
             }
         }));
     }
 
+    /* ───────── /sindicate update (the chat link) ───────── */
+    private static void openFromCommand() {
+        Minecraft mc = Minecraft.getInstance();
+        UpdateChecker.Release r = latest;
+        if (r != null && (current == null || r.version().compareTo(current) > 0)) {
+            pending = null;
+            mc.tell(() -> { mc.getToasts().clear(); mc.setScreen(new UpdateScreen(null, r, currentText)); });   // after the chat screen is done with the click
+            return;
+        }
+        chat(Component.translatable("sindicate.update.checking"));
+        UpdateChecker.check(SindicateConfig.UPDATE_REPO.get(), SindicateConfig.UPDATE_TOKEN.get(), current).whenComplete((nr, err) -> mc.execute(() -> {
+            if (err != null) chat(Component.translatable("sindicate.update.check_failed").append(": " + (err.getCause() != null ? err.getCause() : err).getMessage()));
+            else if (nr == null) chat(Component.translatable("sindicate.update.up_to_date").append(" (v" + currentText + ")"));
+            else { latest = nr; announced = nr.version(); mc.getToasts().clear(); mc.setScreen(new UpdateScreen(null, nr, currentText)); }
+        }));
+    }
+
     /* ───────── Automatic check (every 5 minutes) ───────── */
     private static void foundByTimer(UpdateChecker.Release r) {
+        latest = r;
         if (announced != null && r.version().compareTo(announced) <= 0) return; // already told
+        Minecraft.getInstance().execute(() -> notifyFound(r));
+    }
+
+    /** Tell the player about a new release (game thread): the update screen on a menu, else a toast + chat link. */
+    private static void notifyFound(UpdateChecker.Release r) {
         Minecraft mc = Minecraft.getInstance();
-        mc.execute(() -> {
-            announced = r.version();
-            if (mc.screen instanceof TitleScreen || mc.screen instanceof PauseScreen) mc.setScreen(new UpdateScreen(mc.screen, r, currentText));
-            else {
-                pending = r;
-                toast(Component.translatable("sindicate.update.available", r.version().tag()), Component.translatable("sindicate.update.available_hint"));
-            }
-        });
+        announced = r.version();
+        latest = r;
+        if (mc.screen instanceof TitleScreen || mc.screen instanceof PauseScreen) { mc.setScreen(new UpdateScreen(mc.screen, r, currentText)); return; }
+        pending = r;
+        toast(Component.translatable("sindicate.update.available", r.version().tag()), Component.translatable("sindicate.update.available_hint"));
+        Component link = Component.translatable("sindicate.update.chat_open").withStyle(s -> s.withColor(ChatFormatting.GREEN).withUnderlined(true)
+                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/sindicate update"))
+                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.translatable("sindicate.update.chat_hover"))));
+        chat(Component.translatable("sindicate.update.chat", r.version().tag(), "v" + currentText).append(" ").append(link));
+    }
+
+    private static void chat(Component msg) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return;   // not in a world: the title screen shows the update screen instead
+        mc.gui.getChat().addMessage(Component.literal("[Sindicate] ").withStyle(ChatFormatting.GOLD).append(msg.copy().withStyle(ChatFormatting.WHITE)));
     }
 
     private static void showPending(ScreenEvent.Opening e) {

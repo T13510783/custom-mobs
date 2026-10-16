@@ -79,10 +79,9 @@ execute if score #t ht matches 1320 run effect give @a minecraft:regeneration in
 execute if score #t ht matches 1320 run tp @a 0 100 6 180 8
 execute if score #t ht matches 1420 run tellraw @a "HLSHOT hl_player_1"
 execute if score #t ht matches 1540 run tellraw @a "HLSHOT hl_player_2"
-# 86 s: done; HUD back, spawn egg in slot 1
+# 86 s: done; HUD back, spawn egg in slot 1; CMTEST ui (client) shoots the menus + update notice, then logs "HLTEST done"
 execute if score #t ht matches 1720 run kill @e[type=homelander:homelander]
 execute if score #t ht matches 1720 run gamemode creative @a
 execute if score #t ht matches 1720 run tellraw @a "HLHUD on"
 execute if score #t ht matches 1720 run item replace entity @a hotbar.0 with homelander:homelander_spawn_egg 4
 execute if score #t ht matches 1740 run tellraw @a "CMTEST ui"
-execute if score #t ht matches 1740 run tellraw @a "HLTEST done"

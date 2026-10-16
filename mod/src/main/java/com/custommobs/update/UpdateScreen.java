@@ -13,7 +13,7 @@ import java.util.List;
 /* ───────── The update screen: new version, its changelog (Added / Removed / Fixed), Update and Close Game ─────────
    Shown by the "Check for Updates" button, or by the automatic 5-minute check (on the next title / pause screen).
    The changelog scrolls with the mouse wheel. "Update and Close Game" downloads the jar, arms the swap helper and
-   closes Minecraft (see UpdateInstaller). */
+   closes Minecraft (see UpdateInstaller); the player starts it again by hand (the hint above the buttons says so). */
 public final class UpdateScreen extends Screen {
     private final Screen parent;
     private final UpdateChecker.Release release;
@@ -70,7 +70,7 @@ public final class UpdateScreen extends Screen {
         return true;
     }
 
-    private int visibleLines() { return Math.max(1, (height - 32 - 12 - 62) / 10); }
+    private int visibleLines() { return Math.max(1, (height - 32 - 26 - 62) / 10); }   // (room for hint + status)
 
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
@@ -79,7 +79,11 @@ public final class UpdateScreen extends Screen {
         g.drawCenteredString(font, Component.translatable("sindicate.update.versions", current, release.version().toString()), width / 2, 28, 0xA0A0A0);
         g.drawCenteredString(font, Component.literal(release.title()).withStyle(ChatFormatting.WHITE), width / 2, 42, 0xFFFFFF);
         int x = width / 2 - Math.min(360, width - 40) / 2, y = 60, n = visibleLines();
+        boolean more = (int) scroll + n < lines.size();
+        if (more) n--;                                      // last row: the "more below" arrow
         for (int i = (int) scroll; i < lines.size() && i < (int) scroll + n; i++, y += 10) g.drawString(font, lines.get(i), x, y, 0xE0E0E0);
+        if (more) g.drawCenteredString(font, "\u25BC", width / 2, y, 0xA0A0A0);   // more below: scroll
+        g.drawCenteredString(font, Component.translatable("sindicate.update.restart_hint"), width / 2, height - 58, 0x9AA0A6);
         if (!status.isEmpty()) g.drawCenteredString(font, status, width / 2, height - 46, 0xFFD166);
     }
 
