@@ -771,83 +771,164 @@ function tracks(spec){
    Each anim: fn(t, Q) fills bone rotations Q.r[bone] = [x, y, z] (rad), hip drift Q.root = [x, y, z]
    (texels), face channels Q.f and the head-follow weight Q.fw. Lengths T are whole 1/120 s frames.
    Signs: x + = limb back / head chin down, arm z outward (right -, left +), y + = turn to his left. */
-const FACE_KEYS=['brow','tilt','smile','open','teeth','squint','wide','glance','look'];
+const FACE_KEYS=['brow','tilt','smile','open','teeth','squint','wide','glance','look','twitch','stare'];
+// twitch = nervous tic of the right eye + brow (the business card scene); stare = the dead "I'm not there" look
+// (no blinking while it holds)
 const SWING={gun:0.6,axe:0.32,nail:0.55,phone:0.8,none:1};       // right arm swing per held item
-const idle2Tracks=tracks({
-  // Hair slick: the left arm twists and swings up beside the head, the forearm folds, the hand slides up
-  'arm_left.x':[[0,0.02],[0.5,0.02],[0.95,-0.3],[1.45,0],[2.7,0],[3.3,-0.25],[3.9,0.02],[4.4,0.02],[4.95,-0.68],[5.9,-0.66],[6.5,0.02],[8,0.02]],
-  'arm_left.y':[[0,0],[0.5,0],[1.45,1.5708],[2.7,1.5708],[3.6,0],[8,0]],
-  'arm_left.z':[[0,0.09],[0.5,0.09],[0.95,0.85],[1.45,1.92],[1.9,2.08],[2.35,2.2],[2.7,2.15],[3.3,1.05],[3.9,0.09],[4.4,0.1],[4.95,0.3],[5.9,0.3],[6.5,0.09],[8,0.09]],
-  'forearm_left.x':[[0,-0.08],[0.5,-0.1],[0.95,-0.6],[1.45,-1.5],[1.9,-1.64],[2.35,-1.75],[2.7,-1.7],[3.3,-0.75],[3.9,-0.1],[4.4,-0.1],[4.95,-1.35],[5.4,-1.42],[5.9,-1.35],[6.5,-0.1],[8,-0.08]],
-  'arm_right.x':[[0,-0.08],[4.95,-0.12],[5.9,-0.12],[6.5,-0.08],[8,-0.08]],
-  'arm_right.z':[[0,-0.05],[8,-0.05]],
-  'forearm_right.x':[[0,-0.12],[8,-0.12]],
-  // Head: leans away from the hand, chin up (smug); then turns down-left to the watch; then a grin to you
-  'head.x':[[0,0],[1.45,-0.03],[2.35,-0.08],[2.7,-0.06],[3.6,0],[4.4,0],[4.95,0.14],[5.9,0.14],[6.5,0],[6.9,-0.05],[7.4,-0.05],[8,0]],
-  'head.y':[[0,0],[0.95,0.08],[1.45,0.14],[2.35,-0.16],[2.7,-0.13],[3.6,0],[4.4,0.03],[4.95,0.14],[5.9,0.13],[6.5,0.03],[8,0]],
-  'head.z':[[0,0],[1.45,0.04],[2.35,0.06],[3.6,0],[6.4,0],[6.9,-0.06],[7.4,-0.07],[8,0]],
-  'body.x':[[0,0],[6.4,0],[6.9,-0.025],[7.4,-0.025],[8,0]],
-  'body.y':[[0,0],[4.4,0],[4.95,0.08],[5.9,0.08],[6.5,0],[8,0]],
-  'body.z':[[0,0],[1.45,0.02],[2.35,0.03],[3.6,0],[8,0]],
-  // Face
-  'f.smile':[[0,0.2],[0.95,0.25],[1.45,0.45],[2.35,0.55],[2.7,0.5],[3.6,0.2],[4.4,0.15],[4.95,0.3],[5.4,0.4],[5.9,0.35],[6.4,0.4],[6.9,1],[7.4,1],[7.8,0.3],[8,0.2]],
-  'f.open':[[0,0.02],[6.4,0.02],[6.9,0.35],[7.4,0.3],[7.8,0.03],[8,0.02]],
-  'f.teeth':[[0,0],[6.4,0],[6.9,1],[7.4,1],[7.8,0],[8,0]],
-  'f.squint':[[0,0],[0.95,0],[1.45,0.55],[2.35,0.7],[2.7,0.6],[3.3,0],[8,0]],
-  'f.wide':[[0,0],[6.4,0],[6.9,0.6],[7.4,0.5],[7.9,0],[8,0]],
-  'f.brow':[[0,0],[1.45,0.15],[2.35,0.25],[3.3,0],[4.95,0.35],[5.4,0.45],[5.9,0.35],[6.4,0],[6.9,0.5],[7.4,0.45],[7.9,0],[8,0]],
-  'f.tilt':[[0,0],[6.4,0],[6.9,0.15],[7.4,0.15],[7.9,0],[8,0]],
-  'f.glance':[[0,0],[1.45,-0.2],[2.35,-0.3],[3.3,0],[4.4,0],[4.95,0.65],[5.9,0.6],[6.4,0],[8,0]],
-  'f.look':[[0,0],[4.4,0],[4.95,-0.9],[5.9,-0.9],[6.4,0],[8,0]],
-  // Head-follow fades out before the arm comes up beside the head, back in for the grin
-  'fw':[[0,1],[0.35,1],[0.9,0],[6.3,0],[6.8,1],[8,1]],
+
+/* ───────── Arm IK ─────────
+   Puts a fist (5 below the elbow) on a target in torso space (texels; torso pivot = hips, shoulders at (±6, 12, 0),
+   chest front z = 2, coat front z = 2.5). Upper arm 6, forearm to fist 5. pole = the way the elbow points.
+   The forearm bends toward its local +z, as in the FK poses. Scratch objects are reused: no new objects per frame. */
+const _ik={u:new THREE.Vector3(),p:new THREE.Vector3(),a:new THREE.Vector3(),c:new THREE.Vector3(),
+  x:new THREE.Vector3(),y:new THREE.Vector3(),m:new THREE.Matrix4(),e:new THREE.Euler(0,0,0,'ZYX')};
+function armIK(side,t,pole){
+  const k=_ik, L1=6, L2=5;
+  k.u.set(t[0]-(side==='right'?-6:6),t[1]-12,t[2]);
+  const d=clamp(k.u.length(),1.5,L1+L2-0.05); k.u.normalize();
+  const a1=Math.acos(clamp((L1*L1+d*d-L2*L2)/(2*L1*d),-1,1));               // shoulder angle (law of cosines)
+  const inner=Math.acos(clamp((L1*L1+L2*L2-d*d)/(2*L1*L2),-1,1));            // elbow angle
+  k.p.set(...pole); k.p.addScaledVector(k.u,-k.p.dot(k.u)).normalize();       // pole across the shoulder->fist line
+  k.a.copy(k.u).multiplyScalar(Math.cos(a1)).addScaledVector(k.p,Math.sin(a1)); // upper arm direction
+  k.c.copy(k.u).multiplyScalar(d).addScaledVector(k.a,-L1);                   // elbow -> fist
+  k.c.addScaledVector(k.a,-k.c.dot(k.a));
+  if(k.c.lengthSq()<1e-8) k.c.copy(k.p).negate(); k.c.normalize();           // forearm bends toward local +z
+  k.y.copy(k.a).negate();                                                     // the arm hangs along local -y
+  k.x.crossVectors(k.y,k.c);
+  k.m.makeBasis(k.x,k.y,k.c); k.e.setFromRotationMatrix(k.m,'ZYX');
+  return [k.e.x,k.e.y,k.e.z,-(Math.PI-inner)];
+}
+// Blend an IK gesture over the FK pose of one arm (w 0..1, smooth curves only)
+function gesture(Q,side,w,t,pole){
+  if(w<=1e-4) return;
+  const g=armIK(side,t,pole), A=Q.r[`arm_${side}`]||(Q.r[`arm_${side}`]=[0,0,0]), F=Q.r[`forearm_${side}`]||(Q.r[`forearm_${side}`]=[0,0,0]);
+  for(let i=0;i<3;i++) A[i]+=(g[i]-A[i])*w;
+  F[0]+=(g[3]-F[0])*w; F[1]*=1-w; F[2]*=1-w;
+}
+const bump=(t,c,w)=>pos2(Math.cos(clamp((t-c)/w,-1,1)*Math.PI/2));        // smooth pulse around c, half width w
+
+/* Idle: "the mask". Rigid, perfect posture, controlled breathing, the blank stare. He straightens his tie
+   (left hand), flashes a fake smile with dead eyes, gets the nervous eye twitch, then slowly scans the room. */
+const IDLE_T=10;
+const idleTracks=tracks({
+  'head.x':[[0,0],[2.0,0],[2.6,0.03],[3.6,0.03],[4.3,-0.05],[4.8,-0.03],[6.4,0],[7.6,0],[10,0]],
+  'head.y':[[0,0],[7.6,0],[8.4,-0.3],[9.0,-0.28],[9.7,0],[10,0]],
+  'f.stare':[[0,0.7],[2.0,0.7],[2.4,0.2],[4.4,0.2],[4.8,0.5],[6.2,0.6],[7.4,0.3],[7.8,0.7],[10,0.7]],
+  'f.look':[[0,0],[2.0,0],[2.5,-0.7],[3.5,-0.7],[4.0,0],[10,0]],
+  'f.brow':[[0,0],[3.6,0],[4.2,0.25],[4.7,0.15],[4.95,0.2],[5.6,0.2],[5.9,0],[10,0]],
+  'f.smile':[[0,0.06],[4.2,0.25],[4.7,0.12],[4.95,0.95],[5.5,0.95],[5.8,0.05],[10,0.06]],
+  'f.teeth':[[0,0],[4.7,0],[4.95,0.8],[5.5,0.8],[5.8,0],[10,0]],
+  'f.glance':[[0,0],[7.5,0],[8.0,-0.7],[9.2,-0.6],[9.8,0],[10,0]],
+  'fw':[[0,1],[1.4,1],[1.9,0],[4.2,0],[4.7,1],[7.3,1],[7.8,0.15],[9.6,0.15],[10,1]],   // off before the arm comes up
 });
+const idleTie=curve([[0,0],[2.0,0],[2.6,1],[3.6,1],[4.3,0],[10,0]]);
+
+/* Idle 2: a sequence of film moments. "Hip to be square" groove (mouthing the song on the beat) -> sudden freeze
+   into the psycho stare (no blinking) -> fake smile -> mirror flex (double biceps; left arm only while the right hand holds a prop) -> impatient
+   watch check with an eye roll, a sigh and a foot tap ("I have to return some videotapes"). */
+const IDLE2_T=16, BEAT=0.5;                                                   // ~120 BPM
+const idle2Tracks=tracks({
+  'body.x':[[0,0],[4.6,0],[5.0,0.05],[6.4,0.05],[6.9,0],[16,0]],
+  'head.x':[[0,0],[4.6,0],[5.0,0.08],[6.4,0.09],[6.9,0],[7.4,-0.04],[10.2,-0.04],[10.8,0],[11.2,0.1],[12.0,0.1],[12.3,-0.06],[12.8,-0.04],[13.6,0],[16,0]],
+  'head.y':[[0,0],[7.4,0],[7.9,0.34],[8.8,0.32],[9.2,-0.18],[9.75,-0.17],[10.15,0],[11.2,0.12],[12.0,0.12],[12.9,0],[16,0]],
+  'head.z':[[0,0],[4.6,0],[5.2,0.06],[6.4,0.08],[6.9,0],[16,0]],
+  'f.smile':[[0,0.2],[0.6,0.6],[4.4,0.6],[4.75,0],[6.4,0],[6.7,0.9],[7.2,0.9],[7.6,0.55],[10.2,0.55],[10.8,0.1],[11.6,-0.15],[13.2,-0.2],[14.2,0.15],[16,0.2]],
+  'f.teeth':[[0,0],[0.6,0.6],[4.4,0.6],[4.75,0],[6.4,0],[6.7,0.9],[7.2,0.9],[7.6,0],[16,0]],
+  'f.stare':[[0,0],[4.6,0],[4.8,1],[6.4,1],[6.7,0],[16,0]],
+  'f.wide':[[0,0],[4.6,0],[4.9,0.35],[6.4,0.4],[6.7,0],[12.2,0],[12.5,0.3],[12.9,0],[16,0]],
+  'f.brow':[[0,0],[0.6,0.2],[4.4,0.2],[4.8,-0.12],[6.4,-0.15],[6.7,0.3],[7.6,0.4],[10.2,0.35],[10.8,0],[11.6,-0.1],[12.2,0.1],[12.5,0.6],[12.9,0],[16,0]],
+  'f.tilt':[[0,0],[4.6,0],[4.9,-0.3],[6.4,-0.3],[6.7,0],[11.6,0],[12.0,-0.4],[12.2,0],[16,0]],
+  'f.squint':[[0,0],[7.6,0],[8.0,0.45],[10.2,0.45],[10.6,0],[11.4,0],[11.8,0.35],[12.2,0],[16,0]],
+  'f.glance':[[0,0],[7.4,0],[7.9,0.8],[8.8,0.75],[9.2,-0.95],[9.75,-0.9],[10.15,0],[11.2,0.5],[12.0,0.5],[12.4,0],[16,0]],
+  'f.look':[[0,0],[11.0,0],[11.3,-0.9],[12.0,-0.9],[12.3,1],[12.7,1],[13.0,0],[16,0]],
+  'f.open':[[0,0.02],[12.7,0.02],[12.95,0.3],[13.4,0.25],[13.7,0.02],[16,0.02]],
+  'fw':[[0,1],[4.5,1],[4.8,1],[7.2,1],[7.5,0],[13.2,0],[13.8,1],[16,1]],
+});
+const g2groove=curve([[0,0],[0.3,0],[0.9,1],[4.3,1],[4.6,0],[16,0]]);
+const g2flex=curve([[0,0],[7.3,0],[8.0,1],[10.0,1],[10.7,0],[16,0]]);
+const g2watch=curve([[0,0],[10.8,0],[11.4,1],[12.9,1],[13.5,0],[16,0]]);
+
+/* Walk: executive strut to the music in his head (Walkman scene). Upright and stiff above the hips, short crisp
+   steps, straight-ish arms, a head nod on every step; once per loop a smug side-glance at his reflection. */
+const STEP_T=1.1, WALK_T=4.4;                                                 // 4 stride cycles per loop
+const walkLook=curve([[0,0],[2.2,0],[2.6,1],[3.4,1],[3.8,0],[4.4,0]]);
+
 const ANIMS={
-  // 1 · Idle: composed and still. Slow breathing, hips drift over planted feet, a cold half-smirk now and then
-  idle:{T:8,fn(t,Q){
-    const br=Math.sin(TAU*t/4), brl=Math.sin(TAU*t/4-0.7), ws=Math.sin(TAU*t/8);
-    const sx=0.3*ws;                                           // hip drift (texels); legs lean back to keep the feet put
+  // 1 · Idle: the mask. Perfect posture, the blank stare, tie straightened, a dead-eyed fake smile, a twitch
+  idle:{T:IDLE_T,fn(t,Q){
+    const br=Math.sin(TAU*t/5), brl=Math.sin(TAU*t/5-0.7), ws=Math.sin(TAU*t/IDLE_T);
+    const sx=0.12*ws;                                          // barely any sway: he is in control
     Q.root=[sx,0,0];
     Q.r.leg_right=[0,0,-sx/12]; Q.r.leg_left=[0,0,-sx/12];
-    Q.r.body=[0.014*br,0.02*ws,-0.022*ws];
-    Q.r.head=[-0.012*br+0.02*Math.sin(TAU*t*3/8),0.05*Math.sin(TAU*t/8+2),0.02*ws];
-    Q.r.arm_right=[-0.08+0.025*brl,0,-0.05-0.02*brl-(fit.weapon==='axe'?0.1:0)];
-    Q.r.arm_left=[0.02-0.02*brl,0,0.09+0.02*brl];             // a bit wider: the watch clears the coat
-    Q.r.forearm_right=[-0.12-0.02*br,0,0]; Q.r.forearm_left=[-0.08-0.03*br,0,0];
-    const smirk=pos2(Math.sin(TAU*t/8-1))**2;                 // one slow smirk per loop
-    Q.f.smile=0.18+0.45*smirk; Q.f.brow=0.1*br+0.12*smirk; Q.f.open=0.03+0.03*pos2(br);
-    Q.f.glance=0.55*Math.sin(TAU*t*2/8+0.3)**3; Q.f.squint=0.18*smirk;
+    Q.r.body=[-0.012+0.012*br,0,-0.01*ws];                     // chest up, slow controlled breath
+    Q.r.head=[-0.008*br,0,0];
+    Q.r.arm_right=[-0.06+0.015*brl,0,-0.05-0.012*brl-(fit.weapon==='axe'?0.1:0)];
+    Q.r.arm_left=[0.02-0.015*brl,0,0.09+0.012*brl];
+    Q.r.forearm_right=[-0.1,0,0]; Q.r.forearm_left=[-0.08,0,0];
+    for(const f of idleTracks) f(t,Q);
+    // straighten the tie: left fist to the knot, two small tugs down
+    const tug=0.6*(bump(t,2.85,0.18)+bump(t,3.3,0.18));
+    gesture(Q,'left',idleTie(t),[2.2,7.6-tug,7.6],[0.5,-0.8,0.7]);              // elbow down and a bit out: shoulder stays low, clear of chest and head
+    // nervous twitch of the right eye: three quick pulses, the head jerks a hair
+    const tw=bump(t,6.55,0.12)+bump(t,6.85,0.12)+0.8*bump(t,7.15,0.12);
+    Q.f.twitch=tw; Q.r.head[2]+=0.02*tw;
+    Q.f.brow+=0.04*br;
   }},
-  // 2 · Idle 2: vain self-check. Slicks his hair back, checks his watch, then the wide "Hip to be square" grin
-  idle2:{T:8,fn(t,Q){
-    for(const f of idle2Tracks) f(t,Q);
-    // headphones (Walkman) or a thick coat sleeve: the hand stays a bit wider during the hair slick
-    const wider=fit.headphones?0.3:fit.coatSleeves?0.14:0;
-    Q.r.forearm_left[0]+=wider*Q.r.arm_left[1]/1.5708;
-    if(fit.headphones) Q.r.arm_left[2]+=0.12*Q.r.arm_left[1]/1.5708;   // and the elbow goes wider
+  // 2 · Idle 2: groove, psycho freeze, fake smile, mirror flex, impatient watch check
+  idle2:{T:IDLE2_T,fn(t,Q){
     const br=Math.sin(TAU*t/4);
-    Q.r.body[0]+=0.012*br; Q.f.brow+=0.05*br;
+    Q.r.arm_right=[-0.08,0,-0.05-(fit.weapon==='axe'?0.1:0)]; Q.r.arm_left=[0.02,0,0.09];
+    Q.r.forearm_right=[-0.12,0,0]; Q.r.forearm_left=[-0.08,0,0];
+    Q.r.body=[0.01*br,0,0];
+    for(const f of idle2Tracks) f(t,Q);
+    // "Hip to be square": knees bounce on the beat, shoulders shimmy, elbows bent and pumping, head nods,
+    // mouthing the words (one mouth flap per beat)
+    const gw=g2groove(t), b=(t-0.6)/BEAT, sb=Math.sin(Math.PI*b);
+    const kb=gw*(0.1+0.12*pos2(Math.sin(TAU*b/2+0.4)));
+    Q.r.knee_right=[kb,0,0]; Q.r.knee_left=[kb,0,0];
+    Q.r.leg_right=[-kb*0.55,0,0]; Q.r.leg_left=[-kb*0.55,0,0];
+    Q.r.body[0]+=gw*0.03; Q.r.body[1]+=gw*0.06*Math.sin(Math.PI*b+0.5); Q.r.body[2]+=gw*0.04*sb;
+    Q.r.arm_left[0]+=gw*(-0.25+0.18*sb); Q.r.arm_right[0]+=gw*(-0.25-0.18*sb);
+    Q.r.arm_left[2]+=gw*0.08; Q.r.arm_right[2]-=gw*0.08;
+    Q.r.forearm_left[0]+=-gw*1.15; Q.r.forearm_right[0]+=-gw*(fit.weapon==='none'?1.15:0.7);   // a prop must not swing into the arm
+    Q.r.head[0]+=gw*0.05*(1-Math.cos(TAU*b))/2; Q.r.head[2]+=-gw*0.03*sb;
+    Q.f.open+=gw*0.28*pos2(Math.sin(TAU*b/2)); Q.f.glance+=gw*0.4*Math.sin(Math.PI*b/2);
+    // double-biceps flex: upper arms level (elbows at shoulder height), forearms straight up, fists beside the head
+    const fx=g2flex(t), pulse=0.4*bump(t,8.4,0.25)+0.4*bump(t,9.6,0.25);    // squeezes harder twice
+    const fy=16.4-pulse-(fit.headphones?0.8:0);                                  // the cups hang low: flex a bit lower
+    gesture(Q,'left',fx,[12.0,fy,0.8],[1,-0.15,-0.35]);
+    if(fit.weapon==='none') gesture(Q,'right',fx,[-12.0,fy,0.8],[-1,-0.15,-0.35]);   // empty hands: double biceps
+    else { const R2=Q.r.arm_right; R2[0]+=0.12*fx; R2[2]-=0.12*fx; }                       // holding a prop: it stays down, arm a bit back
+    Q.r.body[0]-=0.025*fx;                                     // chest out
+    // watch check: left wrist up in front, foot taps twice
+    gesture(Q,'left',g2watch(t),[5.2,8.8,7.2],[1,-0.8,-0.3]);
+    const tap=bump(t,12.35,0.15)+bump(t,12.75,0.15);
+    Q.r.knee_right=[(Q.r.knee_right?Q.r.knee_right[0]:0)+0.3*tap,0,0];
+    Q.r.leg_right=[(Q.r.leg_right?Q.r.leg_right[0]:0)-0.12*tap,0,0];
+    Q.r.head[1]+=0.06*Math.sin(TAU*3*t)*bump(t,13.25,0.3);    // small annoyed head shake
+    Q.f.brow+=0.04*br;
   }},
-  // 3 · Walk: brisk executive stride. Chest up, chin up, shoulders counter the hips, heel strike and toe off
-  walk:{T:1.1,fn(t,Q){
-    const p=TAU*t/1.1, s=Math.sin(p), sl=Math.sin(p-0.3), a=SWING[fit.weapon];
-    const hip=x=>-0.44*Math.sin(x);                                       // + = thigh back
-    const knee=x=>0.05+0.78*pos2(Math.cos(x+0.55))+0.4*pos2(Math.sin(x))*Math.max(0,-Math.cos(x));  // swing flex + loading
+  // 3 · Walk: the strut. Stiff upright torso, crisp short steps, head nods on each step, a glance at his reflection
+  walk:{T:WALK_T,fn(t,Q){
+    const p=TAU*t/STEP_T, s=Math.sin(p), sl=Math.sin(p-0.25), a=SWING[fit.weapon], lk=walkLook(t);
+    const hip=x=>-0.4*Math.sin(x);                                        // + = thigh back
+    const knee=x=>0.04+0.6*pos2(Math.cos(x+0.55))+0.3*pos2(Math.sin(x))*pos2(-Math.cos(x));   // stance loading, smooth start
     Q.r.leg_right=[hip(p),0,0]; Q.r.knee_right=[knee(p),0,0];
     Q.r.leg_left=[hip(p+Math.PI),0,0]; Q.r.knee_left=[knee(p+Math.PI),0,0];
-    const sway=-0.35*Math.sin(p-Math.PI/2);                               // hips over the stance foot (texels)
+    const sway=-0.25*Math.sin(p-Math.PI/2);
     Q.root=[sway,0,0];
     Q.r.leg_right[2]=-sway/12; Q.r.leg_left[2]=-sway/12;
-    Q.r.body=[0.05+0.015*Math.cos(2*p),-0.08*s,0.03*Math.sin(p-Math.PI/2)];
-    Q.r.head=[-0.03-0.012*Math.cos(2*p),0.06*s,-0.025*Math.sin(p-Math.PI/2)];
-    // arms swing evenly, a little out to the side (z): the shoulder edges stay under the head
-    const amp=fit.coatSleeves?0.31:0.34;                                  // thick coat sleeves swing a bit less
+    Q.r.body=[0.02,-0.04*s,0.015*Math.sin(p-Math.PI/2)];                  // square shoulders, barely twisting
+    const nod=0.045*pos2(Math.cos(2*p-0.5))**2;                             // a nod on every heel strike
+    Q.r.head=[-0.04+nod,0.03*s-0.38*lk,-0.01*Math.sin(p-Math.PI/2)+0.03*lk];
+    const amp=fit.coatSleeves?0.28:0.3;
     Q.r.arm_right=[amp*a*sl,0,-0.1-(fit.weapon==='axe'?0.1:0)];
     Q.r.arm_left=[-amp*sl,0,0.1];
-    Q.r.forearm_right=[-0.22-0.3*a*pos2(-sl),0,0];
-    Q.r.forearm_left=[-0.22-0.3*pos2(sl),0,0];
-    Q.f.smile=0.3; Q.f.brow=0.08+0.04*Math.cos(2*p); Q.f.open=0.03; Q.f.squint=0.12;
-    Q.fw=0.35;                                                             // eyes ahead: the head turns less while walking
+    Q.r.forearm_right=[-0.1-0.12*a*pos2(-sl),0,0];                        // straight-ish executive arms
+    Q.r.forearm_left=[-0.1-0.12*pos2(sl),0,0];
+    Q.f.smile=0.32+0.45*lk; Q.f.brow=0.05+0.2*lk+0.03*Math.cos(2*p); Q.f.open=0.02;
+    Q.f.squint=0.1+0.25*lk; Q.f.glance=-0.75*lk; Q.f.stare=0.4*(1-lk);
+    Q.fw=0.35*(1-lk);
   }},
 };
 const ANIM_ORDER=Object.keys(ANIMS);
@@ -929,7 +1010,7 @@ function step(dt){
     const mix=(c,v)=>{ fo[c]+=(v-fo[c])*xf.w; };
     mix('brow',0.9*xf.brow); mix('tilt',xf.tilt); mix('smile',xf.smile); mix('open',0.8*xf.open);
     mix('teeth',0.9*Math.max(0,xf.smile)); mix('squint',0.7*Math.max(0,-xf.eyes));
-    mix('wide',Math.max(0,xf.eyes)); mix('glance',0); mix('look',0.6*xf.look);
+    mix('wide',Math.max(0,xf.eyes)); mix('glance',0); mix('look',0.6*xf.look); mix('twitch',0); mix('stare',0);
     H.x+=window.MobViewer.head.pitch; H.z+=window.MobViewer.head.roll;
   }
   // Short recessed neck: soft tilt limits keep the chin out of the collar (chin down 0.1, up 0.1, roll 0.07)
@@ -982,7 +1063,8 @@ function updateFace(dt,fo,F){
   for(const f of FACE_KEYS) S.face[f]+=(fo[f]-S.face[f])*filt(dt,16);
   const fc=S.face, bl=S.blink;
   let blinkV=0;
-  if(bl.t<0){ bl.wait-=dt; if(bl.wait<=0){ bl.t=0; bl.again=Math.random()<0.18; } }
+  if(bl.t<0){ bl.wait-=dt*(1-0.97*clamp(fc.stare,0,1)); if(bl.wait<=0){        // the dead stare holds the blinks back
+    bl.t=0; bl.again=Math.random()<0.18; } }
   if(bl.t>=0){
     bl.t+=dt;
     if(bl.t>=0.18){ bl.t=-1; bl.wait=bl.again?0.12:1.8+Math.random()*3.4; bl.again=false; }
@@ -1003,11 +1085,13 @@ function applyFace(fc,blinkV,glance){
     FACE['white_'+s].scale.y=1+0.35*wide;
     R[`pupil_${s}`].position.x=glance*0.5;
     const lid=R[`lid_${s}`], top=4+0.175*wide, hgt=1+0.35*wide;
-    lid.position.y=top; lid.visible=closed>0.004&&!fit.hideBrows;
-    FACE['lid_'+s].scale.y=Math.max(0.001,closed*hgt); FACE['lid_'+s].position.y=-0.5*closed*hgt;
-    FACE['lash_'+s].scale.y=Math.min(1,closed*5); FACE['lash_'+s].position.y=-closed*hgt+0.11*Math.min(1,closed*5);
+    lid.position.y=top;
+    const cl=s==='right'?clamp(closed+0.55*clamp(fc.twitch,0,1.5),0,1):closed;   // the tic squeezes his right eye
+    lid.visible=cl>0.004&&!fit.hideBrows;
+    FACE['lid_'+s].scale.y=Math.max(0.001,cl*hgt); FACE['lid_'+s].position.y=-0.5*cl*hgt;
+    FACE['lash_'+s].scale.y=Math.min(1,cl*5); FACE['lash_'+s].position.y=-cl*hgt+0.11*Math.min(1,cl*5);
     const brow=R[`brow_${s}`];
-    brow.position.y=4.5+clamp(0.5*fc.brow+0.25*Math.max(0,fc.look)-0.12*Math.max(0,-fc.tilt),-0.35,0.6);
+    brow.position.y=4.5+clamp(0.5*fc.brow+0.25*Math.max(0,fc.look)-0.12*Math.max(0,-fc.tilt)-(s==='right'?0.25*fc.twitch:0),-0.35,0.6);
     brow.rotation.z=sg*0.32*clamp(fc.tilt,-1,1);
   }
   // mouth (standard type, as Homelander): grin = teeth plate, smirk = a smile without teeth tilts the line up
