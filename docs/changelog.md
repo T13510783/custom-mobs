@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 23:15
+- Anton Chigurh (`mobs/anton_chigurh/anton_chigurh.html`): better mouth and expressions.
+  - Darker lip line (was almost invisible); new face channels `smile` (whole line up + wider / down + narrower) and `press` (thin, tight lips).
+  - Expression menu: Happy = line up + grin, Sad = line drops and narrows, Angry = bared clenched teeth, Afraid = open mouth; brows lower + thinner so a raise never hides under the bangs, stronger tilt.
+  - Mouth moves in every animation: tight lips on the breath (idle), lips part then a cold half-smile (idle 2), set jaw per step (walk), tight lips around the words (attack), jolt on each shot (special).
+  - `#shot` stills hide the UI. Tested: expression renders, `#cliptest` 0 clips.
+
 ## 2026-10-16 22:56
 - The Joker (`mobs/the_joker/the_joker.html`): mouth paint back + less stretched face (user screenshots).
   - Red smile paint restored as before (cheek upturns row 5, mouth row 6 cols 1-6, lip smear row 7); jaw and chin stay white.
