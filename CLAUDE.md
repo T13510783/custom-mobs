@@ -119,6 +119,7 @@ When the user says "model from A, animations from B":
 
 6. **Eyes, eyebrows and mouth (whatever the mob has) move in every animation**, idles included:
    - eyes: blink at random intervals (now and then a double blink) + glance left/right;
+   - eyelids (user rule, 2026-10-16): ALWAYS make and animate them whenever a mob gets eyes / brows / a face: real lid parts that slide over the eye in every blink, squint and closed-eye moment, in every animation, high quality (see rule 7);
    - eyebrows: raise / frown with the motion;
    - mouth: open/close or change shape (breath, snarl, shout, yawn, grin).
 7. **Always very smooth, never clunky or teleporting:**
@@ -140,6 +141,8 @@ When the user says "model from A, animations from B":
    - Rig lessons that avoid most clipping:
      - arm pivot on the arm's top edge (not 2 below it), arms only rotate outward on Z;
      - head on top of the body: lift it ~0.7 on a recessed neck block and clamp head pitch to about ±0.08 rad; arm tops ~0.4 below the body top;
+     - no neck wanted (Homelander, 2026-10-16): head sits right on the torso top, never lifted; soft tilt limits instead (`limit * tanh(x / limit)`, pitch ~0.12, roll ~0.06 rad) keep the chin dip into the torso under ~0.5;
+     - a cape with hands behind the back: the hands rest ON the cape (forearms push cloth toward the back, upper arms toward the spine, torso pushed last) and the cape's top edge narrows to fit between the arms;
      - a long beard below the chin hangs from the torso (following the chin), not from the head;
      - poses with arms beside the head fade head-follow out before the arms move;
      - hanging back hair only swings backward and ends above the sleeve tops; hands end above the leg tops (2026-10-14);

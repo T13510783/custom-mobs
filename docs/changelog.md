@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-16 13:20
+- Homelander (`mobs/homelander/homelander.html` + mod port in `mod/src/main/java/com/custommobs/homelander/`):
+  - Hover: hands behind the back now rest ON the cape; the cape stays flat on his back and narrows between the arms (`anim/HomelanderCloth.java`, `anim/HomelanderData.java`).
+  - Neck removed: head sits right on the torso, soft tilt limits (`anim/HomelanderAnimator.java`).
+  - Smash: after the ankle grab he turns his back, drags the victim behind him over the floor (dust + blood), spins around and flings it (`entity/HomelanderEntity.java`, `client/HomelanderVictims.java`).
+  - Walk-while-attacking button now starts the walk; spawn egg no longer dark (no tint over its texture, `HomelanderMod.java`).
+  - Trace scene 56 s so the cape settles after the Hover (`HomelanderAnimatorTraceTest.java`); test world puts the egg in the hotbar.
+- Rules (`CLAUDE.md`): eyelids always animated; no-neck head limits; cape under hands behind the back.
+
 ## 2026-10-16 12:13
 - First release `v0.0.1-alpha`: release notes (`mod/release_notes.md`), download line (`README.md`).
 - `tools/release.ps1`: works in Windows PowerShell 5.1 (native stderr from `gh` / `gradlew` no longer aborts the script).

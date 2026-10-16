@@ -137,7 +137,7 @@
     <button class="anim-btn" data-anim="smash"><kbd>0</kbd>Smash</button>
     <span class="sep"></span>
     <!-- Walk while attacking: the legs keep walking under every attack (the mod does this when he moves). Key W. -->
-    <button id="walkAtkBtn" class="icon-btn" title="Walk while attacking (W)" aria-pressed="false">
+    <button id="walkAtkBtn" class="icon-btn" title="Walk while attacking (W): on = he walks, and keeps walking during every attack you pick" aria-pressed="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="M11 8l-3 5 4 2 1 7M11 8l4 3 4-1M8 13l-3 7M16 3l5 2-2 3"/></svg>
     </button>
     <button id="followBtn" class="icon-btn on" title="Head and eyes follow the mouse" aria-pressed="true">
@@ -286,14 +286,6 @@ function hash2D(x, y, seed = 1) {
 function px(ctx, x, y, col) { ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1); }
 const flat = (key) => (ctx, f, w, h) => { ctx.fillStyle = P[key]; ctx.fillRect(0, 0, w, h); };
 
-// Neck: warm skin, darker in the shadow right under the chin (top row) and at the sides
-function paintNeck(ctx, face, w, h) {
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const side = face === 'right' || face === 'left';
-    px(ctx, x, y, y === 0 ? P.skinShadow : side || x === 0 || x === w - 1 ? P.skinWarm : P.skinBase);
-  }
-}
-
 // Head base (8x8x8): Rich dimensional skin tones with micro-shading, rosy cheeks & jawline depth (matching The King)
 function paintHead(ctx, face, w, h) {
   for (let y = 0; y < h; y++) {
@@ -344,7 +336,7 @@ function paintHead(ctx, face, w, h) {
 // and neat tapered sides/nape ending cleanly above the neckline.
 function paintHair(ctx, face, w, h) {
   ctx.clearRect(0, 0, w, h);
-  if (face === 'bottom') return; // open underneath so neck/head fits
+  if (face === 'bottom') return; // open underneath: the head sits in the hair shell
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -738,14 +730,10 @@ const body = bone('body', root, 0, 12, 0);
 const chest = bone('chest', body, 0, 0, 0);
 box(chest, 'torso_suit', 9, 12, 5, 0, 6, 0, paintTorso);
 
-// Head mounted DIRECTLY on chest at y = 12.0 (standard Minecraft humanoid, no neck box, no collar)
+const HEAD_PITCH_MAX = 0.12, HEAD_ROLL_MAX = 0.06;   // soft head tilt limits (see step(): no neck)
+// Head mounted DIRECTLY on chest at y = 12.0 (standard Minecraft humanoid: no neck at all, user rule 2026-10-16; never lifted off the torso)
 const head = bone('head', chest, 0, 12.0, 0);
 box(head, 'head_cranium', 8, 8, 8, 0, 4.0, 0, paintHead);
-
-// Recessed neck (rule 9): hidden inside the head and the torso at rest. When an animation lifts the head on its
-// neck (so its corners stay out of the torso while it tilts), skin shows here instead of a gap of empty air.
-// 3.1 tall (head-local y -2.6..0.5: covers lifts up to ~2.3 texels), 3.4 deep: a pitched-up head keeps it inside the chest front.
-box(head, 'neck', 4, 3.1, 3.4, 0, -1.05, 0, paintNeck, { shadow: false });
 
 // No nose block: flat player-style face like The King (nose is painted in paintHead)
 
@@ -1043,7 +1031,9 @@ function handsOnHips(Q, side, w, breath = 0) {
 // Hands behind the back (photo 3): upper arm swung back + elbow out, forearm folds
 // inward (forearm z) so both fists rest behind the lower back. w = 0..1.
 // Values from a clip search (hover t = 4): fists end ~3 texels beside the spine, ~6 behind the torso center
-const HB = { ax: 0.8, az: 0.2, fx: 0.2, fz: 1.2 };
+// Fists ~1.5 texels off his back (closest forearm point z -4.2, fist -4.0; back face -2.5): room for the cape
+// between back and hands, so the hands rest ON the cape (user rule 2026-10-16)
+const HB = { ax: 1.0, az: 0.25, fx: 0.4, fz: 1.1 };
 // w = upper arm swing, fold = forearm fold (fold lags behind w so the fists never pass through the back)
 function handsBehind(Q, side, w, fold = w) {
   const sx = side === 'right' ? -1 : 1;
@@ -1122,22 +1112,27 @@ const CL_STANCE = [[0, 0], [0.4, 1], [2.6, 1], [3.8, 0]];
 const CL_SMUG = [[0, 0], [1.6, 0], [1.9, 1], [3.4, 1], [3.8, 0]];                                           // smirk while the victim falls
 
 // Smash (5.6 s): hammer-fist from overhead onto the victim's head/shoulders, smashing it flat onto its back;
-// bends down, grabs its ankles (right hand), drags it backward 2 steps, winds up with a body twist and swings it
-// around his right side, flinging it forward-up as far as he can. Victim stands 14 texels in front of him.
+// bends down, grabs its ankles (right hand), turns his back to it and walks off dragging it BEHIND him over the
+// floor, then spins back around (the victim swings out around his right side) and flings it forward-up as far as
+// he can. Victim stands 14 texels in front of him.
 //  0.0-0.5 wind (arm overhead, up on his toes) · 0.5-0.62 strike (0.6 = hit) · 0.62-0.9 follow-through
-//  0.9-1.5 bends down to its feet (1.45 = grab) · 1.5-1.9 stands up with its legs in his hand
-//  1.9-3.4 drags it back (walks backward, 2 steps per 0.75 s) · 3.4-4.0 twist wind-up · 4.0-4.32 whip (4.3 = release)
-//  4.35-5.6 watches it fly, smirks, back to his stance
+//  0.9-1.5 bends down to its feet (1.45 = grab) · 1.5-2.1 stands up and turns around, its legs in his hand
+//  1.9-3.4 drags it behind him (walks forward, 2 steps per 0.75 s, arm back) · 3.4-4.32 spins back around with a
+//  twist wind-up, whip (4.3 = release) · 4.35-5.6 watches it fly, smirks, back to his stance
 // (after the release the arm ends up and OUT to his right side, never across his face)
-const SM_AX   = [[0, 0], [0.5, -2.75], [0.62, -1.55], [0.9, -1.0], [1.3, -0.9], [1.5, -0.9], [1.9, -0.35], [3.4, -0.35], [4.0, 0.45], [4.32, -1.9], [4.5, -1.7], [5.6, 0]];
+const SM_AX   = [[0, 0], [0.5, -2.75], [0.62, -1.55], [0.9, -1.0], [1.3, -0.9], [1.5, -0.9], [2.1, 0.3], [3.4, 0.3], [4.0, 0.55], [4.32, -1.9], [4.5, -1.7], [5.6, 0]];
 // (arm z: out = negative while the arm points down/forward, POSITIVE while it is overhead, see TH_AZ)
-const SM_AZ   = [[0, 0], [0.5, 0.3], [0.62, -0.1], [1.5, -0.1], [1.9, -0.18], [3.4, -0.18], [4.0, -0.7], [4.32, -0.9], [4.5, -0.85], [5.6, 0]];
+const SM_AZ   = [[0, 0], [0.5, 0.3], [0.62, -0.1], [1.5, -0.1], [2.1, -0.38], [3.4, -0.38], [4.0, -0.7], [4.32, -0.9], [4.5, -0.85], [5.6, 0]];
 const SM_FX   = [[0, 0], [0.5, -0.6], [0.62, -0.2], [0.9, -0.15], [1.5, -0.1], [1.9, -0.3], [3.4, -0.3], [4.0, -0.15], [4.32, -0.05], [5.6, 0]];
 const SM_RISE = [[0, 0], [0.4, 1], [0.55, 1], [0.62, 0], [5.6, 0]];                     // up on his toes in the wind
 const SM_HIT  = [[0, 0], [0.55, 0], [0.62, 1], [0.9, 0.6], [1.0, 0], [5.6, 0]];          // strike crouch + chest snap
 const SM_BEND = [[0, 0], [0.9, 0], [1.4, 1], [1.5, 1], [1.9, 0], [5.6, 0]];              // bent down to the feet
 const SM_HOLD = [[0, 0], [1.4, 0], [1.5, 1], [4.3, 1], [4.4, 0], [5.6, 0]];              // has its ankles
-const SM_DRAG = [[0, 0], [1.8, 0], [2.0, 1], [3.25, 1], [3.45, 0], [5.6, 0]];            // walking backward
+const SM_DRAG = [[0, 0], [1.8, 0], [2.0, 1], [3.25, 1], [3.45, 0], [5.6, 0]];            // walking off, victim behind
+const SM_TURN = [[0, 0], [1.5, 0], [2.1, 1], [3.4, 1], [4.3, 0], [5.6, 0]];              // back to the victim (root yaw PI)
+const SM_PEEK = [[0, 0], [2.4, 0], [2.65, 1], [2.95, 1], [3.2, 0], [5.6, 0]];            // grins back over his right shoulder
+// how much a dragged victim trails straight behind him (instead of out from his body axis), viewer + mod
+const SMASH_TRAIL = (t) => smooth01((t - 1.9) / 0.3) * (1 - smooth01((t - 3.4) / 0.3));
 const SM_WIND = [[0, 0], [3.4, 0], [4.0, 1], [4.32, 0], [5.6, 0]];                        // twist back-right
 const SM_WHIP = [[0, 0], [4.0, 0], [4.32, 1], [4.6, 1], [5.6, 0]];                        // swung through to the front
 const SM_WATCH = [[0, 0], [4.3, 0], [4.5, 1], [5.1, 1], [5.6, 0]];                       // looks after it
@@ -1215,7 +1210,6 @@ const ANIMS = {
 
       // Head: look around, then a cold look down at the ground below him
       rot(Q, 'head', -0.03 - 0.2 * look * look + 0.1 * down, 0.6 * look, 0);
-      pos(Q, 'head', 0, 1.5 * look * look + 0.3 * hands, 0); // chin up / neck long: head clears the raised pauldrons
 
       Q.f.glance = clamp(1.2 * kf(t + 0.3, HV_LOOK), -0.45, 0.45);
       Q.f.smirk = 0.6 * air;
@@ -1260,10 +1254,8 @@ const ANIMS = {
       handsOnHips(Q, 'left', 1, inB);
 
       // Head: tilts toward the raised hand; in the stare it drops a little and goes still.
-      // Lifts on its neck by the tilt (head half width x tilt), so its corners stay out of the torso.
       const hx = -0.03 - 0.01 * inB + 0.06 * stare, hzr = 0.06 * raise + 0.03 * stare;
       rot(Q, 'head', hx, 0.05 * Math.sin(TAU * t / T) * (1 - stare), hzr);
-      pos(Q, 'head', 0, 0.3 * raise + 4.2 * (Math.sqrt(hx * hx + hzr * hzr + 4e-4) - 0.02), 0); // soft norm: no corner at 0
 
       // Face: grin (teeth) + raised brows -> flat brows, open eyes locked on you, red flicker
       Q.f.grin = grin;
@@ -1366,10 +1358,9 @@ const ANIMS = {
         pos(Q, `forearm_${side}`, 0, -hz * Math.sin(fold), hz * (1 - Math.cos(fold)));
       }
 
-      // Head: eyes front (counters the lean and the chest twist); the neck lifts by the tilt (no corner in the torso)
+      // Head: eyes front (counters the lean and the chest twist); the head stays on the torso (no neck, user rule)
       const hx = -0.24 + 0.02 * Math.cos(2 * TAU * p), hy = 0.15 * c;
       rot(Q, 'head', hx, hy, 0);
-      pos(Q, 'head', 0, 4.2 * (Math.sqrt(hx * hx + 4e-4) - 0.02), 0);
 
       // Face: jaw set, teeth bared a little, fast breaths, brows low, a faint red in the eyes
       Q.f.frown = 0.55;
@@ -1440,10 +1431,8 @@ const ANIMS = {
       rot(Q, 'forearm_left', -0.25 * Math.min(1, lift / 4), 0, -0.1);
 
       // Head tilted downward with terrifying laser gaze sweeping across the target
-      // (pitch SPEC_AIM: from 9.5 texels up the beams come down onto a target 3.5 blocks away, chest high;
-      //  the neck lifts with the pitch so the chin stays out of the chest)
+      // (pitch SPEC_AIM: from 9.5 texels up the beams come down onto a target 3.5 blocks away, chest high)
       rot(Q, 'head', SPEC_AIM * laser, sweep, 0);
-      pos(Q, 'head', 0, 4.2 * (SPEC_AIM * laser) ** 2 / (SPEC_AIM * laser + 0.05), 0);
 
       Q.f.laser = laser;
       Q.f.glow = clamp(lift / 6, 0, 1) ** 2;   // eyes heat up while he rises (full red just before the beams)
@@ -1479,10 +1468,8 @@ const ANIMS = {
       rot(Q, 'forearm_left', -0.5 * step, 0, -0.05);
 
       // Head: locked on the victim, then up after them (neck long: clears the shoulders), then down
-      // (head counter-turns to keep his eyes on the victim and looks up into their face; the
-      //  neck lift keeps the turned head's front corner above the raised upper arm)
+      // (head counter-turns to keep his eyes on the victim and looks up into their face)
       rot(Q, 'head', -0.22 * hold - 0.38 * up + 0.14 * down, -0.3 * hold, -0.03 * hold);
-      pos(Q, 'head', 0, 1.0 * hold + 1.3 * up + 0.7 * down + 0.8 * cr, 0);
 
       // Face: snarl while choking, faint red eyes; shout on the release; smirk watching; cruel grin down
       Q.f.frown = 0.7 * hold + 0.5 * ext + 0.2 * down;
@@ -1525,11 +1512,9 @@ const ANIMS = {
       rot(Q, 'forearm_left', fx, 0, 0);
 
       // Head: chin up a little while he shouts, tilts down at the victim on the slam, shakes on the impact.
-      // Neck lifts with the pitch/tilt (head half size x angle) so no corner sinks into the chest (the neck block shows).
       const hx = -0.06 * wind + 0.05 * cup + 0.02 * hit;              // (more pitch: his hair touches the victim's head)
       const hz = 0.03 * Math.sin(TAU * 9 * t) * hit;
       rot(Q, 'head', hx, 0, hz);
-      pos(Q, 'head', 0, 0.3 * wind + 4.2 * Math.max(0, hx) ** 2 / (Math.max(0, hx) + 0.05) + 4.2 * hz * hz / Math.sqrt(hz * hz + 0.0025) + 0.25 * cup, 0);
 
       // Face: snarl while the arms rise (bared teeth, eyes heat up; the shout opens the mouth by the voice line's
       // loudness) -> clenched teeth on the hit -> smug smirk while the victim falls
@@ -1569,7 +1554,6 @@ const ANIMS = {
       // Head: looks up into the victim's face, curious tilt, buzzes while the beams fire
       const buzz = 0.012 * Math.sin(TAU * 15 * t) * laser;
       rot(Q, 'head', -0.3 * hold + buzz, -0.42 * hold, 0.08 * hold * (1 - laser) + buzz); // counter-turn: face to face
-      pos(Q, 'head', 0, 1.0 * hold, 0);
 
       // Face: smug smirk while he squeezes, brows sink as the eyes heat up, snarl while burning
       Q.f.smirk = kf(t, TL_SMIRK);
@@ -1584,49 +1568,50 @@ const ANIMS = {
     }
   },
 
-  // 10 · Smash: hammer-fist smashes the victim flat onto its back, he grabs its ankles, drags it back and
-  // flings it forward-up as far as he can with a twisting swing (see SM_*). Works on any mob; the mod lays
-  // the victim down, drags it behind his hand and throws it far.
+  // 10 · Smash: hammer-fist smashes the victim flat onto its back, he grabs its ankles, turns around and drags it
+  // behind him over the floor, spins back and flings it forward-up as far as he can (see SM_*). Works on any mob;
+  // the mod lays the victim down, drags it behind his hand and throws it far.
   smash: {
     T: 5.6, yawLimit: 0.05, follow: 0,
     events: { swing: 0.5, hit: 0.6, grab: 1.45, release: 4.3 },
     fn(t, Q) {
       const rise = kf(t, SM_RISE), hit = kf(t, SM_HIT), bend = kf(t, SM_BEND), hold = kf(t, SM_HOLD);
       const drag = kf(t, SM_DRAG), wind = kf(t, SM_WIND), whip = kf(t, SM_WHIP), watch = kf(t, SM_WATCH);
+      const turn = kf(t, SM_TURN), peek = kf(t, SM_PEEK);
 
-      // Legs: up on the toes in the wind, crouch on the strike, deep squat to reach the feet, walk BACKWARD while
-      // dragging (walk cycle run in reverse, 0.75 s per cycle), wide stance for the throw
+      // Legs: up on the toes in the wind, crouch on the strike, deep squat to reach the feet, walk FORWARD while
+      // dragging (0.75 s per cycle: the thigh swings forward with the knee lifted), wide stance for the throw
       const ph = (t - 1.9) / 0.75, wc = Math.cos(TAU * ph);
-      const back = (o) => { const sp = Math.sin(TAU * (ph + o)), sw = sp * sp; return [0.3 * Math.cos(TAU * (ph + o)), (sp > 0 ? 0.8 : 0.06) * sw]; };
-      const [dhR, dkR] = back(0), [dhL, dkL] = back(0.5);
+      const stride = (o) => { const sp = Math.sin(TAU * (ph + o)), sw = sp * sp; return [0.3 * Math.cos(TAU * (ph + o)), (sp > 0 ? 0.8 : 0.06) * sw]; };
+      const [dhR, dkR] = stride(0), [dhL, dkL] = stride(0.5);
       const sq = 0.25 * hit + 1.25 * bend + 0.3 * wind;
       legs(Q,
         -0.25 * sq + 0.1 * rise + drag * dhR + 0.15 * whip, 0.55 * sq + drag * dkR + 0.1 * whip,
         -0.25 * sq - 0.15 * rise + drag * dhL - 0.3 * whip, 0.55 * sq + drag * dkL + 0.25 * whip,
         0.8 * rise + 0.14 * (wind + whip), 0.03 + 0.06 * (wind + whip));   // (+lift: the wider splay tips the boots' outer edges down)
 
-      // Whole body turns into the throw (root yaw): back-right in the wind, through to the left on the whip
+      // Whole body (root yaw): turns his back to the victim after the grab (PI), spins back around for the throw:
+      // back-right in the wind, through to the left on the whip
       // (the root carries most of the twist: a fast chest twist would sweep the torso through the cape)
-      rot(Q, 'root', 0, -0.45 * wind + 0.15 * whip, 0);
-      // Chest: arches back in the wind, snaps forward on the strike, bends far down to the feet, leans back
-      // while dragging, twists hard right and whips left for the throw
-      rot(Q, 'chest', -0.12 * rise + 0.35 * hit + 0.65 * bend - 0.14 * drag + 0.1 * wind - 0.08 * whip,
+      rot(Q, 'root', 0, Math.PI * turn - 0.45 * wind + 0.15 * whip, 0);
+      // Chest: arches back in the wind, snaps forward on the strike, bends far down to the feet, leans forward
+      // pulling the weight while dragging, twists hard right and whips left for the throw
+      rot(Q, 'chest', -0.12 * rise + 0.35 * hit + 0.65 * bend + 0.16 * drag + 0.1 * wind - 0.08 * whip,
           -0.4 * wind + 0.25 * whip + 0.06 * drag * wc, 0);
       pos(Q, 'chest', 0, 0, 0.4 * hit + 0.6 * bend);
 
-      // Right arm: overhead -> hammer down -> reach the ankles -> hold them low beside the hip -> swing back -> fling up
+      // Right arm: overhead -> hammer down -> reach the ankles -> hold them low behind him -> swing back -> fling up
       rot(Q, 'arm_right', kf(t, SM_AX), 0, kf(t, SM_AZ));
       rot(Q, 'forearm_right', kf(t, SM_FX), 0, 0);
       // Left arm: back for balance in the wind (clear of the victim's raised arms), out to the side while dragging / throwing
       rot(Q, 'arm_left', 0.15 * rise + 0.3 * hit - 0.4 * bend - 0.25 * drag * wc + 0.15 * wind - 0.6 * whip, 0, 0.12 + 0.2 * rise + 0.25 * hold + 0.5 * wind);
       rot(Q, 'forearm_left', -0.3 * rise - 0.3 * hit - 0.3 * bend - 0.35 * drag, 0, 0);
 
-      // Head: eyes on the victim (down while bent and dragging), up after it as it flies; neck lifts with the tilt
-      // (tilts toward his left, away from the raised right arm, in the wind and the fling)
-      const hx = 0.12 * hit + 0.25 * bend + 0.15 * drag - 0.3 * watch - 0.05 * rise;
+      // Head: eyes on the victim (down while bent), ahead while dragging with a grin back over his right shoulder,
+      // up after it as it flies (tilts toward his left, away from the raised right arm, in the wind and the fling)
+      const hx = 0.12 * hit + 0.25 * bend - 0.05 * drag - 0.3 * watch - 0.05 * rise;
       const hz = -0.14 * rise - 0.12 * whip;
-      rot(Q, 'head', hx, 0.3 * wind - 0.25 * whip, hz);
-      pos(Q, 'head', 0, 4.2 * (Math.sqrt(hx * hx + hz * hz + 4e-4) - 0.02), 0);
+      rot(Q, 'head', hx, 0.3 * wind - 0.25 * whip - 0.7 * peek, hz);
 
       // Face: snarl + red eyes on the strike, cruel grin while dragging, shout on the throw, smirk watching
       Q.f.frown = 0.6 * rise + 0.9 * hit + 0.4 * drag + 0.7 * wind;
@@ -1670,6 +1655,7 @@ const CLOTH = {
   iters: 6,               // constraint + collision passes per substep
   cols: 9,                // chains across the cape (a point every CAPE_W / 8 = 1.8 texels: body corners cannot poke through)
   margin: 0.5,            // points stay this far outside body boxes (cloth half thickness + room for the flat row boxes)
+  handsWidth: 0.52,       // hands behind the back: the cape's top edge eases in to this part of its width (7.5 texels: between the arms)
   wind: 10,               // breeze strength (texels/s^2): slow random gusts, ripples run down the cape
   colliders: ['torso_suit', 'head_cranium', 'hair_main', 'upper_arm_right', 'upper_arm_left', 'pauldron_right', 'pauldron_left',
     'pauldron_wing_right', 'pauldron_wing_left', 'lower_arm_right', 'lower_arm_left', 'gauntlet_right', 'gauntlet_left',
@@ -1682,7 +1668,7 @@ const NK = CLOTH.cols, KMID = (NK - 1) / 2, KGAP = CAPE_W / (NK - 1);   // chain
 
 function makeCloth(rand) {
   const n = NK * NP * 3;
-  const C = { init: false, P: new Float64Array(n), Q: new Float64Array(n), A: new Float64Array(NK * 3), ph: [], col: new Float64Array(CLOTH_COL.length * 12),
+  const C = { init: false, wf: 1, P: new Float64Array(n), Q: new Float64Array(n), A: new Float64Array(NK * 3), ph: [], col: new Float64Array(CLOTH_COL.length * 12),
               R: new Float64Array(9), Rp: new Float64Array(9) };
   for (let i = 0; i < 6; i++) C.ph.push(rand() * TAU);   // breeze phases: every mob gusts differently
   return C;
@@ -1699,12 +1685,18 @@ const chestM = new Float64Array(12);
 // One frame of cloth. move = how far his body moved through the air this frame (texels, model space):
 // the viewer passes the animation's own walking speed, the mod his real movement.
 function clothStep(S, dt, move) {
-  const C = S.cloth, P = C.P, Q = C.Q, N = CAPE_N, seg = CAPE_SEG, diag = Math.sqrt(KGAP * KGAP + CAPE_SEG * CAPE_SEG);   // (sqrt, not hypot: same bits in Java)
+  const C = S.cloth, P = C.P, Q = C.Q, N = CAPE_N, seg = CAPE_SEG;
   mobRoot.updateMatrixWorld(true);
   mat34(bones.chest.matrixWorld, chestM, 0);
+  // body boxes this frame (rigid: rotation columns + center)
+  for (let c = 0; c < CLOTH_COL.length; c++) mat34(CLOTH_COL[c].mesh.matrixWorld, C.col, c * 12);
+  const hands = handsBlock(C);
+  // width: hands behind the back -> the top edge eases in to handsWidth (it fits between the arms, under the hands)
+  C.wf += ((hands ? CLOTH.handsWidth : 1) - C.wf) * (1 - Math.exp(-dt * 6));
+  const gap = KGAP * C.wf, diag = Math.sqrt(gap * gap + CAPE_SEG * CAPE_SEG);   // (sqrt, not hypot: same bits in Java)
   // anchors: along the top edge of the cape, in chest space
   for (let k = 0; k < NK; k++) {
-    const x = CAPE_TOP[0] + (k - KMID) * KGAP, y = CAPE_TOP[1], z = CAPE_TOP[2], m = chestM;
+    const x = CAPE_TOP[0] + (k - KMID) * gap, y = CAPE_TOP[1], z = CAPE_TOP[2], m = chestM;
     C.A[k * 3] = m[0] * x + m[3] * y + m[6] * z + m[9];
     C.A[k * 3 + 1] = m[1] * x + m[4] * y + m[7] * z + m[10];
     C.A[k * 3 + 2] = m[2] * x + m[5] * y + m[8] * z + m[11];
@@ -1716,9 +1708,6 @@ function clothStep(S, dt, move) {
     }
     C.init = true;
   }
-  // body boxes this frame (rigid: rotation columns + center)
-  for (let c = 0; c < CLOTH_COL.length; c++) mat34(CLOTH_COL[c].mesh.matrixWorld, C.col, c * 12);
-  const hands = handsBlock(C);
 
   const n = Math.max(1, Math.ceil(dt / CLOTH.sub - 1e-9)), h = dt / n;
   const damp = Math.exp(-CLOTH.drag * h), ph = C.ph;
@@ -1745,13 +1734,13 @@ function clothStep(S, dt, move) {
       // across (neighbour chains) and diagonally both ways (keeps the cloth from shearing)
       for (let k = 0; k < NK - 1; k++) for (let i = 1; i <= N; i++) {
         const a = (k * NP + i) * 3, b = ((k + 1) * NP + i) * 3;
-        clothLink(P, a, b, KGAP, false);
+        clothLink(P, a, b, gap, false);
         clothLink(P, a - 3, b, diag, i === 1); clothLink(P, b - 3, a, diag, i === 1);
       }
       // bending across: every second chain + edge to edge keep each row nearly straight (each row is one
       // flat bone box in the model, so a row that curled around a leg would let the box cut into it)
-      for (let k = 0; k < NK - 2; k++) for (let i = 1; i <= N; i++) clothLink(P, (k * NP + i) * 3, ((k + 2) * NP + i) * 3, 2 * KGAP, false);
-      for (let i = 1; i <= N; i++) clothLink(P, i * 3, ((NK - 1) * NP + i) * 3, CAPE_W, false);
+      for (let k = 0; k < NK - 2; k++) for (let i = 1; i <= N; i++) clothLink(P, (k * NP + i) * 3, ((k + 2) * NP + i) * 3, 2 * gap, false);
+      for (let i = 1; i <= N; i++) clothLink(P, i * 3, ((NK - 1) * NP + i) * 3, (NK - 1) * gap, false);
       // never further from the top than the cloth length above it (no stretching under gravity)
       for (let k = 0; k < NK; k++) for (let i = 1; i <= N; i++) {
         const j = (k * NP + i) * 3, dx = P[j] - C.A[k * 3], dy = P[j + 1] - C.A[k * 3 + 1], dz = P[j + 2] - C.A[k * 3 + 2];
@@ -1777,40 +1766,43 @@ function clothLink(P, a, b, len, pinA) {
 }
 
 // Push every point out of every body box (shortest way out) and above the floor.
-// Hands behind the back: every forearm/fist box that reaches behind the cape's plane joins one "hands block"
-// (its box in chest space, from the cape plane back to the hands, spanning the gap between the fists). The cape
-// lies on top of that block or hangs down its back, never between hands and back: a point inside leaves through
-// the top if the cloth above it is shorter than the way from the cape top to the block's top-back edge, else out the back.
+// Hands behind the back (user rule 2026-10-16: the cape lies ON his back, the hands rest on top of it): when BOTH
+// forearm/fist pairs reach behind the cape's plane, a point inside one of those boxes leaves it toward his back
+// (along the chest's +z, the shortest way along that line), never out the far side, and a point inside an upper arm
+// leaves it inward (toward his spine): the cloth stays between back and arms. One arm swung back (walk, run, attacks)
+// keeps the plain shortest way out, so the cape lies along it.
 // Being pushed out moves the old position along too: no speed of its own (no flapping away).
 const HAND_COL = CLOTH_COL.map((c) => /^(lower_arm_|gauntlet_)/.test(c.name));
-const handIn = new Uint8Array(CLOTH_COL.length), hb = new Float64Array(6), cv = new Float64Array(3);
+const UPPER_COL = CLOTH_COL.map((c) => /^upper_arm_/.test(c.name));
+const handIn = new Uint8Array(CLOTH_COL.length);
 function handsBlock(C) {
   const M = C.col, mg = CLOTH.margin;
-  hb[0] = hb[2] = hb[4] = 1e9; hb[1] = hb[3] = hb[5] = -1e9;
   let inR = false, inL = false;
   for (let c = 0; c < CLOTH_COL.length; c++) {
     handIn[c] = 0;
     if (!HAND_COL[c]) continue;
     const o = c * 12, cube = CLOTH_COL[c];
     const h0 = cube.size[0] / 2 + cube.inflate, h1 = cube.size[1] / 2 + cube.inflate, h2 = cube.size[2] / 2 + cube.inflate;
-    let lo0 = 1e9, hi0 = -1e9, lo1 = 1e9, hi1 = -1e9, lo2 = 1e9, hi2 = -1e9;
-    for (let k = 0; k < 8; k++) {                         // corners -> chest space
+    let lo2 = 1e9;
+    for (let k = 0; k < 8; k++) {                         // corners -> chest space z (how far back)
       const a = k & 1 ? h0 : -h0, b = k & 2 ? h1 : -h1, d = k & 4 ? h2 : -h2;
       const wx = M[o + 9] + M[o] * a + M[o + 3] * b + M[o + 6] * d - chestM[9];
       const wy = M[o + 10] + M[o + 1] * a + M[o + 4] * b + M[o + 7] * d - chestM[10];
       const wz = M[o + 11] + M[o + 2] * a + M[o + 5] * b + M[o + 8] * d - chestM[11];
-      const x = chestM[0] * wx + chestM[1] * wy + chestM[2] * wz, y = chestM[3] * wx + chestM[4] * wy + chestM[5] * wz, z = chestM[6] * wx + chestM[7] * wy + chestM[8] * wz;
-      lo0 = Math.min(lo0, x); hi0 = Math.max(hi0, x); lo1 = Math.min(lo1, y); hi1 = Math.max(hi1, y); lo2 = Math.min(lo2, z); hi2 = Math.max(hi2, z);
+      lo2 = Math.min(lo2, chestM[6] * wx + chestM[7] * wy + chestM[8] * wz);
     }
     if (lo2 >= CAPE_TOP[2] - mg) continue;                // not behind the cape's plane
     handIn[c] = 1;
+    // hands ON the back: the fist's center behind the cape, near the spine (|x| < 7), between hips and shoulders
+    // (a fist swung far out or up in an attack is not "hands behind the back")
+    if (!cube.name.startsWith('gauntlet_')) continue;
+    const wx = M[o + 9] - chestM[9], wy = M[o + 10] - chestM[10], wz = M[o + 11] - chestM[11];
+    const x = chestM[0] * wx + chestM[1] * wy + chestM[2] * wz, y = chestM[3] * wx + chestM[4] * wy + chestM[5] * wz, z = chestM[6] * wx + chestM[7] * wy + chestM[8] * wz;
+    // (already while the fists swing in, so the arms slide over the cape instead of scooping it up)
+    if (z > CAPE_TOP[2] || z < -10 || Math.abs(x) > 11 || y < -2 || y > 12) continue;
     if (cube.name.endsWith('_right')) inR = true; else inL = true;
-    hb[0] = Math.min(hb[0], lo0); hb[1] = Math.max(hb[1], hi0); hb[2] = Math.min(hb[2], lo1); hb[3] = Math.max(hb[3], hi1); hb[4] = Math.min(hb[4], lo2);
   }
-  // only with BOTH hands behind the back: one arm swung back (walk, run) keeps its real boxes, so the cape lies
-  // along that arm instead of on a flat shelf (the block's top) that stuck out sideways
-  if (!(inR && inL)) { handIn.fill(0); return false; }
-  hb[0] -= mg; hb[1] += mg; hb[2] -= mg; hb[3] += mg; hb[4] -= mg; hb[5] = CAPE_TOP[2];
+  if (!(inR && inL)) { handIn.fill(0); return false; }    // only with BOTH hands behind the back
   return true;
 }
 function clothCollide(C, hands) {
@@ -1818,20 +1810,9 @@ function clothCollide(C, hands) {
   for (let j = 0; j < P.length; j += 3) {
     if (j % (NP * 3) === 0) continue;                    // pinned top points
     let px = P[j], py = P[j + 1], pz = P[j + 2];
-    if (hands) {                                          // the hands block, in chest space
-      const wx = px - chestM[9], wy = py - chestM[10], wz = pz - chestM[11];
-      cv[0] = chestM[0] * wx + chestM[1] * wy + chestM[2] * wz; cv[1] = chestM[3] * wx + chestM[4] * wy + chestM[5] * wz; cv[2] = chestM[6] * wx + chestM[7] * wy + chestM[8] * wz;
-      if (cv[0] > hb[0] && cv[0] < hb[1] && cv[1] > hb[2] && cv[1] < hb[3] && cv[2] > hb[4] && cv[2] < hb[5]) {
-        // cloth up to the block's top-back edge (measured along the cape from its top) lies on top, the rest hangs behind
-        const i = (j / 3) % NP, ey = CAPE_TOP[1] - hb[3], ez = CAPE_TOP[2] - hb[4];
-        if (i * CAPE_SEG < Math.sqrt(ey * ey + ez * ez)) cv[1] = hb[3]; else cv[2] = hb[4];
-        px = chestM[9] + chestM[0] * cv[0] + chestM[3] * cv[1] + chestM[6] * cv[2];
-        py = chestM[10] + chestM[1] * cv[0] + chestM[4] * cv[1] + chestM[7] * cv[2];
-        pz = chestM[11] + chestM[2] * cv[0] + chestM[5] * cv[1] + chestM[8] * cv[2];
-      }
-    }
-    for (let c = 0; c < CLOTH_COL.length; c++) {
-      if (handIn[c] && hands) continue;                   // part of the hands block
+    // two passes: the arms' pushes toward back / spine first, then every plain box (the torso gets the last word)
+    for (let pass = hands ? 0 : 1; pass < 2; pass++) for (let c = 0; c < CLOTH_COL.length; c++) {
+      if ((pass === 0) !== (hands && (handIn[c] === 1 || UPPER_COL[c]))) continue;
       const o = c * 12, cube = CLOTH_COL[c];
       const dx = px - M[o + 9], dy = py - M[o + 10], dz = pz - M[o + 11];
       let lx = M[o] * dx + M[o + 1] * dy + M[o + 2] * dz;          // into the box's own axes
@@ -1840,7 +1821,23 @@ function clothCollide(C, hands) {
       const hx = cube.size[0] / 2 + cube.inflate + mg, hy = cube.size[1] / 2 + cube.inflate + mg, hz = cube.size[2] / 2 + cube.inflate + mg;
       const ex = hx - Math.abs(lx), ey = hy - Math.abs(ly), ez = hz - Math.abs(lz);
       if (ex <= 0 || ey <= 0 || ez <= 0) continue;
-      if (ex <= ey && ex <= ez) lx = lx < 0 ? -hx : hx; else if (ey <= ez) ly = ly < 0 ? -hy : hy; else lz = lz < 0 ? -hz : hz;
+      if (hands && (handIn[c] || UPPER_COL[c])) {
+        // forearm/fist: out toward his back (chest +z); upper arm: out toward his spine (chest -x on the right side
+        // of him, +x on the left). That direction in this box's axes, then walk along it to the box's surface.
+        let wx = chestM[6], wy = chestM[7], wz = chestM[8];
+        if (!handIn[c]) {
+          const sx = chestM[0] * (px - chestM[9]) + chestM[1] * (py - chestM[10]) + chestM[2] * (pz - chestM[11]) < 0 ? 1 : -1;
+          wx = chestM[0] * sx; wy = chestM[1] * sx; wz = chestM[2] * sx;
+        }
+        const ux = M[o] * wx + M[o + 1] * wy + M[o + 2] * wz;
+        const uy = M[o + 3] * wx + M[o + 4] * wy + M[o + 5] * wz;
+        const uz = M[o + 6] * wx + M[o + 7] * wy + M[o + 8] * wz;
+        let s = 1e9;
+        if (ux > 1e-9) s = Math.min(s, (hx - lx) / ux); else if (ux < -1e-9) s = Math.min(s, (-hx - lx) / ux);
+        if (uy > 1e-9) s = Math.min(s, (hy - ly) / uy); else if (uy < -1e-9) s = Math.min(s, (-hy - ly) / uy);
+        if (uz > 1e-9) s = Math.min(s, (hz - lz) / uz); else if (uz < -1e-9) s = Math.min(s, (-hz - lz) / uz);
+        lx += ux * s; ly += uy * s; lz += uz * s;
+      } else if (ex <= ey && ex <= ez) lx = lx < 0 ? -hx : hx; else if (ey <= ez) ly = ly < 0 ? -hy : hy; else lz = lz < 0 ? -hz : hz;
       px = M[o + 9] + M[o] * lx + M[o + 3] * ly + M[o + 6] * lz;
       py = M[o + 10] + M[o + 1] * lx + M[o + 4] * ly + M[o + 7] * lz;
       pz = M[o + 11] + M[o + 2] * lx + M[o + 5] * ly + M[o + 8] * lz;
@@ -2264,14 +2261,16 @@ function step(S, dt) {
     bones.head.rotation.x -= 0.05 * S.talk.level * S.talkW; // chin lifts on loud syllables
     // Random look-around (animation's `look` weight; the mouse follow takes over most of it):
     // head turns, chest follows a quarter, chin lifts while holding a look; fake smile cocks the head.
-    // The neck lifts by the extra tilt (head half depth x angle, soft norm) so no corner sinks into the torso.
     const fr = 1 - 0.6 * S.follow.w, L = rd.look * rd.lookW * fr;
     const P = -0.25 * L * L + rd.pitch * rd.lookW * fr, Z = 0.06 * rd.mw[2] * rd.moodW;
     bones.head.rotation.y += 0.75 * L;
     bones.head.rotation.x += P;
     bones.head.rotation.z += Z;
-    bones.head.position.y += 4.2 * (Math.sqrt(P * P + Z * Z + 4e-4) - 0.02) * TEXEL;
     bones.chest.rotation.y += 0.25 * L;
+    // No neck (user rule 2026-10-16): the head always sits on the torso, so its tilt is limited softly (tanh,
+    // no corner): at 0.2 rad pitch its bottom edge dips ~0.5 texel into the torso top (vanilla heads do too), never more
+    bones.head.rotation.x = HEAD_PITCH_MAX * Math.tanh(bones.head.rotation.x / HEAD_PITCH_MAX);
+    bones.head.rotation.z = HEAD_ROLL_MAX * Math.tanh(bones.head.rotation.z / HEAD_ROLL_MAX);
   }
 
   // Pupils eye glance tracking
@@ -2582,7 +2581,7 @@ function modTrace() {
   const S = makeSim(7), dt = 1 / 120, out = [], fx = [];
   const plan = [[0, 'idle'], [3, 'idle2'], [6, 'walk'], [8, 'run'], [9.4, 'attack'], [11.4, 'special'], [15.6, 'throw'], [19, 'clap'],
                 [23, 'throatLaser'], [26.6, 'smash'], [32.4, 'idle']];
-  const end = 44; // seconds recorded (the Java test reads it); the last Idle runs into a Hover
+  const end = 56; // seconds recorded (the Java test reads it); the last Idle runs into a Hover and settles after it
   const WALK_ATK = [9.4, 15.6];   // walk while attacking during Attack + Special (the layer is tested too)
   S.follow.on = true; S.follow.has = true; S.follow.inject = { yaw: 0, pitch: 0 };
   const line = VOICE_LINES[0];
@@ -2871,8 +2870,8 @@ function victimPose(name, t, S) {
   } else if (name === 'smash') {
     // Shields its head while he winds up; the hammer-fist smashes it flat onto its back (fast fall, dust/blood
     // puff, limbs flop); lies dazed; he grabs its ankles: the soles go to his hand, the body lies along the floor
-    // away from him (head end on the floor) while he drags it; in the throw it swings out flat around him, then
-    // flies forward-up, tumbling, far out of sight.
+    // behind him (head end scraping the floor, dust) while he drags it; in the throw it swings out flat around
+    // him, then flies forward-up, tumbling, far out of sight.
     const u = t - ev.hit, low = 2 * DUMMY_SCALE;                       // lying: soles / back this high above the floor
     const pre = 1 - smooth01(u / 0.08);
     DS.arms = 0.5 * smooth01((t - 0.15) / 0.3) * pre;
@@ -2890,12 +2889,19 @@ function victimPose(name, t, S) {
       handWorld(hTmp);
       const k = smooth01((t - ev.grab) / 0.35);                        // ankles lifted from the floor into his hand
       DS.x = sp[0] + (hTmp.x - sp[0]) * k; DS.y = low + (hTmp.y - low) * k; DS.z = sp[2] + (hTmp.z - sp[2]) * k;
-      // away from him (horizontal, from his body axis through the soles); the head end rests on the floor while
-      // dragged, swings out nearly flat in the throw (centrifugal), never into the floor
-      const rl = Math.hypot(DS.x, DS.z) || 1, rx = DS.x / rl, rz = DS.z / rl;
+      // away from him (horizontal, from his body axis through the soles); while dragged it trails straight behind
+      // him (+z: he faces -z then); the head end rests on the floor, swings out nearly flat in the throw
+      // (centrifugal), never into the floor
+      const rl = Math.hypot(DS.x, DS.z) || 1, dw = SMASH_TRAIL(t);
+      let rx = DS.x / rl * (1 - dw), rz = DS.z / rl * (1 - dw) + dw;
+      const dl = Math.hypot(rx, rz) || 1; rx /= dl; rz /= dl;
       const swing = smooth01((t - 3.5) / 0.3);
       const eG = Math.asin(clamp((DS.y - low) / DUMMY_LEN, 0, 1)), e = eG + (0.18 - eG) * swing;
       aimBody(rx * Math.cos(e), -Math.sin(e), rz * Math.cos(e));
+      // dust where its head scrapes over the floor (a new puff every 0.35 s while he walks)
+      if (kf(t, SM_DRAG) > 0.5) {
+        DS.puff = (t - 2.0) % 0.35; DS.puffAt[0] = DS.x + rx * DUMMY_LEN; DS.puffAt[1] = 2; DS.puffAt[2] = DS.z + rz * DUMMY_LEN;
+      }
       DS.gape = 0.75 + 0.15 * Math.sin(TAU * 7 * t);                    // screams the whole time
       DS.flail = 0.5 + 0.4 * swing;                                    // arms trail / flail
       DS.headBack = 0.4;
@@ -3088,6 +3094,9 @@ function toggleWalkAtk() {
   sim.walkAtk = sim.walkAtk ? 0 : 1;
   walkAtkBtn.classList.toggle('on', !!sim.walkAtk);
   walkAtkBtn.setAttribute('aria-pressed', String(!!sim.walkAtk));
+  // switched on while he stands (Idle / Idle 2 / Hover): he starts walking, so the button visibly does
+  // something; every attack picked now keeps those walking legs (the layer only works under attacks)
+  if (sim.walkAtk && (sim.anim === 'idle' || sim.anim === 'idle2' || sim.anim === 'hover')) selectAnim('walk');
 }
 walkAtkBtn.addEventListener('click', toggleWalkAtk);
 
@@ -3250,7 +3259,6 @@ function clipTest() {
     [/^(lower_arm_|gauntlet_)/, /^(upper_arm_|pauldron_)/],
     [/^(upper_arm_|pauldron_)/, /^(torso_suit|head_cranium)$/],
     [/^head_cranium$/, /^torso_suit$/],
-    [/^neck$/, /^(torso_suit|hair_main)$/],                  // recessed neck: hidden inside the torso by design
     [/^cape_seg_([1-9]|10)$/, /^(torso_suit|head_cranium|hair_main|pauldron_|upper_arm_)/],   // shoulders (top 4 texels = 10 bones)
     ...CAPE.slice(1).map((n, i) => [new RegExp(`^${n}$`), new RegExp(`^${CAPE[i]}$`)]) // each bone with the one above
   ];

@@ -3,7 +3,7 @@ package com.custommobs.homelander.anim;
 /* ───────── Homelander's cape cloth: a 1:1 port of the Cloth section in mobs/homelander/homelander.html ─────────
    Verlet cloth of NK chains x NP points hanging from the chest; gravity, air drag, a random breeze, distance
    constraints (along, across, diagonal, bending, max distance from the top), collisions with his body boxes
-   (shortest way out), the "hands block" and the floor; then every cape bone turns to follow its piece of cloth.
+   (shortest way out; with both hands behind his back the arms push it onto his back) and the floor; then every cape bone turns to follow its piece of cloth.
    Same order of operations as the viewer, StrictMath (fdlibm, like the browser's Math) and three.js-style
    matrices (Euler -> quaternion -> matrix), so the mod's cloth follows the viewer's.
    Units: texels, seconds, his model space (+x = his left, +y = up, +z = his front). */
@@ -15,12 +15,13 @@ public final class HomelanderCloth {
     final int KMID;
     final double KGAP;
     boolean init;
+    /** Top-edge width factor: eases to cfg.handsWidth while both hands are behind his back (viewer C.wf). */
+    double wf = 1;
     /** Points now / one substep ago (texels, model space): index (k * NP + i) * 3. */
     public final double[] P, Q;
     final double[] A, col, R = new double[9], Rp = new double[9], chestM = new double[12];
     final double[] ph = new double[6];
     private final boolean[] handIn;
-    private final double[] hb = new double[6], cv = new double[3];
     private final double[] tmpM = new double[16], tmpW = new double[16];   // reused every frame (no garbage)
 
     /** rand = the animator's random numbers (6 breeze phases: same order as the viewer's makeCloth). */
@@ -113,11 +114,22 @@ public final class HomelanderCloth {
        rot = the animator's bone rotations: the cape bones get their new angles. */
     public void step(double[][] world, int chest, double time, double dt, double[] move, double[] rot) {
         final double[] P = this.P, Q = this.Q;
-        final double seg = cfg.seg, diag = Math.sqrt(KGAP * KGAP + seg * seg);
+        final double seg = cfg.seg;
         mat34(world[chest], chestM, 0);
+        // body boxes this frame: bone world x (center, rotation)
+        for (int c = 0; c < cfg.colliders.length; c++) {
+            HomelanderData.Collider cd = cfg.colliders[c];
+            compose(tmpM, cd.c[0] * TEXEL, cd.c[1] * TEXEL, cd.c[2] * TEXEL, cd.r[0], cd.r[1], cd.r[2], 1, 1, 1);
+            multiply(world[cd.bone], tmpM, tmpW);
+            mat34(tmpW, col, c * 12);
+        }
+        boolean hands = handsBlock();
+        // width: hands behind the back -> the top edge eases in to handsWidth (it fits between the arms, under the hands)
+        wf += ((hands ? cfg.handsWidth : 1) - wf) * (1 - StrictMath.exp(-dt * 6));
+        final double gap = KGAP * wf, diag = Math.sqrt(gap * gap + seg * seg);
         // anchors: along the top edge of the cape, in chest space
         for (int k = 0; k < NK; k++) {
-            double x = cfg.top[0] + (k - KMID) * KGAP, y = cfg.top[1], z = cfg.top[2];
+            double x = cfg.top[0] + (k - KMID) * gap, y = cfg.top[1], z = cfg.top[2];
             double[] m = chestM;
             A[k * 3] = m[0] * x + m[3] * y + m[6] * z + m[9];
             A[k * 3 + 1] = m[1] * x + m[4] * y + m[7] * z + m[10];
@@ -130,14 +142,6 @@ public final class HomelanderCloth {
             }
             init = true;
         }
-        // body boxes this frame: bone world x (center, rotation)
-        for (int c = 0; c < cfg.colliders.length; c++) {
-            HomelanderData.Collider cd = cfg.colliders[c];
-            compose(tmpM, cd.c[0] * TEXEL, cd.c[1] * TEXEL, cd.c[2] * TEXEL, cd.r[0], cd.r[1], cd.r[2], 1, 1, 1);
-            multiply(world[cd.bone], tmpM, tmpW);
-            mat34(tmpW, col, c * 12);
-        }
-        boolean hands = handsBlock();
 
         int n = Math.max(1, (int) Math.ceil(dt / cfg.sub - 1e-9));
         double h = dt / n;
@@ -165,12 +169,12 @@ public final class HomelanderCloth {
                 // across (neighbour chains) and diagonally both ways
                 for (int k = 0; k < NK - 1; k++) for (int i = 1; i <= N; i++) {
                     int a = (k * NP + i) * 3, b = ((k + 1) * NP + i) * 3;
-                    link(a, b, KGAP, false);
+                    link(a, b, gap, false);
                     link(a - 3, b, diag, i == 1); link(b - 3, a, diag, i == 1);
                 }
                 // bending across: every second chain + edge to edge keep each row nearly straight
-                for (int k = 0; k < NK - 2; k++) for (int i = 1; i <= N; i++) link((k * NP + i) * 3, ((k + 2) * NP + i) * 3, 2 * KGAP, false);
-                for (int i = 1; i <= N; i++) link(i * 3, ((NK - 1) * NP + i) * 3, cfg.width, false);
+                for (int k = 0; k < NK - 2; k++) for (int i = 1; i <= N; i++) link((k * NP + i) * 3, ((k + 2) * NP + i) * 3, 2 * gap, false);
+                for (int i = 1; i <= N; i++) link(i * 3, ((NK - 1) * NP + i) * 3, (NK - 1) * gap, false);
                 // never further from the top than the cloth length above it
                 for (int k = 0; k < NK; k++) for (int i = 1; i <= N; i++) {
                     int j = (k * NP + i) * 3;
@@ -195,11 +199,11 @@ public final class HomelanderCloth {
         P[b] -= dx * f * 0.5; P[b + 1] -= dy * f * 0.5; P[b + 2] -= dz * f * 0.5;
     }
 
-    // Hands behind the back: every forearm/fist box behind the cape's plane joins one box in chest space.
+    // Hands behind the back (viewer handsBlock): marks the forearm/fist boxes behind the cape's plane; true only when
+    // BOTH fists sit behind the back near the spine (also while they swing in), so the arms slide over the cape.
     private boolean handsBlock() {
         double[] M = col;
         double mg = cfg.margin;
-        hb[0] = hb[2] = hb[4] = 1e9; hb[1] = hb[3] = hb[5] = -1e9;
         boolean inR = false, inL = false;
         for (int c = 0; c < cfg.colliders.length; c++) {
             handIn[c] = false;
@@ -207,48 +211,40 @@ public final class HomelanderCloth {
             if (!cd.hand) continue;
             int o = c * 12;
             double h0 = cd.h[0], h1 = cd.h[1], h2 = cd.h[2];
-            double lo0 = 1e9, hi0 = -1e9, lo1 = 1e9, hi1 = -1e9, lo2 = 1e9, hi2 = -1e9;
-            for (int k = 0; k < 8; k++) {                  // corners -> chest space
+            double lo2 = 1e9;
+            for (int k = 0; k < 8; k++) {                  // corners -> chest space z (how far back)
                 double a = (k & 1) != 0 ? h0 : -h0, b = (k & 2) != 0 ? h1 : -h1, d = (k & 4) != 0 ? h2 : -h2;
                 double wx = M[o + 9] + M[o] * a + M[o + 3] * b + M[o + 6] * d - chestM[9];
                 double wy = M[o + 10] + M[o + 1] * a + M[o + 4] * b + M[o + 7] * d - chestM[10];
                 double wz = M[o + 11] + M[o + 2] * a + M[o + 5] * b + M[o + 8] * d - chestM[11];
-                double x = chestM[0] * wx + chestM[1] * wy + chestM[2] * wz, y = chestM[3] * wx + chestM[4] * wy + chestM[5] * wz, z = chestM[6] * wx + chestM[7] * wy + chestM[8] * wz;
-                lo0 = Math.min(lo0, x); hi0 = Math.max(hi0, x); lo1 = Math.min(lo1, y); hi1 = Math.max(hi1, y); lo2 = Math.min(lo2, z); hi2 = Math.max(hi2, z);
+                lo2 = Math.min(lo2, chestM[6] * wx + chestM[7] * wy + chestM[8] * wz);
             }
             if (lo2 >= cfg.top[2] - mg) continue;          // not behind the cape's plane
             handIn[c] = true;
+            // hands ON the back: the fist's center behind the cape, near the spine, between hips and shoulders
+            if (!cd.name.startsWith("gauntlet_")) continue;
+            double wx = M[o + 9] - chestM[9], wy = M[o + 10] - chestM[10], wz = M[o + 11] - chestM[11];
+            double x = chestM[0] * wx + chestM[1] * wy + chestM[2] * wz, y = chestM[3] * wx + chestM[4] * wy + chestM[5] * wz, z = chestM[6] * wx + chestM[7] * wy + chestM[8] * wz;
+            if (z > cfg.top[2] || z < -10 || Math.abs(x) > 11 || y < -2 || y > 12) continue;
             if (cd.name.endsWith("_right")) inR = true; else inL = true;
-            hb[0] = Math.min(hb[0], lo0); hb[1] = Math.max(hb[1], hi0); hb[2] = Math.min(hb[2], lo1); hb[3] = Math.max(hb[3], hi1); hb[4] = Math.min(hb[4], lo2);
         }
-        // only with BOTH hands behind the back (viewer): one arm swung back keeps its real boxes (no flat shelf)
-        if (!(inR && inL)) { java.util.Arrays.fill(handIn, false); return false; }
-        hb[0] -= mg; hb[1] += mg; hb[2] -= mg; hb[3] += mg; hb[4] -= mg; hb[5] = cfg.top[2];
+        if (!(inR && inL)) { java.util.Arrays.fill(handIn, false); return false; }   // only with BOTH hands behind the back
         return true;
     }
 
     // Push every point out of every body box (shortest way out) and above the floor; the old position moves along.
+    // Hands behind the back: forearm/fist boxes push toward his back (chest +z), upper arms toward his spine, those
+    // first, the plain boxes (torso) last: the cape lies ON his back, the hands rest on top of it.
     private void collide(boolean hands) {
         double[] M = col;
         double mg = cfg.margin;
         for (int j = 0; j < P.length; j += 3) {
             if (j % (NP * 3) == 0) continue;               // pinned top points
             double px = P[j], py = P[j + 1], pz = P[j + 2];
-            if (hands) {
-                double wx = px - chestM[9], wy = py - chestM[10], wz = pz - chestM[11];
-                cv[0] = chestM[0] * wx + chestM[1] * wy + chestM[2] * wz; cv[1] = chestM[3] * wx + chestM[4] * wy + chestM[5] * wz; cv[2] = chestM[6] * wx + chestM[7] * wy + chestM[8] * wz;
-                if (cv[0] > hb[0] && cv[0] < hb[1] && cv[1] > hb[2] && cv[1] < hb[3] && cv[2] > hb[4] && cv[2] < hb[5]) {
-                    int i = (j / 3) % NP;
-                    double ey = cfg.top[1] - hb[3], ez = cfg.top[2] - hb[4];
-                    if (i * cfg.seg < Math.sqrt(ey * ey + ez * ez)) cv[1] = hb[3]; else cv[2] = hb[4];
-                    px = chestM[9] + chestM[0] * cv[0] + chestM[3] * cv[1] + chestM[6] * cv[2];
-                    py = chestM[10] + chestM[1] * cv[0] + chestM[4] * cv[1] + chestM[7] * cv[2];
-                    pz = chestM[11] + chestM[2] * cv[0] + chestM[5] * cv[1] + chestM[8] * cv[2];
-                }
-            }
-            for (int c = 0; c < cfg.colliders.length; c++) {
-                if (handIn[c] && hands) continue;
+            for (int pass = hands ? 0 : 1; pass < 2; pass++) for (int c = 0; c < cfg.colliders.length; c++) {
                 HomelanderData.Collider cd = cfg.colliders[c];
+                boolean arm = hands && (handIn[c] || cd.upper);
+                if ((pass == 0) != arm) continue;
                 int o = c * 12;
                 double dx = px - M[o + 9], dy = py - M[o + 10], dz = pz - M[o + 11];
                 double lx = M[o] * dx + M[o + 1] * dy + M[o + 2] * dz;
@@ -257,7 +253,23 @@ public final class HomelanderCloth {
                 double hx = cd.h[0] + mg, hy = cd.h[1] + mg, hz = cd.h[2] + mg;
                 double ex = hx - Math.abs(lx), ey = hy - Math.abs(ly), ez = hz - Math.abs(lz);
                 if (ex <= 0 || ey <= 0 || ez <= 0) continue;
-                if (ex <= ey && ex <= ez) lx = lx < 0 ? -hx : hx; else if (ey <= ez) ly = ly < 0 ? -hy : hy; else lz = lz < 0 ? -hz : hz;
+                if (arm) {
+                    // forearm/fist: toward his back (chest +z); upper arm: toward his spine. That direction in this
+                    // box's axes, then walk along it to the box's surface.
+                    double wx = chestM[6], wy = chestM[7], wz = chestM[8];
+                    if (!handIn[c]) {
+                        double sx = chestM[0] * (px - chestM[9]) + chestM[1] * (py - chestM[10]) + chestM[2] * (pz - chestM[11]) < 0 ? 1 : -1;
+                        wx = chestM[0] * sx; wy = chestM[1] * sx; wz = chestM[2] * sx;
+                    }
+                    double ux = M[o] * wx + M[o + 1] * wy + M[o + 2] * wz;
+                    double uy = M[o + 3] * wx + M[o + 4] * wy + M[o + 5] * wz;
+                    double uz = M[o + 6] * wx + M[o + 7] * wy + M[o + 8] * wz;
+                    double s = 1e9;
+                    if (ux > 1e-9) s = Math.min(s, (hx - lx) / ux); else if (ux < -1e-9) s = Math.min(s, (-hx - lx) / ux);
+                    if (uy > 1e-9) s = Math.min(s, (hy - ly) / uy); else if (uy < -1e-9) s = Math.min(s, (-hy - ly) / uy);
+                    if (uz > 1e-9) s = Math.min(s, (hz - lz) / uz); else if (uz < -1e-9) s = Math.min(s, (-hz - lz) / uz);
+                    lx += ux * s; ly += uy * s; lz += uz * s;
+                } else if (ex <= ey && ex <= ez) lx = lx < 0 ? -hx : hx; else if (ey <= ez) ly = ly < 0 ? -hy : hy; else lz = lz < 0 ? -hz : hz;
                 px = M[o + 9] + M[o] * lx + M[o + 3] * ly + M[o + 6] * lz;
                 py = M[o + 10] + M[o + 1] * lx + M[o + 4] * ly + M[o + 7] * lz;
                 pz = M[o + 11] + M[o + 2] * lx + M[o + 5] * ly + M[o + 8] * lz;

@@ -48,7 +48,9 @@ public final class HomelanderMod {
 
     // Spawn egg colors: navy suit + red cape.
     public static final DeferredItem<DeferredSpawnEggItem> HOMELANDER_SPAWN_EGG = ITEMS.register("homelander_spawn_egg",
-            () -> new DeferredSpawnEggItem(HOMELANDER, 0x1E3A8A, 0xB91C1C, new Item.Properties()));
+            // white "colors": the egg's own flag texture (item/generated layer0) gets tinted by the first color,
+            // so anything but white darkened it (dark blue tint, 2026-10-16)
+            () -> new DeferredSpawnEggItem(HOMELANDER, 0xFFFFFF, 0xFFFFFF, new Item.Properties()));
 
     // Voice line (mouth lip-synced on the client) + sound effects (viewer SFX_EVENTS). Order of VOICE = rig.json "voice".
     public static final DeferredHolder<SoundEvent, SoundEvent> VOICE_I_AM_GOD = sound("voice_i_am_god");

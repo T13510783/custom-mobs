@@ -531,11 +531,20 @@ public class HomelanderEntity extends Monster {
             }
         }
         if (isHolding(tg)) {
-            // drag: walks backward (viewer: walk cycle in reverse, ~1.2 blocks/s); the victim scrapes along screaming
+            // drag: he turned his back to the victim (animation root yaw PI), so he walks away from where it lay
+            // (~1.2 blocks/s, backward for the hitbox); the victim scrapes along behind him, screaming, dust + blood
             double w = smooth01((t - 1.8) / 0.2) * (1 - smooth01((t - 3.25) / 0.2));
             if (w > 0.01) {
                 float yr = actionYaw * Mth.DEG_TO_RAD;
                 move(net.minecraft.world.entity.MoverType.SELF, new Vec3(Mth.sin(yr) * 0.059 * w, 0, -Mth.cos(yr) * 0.059 * w));
+                if (w > 0.5 && actionTicks % 4 == 0 && level() instanceof ServerLevel sl) {
+                    // its head end on the floor, one body length behind its ankles
+                    double hx = tg.getX() - Mth.sin(yr) * tg.getBbHeight(), hz = tg.getZ() + Mth.cos(yr) * tg.getBbHeight();
+                    var ground = level().getBlockState(BlockPos.containing(hx, getY() - 0.5, hz));
+                    if (!ground.isAir())
+                        sl.sendParticles(new net.minecraft.core.particles.BlockParticleOption(ParticleTypes.BLOCK, ground), hx, getY() + 0.1, hz, 6, 0.2, 0.05, 0.2, 0.05);
+                    blood(hx, getY() + 0.2, hz, 2);
+                }
             }
             if (t > grabT + 0.3 && t < relT && actionTicks % 12 == 0) scream(tg);
             if (t >= relT) {

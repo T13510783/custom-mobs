@@ -40,12 +40,13 @@ public final class HomelanderData {
         public String name;
         public int bone;
         public double[] c, h, r;
-        public boolean hand;       // forearm / fist: joins the "hands block" when behind the cape
+        public boolean hand;       // forearm / fist: pushes the cape toward his back when both hands are behind it
+        public boolean upper;      // upper arm: pushes the cape toward his spine then
     }
 
     /** The cape cloth (viewer CLOTH + CAPE_*): physics settings, size, bones, colliders and the mesh texture rects. */
     public static final class Cloth {
-        public double sub, gravity, drag, margin, wind, seg, width, thick;
+        public double sub, gravity, drag, margin, wind, handsWidth, seg, width, thick;
         public int iters, cols, n;
         public double[] top;
         public int[] bones;
@@ -211,6 +212,7 @@ public final class HomelanderData {
         cloth.cols = cl.get("cols").getAsInt();
         cloth.margin = cl.get("margin").getAsDouble();
         cloth.wind = cl.get("wind").getAsDouble();
+        cloth.handsWidth = cl.get("handsWidth").getAsDouble();
         cloth.n = cl.get("n").getAsInt();
         cloth.seg = cl.get("seg").getAsDouble();
         cloth.width = cl.get("width").getAsDouble();
@@ -230,6 +232,7 @@ public final class HomelanderData {
             c.h = doubles(o.getAsJsonArray("h"));
             c.r = doubles(o.getAsJsonArray("r"));
             c.hand = c.name.startsWith("lower_arm_") || c.name.startsWith("gauntlet_");
+            c.upper = c.name.startsWith("upper_arm_");
             cloth.colliders[i] = c;
         }
         JsonArray cr = cl.getAsJsonArray("rects");

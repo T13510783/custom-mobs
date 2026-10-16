@@ -92,8 +92,17 @@ public final class HomelanderVictims {
         boolean held = v.getVehicle() == he && he != null;
         if (u < rel || held) {
             if (held) {
-                // ankles in his fist: the body lies along the floor away from him (head end on the floor),
-                // swings out nearly flat in the throw (viewer aimBody)
+                // ankles in his fist: the body lies along the floor away from him (head end on the floor), trails
+                // straight behind him while dragged (he turned his back to it: along his hitbox's forward, viewer
+                // SMASH_TRAIL), swings out nearly flat in the throw (viewer aimBody)
+                double dw = smooth01((u - 1.9) / 0.3) * (1 - smooth01((u - 3.4) / 0.3));
+                if (dw > 0) {
+                    double fx = 0, fz = 0;
+                    if (P.ownYaw) { double r = (P.yaw + 90F) * Mth.DEG_TO_RAD; fx = Math.cos(r); fz = Math.sin(r); }
+                    double yr = Mth.rotLerp(partial, ((HomelanderEntity) he).yBodyRotO, ((HomelanderEntity) he).yBodyRot) * Mth.DEG_TO_RAD;
+                    fx = fx * (1 - dw) + Math.sin(yr) * dw; fz = fz * (1 - dw) - Math.cos(yr) * dw;   // feet toward him
+                    P.yaw = (float) (Mth.atan2(fz, fx) * Mth.RAD_TO_DEG) - 90F; P.ownYaw = true;
+                }
                 double len = Math.max(0.5, v.getBbHeight());
                 double hy = Mth.lerp(partial, v.yo, v.getY()) - Mth.lerp(partial, he.yo, he.getY());
                 double eG = Math.asin(Mth.clamp(hy / len, 0, 1)), swing = smooth01((u - 3.5) / 0.3);
