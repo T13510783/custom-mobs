@@ -114,7 +114,7 @@ function plane(parent, w, h, x, y, z, k) {
 const root = bone('root', null, 0, 0, 0);
 const body = bone('body', root, 0, 12, 0);           // hips
 box(body, 8, 12, 4, 0, 6, 0, 'shirt');
-const head = bone('head', body, 0, 12, 0);           // neck
+const head = bone('head', body, 0, 12, 0);           // no neck: the head sits right on the torso top
 box(head, 8, 8, 8, 0, 4, 0, 'skin');
 box(head, 8.5, 2.5, 8.5, 0, 7.25, 0, 'hair');
 // Face: eye whites, pupils (glance), lids (blink: scale from the top edge), brows, mouth
