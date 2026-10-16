@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-16 22:56
+- The Joker (`mobs/the_joker/the_joker.html`): mouth paint back + less stretched face (user screenshots).
+  - Red smile paint restored as before (cheek upturns row 5, mouth row 6 cols 1-6, lip smear row 7); jaw and chin stay white.
+  - Head sides: white paint only on the 2 cheek columns at the front, ear + nape skin again (an all-white side made the head look like one stretched white slab); chin underside paint at the front, neck skin behind.
+  - Tested: face renders (front close-up + from below-left), compared with the version before.
+
+## 2026-10-16 22:52
+- The Joker (`mobs/the_joker/the_joker.html`): whole face white (user request with screenshots).
+  - Front: jaw corners and chin are white greasepaint (grey shade at the edges), no skin; cheeks white: red cheek upturns and the red pixels beside the mouth removed (mouth row 6 cols 2-5 + lip smear stay).
+  - Head sides: the face part in front of the hair is white paint, ear in a grey shade; chin underside all paint. Hair, brows, eyes, nose, cigarette unchanged.
+  - Tested: face renders (front close-up + from below-left).
+- Emote wheel for players (hold R, Wave): built and tried in game, then removed completely on user request (never committed).
+
 ## 2026-10-16 22:16
 - The Joker (`mobs/the_joker/the_joker.html`): face back to the first look (user screenshot of v #37).
   - Face paint: white greasepaint with skin at the jaw corners, under the chin and on the head sides (ear), green hairline row, red cheek upturns, dark mouth row 6.

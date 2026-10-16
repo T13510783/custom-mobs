@@ -1,13 +1,13 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 22:16
-**Request:** Merge Anton; Joker face + mouth like the first look (no corner step, whole mouth shifts like Homelander); then an emote wheel in the mod.
+**Date:** 2026-10-16 22:56
+**Request:** Joker face white (cheeks, jaw); remove the player emote system; then mouth paint back as before and fix the stretched look.
 
 **Done:**
-- Anton PR #42 merged into `main`.
-- `mobs/the_joker/the_joker.html`: first-look hair (PR #43) + first-look face paint (skin at jaw / sides) + mouth on row 6 moving as one piece.
-- Checked: face renders of idle / Smug / Happy / Grin, `#cliptest` 23 pairs (same as before).
+- `mobs/the_joker/the_joker.html`: front face all white paint (jaw corners, chin) with the red smile paint as before; head sides white only on the 2 cheek columns, ear + nape skin again (no stretched white slab).
+- Emote wheel removed completely: no emote code, mixins, lang keys, icons, test world or branch left (it was never committed).
+- Checked: face renders (front + below-left).
 
 **Files:** `mobs/the_joker/the_joker.html`, docs.
 
-**Next:** emote wheel in the mod (hold R, 8 slots, Wave in slot 1, catalogue after a 3 s hover, synced, third-person camera).
+**Next:** nothing open for the Joker; `run.txt` has an uncommitted edit that is not from this session (left alone).
