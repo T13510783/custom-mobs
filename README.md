@@ -49,7 +49,7 @@ All finished mobs live in one NeoForge mod: **Sindicate** (mod id `sindicate`, j
 | Updates | "Check for Updates" button (title + pause screen), auto check every 5 min, changelog, "Update and Close Game" |
 
 Homelander: 75 HP, diamond-armor protection (20 armor, 8 toughness), neutral by default (only fights back when hurt).
-Attacks: punch, heat vision, throat grab + throw, throat grab + point-blank laser, ear clap (victim falls and lies screaming), ground smash (slams the victim down, drags it by the ankles, flings it far). Runs ~2x player speed when the target is far away; punches and lasers while walking. Boss bar while he fights.
+Attacks: punch, heat vision, throat grab + throw, throat grab + point-blank laser, ear clap (victim falls and lies screaming), ground smash (slams the victim down, drags it by the ankles behind him over the floor, spins and flings it far). Runs ~2x player speed when the target is far away; punches and lasers while walking. Boss bar while he fights.
 
 ## Run the mod
 

@@ -11,6 +11,8 @@ import java.util.Arrays;
    rotations in radians (order Z, then Y, then X), world tracking in blocks. Runs on the client and the server. */
 public final class HomelanderAnimator {
     private static final double TAU = Math.PI * 2;
+    // No neck (viewer HEAD_PITCH_MAX / HEAD_ROLL_MAX): softest limits that keep the head's bottom within ~0.5 texel of the torso top
+    private static final double HEAD_PITCH_MAX = 0.12, HEAD_ROLL_MAX = 0.06;
 
     /* ───────── Pose buffer (one animation frame) ───────── */
     private static final class Pose {
@@ -345,8 +347,10 @@ public final class HomelanderAnimator {
         rot[HEAD * 3 + 1] += 0.75 * L;
         rot[HEAD * 3] += Pp;
         rot[HEAD * 3 + 2] += Z;
-        pos[HEAD * 3 + 1] += 4.2 * (Math.sqrt(Pp * Pp + Z * Z + 4e-4) - 0.02);
         rot[CHEST * 3 + 1] += 0.25 * L;
+        // no neck (viewer): the head stays on the torso, its tilt is limited softly (tanh, no corner)
+        rot[HEAD * 3] = HEAD_PITCH_MAX * Math.tanh(rot[HEAD * 3] / HEAD_PITCH_MAX);
+        rot[HEAD * 3 + 2] = HEAD_ROLL_MAX * Math.tanh(rot[HEAD * 3 + 2] / HEAD_ROLL_MAX);
 
         double pGlance = clamp(face[GLANCE] + fyaw * 0.35 * fw, -0.45, 0.45);
         glance = pGlance;

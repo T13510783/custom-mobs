@@ -17,5 +17,7 @@ fill -16 99 16 16 102 16 minecraft:glass
 fill -16 99 -16 -16 102 16 minecraft:glass
 fill 16 99 -16 16 102 16 minecraft:glass
 tp @a 0 100.3 2.3 180 8
+# his spawn egg in the hotbar (not in hand): its colors show in every screenshot
+item replace entity @a hotbar.1 with homelander:homelander_spawn_egg
 summon homelander:homelander 0 100 0 {Rotation:[0f,0f],NoAI:1b,PersistenceRequired:1b,Tags:["hl_hold"]}
 tellraw @a "HLTEST setup"

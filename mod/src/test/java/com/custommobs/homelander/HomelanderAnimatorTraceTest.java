@@ -16,7 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /* ───────── 1:1 test: the mod's Homelander runtime against the HTML viewer ─────────
    homelander_modtrace.json = the viewer's own recording (#modtrace, written by tools/export_mod_assets.ps1 -mob homelander):
-   a fixed 36 s scene with every animation, look angles, the Clap's voice line and the random Idle extras.
+   a fixed 56 s scene with every animation, look angles, the Clap's voice line and the random Idle extras (a Hover,
+   then calm Idle long enough for the cape to settle).
    The Java runtime plays the same scene; every bone's rotation, position and scale and the eye/beam values must match.
    The cape bones (cloth physics) are measured on their own: the baked curves differ a hair (~2e-5) from the viewer's
    exact ones, and cloth with collisions is chaotic: a 1e-5 nudge of one cloth point gives the same error curve
@@ -78,8 +79,7 @@ class HomelanderAnimatorTraceTest {
                         double er = quatAngle(a.rot[b * 3], a.rot[b * 3 + 1], a.rot[b * 3 + 2], r.get(0).getAsDouble(), r.get(1).getAsDouble(), r.get(2).getAsDouble());
                         sumCape += er; nCape++;
                         if (t < 1) capeStart = Math.max(capeStart, er);
-                        if (t > end - 2) capeEnd = Math.max(capeEnd, er);
-                        if (er > 0.001 && firstCape.equals("none")) firstCape = d.boneNames[b] + " " + String.format("%.5f", er) + " at " + String.format("%.3f", t) + " s (" + a.anim.name + ")";
+                        if (t > end - 2) capeEnd = Math.max(capeEnd, er);                        if (er > 0.001 && firstCape.equals("none")) firstCape = d.boneNames[b] + " " + String.format("%.5f", er) + " at " + String.format("%.3f", t) + " s (" + a.anim.name + ")";
                         if (er > maxCape) { maxCape = er; worstCape = d.boneNames[b] + " at " + String.format("%.3f", t) + " s (" + a.anim.name + ")"; }
                         continue;
                     }
