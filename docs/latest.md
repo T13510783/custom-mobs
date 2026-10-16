@@ -12,4 +12,4 @@
 
 **Files:** `mobs/homelander/homelander.html`, `mod/src/main/java/com/custommobs/**`, assets, test datapack, `CLAUDE.md`, `README.md`, docs, + other people's untracked mobs/references.
 
-**Next:** release v0.0.2-alpha is published by `tools\release.ps1 -Bump`.
+**Next:** v0.0.2-alpha is released (https://github.com/T13510783/custom-mobs/releases/tag/v0.0.2-alpha).
