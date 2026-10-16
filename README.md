@@ -61,6 +61,7 @@ cd mod
 ```
 
 `.\gradlew.bat build` makes `sindicate-<version>.jar` (copied to `builds/`, newest 5 kept) and runs the tests.
+Download: newest `sindicate-<version>.jar` on the [Releases page](https://github.com/T13510783/custom-mobs/releases) (first: `v0.0.1-alpha`), put it in your `mods` folder (NeoForge 1.21.1).
 Releases: `tools\release.ps1 -Bump` (version `X.Y.Z-alpha`, changelog `mod/release_notes.md`); in game: "Check for Updates".
 Local paths go in your own `.env` (git-ignored, never committed; `.env.example` is local too): `JAVA_HOME` (JDK 21), `BRAVE_EXE` (headless browser for `tools\cdp.ps1`), `MC_MODS_DIR` (your Minecraft `mods` folder).
 

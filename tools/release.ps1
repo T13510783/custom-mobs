@@ -37,11 +37,12 @@ if (($heads -join ',') -ne 'Added,Removed,Fixed') { throw "release_notes.md need
 $body = $notes.Trim() + "`n"
 
 # ───────── Already released? ─────────
-$null = & gh release view $tag 2>$null
+# (through cmd: in Windows PowerShell 5.1 a native command's stderr + 'Stop' throws "release not found")
+& cmd /c "gh release view $tag >nul 2>nul"
 if ($LASTEXITCODE -eq 0) { throw "$tag is already on GitHub: run with -Bump for the next version" }
 
 # ───────── Build (runs the tests) ─────────
-& (Join-Path $root 'mod\gradlew.bat') -p (Join-Path $root 'mod') build --console=plain | Select-Object -Last 5
+& cmd /c "`"$(Join-Path $root 'mod\gradlew.bat')`" -p `"$(Join-Path $root 'mod')`" build --console=plain 2>&1" | Select-Object -Last 5   # stderr merged in cmd (see above)
 if ($LASTEXITCODE -ne 0) { throw 'gradlew build failed' }
 $jar = Join-Path $root "mod\build\libs\sindicate-$ver.jar"
 if (-not (Test-Path $jar)) { throw "no $jar (did the version change without a rebuild?)" }
