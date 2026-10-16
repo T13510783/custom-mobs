@@ -1,0 +1,8 @@
+{
+  "voice_i_am_god": { "sounds": [ "homelander:voice_i_am_god" ], "subtitle": "subtitles.homelander.voice" },
+  "punch": { "sounds": [ "homelander:punch" ], "subtitle": "subtitles.homelander.punch" },
+  "grab": { "sounds": [ "homelander:grab" ], "subtitle": "subtitles.homelander.grab" },
+  "whoosh": { "sounds": [ "homelander:whoosh" ], "subtitle": "subtitles.homelander.whoosh" },
+  "slap": { "sounds": [ "homelander:slap" ], "subtitle": "subtitles.homelander.slap" },
+  "laser": { "sounds": [ "homelander:laser" ], "subtitle": "subtitles.homelander.laser" }
+}

@@ -10,10 +10,11 @@ displayName="${mod_name}"
 logoFile="theking_logo.png"
 authors="custom mobs"
 description='''
-A crowned troublemaker roams the plains, savannas, forests and meadows.
-He runs at you, leaps into a dropkick, throws punches, shouts voice lines
-and does his victory dance (with music) one second after every kill.
-Spawn egg in its own creative tab. Settings: Mods -> The King -> Config.
+Custom mobs, each one a 1:1 copy of its HTML viewer.
+The King: a crowned troublemaker who dropkicks, punches, shouts voice lines and dances after every kill.
+Homelander: grabs victims by the throat, throws them sky high, burns them with heat vision and smacks their ears ("I am god").
+Spawn eggs in their own creative tabs. Settings: Mods -> Custom Mobs -> Config.
+Updates: "Check for Updates" on the title screen / pause menu (also checks every 5 minutes).
 '''
 
 [[dependencies.${mod_id}]]

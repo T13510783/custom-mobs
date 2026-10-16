@@ -12,7 +12,7 @@ Custom Minecraft mobs for **Minecraft 1.21.1 + NeoForge**, made in three steps:
 | Mob | Viewer | In the mod |
 |---|---|---|
 | The King | `mobs/the_king/thekingv3.html` | yes |
-| Homelander | `mobs/homelander/homelander.html` | not yet |
+| Homelander | `mobs/homelander/homelander.html` | yes |
 | Black Noir | `mobs/black_noir/black_noir.html` | not yet |
 | Reverse-Flash | `mobs/reverse_flash/reverse_flash.html` | not yet |
 | Darth Vader | `mobs/darth_vader/darth_vader.html` | not yet |
@@ -46,7 +46,8 @@ cd mod
 .\gradlew.bat runClient
 ```
 
-`.\gradlew.bat build` makes the jar (copied to `builds/`) and runs the 1:1 animation test.
+`.\gradlew.bat build` makes `custom-mobs-<version>.jar` (copied to `builds/`, newest 5 kept) and runs the tests.
+Releases: `tools\release.ps1 -Bump` (version `X.Y.Z-alpha`, changelog `mod/release_notes.md`); in game: "Check for Updates".
 Copy `.env.example` to `.env` for your own local paths.
 
 ## Working together

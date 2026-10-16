@@ -69,6 +69,8 @@ public final class HomelanderAnimator {
     /** The cape. move = how far his body moved this frame (texels, model space); null = the animation's own walk speed. */
     public final HomelanderCloth cloth;
     public double[] move;
+    /** false = skip the cape (server: only the body pose is needed for hands and eyes). */
+    public boolean clothOn = true;
     private final double[] animMove = new double[3];
 
     /** Events the last step() passed (names from the animation's `events`), e.g. "voice", "grab", "hit". */
@@ -361,6 +363,7 @@ public final class HomelanderAnimator {
 
         // 8. Cape cloth: world matrices of this pose, one cloth frame (it turns the cape bones), then the final matrices.
         computeMatrices();
+        if (!clothOn) return;
         double[] mv = move;
         if (mv == null) { animMove[0] = 0; animMove[1] = 0; animMove[2] = A.move * dt; mv = animMove; }
         cloth.step(world, CHEST, time, dt, mv, rot);

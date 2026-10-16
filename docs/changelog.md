@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-16 09:40
+- Homelander in the mod (`mod/src/main/java/com/custommobs/homelander/`): entity, spawn egg, creative tab, sounds + subtitles, config, en_us + nl_nl, loot table, biome modifier (`mod/src/main/resources/assets|data/homelander/`).
+  - 1:1 runtime: cloth cape port (`anim/HomelanderCloth.java`), new step() port (`anim/HomelanderAnimator.java`); trace test: body within 2e-5 rad, cape exact while calm and at rest.
+  - Attacks on players, villagers and every other mob: punch, heat vision (beams to the target, fire), throat grab + throw sky high, throat laser, head clap with "I am god" (lip-synced); held victims ride his fist.
+  - Renderer: body quads, continuous cape mesh, additive eye glow + beams (`client/`).
+  - Test world `gradlew runHomelanderTest` (`mod/testworld/homelandertest/`), dev tags `hl_*`, game screenshots via `HLSHOT`.
+- Release pipeline: version `0.0.1-alpha` (parts roll over at 99), jar `custom-mobs-<version>.jar`, newest 5 kept in `builds/` and `mod/build/libs/`, `tools/release.ps1`, changelog `mod/release_notes.md` (Added / Removed / Fixed).
+- In-game updater (`mod/src/main/java/com/custommobs/update/`): "Check for Updates" button, check every 5 minutes, changelog screen, "Update and Close Game" (detached helper swaps the jar after closing). Tests: version rules, release pick, real jar swap.
+- Rules + docs: `CLAUDE.md` (releases, updater, Homelander test world, game screenshots only), `run.txt`, `README.md`.
+
 ## 2026-10-16 08:48
 - Homelander cape (`mobs/homelander/homelander.html`): 50 bones posed only by cloth physics (7 chains, gravity, air, breeze, body + hands collisions); drawn as one continuous cloth surface from the cloth points (no gaps, steps or box edges); lies over his hands in Hover.
 - Homelander clap: he smacks both ears first, then the dummy grabs its own ears, screams and falls; I AM GOD plays to the end (lip-sync curve covers the whole 2.55 s file).

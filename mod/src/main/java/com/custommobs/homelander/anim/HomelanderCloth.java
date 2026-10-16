@@ -37,6 +37,22 @@ public final class HomelanderCloth {
         for (int i = 0; i < 6; i++) ph[i] = rand.getAsDouble() * TAU;
     }
 
+    /** Mod only (the viewer never turns): the body turned by dyaw (radians, Minecraft body yaw). Cloth that stays put in
+     *  the world turns the other way in his model space; turning P and Q together keeps its world speed (inertia),
+     *  so the cape swings out on a turn. Half of the turn only (the air drags the cloth along, like `move`), at most
+     *  0.08 rad per frame: mobs snap their yaw much faster than a body can turn, and a full swing stuck out stiffly. */
+    public void turn(double dyaw) {
+        if (!init || dyaw == 0) return;
+        dyaw = Math.max(-0.08, Math.min(0.08, dyaw * 0.5));
+        double c = Math.cos(dyaw), s = Math.sin(dyaw);
+        for (int j = 0; j < P.length; j += 3) {
+            double x = P[j], z = P[j + 2];
+            P[j] = c * x + s * z; P[j + 2] = -s * x + c * z;
+            x = Q[j]; z = Q[j + 2];
+            Q[j] = c * x + s * z; Q[j + 2] = -s * x + c * z;
+        }
+    }
+
     /* ───────── three.js math (Object3D.updateMatrix + matrixWorld), column-major 4x4 like Matrix4.elements ───────── */
 
     /** Matrix4.compose(position, Quaternion.setFromEuler(x, y, z, 'ZYX'), scale). */
