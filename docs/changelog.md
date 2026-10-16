@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-16 14:47
+- Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`): mouth rebuilt as the standard Homelander type (thin lip line that tilts for the smirk, thicker when open, wider with a smile; teeth plate grows down for the grin); mouth corners painted skin shadow.
+- Template (`mobs/_shared/viewer_template.html`): same standard mouth (`grin`, `smirk` face channels, teeth plate).
+- Rule (`CLAUDE.md`, Face): the Homelander-type mouth is the default for every mob with a face.
+
 ## 2026-10-16 14:38
 - Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`):
   - Mouth: one connected pixel shape; corners step up (smile) / down (frown) beside the lip ends, mouth widens in a grin, teeth fill the opening, lips thin when open, no seam at rest.

@@ -126,8 +126,12 @@ const lidR = bone('lid_right', head, -2, 5, 4.02), lidL = bone('lid_left', head,
 plane(lidR, 2, 1, 0, -0.5, 0, 'skin'); plane(lidL, 2, 1, 0, -0.5, 0, 'skin');
 const browR = bone('brow_right', head, -2, 5.6, 4.03), browL = bone('brow_left', head, 2, 5.6, 4.03);
 plane(browR, 2, 0.6, 0, 0, 0, 'brow'); plane(browL, 2, 0.6, 0, 0, 0, 'brow');
+// Mouth, standard type (same as Homelander): one thin lip line (tilts + slides for a one-sided smirk, thicker when
+// open, wider with a smile) + a white teeth plate under it that grows down for a grin and hides in the head at rest
 const mouth = bone('mouth', head, 0, 2, 4.02);
-plane(mouth, 3, 0.6, 0, 0, 0, 'lip');
+plane(mouth, 2, 0.35, 0, 0, 0.01, 'lip');
+const teeth = bone('teeth', mouth, 0, -0.1, -0.1);
+plane(teeth, 2, 0.8, 0, -0.4, 0, 'teeth');
 // Arms: shoulder -> elbow; legs: hip -> knee (boot on the shin)
 const limb = (side, sx) => {
   const arm = bone(`arm_${side}`, body, sx * 6, 12, 0); box(arm, 4, 6, 4, 0, -3, 0, 'shirt');
@@ -140,13 +144,13 @@ limb('right', -1); limb('left', 1);
 let variant = 0;
 function setVariant(i) {
   variant = i; const p = VARIANTS[i];
-  for (const k of Object.keys(mats)) mats[k].color.set(k === 'white' ? '#eeeeee' : p[k]);
+  for (const k of Object.keys(mats)) mats[k].color.set(k === 'white' ? '#eeeeee' : k === 'teeth' ? '#f3efe6' : p[k]);
   document.querySelectorAll('.dot').forEach((d, k) => d.classList.toggle('active', k === i));
 }
 
 /* ───────── Animations ─────────
    Each anim: fn(t, Q) fills rotations (Q.r[bone] = [x, y, z]) and the face channels (Q.f). Smooth curves only. */
-const FACE_KEYS = ['browUp', 'frown', 'open', 'wide', 'squint', 'glance'];
+const FACE_KEYS = ['browUp', 'frown', 'open', 'wide', 'squint', 'glance', 'grin', 'smirk'];
 const ANIMS = {
   // 1 · Idle: calm breathing, arms hang, soft weight shift
   idle: { T: 4, fn(t, Q) {
@@ -228,7 +232,8 @@ function step(dt) {
   if (xf && xf.w > 1e-4) {
     const mix = (c, v) => { fo[c] += (v - fo[c]) * xf.w; };
     mix('browUp', 0.8 * xf.brow); mix('frown', clamp(-0.6 * xf.tilt + 0.4 * Math.max(0, -xf.brow), -0.7, 1));
-    mix('wide', 0.6 * xf.smile + 0.2 * xf.open); mix('open', 0.8 * xf.open); mix('squint', 0.7 * Math.max(0, -xf.eyes)); mix('glance', 0);
+    mix('wide', 0.4 * xf.smile + 0.2 * xf.open); mix('open', 0.8 * xf.open);
+    mix('grin', 0.9 * Math.max(0, xf.smile)); mix('smirk', 0); mix('squint', 0.7 * Math.max(0, -xf.eyes)); mix('glance', 0);
     head.rotation.x = clamp(head.rotation.x + window.MobViewer.head.pitch, -0.08, 0.08);
     head.rotation.z += window.MobViewer.head.roll;
   }
@@ -252,7 +257,11 @@ function step(dt) {
   const browY = clamp(fc.browUp * 0.4 - fc.frown * 0.25, -0.35, 0.5) * TEXEL;
   browR.position.y = browR.userData.rest.y + browY; browL.position.y = browL.userData.rest.y + browY;
   browR.rotation.z = -fc.frown * 0.3; browL.rotation.z = fc.frown * 0.3;   // + frown = inner ends down
-  mouth.scale.set(1 + clamp(fc.wide, -1, 1) * 0.3, 1 + clamp(fc.open, 0, 1) * 1.5, 1);
+  // standard mouth: open = thicker line, wide/grin = wider, smirk = tilt + slide, grin = teeth plate grows down
+  mouth.scale.set(1 + clamp(fc.wide, -1, 1) * 0.4 + fc.grin * 0.3, 1 + clamp(fc.open, 0, 1) * 1.5, 1);
+  mouth.rotation.z = 0.14 * fc.smirk; mouth.position.x = mouth.userData.rest.x + 0.25 * fc.smirk * TEXEL;
+  teeth.scale.y = Math.max(0.001, fc.grin);
+  teeth.position.z = (-0.1 + 0.11 * clamp(fc.grin * 10, 0, 1)) * TEXEL;   // steps out of the head only while grinning
 }
 
 /* ───────── Show bones (B): a dot on every pivot, a line to its parent, updated every frame ───────── */

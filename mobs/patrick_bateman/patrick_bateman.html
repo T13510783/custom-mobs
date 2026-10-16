@@ -78,11 +78,11 @@ function N(x,y,s){ let h=Math.imul(x+101,374761393)^Math.imul(y+211,668265263)^M
 function fab(c,x,y,s,a=0.06){ const n=N(x,y,s); return n>0.8?sh(c,1+a):n<0.18?sh(c,1-a):c; }
 
 /* ───────── Palettes ───────── */
-const SK={l:'#e9bb98',b:'#d8a281',s:'#c08767',d:'#a06a4e',lip:'#9a5c4a',lipL:'#b47a62'};
+const SK={l:'#e9bb98',b:'#d8a281',s:'#c08767',d:'#a06a4e',lip:'#9a5c4a'};
 const HR={d:'#1c120b',m:'#2c1d13',l:'#422c1c',h:'#5e412b',g:'#7a5638'};
 const SHOE={b:'#16171a',h:'#3d4047',d:'#0b0b0d'};
 const EYE={w:'#f1ebe4',i:'#3b2a1f',brow:'#22150d'};
-const MOUTH={in:'#3a1814',teeth:'#f3efe6'};
+const MOUTH={teeth:'#f3efe6'};
 
 /* ───────── Texture + part factory ───────── */
 function makeTex(w,h,fn){
@@ -242,19 +242,14 @@ for(const [s,x] of [['right',-2],['left',2]]){
   const brow=bone(`brow_${s}`,R.head,x,4.5,FZ+0.12);                       // brow, row 3
   plane(brow,2,1,0,0,0,fmat(EYE.brow));
 }
-// Mouth (row 6): one connected shape. Upper lip, lower lip (on the jaw), dark inside and teeth share one width
-// (set per frame); the corners hinge on the lip ends (pivot at their inner edge), so a smile curves the line up
-// instead of floating loose pixels. At rest: the 2 painted lip pixels + the light smirk pixel on his left.
-bone('mouth',R.head,0,1.5,FZ+0.05);
-bone('jaw',R.mouth,0,0,0);
-bone('corner_right',R.mouth,-1,0,0.015); bone('corner_left',R.mouth,1,0,0.015);
-FACE.upper=plane(R.mouth,1,0.5,0,0.25,0.02,fmat(SK.lip));
-FACE.inside=plane(R.mouth,1,1,0,-0.5,0,fmat(MOUTH.in));
-FACE.teeth=plane(R.mouth,1,1,0,-0.2,0.01,fmat(MOUTH.teeth));
-FACE.lower=plane(R.jaw,1,0.5,0,-0.25,0.02,fmat(SK.lip));
-FACE.cornerR=plane(R.corner_right,1,1,-0.5,0,0,fmat(SK.lip,true));    // fades in with a smile / frown
-FACE.cornerL=plane(R.corner_left,1,1,0.5,0,0,fmat(SK.lipL,true));     // the painted smirk pixel
-const LIP=new THREE.Color(SK.lip), LIP_L=new THREE.Color(SK.lipL);     // reused every frame (no new objects)
+// Mouth (row 6), standard mouth type (same as Homelander): one thin lip line that tilts and slides for the
+// one-sided smirk, thickens when the mouth opens and widens with a smile; a white teeth plate under the line
+// grows down for the grin (scale y 0 -> 1) and sits inside the head until he grins.
+// The mouth corners (u = 2 and 5) are painted skin shadow in the head texture.
+bone('mouth',R.head,0,1.6,FZ+0.05);
+FACE.line=plane(R.mouth,2,0.35,0,0,0.02,fmat(SK.lip));
+const teeth=bone('teeth',R.mouth,0,-0.1,-0.1);                          // hidden inside the head at rest
+FACE.teeth=plane(teeth,2,0.8,0,-0.4,0,fmat(MOUTH.teeth));
 
 /* ───────── Shared painters ───────── */
 const HAIR_TOP=[HR.m,HR.l,HR.m,HR.h,HR.l,HR.m,HR.l,HR.d];
@@ -267,7 +262,7 @@ function faceF(u,y){
   if(y===3) return (u===0||u===7)?S.s:S.b;
   if(y===4) return (u===0||u===7)?S.s:S.b;
   if(y===5) return [S.s,S.s,S.b,S.l,S.s,S.b,S.s,S.s][u];
-  if(y===6) return [S.s,S.b,S.b,S.b,S.b,S.b,S.b,S.s][u];
+  if(y===6) return [S.s,S.b,S.s,S.b,S.b,S.s,S.b,S.s][u];   // mouth corners in shadow; the lip line is the mouth plane
   return [S.d,S.s,S.b,S.l,S.b,S.b,S.s,S.d][u];
 }
 function hairSide(u,y,s){ return fab(y===0?HR.l:u>=6?HR.d:HR.m,u,y,s,0.1); }
@@ -933,7 +928,7 @@ function step(dt){
   if(xf&&xf.w>1e-4){
     const mix=(c,v)=>{ fo[c]+=(v-fo[c])*xf.w; };
     mix('brow',0.9*xf.brow); mix('tilt',xf.tilt); mix('smile',xf.smile); mix('open',0.8*xf.open);
-    mix('teeth',clamp(xf.smile,0,1)*clamp(xf.open*4,0,1)); mix('squint',0.7*Math.max(0,-xf.eyes));
+    mix('teeth',0.9*Math.max(0,xf.smile)); mix('squint',0.7*Math.max(0,-xf.eyes));
     mix('wide',Math.max(0,xf.eyes)); mix('glance',0); mix('look',0.6*xf.look);
     H.x+=window.MobViewer.head.pitch; H.z+=window.MobViewer.head.roll;
   }
@@ -1015,26 +1010,16 @@ function applyFace(fc,blinkV,glance){
     brow.position.y=4.5+clamp(0.5*fc.brow+0.25*Math.max(0,fc.look)-0.12*Math.max(0,-fc.tilt),-0.35,0.6);
     brow.rotation.z=sg*0.32*clamp(fc.tilt,-1,1);
   }
-  // mouth: the jaw drops with open; a smile or a shout makes the mouth wider; teeth fill the top of the opening;
-  // the corners bend up (smile) or down (frown) from the lip ends, the line stays connected
-  // jaw gap: soft dead zone (open*open/(open+0.1)): tiny breathing values keep the lips closed, no seam
-  const open=clamp(fc.open,0,1), h=1.3*open*open/(open+0.1), sm=clamp(fc.smile,-1,1), up=Math.max(0,sm);
-  const W=2+0.9*up*(0.4+open)+0.5*clamp(fc.wide,0,1)*open;               // mouth width (texels), 2 at rest
-  FACE.upper.scale.x=W; FACE.lower.scale.x=W*(1-0.15*open);
-  R.jaw.position.y=-h;
-  FACE.inside.visible=h>0.03; FACE.inside.scale.set(W,Math.max(0.001,h),1); FACE.inside.position.y=-h/2;
-  const th=Math.min(h,0.45)*clamp(fc.teeth,0,1);
-  FACE.teeth.visible=th>0.01; FACE.teeth.scale.set(W*0.92,Math.max(0.001,th),1); FACE.teeth.position.y=-th/2;
-  // lips get thinner as the mouth opens (a grin shows teeth, not a thick frame)
-  const lip=0.5-0.18*open;
-  FACE.upper.scale.y=FACE.lower.scale.y=lip/0.5; FACE.upper.position.y=lip/2; FACE.lower.position.y=-lip/2;
-  // corner pixels: straight (pixel style), they step up or down beside the lip ends but always touch them
-  const step=0.5*sm, ch=1-0.3*Math.min(1,Math.abs(sm));
-  R.corner_right.position.set(-W/2,-h/2+step,0.015); R.corner_left.position.set(W/2,-h/2+step,0.015);
-  FACE.cornerR.scale.y=FACE.cornerL.scale.y=ch;
-  FACE.cornerR.material.opacity=Math.min(1,4*sm*sm);
-  FACE.cornerR.visible=FACE.cornerR.material.opacity>0.01;
-  FACE.cornerL.material.color.lerpColors(LIP_L,LIP,Math.min(1,2*Math.abs(sm)));
+  // mouth (standard type, as Homelander): grin = teeth plate, smirk = a smile without teeth tilts the line up
+  // on his left; open thickens the line; a smile widens it, a sad face (smile < 0) narrows it
+  const open=clamp(fc.open,0,1), sm=clamp(fc.smile,-1,1), grin=clamp(fc.teeth,0,1);
+  const smirk=Math.max(0,sm)*(1-grin), mw=0.4*sm+0.2*open;
+  R.mouth.scale.y=1+open*1.5;
+  R.mouth.scale.x=1+mw*0.4+grin*0.3;
+  R.mouth.rotation.z=0.14*smirk;
+  R.mouth.position.x=0.25*smirk;
+  R.teeth.scale.y=Math.max(0.001,grin);
+  R.teeth.position.z=-0.1+0.11*clamp(grin*10,0,1);                    // steps out of the head only while grinning
 }
 
 /* ───────── Show bones (B): a dot on every pivot, a line to its parent, updated every frame ───────── */
