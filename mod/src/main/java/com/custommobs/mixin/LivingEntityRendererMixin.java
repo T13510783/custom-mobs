@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/* ───────── Victim arms (Homelander's Clap / Smash) ─────────
+/* ───────── Victim arms (Homelander's Clap) ─────────
    Right after the model posed itself (setupAnim, also the zombie / skeleton arm poses of the subclasses) and before
    it is drawn: a humanoid victim puts its hands on its ears, or its arms trail while it is dragged and flung.
    Armor layers copy the model's pose later, so armor follows. */

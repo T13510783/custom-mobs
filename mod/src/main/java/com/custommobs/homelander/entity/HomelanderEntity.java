@@ -63,16 +63,15 @@ import javax.annotation.Nullable;
      Throw (throw)               grabs the victim by the throat, lifts it, flings it high into the air
      Head clap (clap)            shouts "I am god" and smacks both ears: the victim grabs its ears and falls over screaming
      Throat laser (throatLaser)  grabs by the throat and burns the victim's face with heat vision, then drops it
-     Smash (smash)               hammer-fist smashes the victim onto its back, he drags it by the ankles and flings it far
    Every attack starts the same animation on all clients through an entity event. The server runs its own copy
    of the animator (no cape) so a held victim hangs from his real hand and the beams start at his real eyes.
-   A held victim rides him (vanilla passenger): positionRider() puts its neck (smash: its ankles) on his fist every
-   tick, on both sides. The victim of a clap / smash is synced (VICTIM): clients lay it down (HomelanderVictims).
+   A held victim rides him (vanilla passenger): positionRider() puts its neck on his fist every
+   tick, on both sides. The victim of a clap is synced (VICTIM): clients lay it down (HomelanderVictims).
    Chasing far: he runs (sprinting flag = the client plays Run), up to homelander.runSpeed blocks/s.
    Punch and heat vision: he keeps walking at the target (homelander.attackWhileWalking; the client layers the Walk). */
 public class HomelanderEntity extends Monster {
     /* ───────── Entity events (server -> clients) ───────── */
-    public static final byte EV_PUNCH = 100, EV_LASER = 101, EV_THROW = 102, EV_CLAP = 103, EV_BURN = 104, EV_STOP = 105, EV_SMASH = 106;
+    public static final byte EV_PUNCH = 100, EV_LASER = 101, EV_THROW = 102, EV_CLAP = 103, EV_BURN = 104, EV_STOP = 105;
 
     // Dev runs only (gradlew runClient sets -Dtheking.debug=true): actions go to the log, for testing.
     public static final boolean DEBUG = com.custommobs.Sindicate.DEBUG;
@@ -83,7 +82,7 @@ public class HomelanderEntity extends Monster {
     private static final EntityDataAccessor<Integer> VICTIM = SynchedEntityData.defineId(HomelanderEntity.class, EntityDataSerializers.INT);
 
     public enum Action {
-        NONE(""), PUNCH("attack"), LASER("special"), THROW("throw"), CLAP("clap"), BURN("throatLaser"), SMASH("smash");
+        NONE(""), PUNCH("attack"), LASER("special"), THROW("throw"), CLAP("clap"), BURN("throatLaser");
         public final String anim;
         Action(String anim) { this.anim = anim; }
     }
@@ -93,12 +92,12 @@ public class HomelanderEntity extends Monster {
     private LivingEntity actionTarget;
     private boolean hitDone, victimHit;
     private float actionYaw;
-    int punchCooldown = 10, laserCooldown = 60, grabCooldown = 80, clapCooldown = 200, smashCooldown = 160;
+    int punchCooldown = 10, laserCooldown = 60, grabCooldown = 40, clapCooldown = 60;   // ticks until the first of each
 
     // Held victim (throw / throat laser): where it was when grabbed, and when (anim seconds), for the lift to the hand.
     private double grabX, grabY, grabZ, grabAt = -1;
     private double dbgX, dbgZ;   // dev log: position one second ago
-    private double pinX = Double.NaN, pinZ;   // where a lying victim (Clap / Smash) is held (NaN = not yet)
+    private double pinX = Double.NaN, pinZ;   // where a lying victim (Clap) is held (NaN = not yet)
     private @Nullable Player flingPlayer;     // a player flung last tick: its fling is sent once more (see serverTick)
     private Vec3 flingVel = Vec3.ZERO;
 
@@ -177,7 +176,7 @@ public class HomelanderEntity extends Monster {
         builder.define(VICTIM, -1);
     }
 
-    /** Entity id of the victim of his clap / smash (clients lay it down), or -1. */
+    /** Entity id of the victim of his clap (clients lay it down), or -1. */
     public int getVictimId() { return entityData.get(VICTIM); }
 
     public int getVariant() { return entityData.get(VARIANT); }
@@ -212,11 +211,11 @@ public class HomelanderEntity extends Monster {
     public boolean canGrab(LivingEntity e) {
         return e.isAlive() && (SindicateConfig.HL_GRAB_PLAYERS.get() || !(e instanceof Player)) && !(e instanceof HomelanderEntity) && !(e instanceof EnderDragon) && !(e instanceof WitherBoss)
                 && e.getBbHeight() <= 2.3F && e.getBbWidth() <= 1.2F && !e.isPassenger() && !e.isVehicle()
-                && !(e instanceof Player p && (p.isCreative() || p.isSpectator()));
+                && !(e instanceof Player p && p.isSpectator());   // creative players too: they see every attack (no damage)
     }
 
     public boolean isHolding(Entity e) {
-        return (action == Action.THROW || action == Action.BURN || action == Action.SMASH) && e != null && hasPassenger(e);
+        return (action == Action.THROW || action == Action.BURN) && e != null && hasPassenger(e);
     }
 
     private boolean lettingGo;   // true while he releases a victim himself (the dismount block below must not stop that)
@@ -248,7 +247,7 @@ public class HomelanderEntity extends Monster {
         setSprinting(false);
         anim().switchAnim(a.anim);
         if (a == Action.LASER) entityData.set(LASER_TARGET, target.getId());
-        entityData.set(VICTIM, a == Action.CLAP || a == Action.SMASH ? target.getId() : -1);
+        entityData.set(VICTIM, a == Action.CLAP ? target.getId() : -1);
         level().broadcastEntityEvent(this, event);
         if (DEBUG) LOG.info("[Homelander] {} start, target {} at {} blocks", a, target.getName().getString(), String.format("%.2f", distanceTo(target)));
     }
@@ -349,7 +348,6 @@ public class HomelanderEntity extends Monster {
         if (laserCooldown > 0) laserCooldown--;
         if (grabCooldown > 0) grabCooldown--;
         if (clapCooldown > 0) clapCooldown--;
-        if (smashCooldown > 0) smashCooldown--;
         HomelanderAnimator a = anim();
         a.worldX = getX(); a.worldY = getY(); a.worldZ = getZ();
         a.worldYaw = yBodyRot * DEG;
@@ -359,9 +357,9 @@ public class HomelanderEntity extends Monster {
             double sp = Math.sqrt((getX() - dbgX) * (getX() - dbgX) + (getZ() - dbgZ) * (getZ() - dbgZ));
             dbgX = getX(); dbgZ = getZ();
             if (getTarget() != null)
-                LOG.info("[Homelander] state: target {} dist {} action {} speed {} sprint {} riders {} cds p{} l{} g{} c{} s{}", getTarget().getName().getString(),
+                LOG.info("[Homelander] state: target {} dist {} action {} speed {} sprint {} riders {} cds p{} l{} g{} c{}", getTarget().getName().getString(),
                         String.format("%.2f", distanceTo(getTarget())), action, String.format("%.2f", sp), isSprinting(), getPassengers().size(),
-                        punchCooldown, laserCooldown, grabCooldown, clapCooldown, smashCooldown);
+                        punchCooldown, laserCooldown, grabCooldown, clapCooldown);
         }
         // a flung player: send the fling again once its client has handled the dismount teleport (the first one gets lost)
         if (flingPlayer != null) {
@@ -473,98 +471,10 @@ public class HomelanderEntity extends Monster {
                     tg.hurtMarked = true;
                 }
             }
-            case SMASH -> smashTick(tg, alive, A, t);
             default -> {}
         }
         if (t >= A.T || (!alive && action != Action.LASER && t > 0.2 && !isVehicle())) end();
     }
-
-    /* ───────── Smash: hammer-fist -> lying victim -> grab the ankles -> drag back -> fling far (viewer VICTIM.smash) ───────── */
-    private void smashTick(@Nullable LivingEntity tg, boolean alive, HomelanderData.Anim A, double t) {
-        double hitT = A.event("hit", 0.6), grabT = A.event("grab", 1.45), relT = A.event("release", 4.3);
-        if (grabAt < 0 && t < hitT && alive) {
-            faceTarget(tg, 20F);
-            if (actionTicks % 10 == 1) tg.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 15, 5, false, false));
-        } else lockYaw();
-        if (!hitDone && t >= hitT) {
-            hitDone = true;
-            victimHit = alive && distanceTo(tg) < 2.0 + tg.getBbWidth() / 2 && getSensing().hasLineOfSight(tg);
-            if (!victimHit) {   // missed: no lying victim to drag, stop here (clients crossfade back)
-                if (DEBUG) LOG.info("[Homelander] smash missed: dist {}", tg == null ? "-" : String.format("%.2f", distanceTo(tg)));
-                level().broadcastEntityEvent(this, EV_STOP);
-                end();
-                return;
-            }
-            hurtNoKnock(tg, damage(1.4));
-            pinX = tg.getX(); pinZ = tg.getZ();
-            tg.setDeltaMovement(0, -0.6, 0);                 // slammed down onto the floor
-            tg.hurtMarked = true;
-            tg.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 40, 6, false, false));
-            tg.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 120, 0));
-            if (level() instanceof ServerLevel sl) {
-                double hy = tg.getY() + tg.getBbHeight() * 0.9;
-                blood(tg.getX(), hy, tg.getZ(), 10);
-                sl.sendParticles(ParticleTypes.EXPLOSION, tg.getX(), tg.getY() + 0.2, tg.getZ(), 1, 0, 0, 0, 0);
-                var ground = level().getBlockState(tg.blockPosition().below());
-                if (!ground.isAir())
-                    sl.sendParticles(new net.minecraft.core.particles.BlockParticleOption(ParticleTypes.BLOCK, ground), tg.getX(), tg.getY() + 0.1, tg.getZ(), 30, 0.6, 0.1, 0.6, 0.15);
-            }
-        }
-        if (DEBUG && actionTicks % 5 == 0 && tg != null)
-            LOG.info("[Homelander] smash t {} victim at {} {} {} v {} {} {} ground {} riding {}", String.format("%.2f", t), String.format("%.2f", tg.getX()), String.format("%.2f", tg.getY()),
-                    String.format("%.2f", tg.getZ()), String.format("%.3f", tg.getDeltaMovement().x), String.format("%.3f", tg.getDeltaMovement().y), String.format("%.3f", tg.getDeltaMovement().z),
-                    tg.onGround(), tg.getVehicle() == null ? "-" : tg.getVehicle().getName().getString());
-        // lying on the floor until he grabs its ankles: held still
-        if (victimHit && alive && grabAt < 0 && t < grabT) {
-            if (actionTicks % 10 == 1) tg.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 15, 6, false, false));
-            pinDown(tg);
-        }
-        if (victimHit && grabAt < 0 && t >= grabT) {
-            if (alive && canGrab(tg) && distanceTo(tg) < 3.2) {
-                grabX = tg.getX(); grabY = tg.getY(); grabZ = tg.getZ(); grabAt = t;
-                tg.startRiding(this, true);
-                if (DEBUG) LOG.info("[Homelander] smash: has {} by the ankles", tg.getName().getString());
-            } else {          // too big / players off: it just lies there, he lets the rest play out
-                if (DEBUG) LOG.info("[Homelander] smash: no grab, dist {}", String.format("%.2f", distanceTo(tg)));
-                victimHit = false;
-                grabAt = 0;
-            }
-        }
-        if (isHolding(tg)) {
-            // drag: he turned his back to the victim (animation root yaw PI), so he walks away from where it lay
-            // (~1.2 blocks/s, backward for the hitbox); the victim scrapes along behind him, screaming, dust + blood
-            double w = smooth01((t - 1.8) / 0.2) * (1 - smooth01((t - 3.25) / 0.2));
-            if (w > 0.01) {
-                float yr = actionYaw * Mth.DEG_TO_RAD;
-                move(net.minecraft.world.entity.MoverType.SELF, new Vec3(Mth.sin(yr) * 0.059 * w, 0, -Mth.cos(yr) * 0.059 * w));
-                if (w > 0.5 && actionTicks % 4 == 0 && level() instanceof ServerLevel sl) {
-                    // its head end on the floor, one body length behind its ankles
-                    double hx = tg.getX() - Mth.sin(yr) * tg.getBbHeight(), hz = tg.getZ() + Mth.cos(yr) * tg.getBbHeight();
-                    var ground = level().getBlockState(BlockPos.containing(hx, getY() - 0.5, hz));
-                    if (!ground.isAir())
-                        sl.sendParticles(new net.minecraft.core.particles.BlockParticleOption(ParticleTypes.BLOCK, ground), hx, getY() + 0.1, hz, 6, 0.2, 0.05, 0.2, 0.05);
-                    blood(hx, getY() + 0.2, hz, 2);
-                }
-            }
-            if (t > grabT + 0.3 && t < relT && actionTicks % 12 == 0) scream(tg);
-            if (t >= relT) {
-                // flung forward-up from his hand as far as he can (viewer SMASH_VZ / SMASH_VY, blocks/s)
-                letGo(tg);
-                double[] h = hangPoint(tg);
-                tg.teleportTo(h[0], h[1], h[2]);
-                HomelanderData d = HomelanderData.get();
-                double pw = SindicateConfig.HL_THROW_POWER.get();
-                float yr = actionYaw * Mth.DEG_TO_RAD;
-                tg.setDeltaMovement(-Mth.sin(yr) * d.smashVz / 20.0 * pw, d.smashVy / 20.0 * pw, Mth.cos(yr) * d.smashVz / 20.0 * pw);
-                if (tg instanceof Player p) { flingPlayer = p; flingVel = tg.getDeltaMovement(); }
-                tg.hurtMarked = true;
-                tg.fallDistance = 0;
-                if (level() instanceof ServerLevel sl) sl.sendParticles(ParticleTypes.CLOUD, h[0], h[1], h[2], 14, 0.25, 0.1, 0.25, 0.06);
-            }
-        }
-    }
-
-    private static double smooth01(double x) { x = Mth.clamp(x, 0, 1); return x * x * (3 - 2 * x); }
 
     /** A lying victim stays where it fell: its own AI (a panicking villager, a fleeing mob) may not walk it away. */
     private void pinDown(LivingEntity tg) {
@@ -679,16 +589,6 @@ public class HomelanderEntity extends Monster {
         a.worldX = getX(); a.worldY = getY(); a.worldZ = getZ();
         a.worldYaw = yBodyRot * DEG;
         a.toWorld(d.bone("forearm_right"), d.hand[0], d.hand[1], d.hand[2], h);
-        if (action == Action.SMASH) {
-            // held by the ANKLES: its soles are at his fist (clients lay the body out along the floor / swing it out),
-            // lifted from where it lay over 0.35 s (viewer: the ankles go into his hand)
-            double u = grabAt >= 0 ? Mth.clamp((a.t - grabAt) / 0.35, 0, 1) : 1;
-            if (u < 1) {
-                double w = u * u * (3 - 2 * u);
-                h[0] = grabX + (h[0] - grabX) * w; h[1] = grabY + (h[1] - grabY) * w; h[2] = grabZ + (h[2] - grabZ) * w;
-            }
-            return h;
-        }
         // out from his body (horizontal), so the victim's throat touches the fist and its body never passes through his
         double ox = h[0] - getX(), oz = h[2] - getZ(), len = Math.sqrt(ox * ox + oz * oz);
         if (len < 1e-4) { ox = -Mth.sin(yBodyRot * Mth.DEG_TO_RAD); oz = Mth.cos(yBodyRot * Mth.DEG_TO_RAD); len = 1; }
@@ -715,7 +615,7 @@ public class HomelanderEntity extends Monster {
             HomelanderAnimator a = poseAnim();
             grabAt = a.t;
             String n = a.anim.name;
-            action = n.equals("throw") ? Action.THROW : n.equals("smash") ? Action.SMASH : Action.BURN;
+            action = n.equals("throw") ? Action.THROW : Action.BURN;
         }
     }
 
@@ -731,8 +631,8 @@ public class HomelanderEntity extends Monster {
         double[] h = hangPoint(passenger);
         move.accept(passenger, h[0], h[1], h[2]);
         passenger.fallDistance = 0;
-        // the victim faces him (players turn their own head); dragged by the ankles: the clients turn the body
-        if (passenger instanceof LivingEntity le && !(passenger instanceof Player) && action != Action.SMASH) {
+        // the victim faces him (players turn their own head)
+        if (passenger instanceof LivingEntity le && !(passenger instanceof Player)) {
             float yaw = yBodyRot + 180F;
             le.setYRot(yaw);
             le.yBodyRot = yaw;
@@ -769,7 +669,7 @@ public class HomelanderEntity extends Monster {
     /* ───────── Client side: start the matching animation ───────── */
     @Override
     public void handleEntityEvent(byte id) {
-        if (level().isClientSide && id >= EV_PUNCH && id <= EV_SMASH) {
+        if (level().isClientSide && id >= EV_PUNCH && id <= EV_STOP) {
             com.custommobs.homelander.client.HomelanderClientState.onEvent(this, id);
             return;
         }

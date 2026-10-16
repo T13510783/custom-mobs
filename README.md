@@ -20,6 +20,9 @@ Custom Minecraft mobs for **Minecraft 1.21.1 + NeoForge**, made in three steps:
 | Patrick Bateman | `mobs/patrick_bateman/patrick_bateman.html` | not yet |
 | Anton Chigurh | `mobs/anton_chigurh/anton_chigurh.html` | not yet |
 | The Joker | `mobs/the_joker/the_joker.html` | not yet |
+| Jason Voorhees | `mobs/jason_voorhees/jason_voorhees.html` | not yet |
+| Hannibal Lecter | `mobs/hannibal/hannibal.html` | not yet |
+| Michael Myers | `mobs/michael_myers/michael_myers.html` | not yet |
 
 Viewer controls: number keys = animations, `B` = show bones, `R` = reset camera,
 eye button = head follows the mouse, dots = color variants, top right = expression menu (Auto / Happy / Sad / Angry / Afraid) + reset camera.
@@ -49,7 +52,7 @@ All finished mobs live in one NeoForge mod: **Sindicate** (mod id `sindicate`, j
 | Updates | "Check for Updates" button (title + pause screen), auto check every 5 min, changelog, "Update and Close Game" |
 
 Homelander: 75 HP, diamond-armor protection (20 armor, 8 toughness), neutral by default (only fights back when hurt).
-Attacks: punch, heat vision, throat grab + throw, throat grab + point-blank laser, ear clap (victim falls and lies screaming), ground smash (slams the victim down, drags it by the ankles behind him over the floor, spins and flings it far). Runs ~2x player speed when the target is far away; punches and lasers while walking. Boss bar while he fights.
+Attacks: punch, heat vision, throat grab + throw, throat grab + point-blank laser, ear clap (victim falls and lies screaming); he mixes all of them in a fight. Runs ~2x player speed when the target is far away; punches and lasers while walking. Boss bar while he fights.
 
 ## Run the mod
 

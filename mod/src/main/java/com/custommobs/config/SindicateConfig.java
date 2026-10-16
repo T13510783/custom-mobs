@@ -52,8 +52,7 @@ public final class SindicateConfig {
     public static final ModConfigSpec.BooleanValue HL_THROW = S.bool("throatGrabThrow", true, "Throat grab + throw: lifts the victim by the throat and flings it high into the air.");
     public static final ModConfigSpec.BooleanValue HL_BURN = S.bool("throatLaser", true, "Throat laser: holds the victim by the throat and burns its face with heat vision.");
     public static final ModConfigSpec.BooleanValue HL_CLAP = S.bool("headClap", true, "Head clap: \"I am god\", then he smacks both ears (stun, nausea, the victim falls).");
-    public static final ModConfigSpec.BooleanValue HL_SMASH = S.bool("groundSmash", true, "Ground smash: smashes the victim into the ground, drags it by the feet and hurls it far away.");
-    public static final ModConfigSpec.BooleanValue HL_GRAB_PLAYERS = S.bool("grabPlayers", true, "Grabs (throw, throat laser, smash) also work on players.");
+    public static final ModConfigSpec.BooleanValue HL_GRAB_PLAYERS = S.bool("grabPlayers", true, "Grabs (throw, throat laser) also work on players.");
     public static final ModConfigSpec.DoubleValue HL_THROW_POWER = S.dbl("throwPower", 1.0, 0.1, 3, "How high and far his throws fling victims (1 = like the viewer).");
     public static final ModConfigSpec.BooleanValue HL_ATTACK_WHILE_WALKING = S.bool("attackWhileWalking", true, "Punch and heat vision while he keeps walking (legs walk, arms and eyes attack).");
     public static final ModConfigSpec.BooleanValue HL_BOSS_BAR = S.bool("bossBar", true, "Show his health as a boss bar to players near him while he fights.");

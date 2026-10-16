@@ -29,6 +29,8 @@ Always apply these, every session, without being reminded:
   - Each version part goes up to 99, then rolls over into the next part: `0.0.99` -> `0.1.0`, `0.99.99` -> `1.0.0`; maximum `v99.99.99-alpha`.
   - Locally (`builds/`) only the newest 5 jars stay; on GitHub Releases every jar stays forever (never delete a release).
   - Every release changelog (GitHub Release + in-game updater) has exactly three sections: `Added`, `Removed`, `Fixed`. Short bullets, nothing else.
+- **After every in-game Minecraft test** (user rule, 2026-10-16): commit + push, merge the PR, then release (`tools\release.ps1 -Bump` from merged `main`). Never end a turn with a tested but unreleased mod change.
+- **Commit everything** (user rule, 2026-10-16): when asked, everything that is not git-ignored goes in (other people's mobs, references, images too); never `.env`, build output or test renders.
 
 ## GitHub repo and teamwork (user rule, 2026-10-15)
 
@@ -188,7 +190,7 @@ When the user says "model from A, animations from B":
 ## Mods (.jar)
 
 20. **Keep the last 5 builds** (user rule, 2026-10-14). `gradlew build` copies the jar to `builds/sindicate-<version>-<yyyyMMdd-HHmmss>.jar`; `builds/` and `mod/build/libs/` each keep only their newest 5 (Gradle task `copyToBuilds`, in `build.gradle`). GitHub Releases keep every version.
-    - **Releases (2026-10-16):** version `X.Y.Z-alpha` in `mod/gradle.properties` (`mod_version`), every part 0..99 and rolls over at 99 (`0.0.99` -> `0.1.0`, `0.99.99` -> `1.0.0`, last `99.99.99`). Changelog = `mod/release_notes.md` with only `## Added`, `## Removed`, `## Fixed`. Publish from merged `main`: `tools\release.ps1 -Bump` (bump, build + tests, tag `vX.Y.Z-alpha`, GitHub release with the jar); `-DryRun` checks without publishing. A release is outward-facing: only when the user asked for it.
+    - **Releases (2026-10-16):** version `X.Y.Z-alpha` in `mod/gradle.properties` (`mod_version`), every part 0..99 and rolls over at 99 (`0.0.99` -> `0.1.0`, `0.99.99` -> `1.0.0`, last `99.99.99`). Changelog = `mod/release_notes.md` with only `## Added`, `## Removed`, `## Fixed`. Publish from merged `main`: `tools\release.ps1 -Bump` (bump, build + tests, tag `vX.Y.Z-alpha`, GitHub release with the jar); `-DryRun` checks without publishing. Release after every in-game test (user rule, 2026-10-16), and whenever the user asks.
     - In-game updater (`com.custommobs.update`): "Check for Updates" button (title + pause screen), auto check every 5 min, changelog screen, "Update and Close Game" (downloads the jar, a detached helper swaps it after the game closed). The repo is public, so no token is needed (`githubToken` in `config/sindicate-client.toml` only for a private fork).
 21. **Always a `run.txt`** in the project root with one command the user can copy, paste and run to test the mod (now: `cd .\mod; .\gradlew.bat runClient`, for PowerShell in the project folder). Keep it correct after every change. No absolute paths: each teammate clones to another folder (`C:\custom mobs`, `C:\custom-mobs`, ...). (2026-10-15)
 22. Test the mod before saying it is done. Not tested -> say so. Claude may start Minecraft to test, without asking (user rule, 2026-10-14): `gradlew runClient` (dev client, mod already loaded) or the user's own Minecraft.
