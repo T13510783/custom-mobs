@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-16 22:16
+- The Joker (`mobs/the_joker/the_joker.html`): face back to the first look (user screenshot of v #37).
+  - Face paint: white greasepaint with skin at the jaw corners, under the chin and on the head sides (ear), green hairline row, red cheek upturns, dark mouth row 6.
+  - Mouth on row 6 as one piece: the corners no longer step up alone; smile / frown move the whole line, the smirk tilts it and slides it up toward his left (Homelander type). Cigarette rides the line.
+  - Tested: face renders (idle, Smug, Happy, Grin), `#cliptest` (mouth + hand) 23 pairs, same as before.
+
+## 2026-10-16 21:46
+- The Joker (`mobs/the_joker/the_joker.html`): hair back to the first look (user screenshot of v #37).
+  - Chunky mossy clumps with bright highlights (`hairLayer` texture) on side locks, flares and back hair; straight-strand texture and temple strands removed.
+  - Puffy hair band around the temples and the back (0.4 below the head top, front stays behind the face: no flicker); head sides with green hair + ear like the first look, front stays white paint.
+  - Livelier hair springs (as the first look); a lock on a rising shoulder lifts and calms down, the back hair is pushed along by the locks.
+  - Tested: `#cliptest` (mouth + hand) 23 pairs (was 25), hair vs arms max 0.28 (was 0.32); renders vs the first version.
+
 ## 2026-10-16 21:31
 - Anton Chigurh (`mobs/anton_chigurh/anton_chigurh.html`): upgrade, same look.
   - Moving face: eye whites + centered pupils (were cross-eyed), heavy upper lids that blink, brows, standard lip line + teeth; bangs end above the brows.
