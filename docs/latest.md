@@ -1,11 +1,11 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 20:34
-**Request:** Fix the Joker's mouth (screenshot: cigarette over the mouth, dark block under the nose).
+**Date:** 2026-10-16 20:48
+**Request:** Make the Joker's face and expressions much better, a mouth that fits him, fix the clipping at the top of his face.
 
 **Done:**
-- `mobs/the_joker/the_joker.html`: cigarette at the mouth corner pointing out to the side, darker mouth line, nose casts no shadow on the mouth, test camera `mouthlow`.
-- Checked: close-up renders (normal, grin, smug, laugh, below-left view), `#cliptest` max 0.38 texel, no cigarette clips.
+- `mobs/the_joker/the_joker.html`: hair crown off the forehead (no flicker); new blocky Joker mouth (corner blocks, dropping jaw, two teeth rows); lower lids, pupil size, brow furrow; new Snarl expression; attack and dance faces use the new parts.
+- Checked: face renders of all 12 expressions + attack/dance/laugh, `#cliptest` max 0.38 texel, step probe max 0.084 rad.
 
 **Files:** `mobs/the_joker/the_joker.html`, docs.
 

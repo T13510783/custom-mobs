@@ -18,7 +18,7 @@
       teeth plate, as Homelander / Bateman) right under the nose, inside the painted red smile.
     - Animations: 1 Idle (smoking), 2 Idle 2 (restless), 3 Walk (3 walks take turns), 4 Attack (revolver), 5 Dance
       (the stairs), 6 Laugh (maniac). Follow mouse (eye), Show bones (B), cigarette mouth / hand / away (C), reset (R).
-      Extra Joker expressions: Grin, Laugh, Smug, Manic, Normal, Blank.
+      Extra Joker expressions: Grin, Laugh, Smug, Manic, Normal, Blank, Snarl.
     - Test modes: #cliptest[-hand|-off], #rest, #shot-<anim>-<cig>-<sec>[-<cam>[-<expression>]] (cig: 0 mouth, h hand, o off).
   -->
 
@@ -638,7 +638,8 @@ cube(R.body, 8, 12.2, 0.45, 0, 6, -2.15, T_.suitPanel);                         
 cube(R.head, 8, 8, 8, 0, 4, 0, T_.head);
 cube(R.head, 1.8, 1.5, 0.85, 0, 3.65, 4.35, { all: (p) => { p.fill(PALETTE.makeupRedLight); p.px(0, 1, PALETTE.makeupRedBase); } },
   { castShadow: false });   // no shadow: it painted a dark block over the mouth right under it
-cube(R.head, 8.6, 1.5, 8.5, 0, 8.4, -0.25, T_.hairLayer);    // slicked-back crown
+cube(R.head, 8.6, 1.15, 8.65, 0, 8.575, -0.175, T_.hairLayer);   // slicked-back crown: starts on the head top (y 8) and
+                                                                  // overhangs the forehead by 0.15 (never on the face plane)
 cube(R.head, 7.6, 1.0, 7.2, 0, 9.4, -0.7, T_.hairLayer);
 // Wavy hair (the first Joker look, references): per side a lock over the ear, a flare curling out below it and a thin
 // strand framing the white face at the temple; at the back a curtain and a lower wave over the collar. Strands, darker
@@ -705,25 +706,35 @@ function plane(parent, w, h, x, y, z, mat) {
 for (const [s, x] of [['right', -2], ['left', 2]]) {
   const eye = bone(`eye_${s}`, R.head, x, 4.5, FZ + 0.04);                  // eye white, row 3
   FACE['white_' + s] = plane(eye, 2, 1, 0, 0, 0, fmat(PALETTE.eyeSclera));
-  const pupil = bone(`pupil_${s}`, eye, 0, 0, 0.03);
+  const pupil = bone(`pupil_${s}`, eye, 0, 0, 0.03);                         // scales: pinpricks (manic, afraid) .. wide
   plane(pupil, 1, 1, 0, 0, 0, fmat(PALETTE.eyeDark));
-  const lid = bone(`lid_${s}`, R.head, x, 5, FZ + 0.1);                     // pivot on the eye's top edge
+  const lid = bone(`lid_${s}`, R.head, x, 5, FZ + 0.1);                     // upper lid: pivot on the eye's top edge
   FACE['lid_' + s] = plane(lid, 2, 1, 0, -0.5, 0, fmat(PALETTE.makeupBlueBase));
   FACE['lash_' + s] = plane(lid, 2, 0.22, 0, -0.89, 0.01, fmat(PALETTE.makeupBlueDark));
+  const llid = bone(`llid_${s}`, R.head, x, 4, FZ + 0.1);                   // lower lid: pivot on the eye's bottom edge,
+  FACE['llid_' + s] = plane(llid, 2, 1, 0, 0.5, 0, fmat(PALETTE.makeupBlueDark));  // rises for a real smile / laugh
   const brow = bone(`brow_${s}`, R.head, x, 6.5, FZ + 0.12);                // brow, row 1: outer pixel dark red, inner light
   const tex = createPixelTexture(2, 1, (p) => {
     p.px(0, 0, s === 'right' ? PALETTE.makeupRedBase : PALETTE.makeupRedLight);
     p.px(1, 0, s === 'right' ? PALETTE.makeupRedLight : PALETTE.makeupRedBase);
   });
-  plane(brow, 2, 1, 0, 0, 0, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0 }));
+  plane(brow, 2, 0.8, 0, 0, 0, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0 }));   // thin painted arch
 }
-// Mouth (row 5/6 edge, right under the nose), standard type (same as Homelander and Bateman): one thin lip line that
-// tilts and slides for the one-sided smirk, thickens when the mouth opens and widens with a smile; a teeth plate under the
-// line grows down for the grin (scale y 0 -> 1) and sits inside the head until he grins. Around it: the painted red smile.
-bone('mouth', R.head, 0, 2.0, FZ + 0.05);
-FACE.line = plane(R.mouth, 2, 0.35, 0, 0, 0.02, fmat('#2a0404'));   // dark: must read on the red lip paint
-bone('teeth', R.mouth, 0, -0.1, -0.1);                          // hidden inside the head at rest
-FACE.teeth = plane(R.teeth, 2, 0.8, 0, -0.4, 0, fmat('#ddd5c2'));
+// Mouth: made for the Joker (Homelander / Bateman only as the example): blocky pixel pieces, no curves, inside the painted
+// red lips (rows 5-6, 4 wide) right under the nose. A 2-wide middle + two 0.7-wide corner blocks (3.4 wide in all) on the
+// lip line at y 2.0. Corners step up for a smile (his left one more for the smirk), down for a frown. The jaw drops: the
+// pieces grow down from their top edge, dark inside. Upper teeth hang from the top of the opening, lower teeth sit on
+// its bottom (laughing, clenched snarl). All pieces stay on the face plane: nothing pops in or sticks out.
+const MOUTH_D = '#2a0404', TEETH = '#ddd5c2';
+bone('mouth', R.head, 0, 2.15, FZ + 0.05);                     // top edge of the lip line (line center y 2.0)
+FACE.mid = plane(R.mouth, 2, 0.3, 0, -0.15, 0.02, fmat(MOUTH_D));
+bone('mouth_cr', R.mouth, -1, 0, 0);                            // his right corner block (the cigarette side)
+bone('mouth_cl', R.mouth, 1, 0, 0);                             // his left corner block
+FACE.cr = plane(R.mouth_cr, 0.7, 0.3, -0.35, -0.15, 0.02, fmat(MOUTH_D));
+FACE.cl = plane(R.mouth_cl, 0.7, 0.3, 0.35, -0.15, 0.02, fmat(MOUTH_D));
+FACE.teethUp = plane(R.mouth, 2.3, 0.4, 0, -0.2, 0.03, fmat(TEETH));
+FACE.teethLo = plane(R.mouth, 1.8, 0.3, 0, -0.5, 0.03, fmat(TEETH));
+FACE.teethUp.visible = FACE.teethLo.visible = false;
 
 /* ───────── Curves ─────────
    Keyframe tracks [[t, v], ...] through a monotone cubic (Fritsch-Butland tangents): smooth, flows
@@ -811,9 +822,12 @@ function gesture(Q, side, w, t, pole) {
    added on top of the ground contact), whole-body turn Q.yaw, face channels Q.f, head-follow weight Q.fw, the
    revolver Q.gun (0..1) and its twirl Q.spin (rad). Lengths T are whole 1/120 s frames. Smooth curves only.
    Signs: x + = limb back / head chin down / shin back, arm z outward (right -, left +), y + = turn to his left. */
-const FACE_KEYS = ['brow', 'tilt', 'smile', 'open', 'teeth', 'squint', 'wide', 'glance', 'look', 'laugh', 'arch', 'shut', 'smoke'];
+const FACE_KEYS = ['brow', 'tilt', 'smile', 'open', 'teeth', 'squint', 'wide', 'glance', 'look', 'laugh', 'arch', 'shut', 'smoke',
+  'pupil', 'cheek', 'furrow', 'clench'];
 // laugh = laughing (mouth flaps ~3.6 per second, teeth, eyes squeezed); arch = one raised brow + one-sided smirk (his
-// left); shut = eyes closed (bliss); smoke = exhaling smoke (lips pushed together, puffs from the mouth)
+// left); shut = eyes closed (bliss); smoke = exhaling smoke (lips pushed together, puffs from the mouth); pupil = pupil
+// size (-1 pinpricks .. 1 wide); cheek = lower lids rise (a real smile / laugh squeezes the eyes from below);
+// furrow = brows pull together and down (anger); clench = teeth bared and gritted (snarl)
 const ANIM_ORDER = ['idle', 'idle2', 'walk', 'attack', 'dance', 'laugh'];
 const sstep = (x) => { const u = clamp(x, 0, 1); return u * u * (3 - 2 * u); };          // smoothstep: flat at both ends
 const win = (t, a, b, e) => sstep((t - a) / e + 0.5) - sstep((t - b) / e + 0.5);          // 0 -> 1 around a, back to 0 around b
@@ -872,6 +886,10 @@ const ATK = tracks({
   'f.laugh': [[0, 0], [1.55, 0], [1.7, 1], [2.05, 0.5], [ATK_T, 0]],
   'f.arch': [[0, 0], [0.6, 0], [0.78, 0.8], [0.86, 0], [ATK_T, 0]],
   'f.look': [[0, 0], [0.3, -0.6], [0.78, 0], [0.92, 0.3], [ATK_T, 0]],
+  'f.clench': [[0, 0], [0.2, 0], [0.4, 0.9], [0.7, 0.7], [0.84, 0], [ATK_T, 0]],     // gritted teeth while he aims
+  'f.furrow': [[0, 0], [0.2, 0], [0.4, 1], [0.78, 0.6], [0.9, 0], [ATK_T, 0]],
+  'f.pupil': [[0, 0], [0.8, 0], [0.9, -1], [1.5, -0.8], [1.9, 0], [ATK_T, 0]],       // pinpricks while he fires
+  'f.cheek': [[0, 0], [1.55, 0], [1.75, 0.8], [2.1, 0.2], [ATK_T, 0]],
 });
 
 // 5 · Dance: the stairs dance (same moves). The face runs through bliss (eyes closed) -> grin -> smug -> manic ->
@@ -887,6 +905,9 @@ const DANCE_FACE = tracks({
   'f.brow': [[0, 0.3], [2.6, 0.3], [3, 0.6], [4.4, 0.6], [4.9, 0], [6.4, 0], [6.9, 1], [8.4, 0.9], [9, 0.4], [12, 0.3]],
   'f.look': [[0, 0.7], [2.5, 0.7], [3, 0.3], [6.5, 0.1], [7, 0.3], [12, 0.7]],
   'f.squint': [[0, 0], [4.5, 0], [5, 0.45], [6.3, 0.45], [6.8, 0], [12, 0]],
+  'f.pupil': [[0, 0], [6.5, 0], [7, -1], [8.3, -1], [8.8, 0], [12, 0]],               // manic: pinprick pupils
+  'f.cheek': [[0, 0.3], [2.4, 0.3], [2.9, 0.6], [4.4, 0.6], [4.9, 0.2], [6.4, 0.2], [6.9, 0], [8.4, 0], [8.9, 0.8],
+    [10.2, 0.8], [10.8, 0.3], [12, 0.3]],                                              // smiling eyes in grin + laugh
 });
 
 // 6 · Laugh: the maniac laugh. Thrown back cackling (chest out, arms loose, eyes wide), then doubled over holding his
@@ -1092,6 +1113,11 @@ function step(dt) {
     mix('teeth', clamp(0.9 * Math.max(0, xf.smile) * (1 - xv('noteeth')) + xv('teeth'), 0, 1));
     mix('squint', 0.7 * Math.max(0, -xf.eyes)); mix('wide', Math.max(0, xf.eyes)); mix('glance', 0); mix('look', 0.6 * xf.look);
     mix('laugh', xv('laugh')); mix('arch', xv('arch')); mix('shut', 0); mix('smoke', 0);
+    const pos = (v) => Math.max(0, v);                          // standard faces get the Joker's extra channels too:
+    mix('furrow', clamp(0.9 * pos(-xf.tilt) * pos(-xf.brow) + xv('furrow'), 0, 1));            // angry: brows pulled in
+    mix('clench', clamp(0.9 * pos(-xf.smile) * pos(-xf.tilt) + xv('clench'), 0, 1));          // angry: gritted teeth
+    mix('pupil', clamp(-0.85 * pos(xf.eyes) * pos(xf.brow) + xv('pupil'), -1, 1));            // afraid: pinpricks
+    mix('cheek', clamp(pos(xf.smile) * pos(-xf.eyes) * 1.2 + xv('cheek'), 0, 1));             // happy: smiling eyes
     H.x += window.MobViewer.head.pitch; H.z += window.MobViewer.head.roll;
   }
   // No neck: soft limits keep the head out of the torso and shoulders. A turned head tilts less (a turned head corner
@@ -1196,39 +1222,62 @@ function updateFace(dt, fo, F) {
   for (const f of FACE_KEYS) FX[f] = fc[f];
   const lf = clamp(fc.laugh, 0, 1), flap = 0.5 + 0.5 * Math.sin(TAU * 3.6 * S.time);
   FX.open += lf * (0.35 + 0.55 * flap); FX.teeth += 0.7 * lf; FX.squint += 0.45 * lf * (1 - clamp(fc.wide, 0, 1));
-  FX.tilt += 0.3 * lf; FX.smile += 0.7 * lf; FX.brow += 0.2 * lf;
+  FX.tilt += 0.3 * lf; FX.smile += 0.7 * lf; FX.brow += 0.2 * lf; FX.cheek += 0.55 * lf;
   applyFace(FX, blinkV, clamp(fc.glance + sc.v * (1 - Math.abs(F.eye)) + F.eye * 0.7, -1, 1));
 }
 function applyFace(fc, blinkV, glance) {
   const wide = clamp(fc.wide + 0.3 * Math.max(0, fc.look), 0, 1);
   const look = Math.min(0, fc.look);                             // looking down lowers the lids
   const closed = clamp(Math.max(blinkV, fc.squint * 0.5 - look * 0.35, fc.shut), 0, 1);
-  const arch = clamp(fc.arch, 0, 1);                             // smug: left brow up, right brow a little down
+  const cheek = clamp(fc.cheek, 0, 1) * (1 - 0.8 * wide);        // lower lids: up to 0.45 of the eye
+  const arch = clamp(fc.arch, 0, 1), furrow = clamp(fc.furrow, 0, 1), pu = clamp(fc.pupil, -1, 1);
+  const ps = 1 + 0.2 * Math.max(0, pu) - 0.45 * Math.max(0, -pu);   // pupil scale: 0.55 (pinprick) .. 1.2
   for (const s of ['right', 'left']) {
-    const sg = s === 'right' ? 1 : -1;                           // inner end of the right brow is toward +x
+    const sg = s === 'right' ? 1 : -1;                           // +x = toward the face middle for the right side
     FACE['white_' + s].scale.y = 1 + 0.35 * wide;
-    R[`pupil_${s}`].position.x = glance * 0.5;
+    const pupil = R[`pupil_${s}`];
+    pupil.position.x = glance * 0.5 * (1 + 0.35 * (1 - ps));    // small pupils can glance further
+    pupil.scale.set(ps, Math.min(1.2, ps * (1 + 0.35 * wide)), 1);
     const lid = R[`lid_${s}`], hgt = 1 + 0.35 * wide;
     lid.position.y = 5 + 0.175 * wide;
-    lid.visible = closed > 0.004;                                // hidden while open: the rest pose has open eyes
-    FACE['lid_' + s].scale.y = Math.max(0.001, closed * hgt); FACE['lid_' + s].position.y = -0.5 * closed * hgt;
-    FACE['lash_' + s].scale.y = Math.min(1, closed * 5); FACE['lash_' + s].position.y = -closed * hgt + 0.11 * Math.min(1, closed * 5);
+    const cl = closed;
+    lid.visible = cl > 0.004;                                    // hidden while open: the rest pose has open eyes
+    FACE['lid_' + s].scale.y = Math.max(0.001, cl * hgt); FACE['lid_' + s].position.y = -0.5 * cl * hgt;
+    FACE['lash_' + s].scale.y = Math.min(1, cl * 5); FACE['lash_' + s].position.y = -cl * hgt + 0.11 * Math.min(1, cl * 5);
+    const ll = R[`llid_${s}`], lo = 0.45 * cheek * (1 - cl) * hgt;   // shrinks as the upper lid closes: never overlap,
+                                                                        // and a blink still closes the eye fully
+    ll.position.y = 4 - 0.175 * wide; ll.visible = lo > 0.004;
+    FACE['llid_' + s].scale.y = Math.max(0.001, lo); FACE['llid_' + s].position.y = 0.5 * lo;
     const brow = R[`brow_${s}`];
-    brow.position.y = 6.5 + clamp(0.5 * fc.brow + 0.25 * Math.max(0, fc.look) - 0.12 * Math.max(0, -fc.tilt)
-      + (s === 'left' ? 0.32 : -0.08) * arch, -0.35, 0.5);       // max 0.5 up: stays under the hair crown
-    brow.rotation.z = sg * 0.32 * clamp(fc.tilt, -1, 1) + (s === 'left' ? 0.18 * arch : 0);
+    brow.position.x = (s === 'right' ? -2 : 2) + sg * 0.25 * furrow;   // furrow pulls both brows toward the middle
+    brow.position.y = 6.5 + clamp(0.5 * fc.brow + 0.25 * Math.max(0, fc.look) - 0.12 * Math.max(0, -fc.tilt) - 0.2 * furrow
+      + (s === 'left' ? 0.32 : -0.08) * arch, -0.4, 0.55);       // max 0.55 up: stays under the hair crown (y 8)
+    brow.rotation.z = sg * 0.32 * clamp(fc.tilt - 0.6 * furrow, -1.2, 1) + (s === 'left' ? 0.18 * arch : 0);
   }
-  // mouth (standard type): grin = teeth plate, a smile without teeth tilts the line up on his left (smirk), arch adds
-  // to the smirk; open thickens the line; a smile widens it, a sad face (smile < 0) narrows it; smoke purses the lips
+  // Mouth. open: the jaw drops (the pieces grow down from their top edge). smile: the corner blocks step up (frown:
+  // down); arch / a closed smile lifts his left corner more (the smirk). teeth: upper teeth in the opening (a grin also
+  // opens it a little); laugh + clench: lower teeth too. clench alone = a gritted snarl (narrow opening, both rows).
+  // smoke: lips pushed together (narrower).
   const open = clamp(fc.open, 0, 1), sm = clamp(fc.smile, -1, 1), grin = clamp(fc.teeth, 0, 1), smk = clamp(fc.smoke, 0, 1);
-  const smirk = clamp(Math.max(0, sm) * (1 - grin) + 0.6 * arch, 0, 1), mw = 0.4 * sm + 0.2 * open - 0.6 * smk;
-  R.mouth.scale.y = 1 + open * 1.5;
-  R.mouth.scale.x = 1 + mw * 0.4 + grin * 0.3;
-  R.mouth.rotation.z = 0.14 * smirk;
-  R.mouth.position.x = 0.25 * smirk;
-  R.teeth.scale.y = Math.max(0.001, grin);
-  R.teeth.position.z = -0.1 + 0.11 * clamp(grin * 10, 0, 1);    // steps out of the head only while grinning
-  R.cig.position.y = 2.0 - 0.3 * open;                           // the cigarette drops with the jaw and droops
+  const cln = clamp(fc.clench, 0, 1), lf = clamp(fc.laugh, 0, 1);
+  const smirk = clamp(Math.max(0, sm) * (1 - grin) * 0.5 + arch, 0, 1);
+  const h = 0.3 + 0.75 * open + 0.2 * grin + 0.22 * cln - 0.06 * smk;   // opening height (the middle)
+  const hc = 0.3 + 0.4 * open + 0.08 * grin + 0.1 * cln;                // corners open less
+  FACE.mid.scale.y = h / 0.3; FACE.mid.position.y = -h / 2;
+  FACE.cr.scale.y = FACE.cl.scale.y = hc / 0.3; FACE.cr.position.y = FACE.cl.position.y = -hc / 2;
+  const up = 0.3 * sm;                                           // corner step: up for a smile, down for a frown
+  R.mouth_cl.position.set(1 + 0.12 * Math.max(0, sm), up + 0.25 * smirk, 0);
+  R.mouth_cr.position.set(-1 - 0.12 * Math.max(0, sm), up - 0.05 * smirk, 0);
+  R.mouth.scale.x = 1 + 0.08 * grin - 0.3 * smk;
+  // Teeth share the opening: alone the upper row fills ~85%; with the lower row (laugh, clench) each takes ~45%, so a
+  // dark gap line always stays between them (gritted teeth read as two rows, not one white strip).
+  const two = clamp(Math.max(lf, cln) * 3 - 0.6, 0, 1);         // 0 = upper row only .. 1 = both rows (smooth, no step)
+  const room = Math.max(0, h - 0.08);
+  const tu = Math.max(grin, cln) * Math.min(0.4, room * (0.85 - 0.4 * two));
+  FACE.teethUp.visible = tu > 0.004; FACE.teethUp.scale.y = Math.max(0.001, tu / 0.4); FACE.teethUp.position.y = -0.02 - tu / 2;
+  const tl = Math.max(lf * grin, cln) * Math.min(0.3, room * 0.42 * two);
+  FACE.teethLo.visible = tl > 0.004; FACE.teethLo.scale.y = Math.max(0.001, tl / 0.3); FACE.teethLo.position.y = -h + 0.01 + tl / 2;
+  R.cig.position.y = 2.0 + R.mouth_cr.position.y * 0.6 - 0.3 * open;   // the cigarette rides his right mouth corner
   R.cig.rotation.x = 0.25 + 0.15 * open;
 }
 
@@ -1348,22 +1397,25 @@ function followTarget(now) {
   F.tYaw = clamp(yaw, -0.85, 0.85); F.tPitch = clamp(pitch, -0.45, 0.4);
 }
 
-// The Joker's own extra expressions in the shared menu (x = page channels: laugh, arch, teeth, noteeth)
+// The Joker's own extra expressions in the shared menu (x = page channels: laugh, arch, teeth, noteeth, pupil, cheek,
+// furrow, clench)
 if (window.MobViewer && window.MobViewer.addExpressions) {
   const C = '<circle cx="12" cy="12" r="9"/>';
   window.MobViewer.addExpressions({
     grin: { label: 'Grin', icon: C + '<path d="M7.5 13.5h9c-.6 2.6-2.4 3.8-4.5 3.8s-3.9-1.2-4.5-3.8z"/><path d="M8 9l2 .6M16 9l-2 .6"/>',
-      brow: 0.35, tilt: -0.3, smile: 1, open: 0.3, eyes: -0.2, look: -0.45, roll: 0.4, x: { teeth: 1 } },
+      brow: 0.2, tilt: -0.35, smile: 1, open: 0.15, eyes: -0.15, look: -0.5, roll: 0.45, x: { teeth: 1, cheek: 0.45, pupil: -0.3 } },
     laugh: { label: 'Laugh', icon: C + '<path d="M8 13h8c-.5 2.4-2 3.6-4 3.6S8.5 15.4 8 13z"/><path d="M7.5 10c.8-.8 1.7-.8 2.5 0M14 10c.8-.8 1.7-.8 2.5 0"/>',
-      brow: 0.5, tilt: 0.5, smile: 1, open: 0.4, eyes: -0.4, look: 0.6, roll: -0.3, shake: 0.4, x: { laugh: 1, teeth: 1 } },
+      brow: 0.6, tilt: 0.55, smile: 1, open: 0.45, eyes: -0.3, look: 0.7, roll: -0.35, shake: 0.45, x: { laugh: 1, teeth: 1, cheek: 0.8 } },
+    smug: { label: 'Smug', icon: C + '<path d="M9 15.5c1.6.8 3.6.6 6-1"/><path d="M8 9.5h2.5M14 8.5l2.5-.8"/>',
+      brow: 0.05, smile: 0.35, eyes: -0.55, look: -0.25, roll: 0.45, x: { arch: 1, noteeth: 1, cheek: 0.2 } },
+    manic: { label: 'Manic', icon: C + '<circle cx="9" cy="10" r="1.6"/><circle cx="15" cy="10" r="1.6"/><path d="M7.5 14h9c-.6 2.2-2.4 3.2-4.5 3.2s-3.9-1-4.5-3.2z"/>',
+      brow: 1, tilt: -0.2, smile: 1, open: 0.35, eyes: 1, look: -0.2, roll: 0.3, shake: 0.35, x: { teeth: 1, pupil: -1 } },
     normal: { label: 'Normal', icon: C + '<path d="M9 10h.01M15 10h.01"/><path d="M9 15h6"/>',
       x: { noteeth: 1 } },
     blank: { label: 'Blank', icon: C + '<path d="M7.8 10.2h2.6M13.6 10.2h2.6"/><path d="M9 15.3h6"/>',
-      brow: -0.05, smile: -0.15, eyes: -0.55, look: -0.35, x: { noteeth: 1 } },
-    smug: { label: 'Smug', icon: C + '<path d="M9 15.5c1.6.8 3.6.6 6-1"/><path d="M8 9.5h2.5M14 8.5l2.5-.8"/>',
-      brow: 0.1, smile: 0.6, eyes: -0.45, look: -0.2, roll: 0.4, x: { arch: 1, noteeth: 1 } },
-    manic: { label: 'Manic', icon: C + '<circle cx="9" cy="10" r="1.6"/><circle cx="15" cy="10" r="1.6"/><path d="M7.5 14h9c-.6 2.2-2.4 3.2-4.5 3.2s-3.9-1-4.5-3.2z"/>',
-      brow: 0.9, tilt: -0.3, smile: 1, open: 0.5, eyes: 1, look: -0.15, shake: 0.35, x: { teeth: 1 } },
+      brow: -0.1, smile: -0.1, eyes: -0.6, look: -0.4, x: { noteeth: 1, pupil: -0.4 } },
+    snarl: { label: 'Snarl', icon: C + '<path d="M8 8.5l3 1.5M16 8.5l-3 1.5"/><rect x="8.5" y="14" width="7" height="2.4" rx=".4"/><path d="M8.5 15.2h7"/>',
+      brow: -0.9, tilt: -1, smile: -0.3, eyes: -0.25, look: -0.35, shake: 0.2, x: { clench: 1, furrow: 1, pupil: -0.5 } },
   });
 }
 
