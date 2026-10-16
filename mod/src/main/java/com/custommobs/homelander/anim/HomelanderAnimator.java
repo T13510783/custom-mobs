@@ -2,7 +2,7 @@ package com.custommobs.homelander.anim;
 
 import java.util.Arrays;
 
-/* ───────── Homelander's animation runtime: a 1:1 port of step() in mobs/homelander/js/sim.js ─────────
+/* ───────── Homelander's animation runtime: a 1:1 port of step() in mobs/homelander/homelander.html ─────────
    Same order, same numbers: random Idle extras (glow pulse, Hover), animation events, crossfade, talk,
    face filter, blinks, head-follow, pupils/lids/brows/mouth/teeth, eye glow + beam values, cape springs.
    Only the animation curves come baked (120 fps) instead of as code. The 1:1 test (src/test) replays the
