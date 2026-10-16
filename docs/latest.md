@@ -1,14 +1,13 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-16 14:47
-**Request:** Bateman: mouth like Homelander's type; make that mouth the default for every mob and put it in the root `CLAUDE.md`.
+**Date:** 2026-10-16 14:49
+**Request:** Clean up and organise all branches, folders and files; merge every finished branch into main.
 
 **Done:**
-- `mobs/patrick_bateman/patrick_bateman.html`: thin lip line (smirk tilt, opens thicker, smile wider) + teeth plate for the grin; earlier today: new UI, 2-bone rig, moving face, Idle / Idle 2 / Walk, arms flush with the torso.
-- `mobs/_shared/viewer_template.html`: same standard mouth for new mobs.
-- `CLAUDE.md` (Face): Homelander-type mouth = default for every mob with a face.
-- Tests: face renders (rest, smirk, grin, happy, sad, angry, afraid) checked; template renders with the grin; scripts syntax-checked; `#cliptest` 0 clips (body unchanged since).
+- Branches: only `tivek87/patrick-bateman` (PR #31) was open; it is finished and merged (Bateman rework, standard Homelander-type mouth rule, archive of old pages, references renamed, README mobs table).
+- Scan: root holds only the allowed files, no bad file names, no file over 50 MB, `docs/working_on.md` empty.
+- Worktree `C:\cm-worktrees\patrick-bateman` and its branch removed after the merge.
 
-**Files:** `mobs/patrick_bateman/patrick_bateman.html`, `mobs/_shared/viewer_template.html`, `CLAUDE.md`, docs (+ PR #31: archive, references, README).
+**Files:** `mobs/patrick_bateman/patrick_bateman.html`, `mobs/_shared/viewer_template.html`, `CLAUDE.md`, `archive/*`, `references/*`, `README.md`, docs.
 
-**Next:** other mobs keep their own mouths until they are worked on (rule: only touch the mob asked about); merge PR #31 when the user says "merge".
+**Next:** no release (viewer-only; v0.0.3-alpha is the latest jar). Other mobs get the standard mouth when they are worked on.

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-10-16 14:49
+- Repo cleanup: PR #31 (Patrick Bateman rework, standard mouth rule, archive + reference renames) merged into `main`; worktree and branch removed; scan found no leftovers (root, names, sizes, `docs/working_on.md`).
+
 ## 2026-10-16 14:47
 - Patrick Bateman (`mobs/patrick_bateman/patrick_bateman.html`): mouth rebuilt as the standard Homelander type (thin lip line that tilts for the smirk, thicker when open, wider with a smile; teeth plate grows down for the grin); mouth corners painted skin shadow.
 - Template (`mobs/_shared/viewer_template.html`): same standard mouth (`grin`, `smirk` face channels, teeth plate).
