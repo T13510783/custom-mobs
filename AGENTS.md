@@ -72,7 +72,12 @@ Make or switch branches and open/merge PRs whenever needed.
 
 ## 6. Commits and PR text
 
-- Message: `<area>: <what>` in simple English. One logical change per commit.
+- Every commit and squash-merge has a good message: clear, short, clean. One logical change per commit.
+  - Subject: `<area>: <what changed>` in simple English (max ~72 chars; never "update", "fix stuff", "wip").
+  - Body: 1-4 short bullets: what, which files, why, how tested (or "not tested").
+  - Last line: who did it. An AI adds the normal co-author trailer with its model,
+    e.g. `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` (Claude Code: `.claude/settings.json` -> `"includeCoAuthoredBy": true`).
+  - Squash-merge: give the clean subject + body + trailer (`gh pr merge --squash --subject "..." --body "..."`).
 - PR description: what changed, which files, how it was tested (or "not tested").
 
 ## 7. Clean up: after every merge and at the end of every session

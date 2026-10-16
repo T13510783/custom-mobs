@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-16 08:48
+- Homelander cape (`mobs/homelander/homelander.html`): 50 bones posed only by cloth physics (7 chains, gravity, air, breeze, body + hands collisions); drawn as one continuous cloth surface from the cloth points (no gaps, steps or box edges); lies over his hands in Hover.
+- Homelander clap: he smacks both ears first, then the dummy grabs its own ears, screams and falls; I AM GOD plays to the end (lip-sync curve covers the whole 2.55 s file).
+- Homelander: one file (no `js/` folder), dummy with 2-bone arms/legs, throat grabs at neck height, rarer random grin, dock wraps.
+- Shared viewer UI (`mobs/_shared/viewer.css`, `viewer.js`, `viewer_template.html`): expression menu (Auto / Happy / Sad / Angry / Afraid, face icons, pill style); Homelander uses it.
+- Sounds (`sounds/homelander/`, `tools/sfx/`): new `slap`, `crush` removed.
+- Rules (`CLAUDE.md`): expression menu, shared viewer files, only touch the asked mob, 10000 lines per file, edit tool choice, own-branch cleanup, organise + commit + push after every request.
+
 ## 2026-10-15 22:36
 - Organized files into subfolders without deleting or editing any contents:
   - `mobs/anton_chigurh/AntonChig.html`: sorted Anton Chigurh viewer into its own mob directory (`mobs/anton_chigurh/`).
@@ -20,6 +28,11 @@
   - `references/patrick_bateman/`: removed `reference_bateman_gun_aim.png` (same bytes as `reference_bateman_gun.png`); moved the 6 hash-named film stills from the root in as `bateman_film_*.jpg`.
   - `run.txt` + `CLAUDE.md` (rules 21, 24): no hardcoded `C:\custom mobs` path, the command now works from any clone folder.
 
+## 2026-10-15 22:20
+- Viewers: Download .bbmodel button + toast removed (`mobs/the_king/thekingv3.html`, `mobs/homelander/homelander.html`, `mobs/black_noir/black_noir.html`); the export code stays for the headless `.bbmodel` save.
+- Show bones button (key `B`) added to `mobs/darth_vader/DarthVader.html`, `mobs/thanos/Thanos.html`, `mobs/patrick_bateman/PatrickBateman.html` (+ root copy), `mobs/reverse_flash/ReverseFlash.html`, `mobs/the_joker/the_joker.html`: one self-contained rig-overlay block that hooks the scene update.
+- `tools/cdp.ps1`: new `-shot <file.jpg>` option (page screenshot after the expression returns).
+
 ## 2026-10-15 22:06
 - Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
   - Removed teeth from raincoat skin face: restored the standard deadpan serious face (`px(ctx, 3, 6, 2, 1, skinDeep)`) matching all other skins.
@@ -29,6 +42,11 @@
     - Eliminates all no-clipping through the arm, torso, and raincoat—the only point of contact is the handle held in his hand.
   - Adjusted raincoat idle arm to `rArmX = -0.06, rArmZ = 0.10` and walk swing to `-0.10 - swing * 0.28, rArmZ = 0.10` so the axe hangs and swings freely in open air beside his leg.
   - Synchronized `PatrickBateman.html` directly to `mobs/patrick_bateman/PatrickBateman.html` (verified identical SHA256 hashes).
+
+## 2026-10-15 22:04
+- Rules: every commit and squash-merge needs a clear, short, clean message with the AI co-author trailer (`CLAUDE.md` GitHub section, `AGENTS.md` section 6).
+- New `.claude/settings.json` with `"includeCoAuthoredBy": true`.
+- Viewer UI rule 10 (`CLAUDE.md`): no Download .bbmodel button; Show bones button in every viewer, always.
 
 ## 2026-10-15 21:52
 - Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
@@ -58,7 +76,7 @@
 
 ## 2026-10-15 20:53
 - Patrick Bateman (`PatrickBateman.html` & `mobs/patrick_bateman/PatrickBateman.html`):
-  - Fixed sunken / disconnected shoulder geometry: updated arm group pivots to `x = ±6.0 * PX, y = 12.0 * PX, z = 0` (was previously `y = 10.0 * PX`), making the top of the arms flush with the top of the torso and collar line, forming a seamless 16-pixel shoulder line without gaps.
+  - Fixed sunken / disconnected shoulder geometry: updated arm group pivots to `x = Â±6.0 * PX, y = 12.0 * PX, z = 0` (was previously `y = 10.0 * PX`), making the top of the arms flush with the top of the torso and collar line, forming a seamless 16-pixel shoulder line without gaps.
   - Made held Glock pistol, Paul Allen chrome axe, and 1980s brick mobile phone prominently visible in the hand in Idle:
     - Glock 19: refined tactical gunmetal slide (`0x2d323b`, metallic sheen), polished steel ejection port, bright white 3-dot aiming sights, recoil guide rod, and forward projection (`z = 1.6 * PX`, slide extending to `5.8 * PX` in +Z).
     - In Idle pose for tan overcoat: angled the right arm forward (`rArmX = -0.22, rArmZ = 0.09, rArmY = -0.06`) so the gun silhouette clearly projects in front of the coat and is immediately visible from all camera angles.
@@ -312,7 +330,7 @@
   - Tailored warm olive-khaki / field-tan wool palette across jacket, articulated lapel plates, and matching trousers.
   - Double-breasted jacket front with diagonal fold and two columns of 3 cream/ivory buttons (6 buttons total).
   - High-collar white dress shirt with champagne / golden-tan silk necktie.
-  - Left-chest historical military decorations (circular gold pin, Iron Cross cross-pattée, oval badge) with no political insignia or extremist symbols.
+  - Left-chest historical military decorations (circular gold pin, Iron Cross cross-pattÃ©e, oval badge) with no political insignia or extremist symbols.
   - Sleeve cuffs with matching cream buttons.
 - Preserved head meshes, hair, mustache, facial features, and all animations (Idle, Walk, Attack, Special) unchanged.
 

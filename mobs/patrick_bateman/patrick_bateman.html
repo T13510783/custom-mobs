@@ -71,6 +71,7 @@
 
 <script type="module">
 import * as THREE from 'three';
+window.THREE = THREE; // the Show bones block (bottom of the page) uses the global
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 /* =========================================================================
@@ -988,5 +989,98 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 </script>
+  <script>
+    /* ───────── Rig overlay ("Show bones" button, key B) ─────────
+       Same block in every mob (rule 10). A dot on every bone pivot (yellow) and a line to its
+       parent bone (cyan), drawn on top of the model and updated live in every animation.
+       Waits for window.THREE (module pages set it after their import).
+       Bones = the group nodes of the mob (the scene child with the most meshes).
+       It wraps renderer.render, so it needs none of the page's own variables. */
+    (function waitThree() {
+      if (!window.THREE) return setTimeout(waitThree, 50); // module pages: THREE arrives later
+      const ANCHOR = '.bar .reset'; // a button in the dock: the bones button goes right after it
+      const rig = { on: false, scene: null, root: null, list: [], parentIdx: [], lines: null, dots: null, linePos: null, dotPos: null, checkAt: 0 };
+      const va = new THREE.Vector3(), vb = new THREE.Vector3();
+      const isBone = (o) => !o.isMesh && !o.isLight && !o.isCamera && !o.isLine && !o.isPoints && !o.isSprite && o.children.length > 0;
+
+      // Find the mob root and its bones; (re)make the buffers only when the bone count changes.
+      function build(scene) {
+        let best = 0; rig.root = null;
+        for (const c of scene.children) {
+          if (c === rig.lines || c === rig.dots || c.isLight || c.isCamera) continue;
+          let n = 0; c.traverse((x) => { if (x.isMesh) n++; });
+          if (n > best) { best = n; rig.root = c; }
+        }
+        rig.list = [];
+        if (rig.root) rig.root.traverse((x) => { if (x !== rig.root && isBone(x)) rig.list.push(x); });
+        const idx = new Map(rig.list.map((g, i) => [g, i]));
+        rig.parentIdx = rig.list.map((g) => { let p = g.parent; while (p && p !== rig.root && !idx.has(p)) p = p.parent; return idx.has(p) ? idx.get(p) : -1; });
+        const n = rig.list.length;
+        if (!rig.lines || rig.dotPos.length !== n * 3) {
+          if (rig.lines) { scene.remove(rig.lines, rig.dots); rig.lines.geometry.dispose(); rig.dots.geometry.dispose(); }
+          rig.linePos = new Float32Array(n * 6); rig.dotPos = new Float32Array(n * 3);
+          const lg = new THREE.BufferGeometry(), dg = new THREE.BufferGeometry();
+          lg.setAttribute('position', new THREE.BufferAttribute(rig.linePos, 3));
+          dg.setAttribute('position', new THREE.BufferAttribute(rig.dotPos, 3));
+          rig.lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x67e8f9, depthTest: false, transparent: true, opacity: 0.9 }));
+          rig.dots = new THREE.Points(dg, new THREE.PointsMaterial({ color: 0xfacc15, size: 6, sizeAttenuation: false, depthTest: false, transparent: true }));
+          for (const o of [rig.lines, rig.dots]) { o.renderOrder = 999; o.frustumCulled = false; }
+        }
+        if (rig.lines.parent !== scene) scene.add(rig.lines, rig.dots);
+        rig.lines.visible = rig.dots.visible = rig.on;
+        rig.scene = scene;
+      }
+
+      // Plain writes into the buffers: no new objects per frame.
+      function update(now) {
+        if (now > rig.checkAt) { rig.checkAt = now + 1000; build(rig.scene); } // variants may rebuild parts
+        if (!rig.root) return;
+        rig.list.forEach((g, i) => { // world matrices are fresh: the scene was just updated
+          va.setFromMatrixPosition(g.matrixWorld);
+          const p = rig.parentIdx[i];
+          if (p >= 0) vb.setFromMatrixPosition(rig.list[p].matrixWorld); else vb.copy(va);
+          const j = i * 6, k = i * 3;
+          rig.linePos[j] = vb.x; rig.linePos[j + 1] = vb.y; rig.linePos[j + 2] = vb.z;
+          rig.linePos[j + 3] = va.x; rig.linePos[j + 4] = va.y; rig.linePos[j + 5] = va.z;
+          rig.dotPos[k] = va.x; rig.dotPos[k + 1] = va.y; rig.dotPos[k + 2] = va.z;
+        });
+        rig.lines.geometry.attributes.position.needsUpdate = true;
+        rig.dots.geometry.attributes.position.needsUpdate = true;
+      }
+
+      // The renderer calls scene.updateMatrixWorld() at the start of every render: hook it there
+      // (r128 sets render() per renderer instance, so wrapping render on the prototype would miss it).
+      const baseUpdate = THREE.Object3D.prototype.updateMatrixWorld;
+      THREE.Object3D.prototype.updateMatrixWorld = function (force) {
+        baseUpdate.call(this, force);
+        if (rig.on && this.isScene) { if (rig.scene !== this) { rig.checkAt = 0; rig.scene = this; } update(performance.now()); }
+      };
+
+      // Bones button: copies the look of the anchor button, without its role classes.
+      const anchor = document.querySelector(ANCHOR);
+      const btn = document.createElement('button');
+      btn.id = 'bonesBtn'; btn.type = 'button'; btn.title = 'Show bones (B)'; btn.setAttribute('aria-pressed', 'false');
+      btn.className = anchor ? anchor.className.split(/\s+/).filter((c) => !/^(anim-btn|variant-btn|toggle-btn|active.*)$/.test(c)).join(' ') : '';
+      btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;';
+      if (!anchor) btn.style.cssText += 'position:fixed;right:16px;bottom:16px;z-index:50;width:36px;height:36px;border-radius:999px;background:#1a1d24;color:#cbd5e1;border:1px solid #2a2f3a;';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><circle cx="7" cy="12" r="1.6"/><circle cx="17" cy="12" r="1.6"/><circle cx="9" cy="20" r="1.6"/><circle cx="15" cy="20" r="1.6"/><path d="M12 6v8M12 8l-5 4M12 8l5 4M12 14l-3 6M12 14l3 6"/></svg>';
+      if (anchor) anchor.insertAdjacentElement('afterend', btn); else document.body.appendChild(btn);
+
+      function toggleBones() {
+        rig.on = !rig.on;
+        if (rig.lines) rig.lines.visible = rig.dots.visible = rig.on;
+        rig.checkAt = 0; // rebuild on the next frame
+        btn.setAttribute('aria-pressed', String(rig.on));
+        btn.style.background = rig.on ? 'rgba(250, 204, 21, 0.18)' : (anchor ? '' : '#1a1d24');
+        btn.style.color = rig.on ? '#facc15' : '';
+      }
+      btn.addEventListener('click', toggleBones);
+      window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+        if (e.key === 'b' || e.key === 'B') toggleBones();
+      });
+      window.rigOverlay = { toggle: toggleBones, get bones() { return rig.list.length; } }; // test handle
+    })();
+  </script>
 </body>
 </html>

@@ -14,13 +14,16 @@ Custom Minecraft mobs for **Minecraft 1.21.1 + NeoForge**, made in three steps:
 | The King | `mobs/the_king/thekingv3.html` | yes |
 | Homelander | `mobs/homelander/homelander.html` | not yet |
 | Black Noir | `mobs/black_noir/black_noir.html` | not yet |
-| Reverse-Flash | `mobs/reverse_flash/ReverseFlash.html` | not yet |
-| Darth Vader | `mobs/darth_vader/DarthVader.html` | not yet |
-| Thanos | `mobs/thanos/Thanos.html` | not yet |
+| Reverse-Flash | `mobs/reverse_flash/reverse_flash.html` | not yet |
+| Darth Vader | `mobs/darth_vader/darth_vader.html` | not yet |
+| Thanos | `mobs/thanos/thanos.html` | not yet |
+| Patrick Bateman | `mobs/patrick_bateman/patrick_bateman.html` | not yet |
+| Anton Chigurh | `mobs/anton_chigurh/anton_chigurh.html` | not yet |
 | The Joker | `mobs/the_joker/the_joker.html` | not yet |
 
 Viewer controls: number keys = animations, `B` = show bones, `R` = reset camera,
-eye button = head follows the mouse, dots = color variants, top right = download `.bbmodel`.
+eye button = head follows the mouse, dots = color variants, top right = expression menu (Auto / Happy / Sad / Angry / Afraid) + reset camera.
+Shared viewer UI for every mob: `mobs/_shared/` (`viewer.css`, `viewer.js`, `viewer_template.html` = start page for a new mob).
 
 ## Folders
 
