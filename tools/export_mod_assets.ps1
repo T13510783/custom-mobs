@@ -10,10 +10,10 @@ $root = Split-Path $PSScriptRoot -Parent
 
 # ───────── Per mob: viewer page, mod namespace + folders, trace file, sounds (source -> mod name) ─────────
 $cfg = @{
-  the_king = @{ page = 'mobs/the_king/thekingv3.html'; ns = 'theking'; dir = 'king'; tex = 'the_king'; trace = 'modtrace.json'; snd = 'sounds\the_king'
+  the_king = @{ page = 'custom-models/mobs/memes/the_king/the_king.html'; ns = 'theking'; dir = 'king'; tex = 'the_king'; trace = 'modtrace.json'; snd = 'sounds\mobs\memes\the_king'
     sounds = @{ 'cussingshort.ogg' = 'voice_cussing_short.ogg'; 'cussing_long_final.ogg' = 'voice_cussing_long.ogg';
                 'take_ur_stuff_and_get_out_of_my_seat_please_final.ogg' = 'voice_take_your_stuff.ogg'; 'backgroundmusic.ogg' = 'dance_music.ogg' } }
-  homelander = @{ page = 'mobs/homelander/homelander.html'; ns = 'homelander'; dir = 'homelander'; tex = 'homelander'; trace = 'homelander_modtrace.json'; snd = 'sounds\homelander'
+  homelander = @{ page = 'custom-models/mobs/the_boys/homelander/homelander.html'; ns = 'homelander'; dir = 'homelander'; tex = 'homelander'; trace = 'homelander_modtrace.json'; snd = 'sounds\mobs\the_boys\homelander'
     sounds = @{ 'i_am_god.ogg' = 'voice_i_am_god.ogg'; 'punch.ogg' = 'punch.ogg'; 'grab.ogg' = 'grab.ogg'; 'whoosh.ogg' = 'whoosh.ogg'
                 'slap.ogg' = 'slap.ogg'; 'laser.ogg' = 'laser.ogg' } }
 }[$mob]

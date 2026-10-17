@@ -1,0 +1,3298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Homelander - 3D Vanilla+ Minecraft Model Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!--
+    Homelander - 3D Vanilla+ Minecraft Model Viewer
+    - Box model, 1 unit = 1 texel: head 8x8x8, torso 9x12x5, 2-bone arms and legs (see the Rig section).
+    - Blonde hair shell, gold eagle pauldrons and belt, copper bracers, red gloves and boots,
+      American flag cape with 50 bones, moved only by cloth physics (gravity, air, breeze, body collisions).
+    - Animations (keys 1-8): Idle, Idle 2, Walk, Attack (super punch), Special (levitation + heat vision),
+      Throw (neck grab, fling up), Clap ("I AM GOD" + head clap, with the voice line), Throat Laser;
+      Hover plays by itself from Idle now and then.
+    - Test dummy (key D) = the victim of every attack; voice line on/off + volume (key V = say it).
+    - Same UI as every mob (#0f1115), Show bones (B); the mod gets everything 1:1 through #modexport.
+    - One file: all code in the module script below (sections). Shared UI (expression menu) from ../../../_shared/.
+  -->
+
+  <style>
+    /* ───────── Tokens ───────── */
+    :root {
+      color-scheme: dark;
+      --bg: #0f1115;
+      --pill: rgba(20, 23, 30, 0.82);
+      --line: rgba(255, 255, 255, 0.09);
+      --text: rgba(255, 255, 255, 0.62);
+      --text-hi: #ffffff;
+      --accent: #3b82f6;
+      --accent-bg: rgba(59, 130, 246, 0.22);
+      --accent-text: #bfdbfe;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    /* ───────── Page ───────── */
+    * { box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+    html, body {
+      margin: 0; width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg); color: var(--text-hi); font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+    #viewport { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; cursor: grab; }
+    #viewport:active { cursor: grabbing; }
+
+    /* ───────── Glass pills ───────── */
+    .pill {
+      background: var(--pill);
+      -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+    }
+    button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+    .icon-btn {
+      height: 36px; min-width: 36px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      color: var(--text); font-size: 12px; font-weight: 500;
+      transition: color .2s, background .2s, transform .2s cubic-bezier(.22, 1, .36, 1);
+    }
+    .icon-btn:hover { color: var(--text-hi); transform: translateY(-1px); }
+    .icon-btn:active { transform: scale(.97); }
+    .icon-btn svg { width: 16px; height: 16px; flex: none; }
+    #resetBtn { padding: 0; width: 36px; }
+
+    /* ───────── Top right: expression menu (shared) + reset ───────── */
+    #topRight { position: fixed; top: 16px; right: 16px; z-index: 20; display: flex; gap: 8px; }
+
+    /* ───────── Bottom dock ───────── */
+    #dock {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 20;
+      display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px; padding: 6px;
+      width: max-content; max-width: calc(100vw - 32px); border-radius: 24px; /* wraps into rows instead of running out of the pill */
+    }
+    .anim-btn {
+      padding: 7px 14px; border-radius: 999px; font-size: 12px; font-weight: 500; letter-spacing: .02em;
+      color: var(--text); border: 1px solid transparent; white-space: nowrap;
+      transition: color .2s, background .2s, border-color .2s, box-shadow .2s;
+    }
+    .anim-btn:hover { color: var(--text-hi); }
+    .anim-btn.active { color: var(--accent-text); background: var(--accent-bg); border-color: rgba(59, 130, 246, .45); box-shadow: 0 0 18px rgba(59, 130, 246, .24); }
+    .anim-btn kbd { font: inherit; opacity: .45; margin-right: 6px; }
+    .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+    #followBtn, #voiceBtn, #dummyBtn, #bonesBtn { width: 32px; height: 32px; min-width: 32px; padding: 0; border-radius: 999px; }
+    #followBtn.on, #voiceBtn.on, #dummyBtn.on, #bonesBtn.on { color: var(--accent-text); background: var(--accent-bg); }
+    #voiceVol { width: 60px; margin: 0 4px 0 2px; accent-color: var(--accent); cursor: pointer; }
+    #voiceVol:disabled { opacity: .35; cursor: default; }
+    .dot {
+      width: 18px; height: 18px; border-radius: 999px; margin: 0 3px;
+      border: 2px solid rgba(255, 255, 255, .18); transition: transform .2s, border-color .2s;
+    }
+    .dot:hover { transform: scale(1.12); }
+    .dot.active { border-color: var(--accent); }
+
+
+    @media (max-width: 540px) {
+      .anim-btn { padding: 7px 10px; }
+      .anim-btn kbd { display: none; }
+      #voiceVol { width: 44px; }
+    }
+  </style>
+  <!-- Shared viewer UI (expression menu): custom-models/_shared/ -->
+  <link rel="stylesheet" href="../../../_shared/viewer.css">
+  <script src="../../../_shared/viewer.js"></script>
+
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <canvas id="viewport"></canvas>
+
+  <!-- Top right: camera reset -->
+  <div id="topRight">
+    <button id="resetBtn" class="pill icon-btn" title="Reset camera (R)" aria-label="Reset camera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+    </button>
+  </div>
+
+
+  <!-- Bottom dock: animations, follow toggle, color variants -->
+  <nav id="dock" class="pill" aria-label="Viewer controls">
+    <button class="anim-btn active" data-anim="idle"><kbd>1</kbd>Idle</button>
+    <button class="anim-btn" data-anim="idle2"><kbd>2</kbd>Idle 2</button>
+    <button class="anim-btn" data-anim="walk"><kbd>3</kbd>Walk</button>
+    <button class="anim-btn" data-anim="run"><kbd>4</kbd>Run</button>
+    <button class="anim-btn" data-anim="attack"><kbd>5</kbd>Attack</button>
+    <button class="anim-btn" data-anim="special"><kbd>6</kbd>Special</button>
+    <button class="anim-btn" data-anim="throw"><kbd>7</kbd>Throw</button>
+    <button class="anim-btn" data-anim="clap"><kbd>8</kbd>Clap</button>
+    <button class="anim-btn" data-anim="throatLaser"><kbd>9</kbd>Throat Laser</button>
+    <span class="sep"></span>
+    <!-- Walk while attacking: the legs keep walking under every attack (the mod does this when he moves). Key W. -->
+    <button id="walkAtkBtn" class="icon-btn" title="Walk while attacking (W): on = he walks, and keeps walking during every attack you pick" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="M11 8l-3 5 4 2 1 7M11 8l4 3 4-1M8 13l-3 7M16 3l5 2-2 3"/></svg>
+    </button>
+    <button id="followBtn" class="icon-btn on" title="Head and eyes follow the mouse" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+    <!-- Sound on/off (I AM GOD voice line in the Clap + attack sound effects) + volume. Key V = shout the line now. -->
+    <button id="voiceBtn" class="icon-btn on" title="Sound on/off (V = say I AM GOD now)" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>
+    </button>
+    <input id="voiceVol" type="range" min="0" max="100" value="85" title="Volume: 85%" aria-label="Volume">
+    <!-- Test dummy: the victim of the attacks (grabbed, thrown, lasered, clapped). Key D. -->
+    <button id="dummyBtn" class="icon-btn on" title="Show test dummy (D)" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M7 10h10v6H7zM9 16v6M15 16v6M7 10l-3 5M17 10l3 5"/></svg>
+    </button>
+    <!-- Show the rig: a dot on every bone pivot + a line to its parent. Key B. -->
+    <button id="bonesBtn" class="icon-btn" title="Show bones (B)" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><circle cx="7" cy="12" r="1.6"/><circle cx="17" cy="12" r="1.6"/><circle cx="9" cy="20" r="1.6"/><circle cx="15" cy="20" r="1.6"/><path d="M12 6v8M12 8l-5 4M12 8l5 4M12 14l-3 6M12 14l3 6"/></svg>
+    </button>
+    <span class="sep"></span>
+    <span id="dots"></span>
+  </nav>
+
+  <script>
+    window.__errors = [];
+    window.onerror = (m, u, l, c, e) => window.__errors.push({ m, u, l, c, s: e ? e.stack : '' });
+    window.addEventListener('unhandledrejection', (e) => window.__errors.push({ m: String(e.reason) }));
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    window.THREE = THREE; // tools and the shared viewer script use the global
+
+/* ───────── Renderer, scene, camera ───────── */
+const canvas = document.getElementById('viewport');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f1115);
+scene.fog = new THREE.FogExp2(0x0f1115, 0.016);
+
+const TEXEL = 1 / 16; // 1 unit = 1 texel, 16 texels per Minecraft block (1m)
+
+const CAM_POS = new THREE.Vector3(2.4, 1.75, 2.9);
+const CAM_TARGET = new THREE.Vector3(0, 1.05, 0);
+const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.1, 60);
+camera.position.copy(CAM_POS);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(CAM_TARGET);
+controls.enableDamping = true;
+controls.minDistance = 1.2;
+controls.maxDistance = 7.5;
+controls.maxPolarAngle = Math.PI * 0.495;
+controls.update();
+
+/* ───────── Lighting ───────── */
+scene.add(new THREE.HemisphereLight(0xfff5ea, 0x141824, 0.95));
+
+const keyLight = new THREE.DirectionalLight(0xfff8ee, 2.45);
+keyLight.position.set(3.6, 6.2, 4.2);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.camera.near = 0.5;
+keyLight.shadow.camera.far = 18;
+keyLight.shadow.camera.left = keyLight.shadow.camera.bottom = -2.5;
+keyLight.shadow.camera.right = keyLight.shadow.camera.top = 2.5;
+keyLight.shadow.bias = -0.0005;
+keyLight.shadow.radius = 3.2;
+scene.add(keyLight);
+
+const rimLight = new THREE.DirectionalLight(0x60a5fa, 0.95);
+rimLight.position.set(-3.6, 3.2, -3.6);
+scene.add(rimLight);
+
+const fillLight = new THREE.DirectionalLight(0xfef08a, 0.38);
+fillLight.position.set(-2.6, 1.5, 3.0);
+scene.add(fillLight);
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(24, 24), new THREE.ShadowMaterial({ opacity: 0.45 }));
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+/* ───────── Color Palettes ───────── */
+const BASE = {
+  // Skin: Rich dimensional tones matching The King (micro-shading, rosy cheeks & nose tip)
+  skin: '#e5af95', skinLight: '#f4c7b0', skinBase: '#e5af95', skinWarm: '#d6977b',
+  skinRosy: '#d98473', skinShadow: '#b8765c', lidSkin: '#cd8a6e',
+  eyeWhite: '#f8fafc', eyePupil: '#1f5f9e', eyeIris: '#0284c7',
+  browHair: '#8a6431', lipLine: '#a36456', lipSmirk: '#a8655a', teeth: '#f3efe4',
+  // Blonde hair: natural golden blonde from the photos (less lemon-yellow)
+  hairLight: '#f0d68a', hairGolden: '#dcb862', hairBase: '#c89f4a', hairWarm: '#a98236', hairDark: '#7d5c26', hairNape: '#5c4219',
+  // Suit: royal blue with a fine scale texture (photos), not navy
+  suitLight: '#3b62a6', suitBase: '#2c4f8f', suitDark: '#1d3767', suitDeep: '#142951',
+  suitTexture: '#264682', suitPipingRed: '#c8343a', suitPipingDark: '#8f1f26',
+  // Antique gold eagle armor (pauldrons & belt)
+  goldLight: '#f3d47e', goldBright: '#dcae4a', goldBase: '#c08f32', goldWarm: '#9a6c22', goldDark: '#5e4013',
+  // Copper scale bracers on the forearms
+  bronzeLight: '#da8b52', bronzeBase: '#b9662f', bronzeWarm: '#95491f', bronzeDark: '#5f2b13',
+  // Deep red leather gloves & boots
+  crimsonLight: '#d2413a', crimsonBase: '#b3262a', crimsonWarm: '#931c22', crimsonDark: '#5f1216', crimsonSole: '#3d1612',
+  // Cape: US flag (star yoke + equal red/white stripes, striped inside too)
+  capeBlueDark: '#1b2f63', capeBlueBase: '#253f82', capeStarWhite: '#ffffff',
+  capeRedBase: '#b8262c', capeRedDark: '#8e1b21',
+  capeWhiteBase: '#f1f1ec', capeWhiteShade: '#d9d9d2',
+  capeLining: '#f1f5f9'
+};
+
+const VARIANTS = [
+  { id: 'classic', name: 'Classic (Show)', pal: {} },
+  { id: 'damaged', name: 'Battle Damaged', pal: {
+    suitLight: '#2d4677', suitBase: '#213a68', suitTexture: '#1b315a', suitDark: '#142647', suitDeep: '#0e1b34',
+    skinLight: '#e4bcab', skinBase: '#d4a28f', skinWarm: '#c48974',
+    skinRosy: '#bf7969', skinShadow: '#9c6654', skin: '#d4a28f', lidSkin: '#c48974',
+    goldBase: '#a07428', goldWarm: '#7c5419', goldDark: '#4a3210',
+    bronzeBase: '#96522a', bronzeWarm: '#743a1a',
+    crimsonBase: '#962024', crimsonWarm: '#7a181d', crimsonDark: '#4c0e11',
+    capeRedBase: '#962024', capeRedDark: '#6e161a', capeWhiteBase: '#c9c7bd', capeWhiteShade: '#b3b1a7'
+  } },
+  { id: 'comic', name: 'Comic Book', pal: {
+    suitLight: '#4a86e0', suitBase: '#2f6bc9', suitDark: '#1f4f9e', suitTexture: '#3a78d6', suitDeep: '#173d7c',
+    skinLight: '#ffe0cf', skinBase: '#ffceb4', skinWarm: '#f6b89c',
+    skinRosy: '#f89e90', skinShadow: '#d88e76', skin: '#ffceb4', lidSkin: '#f6b89c',
+    hairBase: '#fde047', hairGolden: '#facc15', hairLight: '#fef9c3',
+    goldBright: '#fef08a', goldBase: '#facc15', goldWarm: '#eab308',
+    crimsonLight: '#f87171', crimsonBase: '#ef4444', crimsonWarm: '#dc2626',
+    capeBlueBase: '#2563eb', capeRedBase: '#ef4444'
+  } }
+];
+
+let P = { ...BASE };
+
+/* ───────── Texture Painters ───────── */
+function hash2D(x, y, seed = 1) {
+  const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123;
+  return n - Math.floor(n);
+}
+function px(ctx, x, y, col) { ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1); }
+const flat = (key) => (ctx, f, w, h) => { ctx.fillStyle = P[key]; ctx.fillRect(0, 0, w, h); };
+
+// Head base (8x8x8): Rich dimensional skin tones with micro-shading, rosy cheeks & jawline depth (matching The King)
+function paintHead(ctx, face, w, h) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const n = hash2D(x, y, 13);
+      let col = n > 0.55 ? P.skinBase : P.skinWarm;
+
+      if (face === 'front') {
+        if (y <= 1) col = P.skinLight; // forehead light
+        if (y === 4 && (x === 1 || x === 6)) col = P.skinRosy; // rosy cheekbones
+        if (y === 5 && (x === 1 || x === 6)) col = P.skinShadow; // cheek shadows
+        // Painted player-style nose (no block): lit right side (key light is on +x), shaded left
+        if (y === 4 && x === 3) col = P.skinWarm;
+        if (y === 4 && x === 4) col = P.skinLight;
+        if (y === 5 && x >= 2 && x <= 5) col = (x === 3 || x === 4) ? P.skinWarm : P.skinLight; // soft shade under the nose, lit cheeks beside it
+        if (y === 6 && (x === 2 || x === 5)) col = P.skinShadow; // mouth corners (the lip line itself is the mouth plane, like The King)
+        if (y === 7) col = (x >= 2 && x <= 5) ? P.skinWarm : P.skinShadow; // strong square chin, dark jaw corners
+      } else if (face === 'left' || face === 'right') {
+        const fromFront = (face === 'right') ? x : (w - 1 - x);
+        if (fromFront >= 4) {
+          // Short tapered sides: combed strands, darker toward the nape
+          const streak = hash2D(fromFront, 0, 7) > 0.5;
+          col = y <= 5 ? (streak ? P.hairBase : P.hairWarm) : (y === 6 ? (streak ? P.hairWarm : P.hairDark) : P.hairDark);
+        } else if (fromFront === 3 && y >= 2 && y <= 5) {
+          col = P.hairGolden;
+        } else if (fromFront === 2 && (y === 3 || y === 4)) {
+          col = P.skinRosy;
+        }
+      } else if (face === 'top') {
+        col = (x % 2 === 0) ? P.hairLight : P.hairGolden;
+      } else if (face === 'back') {
+        // Back of the head below the hair shell: same combed strands as the shell, tapering
+        // into a short dark nape (photos: neat short back)
+        const streak = hash2D(x, 0, 7) > 0.5;
+        if (y <= 5) col = streak ? P.hairBase : P.hairWarm;
+        else if (y === 6) col = streak ? P.hairWarm : P.hairDark;
+        else col = streak ? P.hairDark : P.hairNape;
+      } else if (face === 'bottom') {
+        col = P.skinShadow;
+      }
+      px(ctx, x, y, col);
+    }
+  }
+}
+
+// Blonde Hair Outer Shell (8x5x8 with 0.25 inflate, cut: true):
+// Authentic pomaded slicked-back hairstyle with crisp left part, combed front-to-back crown,
+// and neat tapered sides/nape ending cleanly above the neckline.
+function paintHair(ctx, face, w, h) {
+  ctx.clearRect(0, 0, w, h);
+  if (face === 'bottom') return; // open underneath: the head sits in the hair shell
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let filled = false;
+      let col = P.hairGolden;
+
+      if (face === 'top') {
+        // Crown: Hair combed straight back from forehead (y=0) to back of head (y=7)
+        filled = true;
+        if (x === 2) {
+          // Side parting line: honey-warm comb division
+          col = P.hairWarm;
+        } else if (x === 0 || x === 1) {
+          // Right side of part: combed straight back
+          col = (x === 1) ? P.hairLight : ((y <= 2) ? P.hairLight : P.hairGolden);
+        } else {
+          // Main combed-over volume to the left: parallel combed strands
+          if (x === 3 || x === 5) {
+            col = (y <= 4) ? P.hairLight : P.hairGolden; // bright platinum highlights
+          } else if (x === 4 || x === 6) {
+            col = (y >= 5) ? P.hairWarm : P.hairGolden; // warm golden lock
+          } else {
+            col = (y >= 4) ? P.hairWarm : P.hairGolden; // outer crest
+          }
+        }
+      } else if (face === 'front') {
+        // Front hairline: slicked back across top edge ONLY.
+        // No hanging sideburn strips: face is completely clear and open.
+        if (y === 0) {
+          filled = true;
+          if (x === 2) col = P.hairWarm; // soft honey parting groove
+          else if (x === 3 || x === 5) col = P.hairLight;
+          else if (x === 0 || x === 7) col = P.hairWarm;
+          else col = P.hairGolden;
+        }
+      } else if (face === 'left' || face === 'right') {
+        // Sides: Hair combed horizontally back tight against the head, clean temple/ears
+        const fromFront = (face === 'right') ? x : (w - 1 - x);
+        if (y === 0) {
+          filled = true;
+          col = (fromFront <= 2) ? P.hairLight : P.hairGolden;
+        } else if (y === 1) {
+          filled = true;
+          col = (fromFront >= w - 3) ? P.hairWarm : P.hairGolden;
+        } else if (y === 2) {
+          if (fromFront >= 2) {
+            filled = true;
+            col = (fromFront >= w - 2) ? P.hairDark : P.hairWarm;
+          }
+        } else if (y === 3) {
+          if (fromFront >= 3) {
+            filled = true;
+            col = (fromFront >= w - 2) ? P.hairDark : P.hairWarm;
+          }
+        } else if (y === 4) {
+          if (fromFront >= 4) {
+            filled = true;
+            col = P.hairDark;
+          }
+        }
+      } else if (face === 'back') {
+        // Back: vertical combed strands (one tone per column), lighter on top,
+        // flowing into the head's back face below (same column hash)
+        filled = true;
+        const streak = hash2D(x, 0, 7) > 0.5;
+        if (y <= 1) col = streak ? P.hairLight : P.hairGolden;
+        else if (y <= 3) col = streak ? P.hairGolden : P.hairBase;
+        else col = streak ? P.hairBase : P.hairWarm;
+      }
+
+      if (filled) px(ctx, x, y, col);
+    }
+  }
+}
+
+// Suit fabric: fine scale texture from the photos. Mostly base blue, sparse darker scale
+// edges and rare light glints (hash noise, so no harsh checkerboard).
+function suitCol(x, y, seed = 3) {
+  const n = hash2D(x, y, seed);
+  return n < 0.28 ? P.suitTexture : n > 0.9 ? P.suitLight : P.suitBase;
+}
+
+// Torso Suit (9x12x5): royal blue scale suit with sculpted chest + abs (photos).
+// Front: plain blue neckline (no collar, user request), one red piping line across the upper chest
+// (y 1, out to his left shoulder) that turns straight down on his right chest
+// (viewer's left, x 2) to the belt, like the show suit (photos).
+function paintTorso(ctx, face, w, h) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const weave = hash2D(x, y, 9) < 0.5;
+      let col = suitCol(x, y);
+
+      if (face === 'front') {
+        const isLeftPec = (x >= 2 && x <= 3);
+        const isRightPec = (x >= 5 && x <= 7);
+        const pipe = (y === 1 && x >= 2 && x <= 7) || (x === 2 && y >= 1 && y <= 9);
+
+        if (pipe) {
+          col = y >= 7 ? P.suitPipingDark : P.suitPipingRed; // red piping, darker low on the flank
+        } else if (y === 0) {
+          // Clavicle line under the head
+          col = (x === 0 || x === 8) ? P.suitDark : P.suitLight;
+        } else if (y === 1 || y === 2) {
+          // Upper Pectorals: prominent muscular chest crests with highlight sheen
+          if (x === 4) col = P.suitDark; // center sternum groove
+          else if (x === 0 || x === 8) col = P.suitDark; // flank contour
+          else if (isLeftPec || isRightPec) col = weave ? P.suitLight : P.suitBase;
+        } else if (y === 3) {
+          // Mid Pectorals: full chest volume
+          if (x === 4) col = P.suitDark;
+          else if (x === 0 || x === 8) col = P.suitDark;
+          else if (isLeftPec || isRightPec) col = weave ? P.suitBase : P.suitTexture;
+        } else if (y === 4) {
+          // Lower Pectoral Shelf: curved anatomical crease defining lower pectoral border
+          if (x === 4) col = P.suitDeep; // epigastric fossa
+          else if (isLeftPec || isRightPec) col = P.suitDark; // under-pec shadow crease
+          else col = P.suitDark;
+        } else if (y >= 5 && y <= 9) {
+          // Six-pack Abdominals & Obliques:
+          // Linea alba center groove at x=4, lateral ab borders at x=2 and x=6
+          if (x === 4) {
+            col = P.suitDark; // vertical center line
+          } else if (x === 0 || x === 8) {
+            col = P.suitDark; // athletic flank taper
+          } else if (y === 6 || y === 8) {
+            // Horizontal inscriptions dividing upper, mid, and lower ab pads
+            if (x >= 2 && x <= 6) col = P.suitDark;
+            else col = weave ? P.suitBase : P.suitTexture;
+          } else if (x === 2 || x === 6) {
+            col = P.suitDark; // lateral ab boundary grooves
+          } else if (x === 3 || x === 5) {
+            // Abdominal muscle pads (upper: y=5, middle: y=7, lower: y=9)
+            col = (y === 5 || y === 7) ? (weave ? P.suitBase : P.suitTexture) : (weave ? P.suitBase : P.suitDark);
+          } else {
+            // Obliques (x=1, x=7)
+            col = weave ? P.suitBase : P.suitTexture;
+          }
+        } else if (y >= 10) {
+          // Built-in Golden Belt with Red Center Square Buckle (Ref 1)
+          if (x >= 3 && x <= 5) {
+            // Red square in the middle of the belt
+            col = (y === 10) ? (x === 4 ? P.crimsonLight : P.crimsonBase) : (x === 4 ? P.crimsonBase : P.crimsonWarm);
+          } else {
+            // Gold belt strap & buckle rim
+            col = (y === 10) ? P.goldBright : P.goldWarm;
+          }
+        }
+      } else if (face === 'back') {
+        if (y === 0) col = P.suitDark; // shoulder line
+        else if (y >= 10) col = (y === 10) ? P.goldBright : P.goldWarm; // built-in gold belt strap
+        else if (x === 4) col = P.suitDeep; // spine groove
+      } else if (face === 'left' || face === 'right') {
+        if (y === 0) col = P.suitDark;
+        else if (y >= 10) col = (y === 10) ? P.goldBright : P.goldWarm; // built-in gold belt strap
+      } else if (face === 'bottom') {
+        col = P.suitDark;
+      }
+      px(ctx, x, y, col);
+    }
+  }
+}
+
+// Golden Eagle Pauldrons (Shoulder pads): sculpted gold eagles perched on shoulders
+function paintPauldrons(ctx, face, w, h) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let col = P.goldBase;
+      if (face === 'top') {
+        // Eagle feathers: staggered light/dark rows, lit front edge
+        col = y === 0 ? P.goldLight : ((x + y) % 2 === 0 ? P.goldBright : P.goldBase);
+        if (y === h - 1) col = P.goldWarm;
+      } else if (face === 'bottom') {
+        col = P.goldDark;
+      } else {
+        if (y === 0) col = P.goldBright;
+        else if (y === h - 1) col = P.goldDark;
+        else col = (x % 2 === 0) ? P.goldBase : P.goldWarm;
+      }
+      px(ctx, x, y, col);
+    }
+  }
+}
+
+// Red leather (gloves, boots): soft hash shading instead of a checkerboard
+const leather = (x, y, seed) => hash2D(x, y, seed) < 0.35 ? P.crimsonWarm : P.crimsonBase;
+
+// Upper Arm: plain blue scale sleeve (photos: no band at the elbow)
+function paintUpperArm(ctx, face, w, h) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      px(ctx, x, y, face === 'bottom' ? P.suitDark : suitCol(x, y, 21));
+    }
+  }
+}
+
+// Lower arm (6 rows of ~0.93 texel): blue sleeve at the elbow, hidden middle under the
+// bracer, red glove for the bottom 2 rows (the hand, below the bracer).
+function paintLowerArm(ctx, face, w, h) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let col = suitCol(x, y, 23);
+      if (face === 'bottom') col = P.crimsonDark;          // palm / fist underside
+      else if (face !== 'top' && y >= h - 2) col = leather(x, y, 25);
+      px(ctx, x, y, col);
+    }
+  }
+}
+
+// Bracer (gauntlet box, 3 rows): copper scales with a dark top rim and a red glove cuff
+// flaring over the bottom edge (photos)
+function paintBracer(ctx, face, w, h) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let col = (x + y) % 2 === 0 ? P.bronzeBase : P.bronzeWarm; // tiny scales
+      if (face === 'top' || face === 'bottom') col = P.bronzeDark;
+      else if (y === 0) col = x % 2 === 0 ? P.bronzeDark : P.bronzeWarm; // ridged top rim
+      else if (y === 1) col = x % 2 === 0 ? P.bronzeLight : P.bronzeBase; // lit scale row
+      else if (y === h - 1) col = P.crimsonBase;                           // glove cuff
+      px(ctx, x, y, col);
+    }
+  }
+}
+
+// Thighs (blue scale suit, darker knee fold)
+function paintThigh(ctx, face, w, h) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let col = suitCol(x, y, 31);
+      if (y === h - 1 && face !== 'top') col = P.suitDark; // knee fold shadow
+      px(ctx, x, y, col);
+    }
+  }
+}
+
+// Calf = knee-high red boot shaft: antique gold top rim, round gold eagle medallion on the shin
+function paintCalf(ctx, face, w, h) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let col = leather(x, y, 33);
+      if (y === 0) {
+        col = P.goldBase; // plain antique gold boot top rim
+      } else if (face === 'front' && y >= 1 && y <= 2 && (x === 1 || x === 2)) {
+        // 2x2 medallion: lit top-left, shaded bottom-right
+        col = y === 1 ? (x === 1 ? P.goldLight : P.goldBright) : (x === 1 ? P.goldBase : P.goldWarm);
+      } else if (y === 1 && (face === 'left' || face === 'right')) {
+        col = P.crimsonDark; // shadow under the rim on the sides
+      }
+      px(ctx, x, y, col);
+    }
+  }
+}
+
+// Boot Foot: red leather boot with a dark sole and lit toe
+function paintBootFoot(ctx, face, w, h) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let col = leather(x, y, 37);
+      if (y === h - 1 || face === 'bottom') {
+        col = P.crimsonSole;
+      } else if (face === 'top' || (face === 'front' && y === 0)) {
+        col = P.crimsonLight;
+      }
+      px(ctx, x, y, col);
+    }
+  }
+}
+
+// Cape stripes (photos): equal 1-texel red/white stripes, mirrored around the center so
+// both edges are white. Same pattern outside and inside (the lining is striped too).
+function capeStripe(x, y, w, seed) {
+  const k = Math.min(x, w - 1 - x), shade = hash2D(x, y, seed) < 0.2;
+  return k % 2 === 0 ? (shade ? P.capeWhiteShade : P.capeWhiteBase) : (shade ? P.capeRedDark : P.capeRedBase);
+}
+// Star field: staggered white stars on blue
+const capeStar = (x, y) => (x + 2 * y) % 4 === 1;
+const capeBlue = (x, y) => hash2D(x, y, 41) < 0.3 ? P.capeBlueDark : P.capeBlueBase;
+
+// Cape segment 1: blue star yoke over the shoulders (outside), plain blue inside
+function paintCapeMantle(ctx, face, w, h) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let col = P.capeBlueDark;
+      if (face === 'back') col = capeStar(x, y) ? P.capeStarWhite : capeBlue(x, y);
+      else if (face === 'front') col = capeBlue(x, y);
+      px(ctx, x, y, col);
+    }
+  }
+}
+
+// Cape segment 2: the yoke ends in a V (2 rows), then stripes start
+function paintCapeTrans(ctx, face, w, h) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let col = P.capeWhiteShade; // side edges = white edge stripe
+      if (face === 'back') {
+        const k = Math.min(x, w - 1 - x);            // distance from the nearest edge
+        const yoke = (y === 0 && k >= 2) || (y === 1 && k >= 4);
+        col = yoke ? (capeStar(x, y + 4) ? P.capeStarWhite : capeBlue(x, y + 4)) : capeStripe(x, y, w, 43);
+      } else if (face === 'front') {
+        col = capeStripe(x, y, w, 44);
+      } else if (face === 'top') {
+        col = P.capeBlueDark;
+      }
+      px(ctx, x, y, col);
+    }
+  }
+}
+
+// Cape segments 3-5: red/white stripes outside and inside
+function paintCapeStripes(ctx, face, w, h) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let col = P.capeWhiteShade;
+      if (face === 'back' || face === 'front') col = capeStripe(x, y, w, face === 'back' ? 45 : 46);
+      else if (face === 'bottom' || face === 'top') col = capeStripe(x, 0, w, 47);
+      px(ctx, x, y, col);
+    }
+  }
+}
+
+/* ───────── Materials & Texture Atlas ───────── */
+const atlas = document.createElement('canvas');
+const atlasCtx = atlas.getContext('2d');
+const atlasTex = new THREE.CanvasTexture(atlas);
+atlasTex.magFilter = atlasTex.minFilter = THREE.NearestFilter;
+atlasTex.generateMipmaps = false;
+atlasTex.colorSpace = THREE.SRGBColorSpace;
+let ATLAS_W = 128, ATLAS_H = 128;
+
+const matCache = {};
+function mat(rough = 0.85, metal = 0.04, cut = false) {
+  const key = rough + '|' + metal + '|' + cut;
+  return matCache[key] || (matCache[key] = new THREE.MeshStandardMaterial({
+    map: atlasTex, roughness: rough, metalness: metal,
+    alphaTest: cut ? 0.5 : 0, side: cut ? THREE.DoubleSide : THREE.FrontSide
+  }));
+}
+
+/* ───────── Model Rigging ───────── */
+const mobRoot = new THREE.Group();
+mobRoot.name = 'homelander';
+scene.add(mobRoot);
+
+const bones = {};
+const boneList = [];
+const cubeList = [];
+
+function bone(name, parent, x, y, z, rx = 0, ry = 0, rz = 0) {
+  const g = new THREE.Group();
+  g.name = name;
+  g.rotation.order = 'ZYX';
+  g.position.set(x * TEXEL, y * TEXEL, z * TEXEL);
+  g.rotation.set(rx, ry, rz);
+  g.userData = { rest: g.position.clone(), restRot: new THREE.Vector3(rx, ry, rz) };
+  (parent || mobRoot).add(g);
+  bones[name] = g;
+  boneList.push(g);
+  return g;
+}
+
+function box(b, name, w, h, d, x, y, z, painter, opt = {}) {
+  const inflate = opt.inflate || 0;
+  const geo = new THREE.BoxGeometry((w + inflate * 2) * TEXEL, (h + inflate * 2) * TEXEL, (d + inflate * 2) * TEXEL);
+  const nrm = geo.attributes.normal;
+  for (let i = 0; i < 24; i++) {
+    const f = i >> 2;
+    nrm.setXYZ(i, f === 0 ? 1 : f === 1 ? -1 : 0, f === 2 ? 1 : f === 3 ? -1 : 0, f === 4 ? 1 : f === 5 ? -1 : 0);
+  }
+  const mesh = new THREE.Mesh(geo, mat(opt.rough, opt.metal, opt.cut));
+  const rot = opt.rot || [0, 0, 0];
+  mesh.position.set(x * TEXEL, y * TEXEL, z * TEXEL);
+  mesh.rotation.order = 'ZYX';
+  mesh.rotation.set(rot[0], rot[1], rot[2]);
+  mesh.castShadow = opt.shadow !== false;
+  mesh.receiveShadow = true;
+  mesh.name = name;
+  b.add(mesh);
+  const c = { name, bone: b.name, size: [w, h, d], inflate, center: [x, y, z], rot, painter, mesh, shell: opt.shell || null, rects: [] };
+  cubeList.push(c);
+  return c;
+}
+
+/* ───────── Build Homelander Hierarchy ───────── */
+// Ground root pivot
+const root = bone('root', null, 0, 0, 0);
+
+// Pelvis / Body at y = 12 texels
+const body = bone('body', root, 0, 12, 0);
+
+// Chest & Upper Torso (9x12x5, broad muscular superhero build)
+const chest = bone('chest', body, 0, 0, 0);
+box(chest, 'torso_suit', 9, 12, 5, 0, 6, 0, paintTorso);
+
+const HEAD_PITCH_MAX = 0.12, HEAD_ROLL_MAX = 0.06;   // soft head tilt limits (see step(): no neck)
+// Head mounted DIRECTLY on chest at y = 12.0 (standard Minecraft humanoid: no neck at all, user rule 2026-10-16; never lifted off the torso)
+const head = bone('head', chest, 0, 12.0, 0);
+box(head, 'head_cranium', 8, 8, 8, 0, 4.0, 0, paintHead);
+
+// No nose block: flat player-style face like The King (nose is painted in paintHead)
+
+// Extruded Blonde Hair: Authentic combed slickback outer shell, encases head top with zero clipping
+box(head, 'hair_main', 8, 5, 8, 0, 5.7, 0, paintHair, { cut: true, inflate: 0.25, rough: 0.65 });
+
+// Face Features: Menacing cold predator eyes, angled sinister brows, psychopathic closed-mouth smirk
+const NO_SHADOW = { shadow: false };
+box(head, 'eye_white_right', 2, 1, 0, -2, 4.5, 4.02, flat('eyeWhite'), NO_SHADOW);
+box(head, 'eye_white_left', 2, 1, 0, 2, 4.5, 4.02, flat('eyeWhite'), NO_SHADOW);
+
+const pupilR = bone('pupil_right', head, -2, 4.5, 4.04);
+box(pupilR, 'pupil_right', 1, 1, 0, 0, 0, 0, flat('eyePupil'), NO_SHADOW);
+
+const pupilL = bone('pupil_left', head, 2, 4.5, 4.04);
+box(pupilL, 'pupil_left', 1, 1, 0, 0, 0, 0, flat('eyePupil'), NO_SHADOW);
+
+const lidR = bone('lid_right', head, -2, 5, 3.98);
+box(lidR, 'lid_right', 2, 1, 0, 0, -0.5, 0, flat('lidSkin'), NO_SHADOW);
+
+const lidL = bone('lid_left', head, 2, 5, 3.98);
+box(lidL, 'lid_left', 2, 1, 0, 0, -0.5, 0, flat('lidSkin'), NO_SHADOW);
+
+// Eyebrows: nearly straight, low and confident (photos); frown tilts them inward
+const browR = bone('brow_right', head, -2, 5.5, 4.08, 0, 0, -0.06);
+box(browR, 'brow_right', 2, 1, 0, 0, 0, 0, flat('browHair'), NO_SHADOW);
+
+const browL = bone('brow_left', head, 2, 5.5, 4.08, 0, 0, 0.06);
+box(browL, 'brow_left', 2, 1, 0, 0, 0, 0, flat('browHair'), NO_SHADOW);
+
+// Mouth: thin lip line (tilts for his one-sided smirk) + teeth plane under it that
+// grows down from the lip line for the big PR grin (scale y 0 -> 1)
+const mouth = bone('mouth', head, 0, 2.0, 4.03);
+box(mouth, 'mouth', 2, 0.35, 0, 0, 0, 0, flat('lipSmirk'), NO_SHADOW);
+const teeth = bone('teeth', mouth, 0, -0.1, -0.05); // rests just inside the head (hidden), steps out while grinning
+box(teeth, 'teeth', 2, 0.8, 0, 0, -0.4, 0, flat('teeth'), NO_SHADOW);
+
+// Red eyes (heat vision warming up): only the eyes glow, never the face (no light on the skin).
+// Per eye: a red plane exactly on the 2x1 eye white + a hot 1x1 core that follows the pupil,
+// both between the pupils (z 4.04) and the closing lids (z 4.06), so a blink hides them.
+// A faint additive halo (3x2) adds a little bloom around the eye. Opacity = 'glow' / 'laser'.
+// Mod: an emissive eye layer on the same pixels (vanilla "eyes" render type).
+const glowMat = new THREE.MeshBasicMaterial({ color: 0xe0140a, transparent: true, opacity: 0, depthWrite: false });
+const glowCoreMat = new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0, depthWrite: false });
+const glowHaloMat = new THREE.MeshBasicMaterial({ color: 0x701008, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+const eyeGlow = [-2, 2].map((x) => {
+  const red = new THREE.Mesh(new THREE.PlaneGeometry(2 * TEXEL, 1 * TEXEL), glowMat);
+  red.position.set(x * TEXEL, 4.5 * TEXEL, 4.05 * TEXEL);
+  const core = new THREE.Mesh(new THREE.PlaneGeometry(1 * TEXEL, 1 * TEXEL), glowCoreMat);
+  core.position.set(x * TEXEL, 4.5 * TEXEL, 4.052 * TEXEL);
+  const halo = new THREE.Mesh(new THREE.PlaneGeometry(3 * TEXEL, 2 * TEXEL), glowHaloMat);
+  halo.position.set(x * TEXEL, 4.5 * TEXEL, 4.1 * TEXEL);
+  head.add(red, core, halo);
+  return { red, core, halo, x };
+});
+
+// Heat-vision lasers: each beam starts at the front of its eye (z 4.1) and points forward.
+// Geometry is 1 texel long from its origin, so scale.y = beam length in texels (per animation).
+const laserMat = new THREE.MeshBasicMaterial({ color: 0xff1e1e, transparent: true, opacity: 0, depthWrite: false });
+const laserCoreMat = new THREE.MeshBasicMaterial({ color: 0xfff1e0, transparent: true, opacity: 0, depthWrite: false });
+const beamGeo = new THREE.CylinderGeometry(0.7 * TEXEL, 0.7 * TEXEL, TEXEL, 8).translate(0, TEXEL / 2, 0).rotateX(Math.PI / 2);
+const coreGeo = new THREE.CylinderGeometry(0.28 * TEXEL, 0.28 * TEXEL, TEXEL, 6).translate(0, TEXEL / 2, 0).rotateX(Math.PI / 2);
+const lasers = [-2, 2].map((x) => {
+  const beam = new THREE.Mesh(beamGeo, laserMat), core = new THREE.Mesh(coreGeo, laserCoreMat);
+  for (const m of [beam, core]) { m.position.set(x * TEXEL, 4.5 * TEXEL, 4.1 * TEXEL); head.add(m); }
+  return { beam, core };
+});
+const LASER_LEN = 56; // default beam length in texels (3.5 blocks); anims may set `beam`
+
+// American flag cape: 50 bones of 0.4 texel each, posed only by cloth physics (see Cloth below), no keyframes.
+// The bones are the rig (Show bones, .bbmodel, the mod); what you SEE is one continuous cloth surface made
+// straight from the cloth points every frame (see Cape mesh): no boxes, so no gaps, steps or box edges when it bends.
+// 20 texels long, 14.4 wide: wider than his shoulders (arms at x +-4.8..8.8), so it hangs over the backs of both
+// upper arms and lies on them instead of folding in between arm and torso. CAPE_TOP = where it hangs from the
+// chest (texels): behind the torso's back face and the pauldrons' back faces (z -2.2), just under their top.
+const CAPE_N = 50, CAPE_SEG = 0.4, CAPE_W = 14.4, CAPE_TOP = [0, 11.6, -2.8];
+const CAPE = [];
+let capeParent = chest;
+for (let i = 0; i < CAPE_N; i++) {
+  const name = `cape_seg_${i + 1}`;
+  // straight chain at rest (physics bends it every frame); each bone hangs CAPE_SEG below the one above
+  const b = i === 0 ? bone(name, chest, CAPE_TOP[0], CAPE_TOP[1], CAPE_TOP[2]) : bone(name, capeParent, 0, -CAPE_SEG, 0);
+  CAPE.push(name);
+  capeParent = b;
+}
+// The cloth's texture: one 10 x 20 flag packed in the atlas like a cube (back = outside: star yoke rows 0-3,
+// V transition 4-7, stripes 8-19; front = the striped lining; left/right = side edges; top; bottom = hem).
+const capeSub = document.createElement('canvas');            // reused: one 4-row block of the pattern
+capeSub.width = capeSub.height = 32;
+const capeSubCtx = capeSub.getContext('2d');
+function paintCapeFull(ctx, face, w, h) {
+  if (face === 'top' || face === 'bottom') { (face === 'top' ? paintCapeMantle : paintCapeStripes)(ctx, face, w, h); return; }
+  for (let y0 = 0; y0 < h; y0 += 4) {
+    const old = y0 < 4 ? paintCapeMantle : y0 < 8 ? paintCapeTrans : paintCapeStripes;
+    capeSubCtx.clearRect(0, 0, 32, 32);
+    old(capeSubCtx, face, w, 4);
+    ctx.drawImage(capeSub, 0, 0, w, 4, 0, y0, w, 4);
+  }
+}
+const CAPE_CLOTH = { name: 'cape', size: [14, 20, 0.4], inflate: 0, painter: paintCapeFull, rects: [] };
+
+// Arms with Golden Eagle Pauldrons and Gauntlet Bracers (muscular proportions)
+function buildArm(side, sx) {
+  const s = bone(`arm_${side}`, chest, sx * 6.8, 11.2, 0, 0, 0, sx * 0.08);
+  box(s, `upper_arm_${side}`, 4.0, 5.6, 4.0, 0, -2.8, 0, paintUpperArm);
+
+  // Sculpted Golden Eagle Pauldron on top of shoulder (outer armor shell below head height, zero clipping)
+  box(s, `pauldron_${side}`, 4.4, 1.4, 4.4, sx * 0.2, -0.10, 0, paintPauldrons, { metal: 0.45, rough: 0.4 });
+  box(s, `pauldron_wing_${side}`, 1.4, 1.4, 3.6, sx * 2.2, -0.10, 0, paintPauldrons, { metal: 0.45, rough: 0.4 });
+
+  const e = bone(`forearm_${side}`, s, 0, -5.8, 0, -0.08, 0, 0);
+  box(e, `lower_arm_${side}`, 3.8, 5.6, 3.8, 0, -2.8, 0, paintLowerArm);
+
+  // Copper scale bracer (photos): from 1.1 below the elbow to 4.7, so the red glove
+  // shows below it (lower arm rows 4-5) and blue sleeve above it
+  box(e, `gauntlet_${side}`, 4.2, 3.6, 4.2, 0, -2.9, 0, paintBracer, { inflate: 0.05 });
+}
+// 2 bones per arm (rig rule): arm_<side> = upper arm (shoulder), forearm_<side> = forearm + glove (elbow)
+buildArm('right', -1);
+buildArm('left', 1);
+
+// 2 bones per leg (rig rule): leg_<side> = thigh (hip), knee_<side> = shin + boot (knee).
+// No ankle: the boot tilts with the shin (foot angle = hip + knee).
+function buildLeg(side, sx) {
+  const hp = bone(`leg_${side}`, body, sx * 2.2, 0, 0);
+  box(hp, `thigh_${side}`, 4.2, 5.8, 4.2, 0, -2.8, 0, paintThigh);
+
+  const k = bone(`knee_${side}`, hp, 0, -5.6, 0);
+  box(k, `calf_${side}`, 4.0, 5.0, 4.0, 0, -2.3, 0, paintCalf);
+  // Boot: sole at knee - 6.4 = floor at rest, toe 2.9 forward, heel 2.1 back (used by footLow())
+  box(k, `boot_${side}`, 4.2, 2.2, 5.0, 0, -5.3, 0.4, paintBootFoot, { rough: 0.8 }); // matte: at 0.4 the blue rim light glared on the toe top
+}
+buildLeg('right', -1);
+buildLeg('left', 1);
+
+const B = {};
+boneList.forEach((b, i) => { B[b.name] = i; });
+const NB = boneList.length;
+
+/* ───────── Texture Atlas Packing ───────── */
+const FACES = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+const faceSize = (c, f) => {
+  const [w, h, d] = c.size, r = (v) => Math.max(1, Math.round(v));
+  return f < 2 ? [r(d), r(h)] : f < 4 ? [r(w), r(d)] : [r(w), r(h)];
+};
+
+// Atlas items: every cube + the cape cloth texture (no cube of its own, see CAPE_CLOTH)
+const ATLAS_CUBES = [...cubeList, CAPE_CLOTH];
+(function packAtlas() {
+  const items = [];
+  for (const c of ATLAS_CUBES) for (let f = 0; f < 6; f++) { const [w, h] = faceSize(c, f); items.push({ c, f, w, h }); }
+  items.sort((a, b) => b.h - a.h || b.w - a.w);
+  let x = 1, y = 1, shelf = 0;
+  for (const it of items) {
+    if (x + it.w + 1 > ATLAS_W) { x = 1; y += shelf + 2; shelf = 0; }
+    it.c.rects[it.f] = { x, y, w: it.w, h: it.h };
+    x += it.w + 2;
+    shelf = Math.max(shelf, it.h);
+  }
+  while (y + shelf + 1 > ATLAS_H) ATLAS_H *= 2;
+  atlas.width = ATLAS_W; atlas.height = ATLAS_H;
+})();
+
+// Map face UVs to packed atlas rects
+for (const c of cubeList) {
+  const uv = c.mesh.geometry.attributes.uv;
+  for (let f = 0; f < 6; f++) {
+    const r = c.rects[f];
+    for (let k = 0; k < 4; k++) {
+      const i = f * 4 + k, u = uv.getX(i), v = uv.getY(i);
+      uv.setXY(i, (r.x + u * r.w) / ATLAS_W, 1 - (r.y + (1 - v) * r.h) / ATLAS_H);
+    }
+  }
+  uv.needsUpdate = true;
+}
+
+const scratch = document.createElement('canvas');
+scratch.width = scratch.height = 32;
+const sctx = scratch.getContext('2d');
+const GUTTER = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+function paintAtlas() {
+  atlasCtx.imageSmoothingEnabled = false;
+  atlasCtx.clearRect(0, 0, ATLAS_W, ATLAS_H);
+  for (const c of ATLAS_CUBES) {
+    for (let f = 0; f < 6; f++) {
+      const r = c.rects[f];
+      sctx.clearRect(0, 0, 32, 32);
+      c.painter(sctx, FACES[f], r.w, r.h);
+      for (const [dx, dy] of GUTTER) atlasCtx.drawImage(scratch, 0, 0, r.w, r.h, r.x + dx, r.y + dy, r.w, r.h);
+      atlasCtx.clearRect(r.x, r.y, r.w, r.h);
+      atlasCtx.drawImage(scratch, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
+    }
+  }
+  atlasTex.needsUpdate = true;
+}
+
+let variantIndex = 0;   // current color variant (the mod export paints every variant, then restores this one)
+function setVariant(i) {
+  variantIndex = i;
+  P = { ...BASE, ...VARIANTS[i].pal };
+  paintAtlas();
+  document.querySelectorAll('.dot').forEach((d, k) => d.classList.toggle('active', k === i));
+}
+
+/* ───────── Pose Buffers & Kinematics ───────── */
+// Face channels: grin = teeth showing, smirk = one-sided mouth lift, glow = red eyes (heat vision warming up)
+const FACE_KEYS = ['browUp', 'frown', 'open', 'wide', 'glance', 'squint', 'laser', 'grin', 'smirk', 'glow'];
+const zeroFace = () => Object.fromEntries(FACE_KEYS.map((k) => [k, 0]));
+function makePose() {
+  return { r: new Float32Array(NB * 3), p: new Float32Array(NB * 3), f: zeroFace(), yawLimit: 0.45, follow: 1 };
+}
+function clearPose(Q) { Q.r.fill(0); Q.p.fill(0); for (const k of FACE_KEYS) Q.f[k] = 0; }
+function copyPose(src, dst) { dst.r.set(src.r); dst.p.set(src.p); for (const k of FACE_KEYS) dst.f[k] = src.f[k]; dst.yawLimit = src.yawLimit; dst.follow = src.follow; }
+function rot(Q, b, x, y, z) { if (B[b] !== undefined) { const i = B[b] * 3; Q.r[i] += x; Q.r[i + 1] += y; Q.r[i + 2] += z; } }
+function pos(Q, b, x, y, z) { if (B[b] !== undefined) { const i = B[b] * 3; Q.p[i] += x; Q.p[i + 1] += y; Q.p[i + 2] += z; } }
+
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+function kf(t, keys) {
+  for (let i = 1; i < keys.length; i++) {
+    if (t <= keys[i][0]) {
+      const a = keys[i - 1], b = keys[i];
+      const s = (t - a[0]) / (b[0] - a[0]);
+      return a[1] + (b[1] - a[1]) * (0.5 - 0.5 * Math.cos(Math.PI * s));
+    }
+  }
+  return keys[keys.length - 1][1];
+}
+
+/* ───────── Legs + ground (2-bone legs, no ankle) ───────── */
+// Boot geometry below the hip joint (texels): knee 5.6 down, sole 6.4 below the knee,
+// heel 2.1 back and toe 2.9 forward of the shin line. The foot angle is hip + knee.
+const THIGH = 5.6, SOLE = 6.4, HEEL = -2.1, TOE = 2.9, HIP_H = 12;
+
+// Smooth min (no corner where the two values cross). Under-estimates by at most k*ln2.
+function smin(a, b, k = 0.06) { return Math.min(a, b) - k * Math.log1p(Math.exp(-Math.abs(a - b) / k)); }
+
+// Lowest boot point below the hip for hip angle h and knee angle k (Rx: y' = y cos - z sin)
+function footLow(h, k) {
+  const a = h + k, c = Math.cos(a), s = Math.sin(a);
+  return -THIGH * Math.cos(h) + smin(-SOLE * c - HEEL * s, -SOLE * c - TOE * s);
+}
+
+// Pose both legs (hip forward = negative, knee bend = positive) and set the root height
+// so the lower foot just touches the floor, plus `lift` (flying). Splay = legs a bit apart.
+function legs(Q, hR, kR, hL, kL, lift = 0, splay = 0.03) {
+  rot(Q, 'leg_right', hR, 0, -splay); rot(Q, 'knee_right', kR, 0, 0);
+  rot(Q, 'leg_left', hL, 0, splay);   rot(Q, 'knee_left', kL, 0, 0);
+  pos(Q, 'root', 0, -HIP_H - smin(footLow(hR, kR), footLow(hL, kL)) + 0.06 + lift, 0);
+}
+
+// 2-bone leg IK (run rule): hip + knee angles that put the sole point (bottom of the boot on the shin line)
+// at (ty, tz) texels from the hip joint (ty < 0 = below). Knee only bends backward (k >= 0). Out of reach
+// = leg nearly straight toward the target. out = [hip, knee] (hip forward = negative, like legs()).
+// toe = true: the end point is the boot's TOE tip instead (SOLE down + TOE forward of the shin line): the Run
+// lands on the forefoot, heel up (a sprinter's foot; with no ankle the boot tilts with the shin).
+const TOE_L = Math.sqrt(SOLE * SOLE + TOE * TOE), TOE_A = Math.atan2(TOE, SOLE);
+function legIK(ty, tz, out, toe = false) {
+  const L1 = THIGH, L2 = toe ? TOE_L : SOLE, d = Math.min(Math.sqrt(ty * ty + tz * tz), (L1 + L2) * 0.999);
+  const phi = Math.atan2(-tz, -ty);                                        // angle of the hip->target line from straight down
+  const alpha = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1));
+  out[0] = phi - alpha;                                                    // thigh forward of the line ...
+  out[1] = Math.PI - Math.acos(clamp((L1 * L1 + L2 * L2 - d * d) / (2 * L1 * L2), -1, 1)) + (toe ? TOE_A : 0); // ... knee folds the shin back
+  return out;
+}
+const ikA = [0, 0];
+// Run foot path for one leg, phase ph 0..1: stance (RUN.stance of the cycle) = the sole slides back flat on the
+// floor at constant speed; swing = toe-off, heel kicks up behind, knee drives forward, foot paws back onto the
+// floor (cubic Hermite with the stance speed at both ends: no corner at touch-down or toe-off). Returns [y, z]
+// of the sole target in texels from the floor / the hip's forward position.
+const RUN = { T: 0.35, stance: 0.34, front: 3.2, back: 3.2, kick: 4.5, hip: 11.7, bob: 0.35, tan: 1 };   // tan 1 = swing leaves/lands at the stance speed (no velocity corner)
+function runFoot(ph, out) {
+  ph -= Math.floor(ph);
+  const s = RUN.stance, F = RUN.front, Bk = RUN.back;
+  if (ph < s) { out[0] = 0; out[1] = F - (F + Bk) * (ph / s); return out; }
+  const u = (ph - s) / (1 - s), m = -RUN.tan * (F + Bk) / s * (1 - s);    // Hermite tangents: part of the stance speed
+  const u2 = u * u, u3 = u2 * u;
+  const w = u + 0.15 * Math.sin(TAU * u), sw = Math.sin(Math.PI * w);     // warp: the heel peaks early (behind him)
+  // (the heel kick happens behind the hip: -2.5 texels at the top of the lift keeps the thigh out of the torso)
+  out[1] = (2 * u3 - 3 * u2 + 1) * -Bk + (u3 - 2 * u2 + u) * m + (-2 * u3 + 3 * u2) * F + (u3 - u2) * m - 2.5 * sw * sw;
+  out[0] = RUN.kick * sw * sw * (1 - u * u);                              // (1 - u^2): the foot comes down early, so the thigh never drives up into the torso
+  return out;
+}
+const rfA = [0, 0];
+
+// Hands on hips (photo 1): elbows out, fists on the belt. w = 0..1 blend weight.
+function handsOnHips(Q, side, w, breath = 0) {
+  const sx = side === 'right' ? -1 : 1;
+  rot(Q, `arm_${side}`, -0.1 * w, 0, sx * (0.34 + 0.02 * breath) * w);
+  rot(Q, `forearm_${side}`, (-0.45 - 0.04 * breath) * w, 0, -sx * 0.08 * w);
+}
+
+// Hands behind the back (photo 3): upper arm swung back + elbow out, forearm folds
+// inward (forearm z) so both fists rest behind the lower back. w = 0..1.
+// Values from a clip search (hover t = 4): fists end ~3 texels beside the spine, ~6 behind the torso center
+// Fists ~1.5 texels off his back (closest forearm point z -4.2, fist -4.0; back face -2.5): room for the cape
+// between back and hands, so the hands rest ON the cape (user rule 2026-10-16)
+const HB = { ax: 1.0, az: 0.25, fx: 0.4, fz: 1.1 };
+// w = upper arm swing, fold = forearm fold (fold lags behind w so the fists never pass through the back)
+function handsBehind(Q, side, w, fold = w) {
+  const sx = side === 'right' ? -1 : 1;
+  rot(Q, `arm_${side}`, HB.ax * w, 0, sx * HB.az * w);
+  rot(Q, `forearm_${side}`, HB.fx * fold, 0, -sx * HB.fz * fold);
+}
+
+/* ───────── Keyframe Sequences ───────── */
+// Idle (8.0 s = 960 frames): breathing + weight shift; where he looks and his face are random (sim.js director).
+
+// Hover (random from Idle, 9.0 s): lifts off, hands behind the back, looks around, lands
+const HV_AIR    = [[0, 0], [1.4, 1], [7.4, 1], [9.0, 0]];
+const HV_HANDS  = [[0, 0], [0.4, 0], [1.4, 1], [7.4, 1], [8.4, 0], [9.0, 0]];   // arms swing back
+const HV_FOLD   = [[0, 0], [0.9, 0], [1.9, 1], [6.6, 1], [7.6, 0], [9.0, 0]];   // forearms fold behind (later in, earlier out)
+const HV_LOOK   = [[0, 0], [1.8, 0], [2.6, -0.34], [3.8, -0.34], [4.8, 0.3], [5.8, 0.3], [6.6, 0], [9.0, 0]];
+const HV_DOWN   = [[0, 0], [6.4, 0], [6.8, 1], [7.4, 1], [7.8, 0], [9.0, 0]];
+
+// Idle 2: PR smile + peace sign (photo 2), then the smile drops into a cold stare (8.0 s)
+const ID2_RAISE = [[0, 0], [0.7, 0], [1.5, 1], [3.6, 1], [4.3, 0], [8.0, 0]];
+const ID2_WAVE  = [[0, 0], [1.5, 0], [1.8, 1], [3.3, 1], [3.6, 0], [8.0, 0]];
+const ID2_GRIN  = [[0, 0], [0.9, 0], [1.3, 1], [4.5, 1], [4.75, 0], [8.0, 0]];
+const ID2_STARE = [[0, 0], [4.5, 0], [4.75, 1], [6.6, 1], [7.3, 0], [8.0, 0]];
+const ID2_RED   = [[0, 0], [5.2, 0], [5.6, 1], [6.0, 1], [6.5, 0], [8.0, 0]];
+const ID2_SMIRK = [[0, 0], [6.8, 0], [7.2, 0.8], [7.7, 0.8], [8.0, 0]];
+// Raised peace-sign arm (added to the hands-on-hip pose at raise = 1): upper arm x/y/z rotation,
+// shoulder pivot slide in/down/forward (texels), elbow fold (rad) and its hinge offset toward the inner side (texels).
+const ID2_ARM = { ax: 0.15, ay: -1.5, az: 1.56, px: 1.1, py: 1.9, pz: 0.6, f: 0.5, hinge: 0.9 };
+
+// Attack Sequence Curves: Anticipation -> Devastating Super-Punch -> Snap Recoil -> Recovery
+const ATK_COIL   = [[0, 0], [0.35, 1], [0.55, 1], [0.65, 0], [1.8, 0]];
+const ATK_PUNCH  = [[0, 0], [0.5, 0], [0.65, 1], [0.95, 1], [1.4, 0.2], [1.8, 0]];
+const ATK_TWIST  = [[0, 0], [0.45, -0.35], [0.65, 0.65], [1.0, 0.5], [1.5, 0.1], [1.8, 0]];
+
+// Special: Levitation Hover + Heat-Vision Laser Eyes Curves
+const SPEC_LIFT  = [[0, 0], [0.6, 6], [1.2, 9.5], [2.8, 9.5], [3.4, 4], [4.0, 0]];
+const SPEC_LASER = [[0, 0], [0.7, 0], [1.0, 1], [2.6, 1], [2.9, 0], [4.0, 0]];
+const SPEC_AIM   = 0.36; // head pitch while the beams fire (see special)
+const SPEC_SWEEP = [[0, 0], [1.0, 0], [1.5, -0.25], [2.1, 0.25], [2.6, 0], [4.0, 0]];
+
+// Throw (3.25 s): right hand grabs the neck, lifts, dips, flings the victim straight up,
+// watches them fly, then looks down at where they land. Victim stands a bit to his right.
+const TH_AX   = [[0, 0], [0.32, -1.12], [0.42, -1.07], [0.95, -1.9], [1.25, -1.3], [1.5, -3.0], [1.75, -2.95], [2.35, -2.6], [2.85, -0.1], [3.25, 0]];
+// (no inward yaw: it swings the shoulder end of the upper arm into the chest and head.
+//  Arm z: out = negative while the arm points down/forward, but POSITIVE once it is overhead)
+const TH_AY   = [[0, 0], [0.32, 0.06], [1.25, 0.06], [1.5, 0], [3.25, 0]];
+const TH_AZ   = [[0, 0], [0.32, -0.16], [1.25, -0.16], [1.5, 0.3], [2.35, 0.3], [2.85, 0], [3.25, 0]];
+const TH_FX   = [[0, 0], [0.32, -0.15], [0.42, -0.35], [0.95, -0.3], [1.25, -0.7], [1.5, -0.05], [2.35, -0.1], [2.85, -0.15], [3.25, 0]];
+const TH_STEP = [[0, 0], [0.32, 1], [2.45, 1], [2.95, 0], [3.25, 0]];
+const TH_CROUCH = [[0, 0], [0.95, 0], [1.25, 1], [1.45, 0], [3.25, 0]];
+const TH_EXT  = [[0, 0], [1.35, 0], [1.52, 1], [1.8, 0], [3.25, 0]];       // explosive push onto the toes
+const TH_UP   = [[0, 0], [1.4, 0], [1.6, 1], [2.3, 1], [2.6, 0], [3.25, 0]]; // looks up after them
+const TH_DOWN = [[0, 0], [2.4, 0], [2.7, 1], [3.0, 1], [3.25, 0]];          // ...and down where they land
+const TH_HOLD = [[0, 0], [0.32, 0], [0.45, 1], [1.2, 1], [1.4, 0], [3.25, 0]]; // choking hold
+
+// Clap (3.8 s) = the head clap, nothing else (homelander_clap_head.mp4), while he shouts "I AM GOD":
+//  0.0-0.15  plants his feet in front of the victim
+//  0.15-1.1  "I AM ..." (voice line starts at 0.15 s, mouth from its loudness curve): both arms rise slowly out
+//            to the sides up to head height, chest opens, eyes heat up red, snarl
+//  1.1-1.2   SLAM on "GOD" (the word starts ~1.03 s into the line): both palms whip in and smack the victim's ears,
+//            hard and fast (no squeezing); 1.2 = hit
+//  1.2-1.32  palms bounce straight off the head (a smack, no holding) and swing out
+//  1.32-3.8  arms down, smug smirk: he watches the victim grab its ears, scream and fall over.
+//            The whole voice line (2.55 s) ends at 2.7 s, inside the animation: it is never cut short.
+// Victim (dummy / mod): stands 12 texels in front of him, head center ~26 texels high (VICTIM.clap).
+// wind-up (0.9-1.12): arms out to the sides at head height, a little forward, elbows bent (palms open wide), then the whip in
+const CL_AX   = [[0, 0], [0.15, 0.1], [0.9, -0.75], [1.12, -0.85], [1.2, -1.6], [1.32, -1.62], [1.7, -1.0], [2.3, -0.12], [3.8, 0]];
+const CL_AY   = [[0, 0], [1.12, 0], [1.2, -0.09], [1.32, -0.35], [1.7, 0.03], [2.3, 0], [3.8, 0]];                      // right arm (+ = inward); left = -
+const CL_AZ   = [[0, 0], [0.15, -0.1], [0.9, -1.4], [1.12, -1.5], [1.2, -0.32], [1.32, -0.55], [1.7, -0.3], [2.3, -0.14], [3.8, 0]]; // right arm (- = out); left = -
+const CL_FX   = [[0, 0], [0.15, -0.15], [0.9, -1.0], [1.12, -1.1], [1.2, -0.62], [1.32, -0.5], [1.7, -0.45], [2.3, -0.2], [3.8, 0]];
+const CL_WIND = [[0, 0], [0.15, 0], [0.9, 1], [1.12, 1], [1.2, 0], [3.8, 0]];                               // arms rise out, snarling
+const CL_GOD  = [[0, 0], [1.05, 0], [1.2, 1], [1.6, 1], [1.9, 0], [3.8, 0]];                                // "GOD": leans into the slam
+const CL_CUP  = [[0, 0], [1.18, 0], [1.2, 1], [1.26, 1], [1.37, 0], [3.8, 0]];                              // palms on the ears: only the smack
+const CL_SLAM = [[0, 0], [1.16, 0], [1.2, 1], [1.28, 0.4], [1.42, 0.3], [1.62, 0], [3.8, 0]];               // impact: forearms snap in, body jolts
+const CL_HIT  = [[0, 0], [1.18, 0], [1.22, 1], [1.37, 0], [3.8, 0]];                                        // impact jolt
+const CL_STANCE = [[0, 0], [0.4, 1], [2.6, 1], [3.8, 0]];
+const CL_SMUG = [[0, 0], [1.6, 0], [1.9, 1], [3.4, 1], [3.8, 0]];                                           // smirk while the victim falls
+
+// Throat laser (3.4 s): grabs the throat and lifts, holds 1 s while his eyes heat up,
+// then burns the victim's face point-blank, drops them and smirks.
+const TL_AX   = [[0, 0], [0.3, -1.05], [0.45, -1.0], [0.8, -1.85], [2.75, -1.9], [3.0, -1.1], [3.4, 0]];
+const TL_AY   = [[0, 0], [0.3, 0.06], [2.75, 0.06], [3.0, 0.03], [3.4, 0]];
+const TL_FX   = [[0, 0], [0.3, -0.15], [0.45, -0.35], [2.75, -0.35], [3.0, -0.05], [3.4, 0]];
+const TL_STEP = [[0, 0], [0.3, 1], [2.9, 1], [3.4, 0]];
+const TL_HOLD = [[0, 0], [0.45, 1], [2.75, 1], [3.1, 0], [3.4, 0]];
+const TL_GLOW = [[0, 0], [0.5, 0], [1.4, 1], [2.75, 1], [3.2, 0], [3.4, 0]];  // heats up during the 1 s hold
+const TL_LASER = [[0, 0], [1.45, 0], [1.6, 1], [2.6, 1], [2.75, 0], [3.4, 0]];
+const TL_SMIRK = [[0, 0], [0.5, 0], [0.8, 1], [1.3, 1], [1.5, 0], [2.95, 0], [3.2, 0.8], [3.4, 0]];
+
+/* ───────── Animations: Idle, Idle 2, Walk + asked-for Attack, Special (+ hidden Hover) ───────── */
+const ANIMS = {
+  // 1 · Idle: "surveying his city". Hands on hips, chest out, slow weight shift from leg to
+  // leg (the free knee softens), looks left and right with smug pauses and a one-sided smirk.
+  // Random extras live in step(): faint red eye glow, and now and then a short Hover.
+  idle: {
+    T: 8.0, yawLimit: 0.35, look: 1, mood: 1, // look-around + face come from the random director (sim.js)
+    fn(t, Q) {
+      const T = 8.0;
+      const br = Math.sin(TAU * 2 * t / T), inB = (br + 1) * 0.5; // 2 breaths per loop
+      const shift = Math.sin(TAU * t / T);                         // weight: + = on his right leg
+
+      // Legs: weight-bearing leg straight, the other knee softens; hips follow the knee a bit
+      const kR = 0.03 + 0.09 * (1 - shift) * 0.5, kL = 0.03 + 0.09 * (1 + shift) * 0.5;
+      legs(Q, -0.4 * kR, kR, -0.4 * kL, kL);
+      pos(Q, 'body', -0.3 * shift, 0, 0);
+
+      // Chest out, breathing (the random look turns it a little, see step())
+      rot(Q, 'chest', -0.04 - 0.03 * inB, 0, 0.015 * shift);
+      pos(Q, 'chest', 0, 0.08 * inB, 0);
+
+      handsOnHips(Q, 'right', 1, inB);
+      handsOnHips(Q, 'left', 1, inB);
+
+      // Head: breathing nod; turns and chin lifts come from the random look in step()
+      rot(Q, 'head', -0.03 - 0.015 * br, 0, -0.02 * shift);
+
+      // Face: base values (the random mood blends over them in step())
+      Q.f.smirk = 0.5;
+      Q.f.browUp = 0.08 + 0.04 * br;
+      Q.f.frown = 0.2;
+      Q.f.squint = 0.15;
+      Q.f.wide = 0.15;
+    }
+  },
+
+  // Hidden · Hover: plays by itself from Idle now and then (step()). Floats ~3.5 texels up,
+  // legs hang loose (toes down), hands behind the back, cape blown back over the hands,
+  // slow look around and a look down at the ground, then lands back into Idle.
+  hover: {
+    T: 9.0, yawLimit: 0.12, mood: 0.8, // arms swung back raise the pauldron fronts: keep head turns small (no random look)
+    fn(t, Q) {
+      const T = 9.0;
+      const air = kf(t, HV_AIR), hands = kf(t, HV_HANDS), fold = kf(t, HV_FOLD);
+      const look = kf(t, HV_LOOK), down = kf(t, HV_DOWN);
+      const bob = 0.35 * Math.sin(TAU * 3 * t / T) * air;        // 3 slow bobs per hover
+      const br = Math.sin(TAU * 2 * t / T), inB = (br + 1) * 0.5;
+
+      // Legs: idle stance on the ground -> hanging (knees soft, right one a bit more)
+      legs(Q, -0.03 - 0.05 * air, 0.06 + 0.2 * air, -0.03 - 0.08 * air, 0.06 + 0.12 * air, 3.5 * air + bob);
+
+      rot(Q, 'chest', -0.05 - 0.02 * inB, 0.2 * look, 0);
+      pos(Q, 'chest', 0, 0.06 * inB, 0);
+
+      // Arms: hands on hips -> hands behind the back
+      handsOnHips(Q, 'right', 1 - hands, inB);
+      handsOnHips(Q, 'left', 1 - hands, inB);
+      handsBehind(Q, 'right', hands, fold);
+      handsBehind(Q, 'left', hands, fold);
+
+      // Head: look around, then a cold look down at the ground below him
+      rot(Q, 'head', -0.03 - 0.2 * look * look + 0.1 * down, 0.6 * look, 0);
+
+      Q.f.glance = clamp(1.2 * kf(t + 0.3, HV_LOOK), -0.45, 0.45);
+      Q.f.smirk = 0.6 * air;
+      Q.f.browUp = 0.1 + 0.15 * air - 0.1 * down;
+      Q.f.frown = 0.12 + 0.25 * down;
+      Q.f.squint = 0.15 + 0.15 * down;
+      Q.f.wide = 0.15;
+    }
+  },
+
+  // 2 · Idle 2: the PR showman. Big fake grin + peace sign (photo 2) and a little wave, then
+  // the arm comes down and the smile drops off his face in a quarter second: cold dead stare,
+  // a flicker of red in the eyes, until the smug smirk comes back. Left hand stays on the hip.
+  idle2: {
+    T: 8.0, yawLimit: 0.3, mood: 0.35, // own choreography: the random mood only tints it
+    fn(t, Q) {
+      const T = 8.0;
+      const raise = kf(t, ID2_RAISE), grin = kf(t, ID2_GRIN), stare = kf(t, ID2_STARE);
+      const wave = kf(t, ID2_WAVE) * Math.sin(TAU * 2.25 * t);  // ~2 waves per second while held
+      const br = Math.sin(TAU * 2 * t / T), inB = (br + 1) * 0.5;
+
+      // Legs: weight on his left leg, right knee relaxed (contrapposto)
+      legs(Q, -0.05, 0.13, 0.0, 0.03);
+      pos(Q, 'body', 0.25, 0, 0);
+
+      // Chest lifts on the breath and leans back a little while posing
+      rot(Q, 'chest', -0.02 * inB - 0.04 * raise, 0.05 * raise, -0.02);
+      pos(Q, 'chest', 0, 0.06 * inB, 0);
+
+      // Right arm: hand-on-hip -> raised out to the side, twisted so the elbow bend points up
+      // (peace sign, photo 2); the wave rocks the raised arm side to side. See ID2_ARM.
+      const A2 = ID2_ARM;
+      rot(Q, 'arm_right', -0.1 - A2.ax * raise, A2.ay * raise, -0.34 - A2.az * raise + 0.07 * wave);
+      // The arm pivot sits on the arm's top edge: raised sideways, its end would float 2 texels off
+      // the torso. The pivot slides in (and a bit down) with the raise, so the arm stays on the shoulder.
+      pos(Q, 'arm_right', A2.px * raise, -A2.py * raise, A2.pz * raise);
+      // Elbow: folds less than 90 deg (the bracer is wider than the upper arm and would poke through it)
+      // and turns around a point on the inner (front) side, so the forearm stays out of the upper arm.
+      const fold = 0.45 + A2.f * raise, hz = A2.hinge * raise;
+      rot(Q, 'forearm_right', -fold, 0, 0.08 * (1 - raise));
+      pos(Q, 'forearm_right', 0, -hz * Math.sin(fold), hz * (1 - Math.cos(fold)));
+      handsOnHips(Q, 'left', 1, inB);
+
+      // Head: tilts toward the raised hand; in the stare it drops a little and goes still.
+      const hx = -0.03 - 0.01 * inB + 0.06 * stare, hzr = 0.06 * raise + 0.03 * stare;
+      rot(Q, 'head', hx, 0.05 * Math.sin(TAU * t / T) * (1 - stare), hzr);
+
+      // Face: grin (teeth) + raised brows -> flat brows, open eyes locked on you, red flicker
+      Q.f.grin = grin;
+      Q.f.wide = 0.15 + 0.5 * grin;
+      Q.f.browUp = 0.08 + 0.45 * grin - 0.05 * stare;
+      Q.f.frown = 0.12 * (1 - grin) + 0.15 * stare;
+      Q.f.squint = 0.12 + 0.18 * grin - 0.12 * stare;
+      Q.f.glance = 0.15 * Math.sin(TAU * 2 * t / T) * (1 - stare);
+      Q.f.glow = 0.3 * kf(t, ID2_RED);
+      Q.f.smirk = kf(t, ID2_SMIRK);
+    }
+  },
+
+  // 3 · Walk: upright, chest-out, unhurried stride (1 gait cycle = 2 steps in 1.25 s = 150 frames).
+  // 2-bone legs: heel strikes with toes up, toe-off with heel up (foot angle = hip + knee),
+  // knee folds ~1 rad in the swing for foot clearance; elbows bend more on the forward swing.
+  walk: {
+    T: 1.25, yawLimit: 0.20, look: 0.3, mood: 0.8, move: 16, // 16 texels/s = 1 block/s (the cape feels the air)
+    fn(t, Q) {
+      const p = t / 1.25, c = Math.cos(TAU * p), s = Math.sin(TAU * p);
+      // Per leg: hip from -0.42 (forward, heel strike) to +0.42 (back, toe-off); knee: small
+      // flex in stance, big fold in the swing (sin^2 halves: smooth at every joint of the cycle)
+      const leg = (ph) => {
+        const sp = Math.sin(TAU * ph), sw = sp * sp, swing = sp < 0 ? 1 : 0;
+        return [-0.42 * Math.cos(TAU * ph) - 0.1 * sw * swing, (swing ? 1.0 : 0.07) * sw];
+      };
+      const [hR, kR] = leg(p), [hL, kL] = leg(p + 0.5);
+      legs(Q, hR, kR, hL, kL);
+
+      // Weight moves over the stance foot; pelvis turns with the forward leg, chest counters
+      pos(Q, 'body', -0.3 * s, 0, 0);
+      rot(Q, 'body', 0, 0.06 * c, 0);
+      rot(Q, 'chest', 0.03, -0.1 * c, 0.02 * s);
+
+      // Arms opposite to the legs, elbows bend more on the forward swing, slight flare
+      rot(Q, 'arm_right', 0.38 * c, 0, -0.12);
+      rot(Q, 'arm_left', -0.38 * c, 0, 0.12);
+      rot(Q, 'forearm_right', -0.22 - 0.3 * (1 - c) * 0.5, 0, 0);
+      rot(Q, 'forearm_left', -0.22 - 0.3 * (1 + c) * 0.5, 0, 0);
+
+      // Head steady (counter-turns the chest), small nod on every step
+      rot(Q, 'head', -0.03 + 0.015 * Math.cos(2 * TAU * p), 0.04 * c, 0);
+
+      Q.f.smirk = 0.35;
+      Q.f.browUp = 0.08;
+      Q.f.frown = 0.15;
+      Q.f.squint = 0.15;
+      Q.f.wide = 0.15;
+      Q.f.glance = 0.12 * Math.sin(TAU * p * 0.5) ** 2 - 0.06;
+    }
+  },
+
+  // 4 · Run: superhuman sprint (the mod plays it while he chases, sped up to his real speed: ~11 blocks/s =
+  // 2x a sprinting player). Not a fast walk (run rule): foot path + 2-bone IK (RUN, runFoot, legIK); the body is
+  // lowest at mid-stance and highest in the flight phase (both feet off the floor). Leans into it, arms pump
+  // with the elbows bent ~90 deg, pelvis and chest twist against each other, jaw set, eyes on the target.
+  run: {
+    T: 0.35, yawLimit: 0.12, look: 0, mood: 0.3, move: 54,    // design speed 54 texels/s = 3.4 blocks/s (stance 6.4 texels in 0.119 s: no foot slide; the mod speeds it up)
+    fn(t, Q) {
+      const p = t / RUN.T, c = Math.cos(TAU * p);
+      const hipY = RUN.hip - RUN.bob * Math.cos(2 * TAU * (p - RUN.stance / 2)); // low at both mid-stances, high in flight
+      const lean = 0.12;                                       // pelvis leans forward; the legs are solved in world angles
+      pos(Q, 'root', 0, hipY - HIP_H, 0);
+      rot(Q, 'body', lean, 0.12 * c, 0);                       // pelvis turns with the forward leg
+      pos(Q, 'body', -0.35 * Math.sin(TAU * (p + 0.08)), 0, 0); // weight over the stance foot
+      for (const [side, off, sx] of [['right', 0, -1], ['left', 0.5, 1]]) {
+        runFoot(p + off, rfA);
+        let ty = rfA[0] - hipY;
+        legIK(ty, rfA[1], ikA);
+        // Floor contact: move the target so the LOWEST boot corner (heel or toe: the foot tilts with the shin) sits
+        // on the floor in stance (weight fades out smoothly as the foot rises), and never dips under it in the
+        // swing (soft max: no corner). 6 passes: each solve tilts the foot a little differently.
+        // Swing only (sw: 0 on the floor, the stance foot stays exact): the knee turns around the BACK edge of the
+        // joint (like the elbows around their front edge), so the heel kick never folds the calf into the thigh.
+        // That moves the foot (dy below, in world): the floor check counts it.
+        const wgt = 1 / (1 + rfA[0] * rfA[0]), sw = 1 - wgt, ck = -1.4 * sw * sw;
+        const hingeDy = () => ck * Math.sin(ikA[1]) * Math.cos(ikA[0]) - ck * (1 - Math.cos(ikA[1])) * Math.sin(ikA[0]);
+        for (let it = 0; it < 6; it++) {
+          const s = 0.06 - (footLow(ikA[0], ikA[1]) + hipY + hingeDy());
+          ty += wgt * s + (1 - wgt) * 0.5 * (s + Math.sqrt(s * s + 0.01));
+          legIK(ty, rfA[1], ikA);
+        }
+        const kn = ikA[1];
+        rot(Q, `leg_${side}`, ikA[0] - lean, 0, sx * 0.03);
+        rot(Q, `knee_${side}`, kn, 0, 0);
+        pos(Q, `knee_${side}`, 0, ck * Math.sin(kn), ck * (1 - Math.cos(kn)));
+      }
+
+      // Upper body: more lean in the chest, twists against the pelvis (shoulders follow the arms)
+      rot(Q, 'chest', 0.1, -0.2 * c, 0.02 * Math.sin(TAU * p));   // (more lean tips the torso's front edge into the thighs)
+      // Arms pump opposite to the legs, elbows ~70 deg, a bit more bent on the forward swing. The elbow turns
+      // around a point on the front edge of the joint (like Idle 2's raised arm), so the folded forearm never
+      // cuts into the upper arm.
+      const cr = Math.cos(TAU * (p + 0.05)), fwdR = (1 - cr) * 0.5, fwdL = (1 + cr) * 0.5;
+      rot(Q, 'arm_right', 0.8 * cr, 0, -0.1);
+      rot(Q, 'arm_left', -0.8 * cr, 0, 0.1);
+      for (const [side, fwd] of [['right', fwdR], ['left', fwdL]]) {
+        const fold = 1.0 + 0.25 * fwd, hz = 1.9;
+        rot(Q, `forearm_${side}`, -fold, 0, 0);
+        pos(Q, `forearm_${side}`, 0, -hz * Math.sin(fold), hz * (1 - Math.cos(fold)));
+      }
+
+      // Head: eyes front (counters the lean and the chest twist); the head stays on the torso (no neck, user rule)
+      const hx = -0.24 + 0.02 * Math.cos(2 * TAU * p), hy = 0.15 * c;
+      rot(Q, 'head', hx, hy, 0);
+
+      // Face: jaw set, teeth bared a little, fast breaths, brows low, a faint red in the eyes
+      Q.f.frown = 0.55;
+      Q.f.squint = 0.35;
+      Q.f.grin = 0.35;
+      Q.f.open = 0.12 + 0.08 * (1 + Math.sin(2 * TAU * p));
+      Q.f.wide = 0.25;
+      Q.f.browUp = 0;
+      Q.f.smirk = 0.1;
+      Q.f.glow = 0.15;
+      Q.f.glance = 0;
+    }
+  },
+
+  // 5 · Attack: wind-up and explosive right super-punch, lunging onto the left leg
+  attack: {
+    T: 1.8, yawLimit: 0.05, follow: 0,
+    events: { hit: 0.65 },                                  // punch lands (mod: damage + knockback)
+    fn(t, Q) {
+      const coil = kf(t, ATK_COIL);
+      const punch = kf(t, ATK_PUNCH);
+      const twist = kf(t, ATK_TWIST);
+
+      // Lunge: left leg steps forward (flat foot: hip + knee = 0), right leg pushes back on its toes
+      legs(Q, 0.12 * coil + 0.3 * punch, 0.1 * coil + 0.15 * punch, -0.1 * coil - 0.38 * punch, 0.25 * coil + 0.38 * punch);
+
+      // Torso wind-up and explosive forward torque
+      rot(Q, 'chest', 0.08 * punch, twist * 0.6, 0);
+      pos(Q, 'chest', 0, -0.15 * punch, 0.3 * punch);
+
+      // Right Arm: chambers back during wind-up with outward shoulder clearance, snaps forward
+      rot(Q, 'arm_right', 0.22 * coil - 1.45 * punch, 0, -0.32 - 0.15 * coil);
+      rot(Q, 'forearm_right', -0.85 * coil - 0.25 * punch, 0, 0);
+
+      // Left Arm: guards chest and counter-balances
+      rot(Q, 'arm_left', -0.2 * coil + 0.4 * punch, 0, 0.35);
+      rot(Q, 'forearm_left', -0.6 * coil - 0.3 * punch, 0, 0);
+
+      // Head locked onto the victim
+      rot(Q, 'head', 0.04 * punch, 0, 0);
+
+      // Violent grimace: bared teeth, low brows, eyes flash red on the hit
+      Q.f.frown = 0.95 * (coil + punch);
+      Q.f.squint = 0.65 * punch;
+      Q.f.open = 0.3 * punch;
+      Q.f.grin = 0.6 * punch;
+      Q.f.glow = Math.min(1, 0.45 * coil + 0.75 * punch); // eyes flare red in the wind-up, peak on the hit
+    }
+  },
+
+  // 5 · Special: Levitation Hover & Heat-Vision Laser Eyes!
+  special: {
+    T: 4.0, yawLimit: 0.2, follow: 0.15,
+    events: { laserOn: 0.85, laserOff: 2.75 },              // beams at full strength (mod: burn what they hit)
+    fn(t, Q) {
+      const lift = kf(t, SPEC_LIFT);
+      const laser = kf(t, SPEC_LASER);
+      const sweep = kf(t, SPEC_SWEEP);
+
+      // Hover legs: relaxed hanging pose once airborne (toes point down with the shin)
+      const hoverAir = clamp((lift - 0.4) / 3.0, 0, 1);
+      legs(Q, 0.06 * hoverAir, 0.06 + 0.2 * hoverAir, 0.06 * hoverAir, 0.06 + 0.14 * hoverAir, lift);
+
+      // Supreme power stance: arms drawn back and clenched at sides
+      rot(Q, 'arm_right', 0.18 * Math.min(1, lift / 4), 0, -0.32);
+      rot(Q, 'forearm_right', -0.25 * Math.min(1, lift / 4), 0, 0.1);
+      rot(Q, 'arm_left', 0.18 * Math.min(1, lift / 4), 0, 0.32);
+      rot(Q, 'forearm_left', -0.25 * Math.min(1, lift / 4), 0, -0.1);
+
+      // Head tilted downward with terrifying laser gaze sweeping across the target
+      // (pitch SPEC_AIM: from 9.5 texels up the beams come down onto a target 3.5 blocks away, chest high)
+      rot(Q, 'head', SPEC_AIM * laser, sweep, 0);
+
+      Q.f.laser = laser;
+      Q.f.glow = clamp(lift / 6, 0, 1) ** 2;   // eyes heat up while he rises (full red just before the beams)
+      Q.f.frown = 1.0 * laser;
+      Q.f.open = 0.25 * laser;
+      Q.f.grin = 0.5 * laser;
+      Q.f.squint = 0.45 * laser;
+    }
+  },
+
+  // 6 · Throw: grabs the victim by the neck (right hand), lifts them off the ground, dips
+  // and flings them straight up, watches them fly and looks down where they will land.
+  throw: {
+    T: 3.25, yawLimit: 0.05, follow: 0,
+    events: { grab: 0.42, release: 1.52 },                  // hand closes on the neck / lets go at the top of the fling
+    fn(t, Q) {
+      const step = kf(t, TH_STEP), cr = kf(t, TH_CROUCH), ext = kf(t, TH_EXT);
+      const up = kf(t, TH_UP), down = kf(t, TH_DOWN), hold = kf(t, TH_HOLD);
+
+      // Legs: left foot steps in, dips with the throw, pushes up onto the toes on the release
+      legs(Q, 0.22 * step - 0.2 * cr + 0.1 * ext, 0.08 * step + 0.55 * cr, -0.3 * step - 0.2 * cr, 0.3 * step + 0.55 * cr, 0.7 * ext);
+
+      // Chest: right shoulder turns forward to reach, leans into the dip, arches back on the throw
+      // (chest twist 0.42 while holding = the right hand sits on his center line, where the victim is)
+      rot(Q, 'chest', 0.04 * step + 0.14 * cr - 0.16 * up, 0.42 * hold + 0.12 * cr, 0);
+      pos(Q, 'chest', 0, 0, 0.2 * cr);
+
+      // Right arm: reach -> neck -> lift -> dip -> fling overhead (out to the side of the head)
+      rot(Q, 'arm_right', kf(t, TH_AX), kf(t, TH_AY), kf(t, TH_AZ));
+      rot(Q, 'forearm_right', kf(t, TH_FX), 0, 0);
+      // Left arm: fist low and back for balance, swings forward on the throw
+      rot(Q, 'arm_left', 0.25 * step - 0.35 * ext, 0, 0.2 * step);
+      rot(Q, 'forearm_left', -0.5 * step, 0, -0.05);
+
+      // Head: locked on the victim, then up after them (neck long: clears the shoulders), then down
+      // (head counter-turns to keep his eyes on the victim and looks up into their face)
+      rot(Q, 'head', -0.22 * hold - 0.38 * up + 0.14 * down, -0.3 * hold, -0.03 * hold);
+
+      // Face: snarl while choking, faint red eyes; shout on the release; smirk watching; cruel grin down
+      Q.f.frown = 0.7 * hold + 0.5 * ext + 0.2 * down;
+      Q.f.grin = 0.5 * hold + 0.7 * down;
+      Q.f.open = 0.8 * ext;
+      Q.f.wide = 0.15 + 0.3 * ext;
+      Q.f.smirk = 0.8 * up;
+      Q.f.browUp = 0.4 * up;
+      Q.f.squint = 0.3 * hold + 0.2 * down;
+      Q.f.glow = 0.35 * hold + 0.5 * ext;
+      Q.f.glance = 0;
+    }
+  },
+
+  // 7 · Clap: the head clap only (see CL_*), shouting "I AM GOD": both arms rise out to the sides on
+  // "I AM", the palms smack the victim's ears on "GOD" (hard and fast, no squeezing), bounce off, and he
+  // watches the victim fall with a smirk. The voice line starts at events.voice and plays to its end.
+  clap: {
+    T: 3.8, yawLimit: 0.05, follow: 0,
+    events: { voice: 0.15, swing: 1.08, hit: 1.2 },
+    fn(t, Q) {
+      const god = kf(t, CL_GOD), wind = kf(t, CL_WIND), cup = kf(t, CL_CUP);
+      const slam = kf(t, CL_SLAM), hit = kf(t, CL_HIT), st = kf(t, CL_STANCE);
+      const shake = 0.025 * Math.sin(TAU * 7 * t) * wind;              // arms tremble with rage while they rise
+
+      // Legs: wide planted stance (splay), knees give a little on "GOD" and dip into the slam
+      // (lift 0.13*st: the wide splay tips the boots' outer edges below the floor solve)
+      const kn = 0.06 * st + 0.12 * god + 0.1 * wind + 0.18 * slam;
+      legs(Q, -0.05 * st - 0.08 * god - 0.1 * cup, kn, -0.05 * st - 0.08 * god - 0.1 * cup, kn, 0.13 * st, 0.03 + 0.09 * st * (1 - 0.6 * cup));
+
+      // Chest: opens up while the arms rise, pushes in on "GOD", snaps forward into the slam
+      rot(Q, 'chest', 0.08 * god - 0.06 * wind + 0.1 * cup + 0.06 * slam, 0, 0);
+      pos(Q, 'chest', 0, 0.1 * wind, 0.12 * god + 0.12 * cup + 0.1 * slam - 0.15 * hit);   // (more = his face hits the victim's)
+
+      // Arms (mirrored): rise out to the sides to head height -> whip in onto the ears -> bounce off -> down
+      const ax = kf(t, CL_AX), ay = kf(t, CL_AY), az = kf(t, CL_AZ), fx = kf(t, CL_FX);
+      rot(Q, 'arm_right', ax - 0.1 * god, ay, az - 0.12 * god + shake);
+      rot(Q, 'arm_left', ax - 0.1 * god, -ay, -az + 0.12 * god - shake);
+      rot(Q, 'forearm_right', fx, 0, 0);
+      rot(Q, 'forearm_left', fx, 0, 0);
+
+      // Head: chin up a little while he shouts, tilts down at the victim on the slam, shakes on the impact.
+      const hx = -0.06 * wind + 0.05 * cup + 0.02 * hit;              // (more pitch: his hair touches the victim's head)
+      const hz = 0.03 * Math.sin(TAU * 9 * t) * hit;
+      rot(Q, 'head', hx, 0, hz);
+
+      // Face: snarl while the arms rise (bared teeth, eyes heat up; the shout opens the mouth by the voice line's
+      // loudness) -> clenched teeth on the hit -> smug smirk while the victim falls
+      Q.f.open = 0.15 * wind;
+      Q.f.wide = 0.2 + 0.2 * wind;
+      Q.f.browUp = 0.1 - 0.2 * wind - 0.1 * god;
+      Q.f.frown = 0.3 + 0.4 * god + 0.9 * wind + 1.0 * cup;
+      Q.f.grin = 0.6 * wind + 0.8 * cup;
+      Q.f.squint = 0.1 + 0.25 * god + 0.3 * wind + 0.4 * cup;
+      Q.f.glow = 0.25 * god + 0.7 * wind + 0.35 * cup;
+      Q.f.smirk = 0.7 * kf(t, CL_SMUG);
+      Q.f.glance = 0;
+    }
+  },
+
+  // 8 · Throat laser: grabs the throat, lifts the victim, holds them 1 s while the eyes heat
+  // up, then burns their face point-blank (short beams), drops them and smirks.
+  throatLaser: {
+    T: 3.4, yawLimit: 0.05, follow: 0, beam: 6, // beams end at the victim's face (probe: head center height, ~6 texels)
+    events: { grab: 0.45, burnOn: 1.6, burnOff: 2.6, release: 2.85 },
+    fn(t, Q) {
+      const step = kf(t, TL_STEP), hold = kf(t, TL_HOLD), laser = kf(t, TL_LASER);
+
+      // Legs: steps in with the left foot, sets the right back to carry the weight
+      legs(Q, 0.2 * step, 0.08 * step, -0.3 * step, 0.25 * step);
+
+      // Chest: right shoulder twists forward (hand on his center line = victim in front of him),
+      // leans back a little under the lifted weight
+      rot(Q, 'chest', -0.05 * hold, 0.42 * hold, 0);
+
+      rot(Q, 'arm_right', kf(t, TL_AX), kf(t, TL_AY), -0.12 * step);
+      rot(Q, 'forearm_right', kf(t, TL_FX), 0, 0);
+      // Left arm: clenched fist by his side
+      rot(Q, 'arm_left', 0.08 * step, 0, 0.16 * step);
+      rot(Q, 'forearm_left', -0.35 * hold, 0, -0.06 * hold);
+
+      // Head: looks up into the victim's face, curious tilt, buzzes while the beams fire
+      const buzz = 0.012 * Math.sin(TAU * 15 * t) * laser;
+      rot(Q, 'head', -0.3 * hold + buzz, -0.42 * hold, 0.08 * hold * (1 - laser) + buzz); // counter-turn: face to face
+
+      // Face: smug smirk while he squeezes, brows sink as the eyes heat up, snarl while burning
+      Q.f.smirk = kf(t, TL_SMIRK);
+      Q.f.glow = kf(t, TL_GLOW);
+      Q.f.laser = laser;
+      Q.f.frown = 0.35 * hold + 0.4 * kf(t, TL_GLOW) + 0.3 * laser;
+      Q.f.grin = 0.85 * laser;
+      Q.f.open = 0.15 * laser;
+      Q.f.squint = 0.2 * hold + 0.3 * laser;
+      Q.f.browUp = 0.15 * hold * (1 - laser);
+      Q.f.glance = 0;
+    }
+  }
+};
+
+// Sound effects per animation event (sounds/mobs/the_boys/homelander/<name>; the mod plays the same files on the same events).
+// '-name' = stop that sound (the beams go out).
+const SFX_EVENTS = {
+  attack: { hit: 'punch' },
+  special: { laserOn: 'laser', laserOff: '-laser' },
+  throw: { grab: 'grab', release: 'whoosh' },
+  clap: { swing: 'whoosh', hit: 'slap' },
+  throatLaser: { grab: 'grab', burnOn: 'laser', burnOff: '-laser' }
+};
+
+const ANIM_ORDER = ['idle', 'idle2', 'walk', 'run', 'attack', 'special', 'throw', 'clap', 'throatLaser'];   // dock buttons / keys 1-9
+const ALL_ANIMS = [...ANIM_ORDER, 'hover'];                           // + hidden ones (tests, export)
+
+/* ───────── Cloth physics (the cape) ─────────
+   No keyframes: three verlet chains of CAPE_N + 1 points (left edge, middle, right edge) hang from the
+   chest. Every substep: gravity, air drag, a random breeze, then distance constraints (along each chain,
+   across and diagonally across the cape, and a max distance from the top so it never stretches),
+   collisions with his body boxes (a point inside a box is pushed out the shortest way) and the floor.
+   Then every cape bone turns to follow its piece of the middle chain (twist from the edge chains).
+   All in his model space (texels, seconds), plain doubles, fixed substeps: the mod runs the same code 1:1. */
+const CLOTH = {
+  sub: 1 / 240,           // substep length (s); a frame runs ceil(dt / sub) equal substeps
+  gravity: 156.8,         // texels/s^2 (9.8 m/s^2, 16 texels per block)
+  drag: 3.0,              // air drag per second (light cloth: walking 1 block/s blows it back ~17 degrees)
+  iters: 6,               // constraint + collision passes per substep
+  cols: 9,                // chains across the cape (a point every CAPE_W / 8 = 1.8 texels: body corners cannot poke through)
+  margin: 0.5,            // points stay this far outside body boxes (cloth half thickness + room for the flat row boxes)
+  handsWidth: 0.52,       // hands behind the back: the cape's top edge eases in to this part of its width (7.5 texels: between the arms)
+  wind: 10,               // breeze strength (texels/s^2): slow random gusts, ripples run down the cape
+  colliders: ['torso_suit', 'head_cranium', 'hair_main', 'upper_arm_right', 'upper_arm_left', 'pauldron_right', 'pauldron_left',
+    'pauldron_wing_right', 'pauldron_wing_left', 'lower_arm_right', 'lower_arm_left', 'gauntlet_right', 'gauntlet_left',
+    'thigh_right', 'thigh_left', 'calf_right', 'calf_left', 'boot_right', 'boot_left']
+};
+const CLOTH_COL = CLOTH.colliders.map((n) => cubeList.find((c) => c.name === n));
+const CAPE_BONES = CAPE.map((n) => bones[n]);
+const NP = CAPE_N + 1;                                   // points per chain
+const NK = CLOTH.cols, KMID = (NK - 1) / 2, KGAP = CAPE_W / (NK - 1);   // chains, middle chain, gap between chains
+
+function makeCloth(rand) {
+  const n = NK * NP * 3;
+  const C = { init: false, wf: 1, P: new Float64Array(n), Q: new Float64Array(n), A: new Float64Array(NK * 3), ph: [], col: new Float64Array(CLOTH_COL.length * 12),
+              R: new Float64Array(9), Rp: new Float64Array(9) };
+  for (let i = 0; i < 6; i++) C.ph.push(rand() * TAU);   // breeze phases: every mob gusts differently
+  return C;
+}
+
+// Rotation columns + translation (texels) of a three.js matrixWorld into o[at..at+11] (x col, y col, z col, t)
+function mat34(m, o, at) {
+  const e = m.elements;
+  o[at] = e[0]; o[at + 1] = e[1]; o[at + 2] = e[2]; o[at + 3] = e[4]; o[at + 4] = e[5]; o[at + 5] = e[6];
+  o[at + 6] = e[8]; o[at + 7] = e[9]; o[at + 8] = e[10]; o[at + 9] = e[12] / TEXEL; o[at + 10] = e[13] / TEXEL; o[at + 11] = e[14] / TEXEL;
+}
+const chestM = new Float64Array(12);
+
+// One frame of cloth. move = how far his body moved through the air this frame (texels, model space):
+// the viewer passes the animation's own walking speed, the mod his real movement.
+function clothStep(S, dt, move) {
+  const C = S.cloth, P = C.P, Q = C.Q, N = CAPE_N, seg = CAPE_SEG;
+  mobRoot.updateMatrixWorld(true);
+  mat34(bones.chest.matrixWorld, chestM, 0);
+  // body boxes this frame (rigid: rotation columns + center)
+  for (let c = 0; c < CLOTH_COL.length; c++) mat34(CLOTH_COL[c].mesh.matrixWorld, C.col, c * 12);
+  const hands = handsBlock(C);
+  // width: hands behind the back -> the top edge eases in to handsWidth (it fits between the arms, under the hands)
+  C.wf += ((hands ? CLOTH.handsWidth : 1) - C.wf) * (1 - Math.exp(-dt * 6));
+  const gap = KGAP * C.wf, diag = Math.sqrt(gap * gap + CAPE_SEG * CAPE_SEG);   // (sqrt, not hypot: same bits in Java)
+  // anchors: along the top edge of the cape, in chest space
+  for (let k = 0; k < NK; k++) {
+    const x = CAPE_TOP[0] + (k - KMID) * gap, y = CAPE_TOP[1], z = CAPE_TOP[2], m = chestM;
+    C.A[k * 3] = m[0] * x + m[3] * y + m[6] * z + m[9];
+    C.A[k * 3 + 1] = m[1] * x + m[4] * y + m[7] * z + m[10];
+    C.A[k * 3 + 2] = m[2] * x + m[5] * y + m[8] * z + m[11];
+  }
+  if (!C.init) {                                         // first frame: hang straight down
+    for (let k = 0; k < NK; k++) for (let i = 0; i <= N; i++) {
+      const j = (k * NP + i) * 3;
+      P[j] = Q[j] = C.A[k * 3]; P[j + 1] = Q[j + 1] = C.A[k * 3 + 1] - i * seg; P[j + 2] = Q[j + 2] = C.A[k * 3 + 2];
+    }
+    C.init = true;
+  }
+
+  const n = Math.max(1, Math.ceil(dt / CLOTH.sub - 1e-9)), h = dt / n;
+  const damp = Math.exp(-CLOTH.drag * h), ph = C.ph;
+  const mx = move[0] / n, my = move[1] / n, mz = move[2] / n;
+  for (let s = 0; s < n; s++) {
+    const tt = S.time - dt + (s + 1) * h;
+    // breeze: slow gusts, mostly from the front (blows the cape back), a bit sideways and up/down
+    const W = CLOTH.wind * (0.55 + 0.45 * Math.sin(TAU * 0.13 * tt + ph[0]));
+    const wx = W * 0.35 * Math.sin(TAU * 0.23 * tt + ph[1]), wy = W * 0.15 * Math.sin(TAU * 0.41 * tt + ph[2]);
+    const wz = -W * (0.6 + 0.4 * Math.sin(TAU * 0.17 * tt + ph[3]));
+    // integrate (verlet): inertia (damped by the air), air pushing on a moving body, gravity, breeze
+    for (let k = 0; k < NK; k++) for (let i = 1; i <= N; i++) {
+      const j = (k * NP + i) * 3;
+      const ripple = 0.7 + 0.3 * Math.sin(TAU * 1.3 * tt - i * 0.25 + ph[4] + k * 0.2);   // gust waves run down the cloth
+      const px = P[j], py = P[j + 1], pz = P[j + 2];
+      P[j] = px + (px - Q[j]) * damp - mx * (1 - damp) + wx * ripple * h * h;
+      P[j + 1] = py + (py - Q[j + 1]) * damp - my * (1 - damp) + (wy * ripple - CLOTH.gravity) * h * h;
+      P[j + 2] = pz + (pz - Q[j + 2]) * damp - mz * (1 - damp) + wz * ripple * h * h;
+      Q[j] = px; Q[j + 1] = py; Q[j + 2] = pz;
+    }
+    for (let k = 0; k < NK; k++) { const j = k * NP * 3; P[j] = Q[j] = C.A[k * 3]; P[j + 1] = Q[j + 1] = C.A[k * 3 + 1]; P[j + 2] = Q[j + 2] = C.A[k * 3 + 2]; }
+    for (let it = 0; it < CLOTH.iters; it++) {
+      for (let k = 0; k < NK; k++) for (let i = 0; i < N; i++) clothLink(P, (k * NP + i) * 3, (k * NP + i + 1) * 3, seg, i === 0);
+      // across (neighbour chains) and diagonally both ways (keeps the cloth from shearing)
+      for (let k = 0; k < NK - 1; k++) for (let i = 1; i <= N; i++) {
+        const a = (k * NP + i) * 3, b = ((k + 1) * NP + i) * 3;
+        clothLink(P, a, b, gap, false);
+        clothLink(P, a - 3, b, diag, i === 1); clothLink(P, b - 3, a, diag, i === 1);
+      }
+      // bending across: every second chain + edge to edge keep each row nearly straight (each row is one
+      // flat bone box in the model, so a row that curled around a leg would let the box cut into it)
+      for (let k = 0; k < NK - 2; k++) for (let i = 1; i <= N; i++) clothLink(P, (k * NP + i) * 3, ((k + 2) * NP + i) * 3, 2 * gap, false);
+      for (let i = 1; i <= N; i++) clothLink(P, i * 3, ((NK - 1) * NP + i) * 3, (NK - 1) * gap, false);
+      // never further from the top than the cloth length above it (no stretching under gravity)
+      for (let k = 0; k < NK; k++) for (let i = 1; i <= N; i++) {
+        const j = (k * NP + i) * 3, dx = P[j] - C.A[k * 3], dy = P[j + 1] - C.A[k * 3 + 1], dz = P[j + 2] - C.A[k * 3 + 2];
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz), L = i * seg;
+        if (d > L) { const f = L / d; P[j] = C.A[k * 3] + dx * f; P[j + 1] = C.A[k * 3 + 1] + dy * f; P[j + 2] = C.A[k * 3 + 2] + dz * f; }
+      }
+      clothCollide(C, hands);
+    }
+  }
+  clothBones(C);
+  updateCapeMesh(C);
+}
+
+// Keep two points `len` apart (each moves half; a pinned first point does not move).
+function clothLink(P, a, b, len, pinA) {
+  const dx = P[b] - P[a], dy = P[b + 1] - P[a + 1], dz = P[b + 2] - P[a + 2];
+  const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  if (d < 1e-9) return;
+  const f = (d - len) / d;
+  if (pinA) { P[b] -= dx * f; P[b + 1] -= dy * f; P[b + 2] -= dz * f; return; }
+  P[a] += dx * f * 0.5; P[a + 1] += dy * f * 0.5; P[a + 2] += dz * f * 0.5;
+  P[b] -= dx * f * 0.5; P[b + 1] -= dy * f * 0.5; P[b + 2] -= dz * f * 0.5;
+}
+
+// Push every point out of every body box (shortest way out) and above the floor.
+// Hands behind the back (user rule 2026-10-16: the cape lies ON his back, the hands rest on top of it): when BOTH
+// forearm/fist pairs reach behind the cape's plane, a point inside one of those boxes leaves it toward his back
+// (along the chest's +z, the shortest way along that line), never out the far side, and a point inside an upper arm
+// leaves it inward (toward his spine): the cloth stays between back and arms. One arm swung back (walk, run, attacks)
+// keeps the plain shortest way out, so the cape lies along it.
+// Being pushed out moves the old position along too: no speed of its own (no flapping away).
+const HAND_COL = CLOTH_COL.map((c) => /^(lower_arm_|gauntlet_)/.test(c.name));
+const UPPER_COL = CLOTH_COL.map((c) => /^upper_arm_/.test(c.name));
+const handIn = new Uint8Array(CLOTH_COL.length);
+function handsBlock(C) {
+  const M = C.col, mg = CLOTH.margin;
+  let inR = false, inL = false;
+  for (let c = 0; c < CLOTH_COL.length; c++) {
+    handIn[c] = 0;
+    if (!HAND_COL[c]) continue;
+    const o = c * 12, cube = CLOTH_COL[c];
+    const h0 = cube.size[0] / 2 + cube.inflate, h1 = cube.size[1] / 2 + cube.inflate, h2 = cube.size[2] / 2 + cube.inflate;
+    let lo2 = 1e9;
+    for (let k = 0; k < 8; k++) {                         // corners -> chest space z (how far back)
+      const a = k & 1 ? h0 : -h0, b = k & 2 ? h1 : -h1, d = k & 4 ? h2 : -h2;
+      const wx = M[o + 9] + M[o] * a + M[o + 3] * b + M[o + 6] * d - chestM[9];
+      const wy = M[o + 10] + M[o + 1] * a + M[o + 4] * b + M[o + 7] * d - chestM[10];
+      const wz = M[o + 11] + M[o + 2] * a + M[o + 5] * b + M[o + 8] * d - chestM[11];
+      lo2 = Math.min(lo2, chestM[6] * wx + chestM[7] * wy + chestM[8] * wz);
+    }
+    if (lo2 >= CAPE_TOP[2] - mg) continue;                // not behind the cape's plane
+    handIn[c] = 1;
+    // hands ON the back: the fist's center behind the cape, near the spine (|x| < 7), between hips and shoulders
+    // (a fist swung far out or up in an attack is not "hands behind the back")
+    if (!cube.name.startsWith('gauntlet_')) continue;
+    const wx = M[o + 9] - chestM[9], wy = M[o + 10] - chestM[10], wz = M[o + 11] - chestM[11];
+    const x = chestM[0] * wx + chestM[1] * wy + chestM[2] * wz, y = chestM[3] * wx + chestM[4] * wy + chestM[5] * wz, z = chestM[6] * wx + chestM[7] * wy + chestM[8] * wz;
+    // (already while the fists swing in, so the arms slide over the cape instead of scooping it up)
+    if (z > CAPE_TOP[2] || z < -10 || Math.abs(x) > 11 || y < -2 || y > 12) continue;
+    if (cube.name.endsWith('_right')) inR = true; else inL = true;
+  }
+  if (!(inR && inL)) { handIn.fill(0); return false; }    // only with BOTH hands behind the back
+  return true;
+}
+function clothCollide(C, hands) {
+  const P = C.P, Q = C.Q, M = C.col, mg = CLOTH.margin;
+  for (let j = 0; j < P.length; j += 3) {
+    if (j % (NP * 3) === 0) continue;                    // pinned top points
+    let px = P[j], py = P[j + 1], pz = P[j + 2];
+    // two passes: the arms' pushes toward back / spine first, then every plain box (the torso gets the last word)
+    for (let pass = hands ? 0 : 1; pass < 2; pass++) for (let c = 0; c < CLOTH_COL.length; c++) {
+      if ((pass === 0) !== (hands && (handIn[c] === 1 || UPPER_COL[c]))) continue;
+      const o = c * 12, cube = CLOTH_COL[c];
+      const dx = px - M[o + 9], dy = py - M[o + 10], dz = pz - M[o + 11];
+      let lx = M[o] * dx + M[o + 1] * dy + M[o + 2] * dz;          // into the box's own axes
+      let ly = M[o + 3] * dx + M[o + 4] * dy + M[o + 5] * dz;
+      let lz = M[o + 6] * dx + M[o + 7] * dy + M[o + 8] * dz;
+      const hx = cube.size[0] / 2 + cube.inflate + mg, hy = cube.size[1] / 2 + cube.inflate + mg, hz = cube.size[2] / 2 + cube.inflate + mg;
+      const ex = hx - Math.abs(lx), ey = hy - Math.abs(ly), ez = hz - Math.abs(lz);
+      if (ex <= 0 || ey <= 0 || ez <= 0) continue;
+      if (hands && (handIn[c] || UPPER_COL[c])) {
+        // forearm/fist: out toward his back (chest +z); upper arm: out toward his spine (chest -x on the right side
+        // of him, +x on the left). That direction in this box's axes, then walk along it to the box's surface.
+        let wx = chestM[6], wy = chestM[7], wz = chestM[8];
+        if (!handIn[c]) {
+          const sx = chestM[0] * (px - chestM[9]) + chestM[1] * (py - chestM[10]) + chestM[2] * (pz - chestM[11]) < 0 ? 1 : -1;
+          wx = chestM[0] * sx; wy = chestM[1] * sx; wz = chestM[2] * sx;
+        }
+        const ux = M[o] * wx + M[o + 1] * wy + M[o + 2] * wz;
+        const uy = M[o + 3] * wx + M[o + 4] * wy + M[o + 5] * wz;
+        const uz = M[o + 6] * wx + M[o + 7] * wy + M[o + 8] * wz;
+        let s = 1e9;
+        if (ux > 1e-9) s = Math.min(s, (hx - lx) / ux); else if (ux < -1e-9) s = Math.min(s, (-hx - lx) / ux);
+        if (uy > 1e-9) s = Math.min(s, (hy - ly) / uy); else if (uy < -1e-9) s = Math.min(s, (-hy - ly) / uy);
+        if (uz > 1e-9) s = Math.min(s, (hz - lz) / uz); else if (uz < -1e-9) s = Math.min(s, (-hz - lz) / uz);
+        lx += ux * s; ly += uy * s; lz += uz * s;
+      } else if (ex <= ey && ex <= ez) lx = lx < 0 ? -hx : hx; else if (ey <= ez) ly = ly < 0 ? -hy : hy; else lz = lz < 0 ? -hz : hz;
+      px = M[o + 9] + M[o] * lx + M[o + 3] * ly + M[o + 6] * lz;
+      py = M[o + 10] + M[o + 1] * lx + M[o + 4] * ly + M[o + 7] * lz;
+      pz = M[o + 11] + M[o + 2] * lx + M[o + 5] * ly + M[o + 8] * lz;
+    }
+    if (py < mg) py = mg;
+    Q[j] += px - P[j]; Q[j + 1] += py - P[j + 1]; Q[j + 2] += pz - P[j + 2];
+    P[j] = px; P[j + 1] = py; P[j + 2] = pz;
+  }
+}
+
+// Turn each cape bone to follow its piece of cloth: its -y axis runs to the next middle point,
+// its x axis across the cape (edge chains). Local rotation = parent rotation^T x world rotation, as Euler ZYX.
+function clothBones(C) {
+  const P = C.P, R = C.R, Rp = C.Rp;
+  for (let a = 0; a < 9; a++) Rp[a] = chestM[a];
+  for (let i = 0; i < CAPE_N; i++) {
+    const m0 = (KMID * NP + i) * 3, m1 = m0 + 3, l0 = i * 3, r0 = ((NK - 1) * NP + i) * 3;
+    let yx = P[m0] - P[m1], yy = P[m0 + 1] - P[m1 + 1], yz = P[m0 + 2] - P[m1 + 2];
+    let d = Math.sqrt(yx * yx + yy * yy + yz * yz) || 1;
+    yx /= d; yy /= d; yz /= d;
+    let xx = P[r0] + P[r0 + 3] - P[l0] - P[l0 + 3], xy = P[r0 + 1] + P[r0 + 4] - P[l0 + 1] - P[l0 + 4], xz = P[r0 + 2] + P[r0 + 5] - P[l0 + 2] - P[l0 + 5];
+    const dot = xx * yx + xy * yy + xz * yz;
+    xx -= yx * dot; xy -= yy * dot; xz -= yz * dot;
+    d = Math.sqrt(xx * xx + xy * xy + xz * xz) || 1;
+    xx /= d; xy /= d; xz /= d;
+    const zx = xy * yz - xz * yy, zy = xz * yx - xx * yz, zz = xx * yy - xy * yx;
+    R[0] = xx; R[1] = xy; R[2] = xz; R[3] = yx; R[4] = yy; R[5] = yz; R[6] = zx; R[7] = zy; R[8] = zz;
+    // local = Rp^T R  (m_rc = parent column r . world column c)
+    const m = (r, c) => Rp[r * 3] * R[c * 3] + Rp[r * 3 + 1] * R[c * 3 + 1] + Rp[r * 3 + 2] * R[c * 3 + 2];
+    const m11 = m(0, 0), m21 = m(1, 0), m31 = m(2, 0), m32 = m(2, 1), m33 = m(2, 2), m12 = m(0, 1), m22 = m(1, 1);
+    const ry = Math.asin(-clamp(m31, -1, 1));
+    let rx, rz;
+    if (Math.abs(m31) < 0.9999999) { rx = Math.atan2(m32, m33); rz = Math.atan2(m21, m11); } else { rx = 0; rz = Math.atan2(-m12, m22); }
+    CAPE_BONES[i].rotation.set(rx, ry, rz);
+    for (let a = 0; a < 9; a++) Rp[a] = R[a];
+  }
+}
+
+/* ───────── Cape mesh ─────────
+   The cape you see: one closed cloth surface straight from the cloth points (NK chains x NP points).
+   Outside and lining sit CAPE_T on each side of the cloth (along its normal), joined along both side edges,
+   the hem and the top. Rebuilt in place every step (positions + normals); texture = CAPE_CLOTH's atlas rects.
+   The mod builds the same quads from its own cloth points. */
+const CAPE_T = 0.2;                                        // half thickness (texels): 0.4 thick, like the old boxes
+const CAPE_MESH = (() => {
+  const G = NK * NP, nv = 2 * G + 4 * NP + 4 * NK;
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(nv * 3), nrm = new Float32Array(nv * 3), uv = new Float32Array(nv * 2), idx = [];
+  const O = (k, i) => k * NP + i, I = (k, i) => G + k * NP + i;           // outside / lining grid
+  const SL = (i, s) => 2 * G + i * 2 + s, SR = (i, s) => 2 * G + 2 * NP + i * 2 + s;  // side edges (s 0 = outside, 1 = lining)
+  const HM = (k, s) => 2 * G + 4 * NP + k * 2 + s, TP = (k, s) => 2 * G + 4 * NP + 2 * NK + k * 2 + s; // hem, top
+  const quad = (a, b, c, d) => idx.push(a, b, c, b, d, c);  // a-b top edge, c-d bottom edge: (a, b, c), (b, d, c)
+  for (let k = 0; k < NK - 1; k++) for (let i = 0; i < CAPE_N; i++) {
+    quad(O(k, i), O(k + 1, i), O(k, i + 1), O(k + 1, i + 1));            // outside faces away from his back
+    quad(I(k + 1, i), I(k, i), I(k + 1, i + 1), I(k, i + 1));            // lining faces his back
+  }
+  for (let i = 0; i < CAPE_N; i++) {
+    quad(SL(i, 1), SL(i, 0), SL(i + 1, 1), SL(i + 1, 0));                 // -x edge
+    quad(SR(i, 0), SR(i, 1), SR(i + 1, 0), SR(i + 1, 1));                 // +x edge
+  }
+  for (let k = 0; k < NK - 1; k++) {
+    quad(HM(k, 0), HM(k + 1, 0), HM(k, 1), HM(k + 1, 1));                 // hem (faces down)
+    quad(TP(k, 1), TP(k + 1, 1), TP(k, 0), TP(k + 1, 0));                 // top (faces up)
+  }
+  // UVs: rect face f of CAPE_CLOTH, fu / fv = 0..1 across / down that rect
+  const R = (f, v, fu, fv) => { const r = CAPE_CLOTH.rects[f]; uv[v * 2] = (r.x + fu * r.w) / ATLAS_W; uv[v * 2 + 1] = 1 - (r.y + fv * r.h) / ATLAS_H; };
+  for (let k = 0; k < NK; k++) for (let i = 0; i < NP; i++) {
+    const a = k / (NK - 1), b = i / CAPE_N;
+    R(5, O(k, i), 1 - a, b); R(4, I(k, i), a, b);                         // back face = outside (mirrored), front = lining
+  }
+  for (let i = 0; i < NP; i++) for (let s = 0; s < 2; s++) { R(1, SL(i, s), s, i / CAPE_N); R(0, SR(i, s), 1 - s, i / CAPE_N); }
+  for (let k = 0; k < NK; k++) for (let s = 0; s < 2; s++) { R(3, HM(k, s), k / (NK - 1), s); R(2, TP(k, s), k / (NK - 1), 1 - s); }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  const mesh = new THREE.Mesh(geo, mat(0.65, 0.04, false));
+  mesh.name = 'cape'; mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
+  scene.add(mesh);                                          // cloth points are in world texels (mobRoot has no transform)
+  return { mesh, geo, pos, nrm, O, I, SL, SR, HM, TP };
+})();
+const cn = new Float64Array(NK * NP * 3), ca = new Float64Array(NK * NP * 3);   // per point: normal, across direction
+function updateCapeMesh(C) {
+  const P = C.P, M = CAPE_MESH, pos = M.pos, nrm = M.nrm, T = CAPE_T;
+  // normal = across x down (central differences, one-sided at the edges): points away from his back
+  for (let k = 0; k < NK; k++) for (let i = 0; i < NP; i++) {
+    const j = (k * NP + i) * 3;
+    const ka = Math.min(NK - 1, k + 1), kb = Math.max(0, k - 1), ia = Math.min(CAPE_N, i + 1), ib = Math.max(0, i - 1);
+    const a1 = (ka * NP + i) * 3, a0 = (kb * NP + i) * 3, d1 = (k * NP + ia) * 3, d0 = (k * NP + ib) * 3;
+    const ax = P[a1] - P[a0], ay = P[a1 + 1] - P[a0 + 1], az = P[a1 + 2] - P[a0 + 2];
+    const dx = P[d1] - P[d0], dy = P[d1 + 1] - P[d0 + 1], dz = P[d1 + 2] - P[d0 + 2];
+    let nx = ay * dz - az * dy, ny = az * dx - ax * dz, nz = ax * dy - ay * dx;
+    const nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1, al = Math.sqrt(ax * ax + ay * ay + az * az) || 1;
+    cn[j] = nx / nl; cn[j + 1] = ny / nl; cn[j + 2] = nz / nl;
+    ca[j] = ax / al; ca[j + 1] = ay / al; ca[j + 2] = az / al;
+  }
+  const put = (v, j, s, nx, ny, nz) => {                    // vertex v at point j, s = +1 outside / -1 lining
+    pos[v * 3] = (P[j] + cn[j] * T * s) * TEXEL; pos[v * 3 + 1] = (P[j + 1] + cn[j + 1] * T * s) * TEXEL; pos[v * 3 + 2] = (P[j + 2] + cn[j + 2] * T * s) * TEXEL;
+    nrm[v * 3] = nx; nrm[v * 3 + 1] = ny; nrm[v * 3 + 2] = nz;
+  };
+  for (let k = 0; k < NK; k++) for (let i = 0; i < NP; i++) {
+    const j = (k * NP + i) * 3;
+    put(M.O(k, i), j, 1, cn[j], cn[j + 1], cn[j + 2]);
+    put(M.I(k, i), j, -1, -cn[j], -cn[j + 1], -cn[j + 2]);
+  }
+  for (let i = 0; i < NP; i++) {
+    const l = i * 3, r = ((NK - 1) * NP + i) * 3;
+    for (let s = 0; s < 2; s++) {
+      put(M.SL(i, s), l, s ? -1 : 1, -ca[l], -ca[l + 1], -ca[l + 2]);
+      put(M.SR(i, s), r, s ? -1 : 1, ca[r], ca[r + 1], ca[r + 2]);
+    }
+  }
+  for (let k = 0; k < NK; k++) {
+    const h = (k * NP + CAPE_N) * 3, h0 = h - 3, t = k * NP * 3, t1 = t + 3;
+    let dx = P[h] - P[h0], dy = P[h + 1] - P[h0 + 1], dz = P[h + 2] - P[h0 + 2], dl = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+    for (let s = 0; s < 2; s++) put(M.HM(k, s), h, s ? -1 : 1, dx / dl, dy / dl, dz / dl);
+    dx = P[t] - P[t1]; dy = P[t + 1] - P[t1 + 1]; dz = P[t + 2] - P[t1 + 2]; dl = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+    for (let s = 0; s < 2; s++) put(M.TP(k, s), t, s ? -1 : 1, dx / dl, dy / dl, dz / dl);
+  }
+  M.geo.attributes.position.needsUpdate = true;
+  M.geo.attributes.normal.needsUpdate = true;
+}
+
+// Seeded random (mulberry32): same seed = same blinks / glow / hover timing (tests, shots)
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Random seed for a new page / mob: every load moves differently (tests pass a fixed seed instead)
+const randomSeed = () => (Math.random() * 4294967296) >>> 0;
+
+/* ───────── Random director (moods, looks, eye darts, micro motion) ─────────
+   Runs in step() on its own random clock, so the idles never repeat on a fixed loop.
+   Mood 0 = smug smirk, 1 = angry (frown, bared teeth, red flicker), 2 = deliberate fake smile
+   (big toothy grin, brows up, eyes locked on you, head cocked). Menacing most of the time:
+   angry 45 %, smirk 37 %, the toothy fake smile only 18 % (and short), never the same mood twice in a row.
+   Each animation says how much it lets the director drive: `look` (head/chest look-around) and `mood` (face). */
+const MOOD_PICK = [0.37, 0.45, 0.18];                    // chance of smirk / angry / fake smile
+const MOOD_TIME = [[1.5, 2.5], [2.0, 2.5], [1.0, 1.4]];  // hold time per mood: min + random range (s)
+// Face per mood (keys not listed stay as the animation has them)
+const MOOD_FACE = {
+  frown:  [0.25, 1.0, 0.0],
+  browUp: [0.15, 0.0, 0.6],
+  squint: [0.2, 0.5, 0.3],
+  grin:   [0.0, 0.15, 1.0],
+  wide:   [0.15, 0.05, 0.85],
+  smirk:  [0.9, 0.0, 0.25],
+  open:   [0.0, 0.04, 0.0]
+};
+const MOOD_KEYS = Object.keys(MOOD_FACE);
+
+function makeSim(seed = randomSeed()) {
+  const rand = rng(seed);
+  const S = {
+    anim: 'idle', t: 0, time: 0, blend: 1, rand,
+    snap: makePose(), cur: makePose(), out: makePose(),
+    face: zeroFace(),
+    yawLimit: 0.45,
+    blink: { wait: 1.4, t: -1 },
+    // Random Idle extras: faint red eye glow + a short Hover (first one after ~8 s) + now and then one Idle 2 (auto)
+    events: true,
+    ev: { glowWait: 3 + rand() * 4, glowT: -1, glowDur: 1.5, glowAmp: 0.5, hoverWait: 8 + rand() * 3, idle2Wait: 0, auto: '' },
+    follow: { on: true, w: 1, yaw: 0, pitch: 0, eye: 0, mx: 0, my: 0, has: false, inject: null }, // inject {yaw, pitch}: look angles instead of the mouse (tests, mod)
+    // Voice line playing: level = loudness 0..1, shape = brightness 0..1 (from the line's curve, see voice.js)
+    talk: { active: false, level: 0, shape: 0.5 }, talkW: 0,
+    // Walk while attacking: target weight 0..1, filtered weight, the walk layer's own clock and speed
+    walkAtk: 0, walkW: 0, walkT: 0, walkRate: 1,
+    onEvent: null,   // (name, anim) when an animation passes one of its `events` times (voice line, hit, grab ...)
+    beamLen: null,   // () => beam length in texels to whatever the beam hits (test dummy); else LASER_LEN
+    cloth: null,     // the cape (makeCloth, after the director below: same random order as the mod)
+    move: null,      // [x, y, z] texels his body moved this frame (mod); null = the animation's own walk speed
+    // Random director state (see MOOD_*): look target + filtered look, eye dart, mood + filtered mood weights,
+    // weights of the current animation (filtered, so crossfades never snap), micro-motion phases.
+    rd: { lookWait: 0, lookTgt: 0, pitchTgt: 0, look: 0, pitch: 0, dartWait: 0, dartTgt: 0, dart: 0,
+          moodWait: 0, mood: 0, mw: [1, 0, 0], lookW: 0, moodW: 0, ph: [] }
+  };
+  // Order of these random numbers = the mod's HomelanderAnimator constructor (1:1)
+  S.ev.idle2Wait = 12 + rand() * 10;
+  const rd = S.rd;
+  for (let i = 0; i < 7; i++) rd.ph.push(rand() * TAU);
+  rd.lookWait = 0.5 + rand() * 1.5;
+  rd.dartWait = 0.3 + rand() * 0.8;
+  rd.moodWait = 0.8 + rand() * 1.2;
+  S.cloth = makeCloth(rand);
+  return S;
+}
+
+function switchAnim(S, name) {
+  if (name === S.anim) return;
+  copyPose(S.out, S.snap);
+  S.anim = name; S.t = 0; S.blend = 0;
+  S.ev.auto = '';   // a picked animation is never the auto one (step() sets it after its own switch)
+}
+
+/* One step of the random director: new random targets when their timers run out, then smooth filters.
+   Called every step (also while an attack plays, so its clock never pauses). */
+function directorStep(S, dt) {
+  const rd = S.rd, rand = S.rand;
+  rd.lookWait -= dt;
+  if (rd.lookWait <= 0) {
+    const back = rand() < 0.35;                                   // now and then back to straight ahead
+    rd.lookTgt = back ? 0 : (rand() * 2 - 1) * 0.36;
+    rd.pitchTgt = -rand() * 0.04;                                // chin up a little (arrogant), never down into the chest
+    rd.lookWait = 1.2 + rand() * 2.8;
+  }
+  rd.dartWait -= dt;
+  if (rd.dartWait <= 0) {                                         // eyes jump ahead of the head
+    rd.dartTgt = clamp(1.2 * rd.lookTgt + (rand() * 2 - 1) * 0.25, -0.45, 0.45);
+    rd.dartWait = 0.5 + rand() * 1.7;
+  }
+  rd.moodWait -= dt;
+  if (rd.moodWait <= 0) {
+    const r = rand();
+    let m = r < MOOD_PICK[0] ? 0 : r < MOOD_PICK[0] + MOOD_PICK[1] ? 1 : 2;
+    if (m === rd.mood) m = (m + 1 + (rand() < 0.5 ? 0 : 1)) % 3;   // never the same mood twice in a row
+    rd.mood = m;
+    rd.moodWait = MOOD_TIME[m][0] + rand() * MOOD_TIME[m][1];
+  }
+  const kl = filt(dt, 2.5), kd = filt(dt, 14), km = filt(dt, 3.5);
+  rd.look += (rd.lookTgt - rd.look) * kl;
+  rd.pitch += (rd.pitchTgt - rd.pitch) * kl;
+  rd.dart += (rd.dartTgt - rd.dart) * kd;
+  for (let i = 0; i < 3; i++) rd.mw[i] += ((rd.mood === i ? 1 : 0) - rd.mw[i]) * km;
+}
+
+const clothMove = [0, 0, 0];
+function filt(dt, rate) { return 1 - Math.exp(-dt * rate); }
+// Walk-while-attacking layer: the bones the Walk drives under an attack (legs + pelvis), reused pose buffer
+const WALK_BONES = ['body', 'leg_right', 'knee_right', 'leg_left', 'knee_left'].map((n) => B[n]);
+const walkPose = makePose();
+
+/* ───────── Simulation Step ───────── */
+function step(S, dt) {
+  S.time += dt;
+  S.t += dt;
+
+  // Random extras of the calm animations (Idle, Idle 2, Hover, Walk): a red glow pulse at random times.
+  // From Idle, now and then one Hover or one Idle 2 plays by itself (random waits), then crossfades back.
+  if (S.events) {
+    const ev = S.ev;
+    if (S.anim === 'idle' || S.anim === 'hover' || S.anim === 'idle2' || S.anim === 'walk') {
+      ev.glowWait -= dt;
+      if (ev.glowWait <= 0 && ev.glowT < 0) {
+        ev.glowT = 0; ev.glowDur = 1.2 + S.rand() * 1.2; ev.glowAmp = 0.35 + S.rand() * 0.3;
+        ev.glowWait = 6 + S.rand() * 9;
+      }
+    }
+    if (S.anim === 'idle' && S.blend >= 1) {
+      ev.hoverWait -= dt;
+      ev.idle2Wait -= dt;
+      if (ev.hoverWait <= 0) {
+        switchAnim(S, 'hover'); ev.auto = 'hover';
+        ev.hoverWait = 16 + S.rand() * 14; ev.idle2Wait = Math.max(ev.idle2Wait, 4);
+      } else if (ev.idle2Wait <= 0) {
+        switchAnim(S, 'idle2'); ev.auto = 'idle2';
+        ev.idle2Wait = 14 + S.rand() * 16; ev.hoverWait = Math.max(ev.hoverWait, 4);
+      }
+    }
+    if ((S.anim === 'hover' || S.anim === ev.auto) && S.anim !== 'idle' && S.t >= ANIMS[S.anim].T) switchAnim(S, 'idle');
+  }
+  directorStep(S, dt);
+  let evGlow = 0;
+  if (S.ev.glowT >= 0) {
+    S.ev.glowT += dt;
+    const u = clamp(S.ev.glowT / S.ev.glowDur, 0, 1);
+    const sg = Math.sin(Math.PI * u);
+    evGlow = S.ev.glowAmp * sg * sg; // smooth in and out
+    if (u >= 1) S.ev.glowT = -1;
+  }
+
+  const A = ANIMS[S.anim] || ANIMS.idle;
+  const loopT = S.t % A.T;
+
+  // Animation events (voice line, grab, hit ...): tell the page when this step passed one.
+  // t0 < 0 right after a loop wrap: then the end of the last loop counts too.
+  if (S.onEvent && A.events) {
+    const t0 = loopT - dt;
+    for (const k in A.events) {
+      const v = A.events[k];
+      if ((v > t0 && v <= loopT) || (t0 < 0 && v > t0 + A.T)) S.onEvent(k, S.anim);
+    }
+  }
+
+  clearPose(S.cur);
+  A.fn(loopT, S.cur);
+
+  // Smooth crossfade between animation transitions
+  if (S.blend < 1) {
+    S.blend = Math.min(1, S.blend + dt * 4.2);
+    const w = S.blend * S.blend * (3 - 2 * S.blend);
+    for (let i = 0; i < NB * 3; i++) {
+      S.out.r[i] = S.snap.r[i] + (S.cur.r[i] - S.snap.r[i]) * w;
+      S.out.p[i] = S.snap.p[i] + (S.cur.p[i] - S.snap.p[i]) * w;
+    }
+    for (const k of FACE_KEYS) S.out.f[k] = S.snap.f[k] + (S.cur.f[k] - S.snap.f[k]) * w;
+    S.yawLimit = S.cur.yawLimit || 0.45;
+  } else {
+    copyPose(S.cur, S.out);
+    S.yawLimit = A.yawLimit || 0.45;
+  }
+
+  // Walk while attacking (hybrid): S.walkAtk = 0..1 (viewer: the W button; mod: how fast he really moves).
+  // The legs, pelvis and root height come from the Walk cycle (its own clock, so steps never restart),
+  // everything above the pelvis stays the attack's. Only for one-shot attacks, never for the calm loops.
+  const calm = S.anim === 'idle' || S.anim === 'idle2' || S.anim === 'walk' || S.anim === 'run' || S.anim === 'hover';
+  S.walkW += ((calm ? 0 : S.walkAtk) - S.walkW) * filt(dt, 6);
+  S.walkT = (S.walkT + dt * S.walkRate) % ANIMS.walk.T;
+  if (S.walkW > 1e-4) {
+    clearPose(walkPose);
+    ANIMS.walk.fn(S.walkT, walkPose);
+    const w = S.walkW;
+    for (const i of WALK_BONES) for (let a = 0; a < 3; a++) {
+      S.out.r[i * 3 + a] += (walkPose.r[i * 3 + a] - S.out.r[i * 3 + a]) * w;
+      S.out.p[i * 3 + a] += (walkPose.p[i * 3 + a] - S.out.p[i * 3 + a]) * w;
+    }
+    const ry = B.root * 3 + 1;                                  // root: only its height (an attack's turn stays)
+    S.out.p[ry] += (walkPose.p[ry] - S.out.p[ry]) * w;
+  }
+
+  // Random director on the face: the mood blends over the animation's own face by the animation's
+  // `mood` weight; eye darts by the same weight; small never-repeating twitches on brows/mouth always
+  // (sums of slow sines with random phases), and an angry mood makes the red in the eyes flicker.
+  const rd = S.rd, ph = rd.ph, tm = S.time;
+  const kw = filt(dt, 4);
+  rd.lookW += ((A.look || 0) - rd.lookW) * kw;
+  rd.moodW += ((A.mood || 0) - rd.moodW) * kw;
+  const of0 = S.out.f, mwt = rd.moodW;
+  if (mwt > 1e-4) {
+    for (const k of MOOD_KEYS) {
+      const m = MOOD_FACE[k], tgt = rd.mw[0] * m[0] + rd.mw[1] * m[1] + rd.mw[2] * m[2];
+      of0[k] += (tgt - of0[k]) * mwt;
+    }
+    of0.glance += (rd.dart * (1 - 0.8 * rd.mw[2]) - of0.glance) * mwt;   // fake smile: eyes locked on you
+    of0.glow += mwt * rd.mw[1] * (0.12 + 0.1 * Math.sin(TAU * 1.7 * tm + ph[6]));
+  }
+  of0.browUp += 0.06 * Math.sin(TAU * 0.37 * tm + ph[0]) + 0.04 * Math.sin(TAU * 0.83 * tm + ph[1]);
+  of0.frown += 0.05 * Math.sin(TAU * 0.29 * tm + ph[2]);
+  of0.open += 0.015 * (1 + Math.sin(TAU * 0.53 * tm + ph[3]));            // jaw works a little
+  of0.wide += 0.05 * Math.sin(TAU * 0.41 * tm + ph[4]);
+  of0.smirk += 0.06 * Math.sin(TAU * 0.19 * tm + ph[5]) * (1 - rd.mw[1] * mwt);
+
+  // Forced expression from the menu (custom-models/_shared/viewer.js): eases over the animation + mood face.
+  // tilt up = inner brow ends up (negative frown), smile -> teeth grin, eyes narrowed -> squint; angry warms the eyes.
+  const MV = window.MobViewer, xf = MV ? MV.face(dt) : null;
+  if (xf && xf.w > 1e-4) {
+    const xw = xf.w, mixF = (k, v) => { of0[k] += (v - of0[k]) * xw; };
+    mixF('browUp', 0.8 * xf.brow);
+    mixF('frown', clamp(-0.6 * xf.tilt + 0.4 * Math.max(0, -xf.brow), -0.7, 1));
+    mixF('grin', 0.9 * Math.max(0, xf.smile));
+    mixF('smirk', 0);
+    mixF('wide', 0.4 * xf.smile + 0.2 * xf.open);
+    mixF('open', 0.8 * xf.open);
+    mixF('squint', 0.7 * Math.max(0, -xf.eyes));
+    mixF('glance', 0);
+    of0.glow += xw * 0.35 * Math.max(0, -xf.tilt) * Math.max(0, -xf.brow);
+  }
+
+  // Talking (voice line) overrides the animation's mouth: open = loudness, wide = brightness
+  // ("ee" wide, "o" narrow); a scream also frowns and squints a little. Fades in/out (talkW).
+  const TK = S.talk;
+  S.talkW += ((TK.active ? 1 : 0) - S.talkW) * filt(dt, 10);
+  const tw = S.talkW, of = S.out.f;
+  if (tw > 0.001) {
+    of.open += (TK.level - of.open) * tw;
+    of.wide += ((TK.shape - 0.5) * 1.4 - of.wide) * tw;
+    of.frown = Math.max(of.frown, 0.45 * tw);
+    of.squint = Math.max(of.squint, 0.2 * tw);
+  }
+
+  // Smooth facial expression easing
+  for (const k of FACE_KEYS) {
+    S.face[k] += (S.out.f[k] - S.face[k]) * filt(dt, 16);
+  }
+
+  // Natural eye blinking
+  S.blink.wait -= dt;
+  if (S.blink.wait <= 0 && S.blink.t < 0) {
+    S.blink.t = 0;
+    S.blink.wait = 2.5 + S.rand() * 3.5;
+  }
+  let blinkVal = 0;
+  if (S.blink.t >= 0) {
+    S.blink.t += dt;
+    blinkVal = Math.sin(clamp(S.blink.t / 0.18, 0, 1) * Math.PI);
+    if (S.blink.t >= 0.18) {
+      S.blink.t = -1;
+      if (S.blink.wait > 1 && S.rand() < 0.2) S.blink.wait = 0.12; // now and then a quick double blink
+    }
+  }
+
+  // Mouse tracking head & eye follow
+  const fTgt = (S.follow.on && S.follow.has) ? (A.follow !== undefined ? A.follow : 1) : 0;
+  S.follow.w += (fTgt - S.follow.w) * filt(dt, 8);
+
+  // Look target: the mouse in the viewer; `inject` = look angles given directly (mod, 1:1 test). + yaw = his left, + pitch = down.
+  const inj = S.follow.inject;
+  const targetYaw = clamp(inj ? inj.yaw : S.follow.mx * 0.55, -S.yawLimit, S.yawLimit);
+  const targetPitch = clamp(inj ? inj.pitch : -S.follow.my * 0.15, -0.08, 0.08);
+  S.follow.yaw += (targetYaw - S.follow.yaw) * filt(dt, 9);
+  S.follow.pitch += (targetPitch - S.follow.pitch) * filt(dt, 9);
+
+  // Apply Kinematic Pose to Bones
+  for (let i = 0; i < NB; i++) {
+    const g = boneList[i];
+    const r0 = g.userData.restRot, p0 = g.userData.rest;
+    const j = i * 3;
+    g.rotation.set(r0.x + S.out.r[j], r0.y + S.out.r[j + 1], r0.z + S.out.r[j + 2]);
+    g.position.set(p0.x + S.out.p[j] * TEXEL, p0.y + S.out.p[j + 1] * TEXEL, p0.z + S.out.p[j + 2] * TEXEL);
+  }
+
+  // Apply Head Follow
+  if (bones.head) {
+    bones.head.rotation.y += S.follow.yaw * S.follow.w;
+    bones.head.rotation.x += S.follow.pitch * S.follow.w;
+    bones.head.rotation.x -= 0.05 * S.talk.level * S.talkW; // chin lifts on loud syllables
+    // Random look-around (animation's `look` weight; the mouse follow takes over most of it):
+    // head turns, chest follows a quarter, chin lifts while holding a look; fake smile cocks the head.
+    const fr = 1 - 0.6 * S.follow.w, L = rd.look * rd.lookW * fr;
+    const P = -0.25 * L * L + rd.pitch * rd.lookW * fr, Z = 0.06 * rd.mw[2] * rd.moodW;
+    bones.head.rotation.y += 0.75 * L;
+    bones.head.rotation.x += P;
+    bones.head.rotation.z += Z;
+    bones.chest.rotation.y += 0.25 * L;
+    // No neck (user rule 2026-10-16): the head always sits on the torso, so its tilt is limited softly (tanh,
+    // no corner): at 0.2 rad pitch its bottom edge dips ~0.5 texel into the torso top (vanilla heads do too), never more
+    bones.head.rotation.x = HEAD_PITCH_MAX * Math.tanh(bones.head.rotation.x / HEAD_PITCH_MAX);
+    bones.head.rotation.z = HEAD_ROLL_MAX * Math.tanh(bones.head.rotation.z / HEAD_ROLL_MAX);
+  }
+
+  // Pupils eye glance tracking
+  const pGlance = clamp(S.face.glance + S.follow.yaw * 0.35 * S.follow.w, -0.45, 0.45);
+  if (bones.pupil_right && bones.pupil_left) {
+    bones.pupil_right.position.x = (-2 + pGlance) * TEXEL;
+    bones.pupil_left.position.x = (2 + pGlance) * TEXEL;
+  }
+
+  // Sliding Eyelids
+  const closeAmt = clamp(blinkVal + S.face.squint * 0.5, 0, 1);
+  if (bones.lid_right && bones.lid_left) {
+    bones.lid_right.scale.y = closeAmt;
+    bones.lid_left.scale.y = closeAmt;
+    bones.lid_right.position.z = (closeAmt > 0.05 ? 4.06 : 3.98) * TEXEL;
+    bones.lid_left.position.z = (closeAmt > 0.05 ? 4.06 : 3.98) * TEXEL;
+  }
+
+  // Eyebrows
+  if (bones.brow_right && bones.brow_left) {
+    const browY = (5.6 + S.face.browUp * 0.4 - S.face.frown * 0.3) * TEXEL;
+    bones.brow_right.position.y = browY;
+    bones.brow_left.position.y = browY;
+    bones.brow_right.rotation.z = -0.06 - S.face.frown * 0.25;
+    bones.brow_left.rotation.z = 0.06 + S.face.frown * 0.25;
+  }
+
+  // Mouth: open / wider for the grin, smirk tilts it up on his left side and shifts it over;
+  // teeth grow down from the lip line and step out of the head only while grinning
+  if (bones.mouth) {
+    bones.mouth.scale.y = 1 + S.face.open * 1.5;
+    bones.mouth.scale.x = 1 + S.face.wide * 0.4 + S.face.grin * 0.3;
+    bones.mouth.rotation.z = 0.14 * S.face.smirk;
+    bones.mouth.position.x = 0.25 * S.face.smirk * TEXEL;
+    bones.teeth.scale.y = Math.max(0.001, S.face.grin);
+    bones.teeth.position.z = (-0.05 + 0.045 * clamp(S.face.grin * 10, 0, 1)) * TEXEL;
+  }
+
+  // Red eye glow: anim channel + random Idle pulse, dimmed while the lids are closed
+  // (the lids slide over the glow planes, so a blink hides the red by itself)
+  const glow = clamp(Math.max(S.face.glow + evGlow, S.face.laser), 0, 1);
+  glowMat.opacity = Math.min(1, glow * 1.3);                 // red eye white
+  glowCoreMat.opacity = clamp(glow * 1.6 - 0.45, 0, 1);      // hot core only when it really burns
+  glowHaloMat.opacity = glow * 0.35;                         // faint bloom (more reads as a pink box)
+  for (const e of eyeGlow) e.core.position.x = (e.x + pGlance) * TEXEL; // core sits on the pupil
+
+  // Heat-vision beams: thickness flickers, length = the animation's `beam` (texels) or LASER_LEN
+  const laserActive = S.face.laser;
+  laserMat.opacity = laserActive;
+  laserCoreMat.opacity = laserActive * 0.95;
+  const beamW = laserActive > 0.01 ? (0.75 + 0.25 * Math.sin(S.time * 45)) * Math.min(1, laserActive * 2) : 0.0001;
+  // (the mod does the same: A.beam, else the distance to the first thing the beam hits)
+  const beamLen = Math.max(0.0001, A.beam || (S.beamLen && S.beamLen()) || LASER_LEN);
+  for (const l of lasers) { l.beam.scale.set(beamW, beamW, beamLen); l.core.scale.set(beamW, beamW, beamLen); } // geometry runs along +z
+
+  // Cape: cloth physics (see Cloth). The viewer has no real movement, so an animation that walks gives
+  // its own speed (A.move, texels/s forward); the mod passes his real movement in S.move.
+  if (!S.move) { clothMove[0] = 0; clothMove[1] = 0; clothMove[2] = ((A.move || 0) + ANIMS.walk.move * S.walkW * S.walkRate) * dt; }
+  clothStep(S, dt, S.move || clothMove);
+}
+
+/* ───────── Blockbench .bbmodel Exporter ───────── */
+function uuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+const bbVec = (p) => [-p[0], p[1], p[2]];
+const bbRot = (rx, ry, rz) => [-rx * 180 / Math.PI, -ry * 180 / Math.PI, rz * 180 / Math.PI];
+const r4 = (v) => Math.round(v * 10000) / 10000;
+
+function bakeAnimation(name) {
+  const A = ANIMS[name];
+  const fps = 24, frames = Math.round(A.T * fps);
+  const S = makeSim(1);
+  S.anim = name; S.follow.on = false;
+  const tracks = {};
+  boneList.forEach((g) => { tracks[g.name] = { rot: [], pos: [], scl: [] }; });
+
+  for (let f = 0; f <= frames; f++) {
+    S.t = (f / fps) % A.T;
+    clearPose(S.cur);
+    A.fn(S.t, S.cur);
+    for (let i = 0; i < NB; i++) {
+      const g = boneList[i], b = g.name;
+      const j = i * 3;
+      tracks[b].rot.push(bbRot(S.cur.r[j], S.cur.r[j + 1], S.cur.r[j + 2]));
+      tracks[b].pos.push(bbVec([S.cur.p[j], S.cur.p[j + 1], S.cur.p[j + 2]]));
+      tracks[b].scl.push([1, 1, 1]);
+    }
+  }
+
+  const animators = {};
+  const isRest = (list, def) => list.every((p) => Math.abs(p[0] - def) < 1e-4 && Math.abs(p[1] - def) < 1e-4 && Math.abs(p[2] - def) < 1e-4);
+  boneList.forEach((g) => {
+    const b = g.name, tr = tracks[b], keyframes = [];
+    const add = (channel, list) => list.forEach((v, f) => keyframes.push({
+      channel, data_points: [{ x: v[0], y: v[1], z: v[2] }], uuid: uuid(), time: r4(f / fps), color: -1, interpolation: 'catmullrom'
+    }));
+    if (!isRest(tr.rot, 0)) add('rotation', tr.rot);
+    if (!isRest(tr.pos, 0)) add('position', tr.pos);
+    if (keyframes.length) animators[g.userData.uuid] = { name: g.name, type: 'bone', keyframes };
+  });
+
+  return {
+    uuid: uuid(), name: `animation.homelander.${name}`, loop: 'loop', override: false,
+    length: A.T, snapping: 24, selected: name === 'idle', anim_time_update: '', blend_weight: '',
+    start_delay: '', loop_delay: '', animators
+  };
+}
+
+function buildBBModel() {
+  const abs = new Map();
+  boneList.forEach((g) => {
+    g.userData.uuid = uuid();
+    const p = g.parent.isGroup && abs.has(g.parent) ? abs.get(g.parent) : [0, 0, 0];
+    const r = g.userData.rest;
+    abs.set(g, [p[0] + r.x / TEXEL, p[1] + r.y / TEXEL, p[2] + r.z / TEXEL]);
+  });
+
+  const elements = [];
+  const groupOf = {};
+  for (const c of cubeList) {
+    const id = uuid();
+    const bp = abs.get(bones[c.bone]);
+    const ctr = bbVec([bp[0] + c.center[0], bp[1] + c.center[1], bp[2] + c.center[2]]);
+    const [w, h, d] = c.size;
+    const R = (f) => { const r = c.rects[f]; return [r.x, r.y, r.x + r.w, r.y + r.h]; };
+    const Rf = (f) => { const r = c.rects[f]; return [r.x + r.w, r.y + r.h, r.x, r.y]; };
+    const rotated = c.rot.some((v) => v !== 0);
+
+    elements.push({
+      name: c.name, box_uv: false, rescale: false, locked: false, render_order: 'default', allow_mirror_modeling: true,
+      from: [r4(ctr[0] - w / 2), r4(ctr[1] - h / 2), r4(ctr[2] - d / 2)],
+      to: [r4(ctr[0] + w / 2), r4(ctr[1] + h / 2), r4(ctr[2] + d / 2)],
+      autouv: 0, color: 0, inflate: c.inflate,
+      origin: rotated ? ctr : bbVec(bp),
+      ...(rotated ? { rotation: bbRot(c.rot[0], c.rot[1], c.rot[2]) } : {}),
+      faces: {
+        north: { uv: R(4), texture: 0 }, south: { uv: R(5), texture: 0 },
+        east: { uv: R(1), texture: 0 }, west: { uv: R(0), texture: 0 },
+        up: { uv: Rf(2), texture: 0 }, down: { uv: Rf(3), texture: 0 }
+      },
+      type: 'cube', uuid: id
+    });
+    (groupOf[c.bone] = groupOf[c.bone] || []).push(id);
+  }
+  // Cape: Blockbench has no cloth, so each cape bone gets a 9.6 x 0.4 x 0.4 strip hanging below its pivot,
+  // textured with its row of the flag (CAPE_CLOTH rects): the .bbmodel cape looks like the cloth at rest.
+  CAPE.forEach((name, i) => {
+    const id = uuid(), bp = abs.get(bones[name]), ctr = bbVec([bp[0], bp[1] - CAPE_SEG / 2, bp[2]]);
+    const row = Math.floor(i * CAPE_SEG + 1e-6), r = (f) => CAPE_CLOTH.rects[f];
+    const strip = (f) => [r(f).x, r(f).y + row, r(f).x + r(f).w, r(f).y + row + 1];
+    elements.push({
+      name, box_uv: false, rescale: false, locked: false, render_order: 'default', allow_mirror_modeling: true,
+      from: [r4(ctr[0] - CAPE_W / 2), r4(ctr[1] - CAPE_SEG / 2), r4(ctr[2] - 0.2)],
+      to: [r4(ctr[0] + CAPE_W / 2), r4(ctr[1] + CAPE_SEG / 2), r4(ctr[2] + 0.2)],
+      autouv: 0, color: 0, inflate: 0, origin: bbVec(bp),
+      faces: {
+        north: { uv: strip(4), texture: 0 }, south: { uv: strip(5), texture: 0 },
+        east: { uv: strip(1), texture: 0 }, west: { uv: strip(0), texture: 0 },
+        up: { uv: [r(2).x, r(2).y, r(2).x + r(2).w, r(2).y + r(2).h], texture: 0 }, down: { uv: [r(3).x, r(3).y, r(3).x + r(3).w, r(3).y + r(3).h], texture: 0 }
+      },
+      type: 'cube', uuid: id
+    });
+    (groupOf[name] = groupOf[name] || []).push(id);
+  });
+
+  const outlinerNode = (g) => ({
+    name: g.name, origin: bbVec(abs.get(g)), rotation: bbRot(g.userData.restRot.x, g.userData.restRot.y, g.userData.restRot.z),
+    color: 0, uuid: g.userData.uuid, export: true, mirror_uv: false, isOpen: true, locked: false, visibility: true, autouv: 0,
+    children: [...(groupOf[g.name] || []), ...g.children.filter((ch) => ch.isGroup).map(outlinerNode)]
+  });
+
+  const animations = ALL_ANIMS.map(bakeAnimation);
+
+  return {
+    meta: { format_version: '4.5', model_format: 'free', box_uv: false },
+    name: 'homelander', model_identifier: 'homelander',
+    visible_box: [2, 2.5, 1], variable_placeholders: '', variable_placeholder_buttons: [],
+    resolution: { width: ATLAS_W, height: ATLAS_H },
+    elements, outliner: [outlinerNode(root)],
+    textures: [{
+      path: '', name: 'homelander.png', folder: 'entity', namespace: '', id: '0', particle: false,
+      render_mode: 'default', render_sides: 'auto', frame_time: 1, frame_order_type: 'loop', frame_order: '',
+      frame_interpolate: false, visible: true, internal: true, saved: false, uuid: uuid(),
+      source: atlas.toDataURL('image/png')
+    }],
+    animations
+  };
+}
+
+/* ───────── Mod export (#modexport) ─────────
+   Everything the NeoForge mod needs to show Homelander 1:1, read by tools/export_mod_assets.ps1:
+   bones (rest pose), cubes as finished quads (exact UVs of this atlas), cape cloth settings + body colliders, the eye glow / laser
+   geometry, victim spots, the voice line's lip-sync curve, textures per color variant and every
+   animation's raw pose (before crossfade, follow, face filter, cloth) baked at 120 fps.
+   Units: texels, radians. Axes like here: +x = his left, +y = up, +z = his front. UV v goes down (Minecraft). */
+const BAKE_FPS = 120;
+function modExport() {
+  const r6 = (n) => Math.round(n * 1e6) / 1e6 || 0;
+  restPose();
+  mobRoot.updateMatrixWorld(true);
+  const bonesOut = boneList.map((g) => ({
+    name: g.name, parent: g.parent.isGroup && B[g.parent.name] !== undefined ? B[g.parent.name] : -1,
+    pos: [g.userData.rest.x, g.userData.rest.y, g.userData.rest.z].map((v) => r6(v / TEXEL)),
+    rot: [g.userData.restRot.x, g.userData.restRot.y, g.userData.restRot.z].map(r6)
+  }));
+  const v3 = new THREE.Vector3(), n3 = new THREE.Vector3(), nm = new THREE.Matrix3();
+  const cubesOut = cubeList.map((c) => {
+    const m = c.mesh;
+    m.updateMatrix();
+    nm.getNormalMatrix(m.matrix);
+    const geo = m.geometry, Pa = geo.attributes.position, U = geo.attributes.uv, N = geo.attributes.normal, I = geo.index.array;
+    const quads = [];
+    for (let f = 0; f < 6; f++) {
+      const ids = [I[f * 6], I[f * 6 + 1], I[f * 6 + 4], I[f * 6 + 2]]; // BoxGeometry quad a, b, c, d (counter-clockwise from outside)
+      const vs = ids.map((i) => v3.fromBufferAttribute(Pa, i).applyMatrix4(m.matrix).divideScalar(TEXEL).toArray().map(r6));
+      const e1 = new THREE.Vector3(...vs[1]).sub(new THREE.Vector3(...vs[0])), e2 = new THREE.Vector3(...vs[3]).sub(new THREE.Vector3(...vs[0]));
+      if (e1.cross(e2).length() < 1e-6) continue; // the zero-width sides of a face plane
+      n3.fromBufferAttribute(N, ids[0]).applyMatrix3(nm).normalize();
+      quads.push({ v: vs, uv: ids.map((i) => [r6(U.getX(i)), r6(1 - U.getY(i))]), n: n3.toArray().map(r6) });
+    }
+    return { name: c.name, bone: B[c.bone], twoSided: m.material.alphaTest > 0, quads };
+  });
+  // Animations: the raw anim pose sampled at 120 fps, T included. Channels that never move are left out.
+  const anims = {}, chunks = [];
+  let offset = 0;
+  for (const name of ALL_ANIMS) {
+    const A = ANIMS[name], frames = Math.round(A.T * BAKE_FPS) + 1;
+    // The mod samples frame f at f / BAKE_FPS: a length that is not a whole number of frames loses its last bit.
+    if (Math.abs(A.T * BAKE_FPS - Math.round(A.T * BAKE_FPS)) > 1e-6) throw new Error(`${name}: T ${A.T} s is not a whole number of 1/${BAKE_FPS} s frames`);
+    const Q = makePose(), cols = new Map();
+    const put = (key, f, v) => { if (!cols.has(key)) cols.set(key, new Float64Array(frames)); cols.get(key)[f] = v; };
+    for (let f = 0; f < frames; f++) {
+      const t = Math.min(f / BAKE_FPS, A.T);
+      clearPose(Q);
+      A.fn(t, Q);
+      for (let b = 0; b < NB; b++) for (let k = 0; k < 3; k++) {
+        put(`r:${b}:${k}`, f, Q.r[b * 3 + k]);
+        put(`p:${b}:${k}`, f, Q.p[b * 3 + k]);
+      }
+      for (const k of FACE_KEYS) put(`f:${k}`, f, Q.f[k]);
+    }
+    const channels = [];
+    for (const [key, arr] of cols) {
+      let lo = Infinity, hi = -Infinity;
+      for (const v of arr) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+      if (!key.startsWith('f:') && hi - lo <= 1e-7 && Math.abs(lo) <= 1e-7) continue;
+      // 16-bit steps between lo and hi, stored as differences from the previous frame (small numbers pack well).
+      const q = new Int16Array(frames), span = hi - lo;
+      let prev = 0;
+      for (let f = 0; f < frames; f++) {
+        const level = span > 0 ? Math.round((arr[f] - lo) / span * 65535) - 32768 : -32768;
+        q[f] = level - prev; prev = level;
+      }
+      chunks.push(q);
+      channels.push({ key, lo, hi, at: offset }); // exact lo/hi: the 16-bit levels map back without drift
+      offset += frames;
+    }
+    anims[name] = { T: A.T, frames, yawLimit: A.yawLimit || 0.45, follow: A.follow !== undefined ? A.follow : 1, beam: A.beam || 0,
+      look: A.look || 0, mood: A.mood || 0, move: A.move || 0, events: A.events || {}, channels };   // look / mood = director weights, move = walk speed (texels/s)
+  }
+  const all = new Int16Array(offset);
+  let at = 0;
+  for (const q of chunks) { all.set(q, at); at += q.length; }
+  const bytes = new Uint8Array(all.length * 2), dv = new DataView(bytes.buffer);
+  all.forEach((v, i) => dv.setInt16(i * 2, v, false)); // big-endian (Java DataInputStream)
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  const textures = {};
+  const keep = variantIndex;
+  VARIANTS.forEach((v, i) => { setVariant(i); textures[v.id] = atlas.toDataURL('image/png'); });
+  setVariant(keep);
+  const col = (m) => '#' + m.color.getHexString();
+  return {
+    rig: {
+      format: 1, fps: BAKE_FPS, atlas: [ATLAS_W, ATLAS_H], variants: VARIANTS.map((v) => v.id), animOrder: ALL_ANIMS,
+      faceKeys: FACE_KEYS, bones: bonesOut, cubes: cubesOut,
+      // Cape cloth (see Cloth): settings, cape bones, body boxes it collides with (bone, center, half size, rotation)
+      // + the cape mesh: half thickness and the atlas rects of its texture (right, left, top, bottom, front = lining, back = outside)
+      cloth: { ...CLOTH, n: CAPE_N, seg: CAPE_SEG, top: CAPE_TOP, width: CAPE_W, bones: CAPE.map((n) => B[n]),
+        thick: CAPE_T, rects: CAPE_CLOTH.rects.map((r) => [r.x, r.y, r.w, r.h]),
+        colliders: CLOTH_COL.map((c) => ({ name: c.name, bone: B[c.bone], c: c.center, h: c.size.map((s) => s / 2 + c.inflate), r: c.rot })) },
+      // Eye glow planes and heat-vision beams (drawn by the mod in the head bone, like eyeGlow / lasers here)
+      fx: {
+        eyesX: [-2, 2], eyeY: 4.5, glowZ: [4.05, 4.052, 4.1], glowSize: [[2, 1], [1, 1], [3, 2]],
+        glowColors: [col(glowMat), col(glowCoreMat), col(glowHaloMat)], beamZ: 4.1, beamR: [0.7, 0.28], beamSides: [8, 6],
+        beamColors: [col(laserMat), col(laserCoreMat)], laserLen: LASER_LEN
+      },
+      victim: { hand: HAND_PT, neck: DUMMY_NECK, scale: DUMMY_SCALE, hangUp: HANG_UP, hangOut: HANG_OUT, throwVy: THROW_VY, grabLift: GRAB_LIFT, spots: VICTIM },
+      // Walk while attacking: the bones the Walk drives under an attack (+ the root's height)
+      walkLayer: { bones: WALK_BONES, root: B.root },
+      voice: VOICE_LINES.map((v) => ({ id: v.id, env: v.env, zcr: v.zcr })),
+      anims
+    },
+    bin: btoa(bin), textures
+  };
+}
+
+/* Reference recording for the mod's Java test (#modtrace): a fixed scene (seed 7, 1/120 s steps) with every
+   animation, look angles, the Clap's voice line (mouth from its curve) and the random Idle extras (glow, Hover).
+   Every 1/30 s: each bone's rotation, position (texels) and scale, plus the eye/laser effect values. */
+function modTrace() {
+  const S = makeSim(7), dt = 1 / 120, out = [], fx = [];
+  const plan = [[0, 'idle'], [3, 'idle2'], [6, 'walk'], [8, 'run'], [9.4, 'attack'], [11.4, 'special'], [15.6, 'throw'], [19, 'clap'],
+                [23, 'throatLaser'], [26.6, 'idle']];
+  const end = 56; // seconds recorded (the Java test reads it); the last Idle runs into a Hover and settles after it
+  const WALK_ATK = [9.4, 15.6];   // walk while attacking during Attack + Special (the layer is tested too)
+  S.follow.on = true; S.follow.has = true; S.follow.inject = { yaw: 0, pitch: 0 };
+  const line = VOICE_LINES[0];
+  let talkStart = -1;
+  S.onEvent = (name) => { if (name === 'voice') talkStart = S.time; };
+  let p = 0, next = 0;
+  for (let i = 0; i <= end * 120; i++) {
+    const t = i * dt;
+    while (p < plan.length && t >= plan[p][0] - 1e-9) { switchAnim(S, plan[p][1]); p++; }
+    S.follow.inject.yaw = 0.6 * Math.sin(0.7 * t); S.follow.inject.pitch = 0.1 * Math.sin(0.5 * t);
+    S.walkAtk = t >= WALK_ATK[0] && t < WALK_ATK[1] ? 1 : 0;
+    // the page's updateVoice(): mouth from the curve on the line's own clock
+    const k = talkStart >= 0 ? Math.floor((S.time - talkStart) * 30) : -1;
+    if (k >= line.env.length) talkStart = -1;
+    S.talk.active = k >= 0 && k < line.env.length;
+    if (S.talk.active) { S.talk.level = Math.min(1, parseInt(line.env[k], 36) / 35 * 1.1); S.talk.shape = +line.zcr[k] / 9; }
+    step(S, dt);
+    if (t >= next - 1e-9) {
+      next += 1 / 30;
+      const r5 = (v) => Math.round(v * 1e5) / 1e5;
+      out.push(boneList.map((g) => [g.rotation.x, g.rotation.y, g.rotation.z, g.position.x / TEXEL, g.position.y / TEXEL, g.position.z / TEXEL, g.scale.x, g.scale.y, g.scale.z].map(r5)));
+      fx.push([glowMat.opacity, glowCoreMat.opacity, glowHaloMat.opacity, laserMat.opacity, lasers[0].beam.scale.x, eyeGlow[0].core.position.x / TEXEL + 2].map(r5));
+    }
+  }
+  return { dt, every: 1 / 30, end, plan, walkAtk: WALK_ATK, frames: out, fx };
+}
+
+/* ───────── Voice line ─────────
+   sounds/mobs/the_boys/homelander/i_am_god: .ogg (also used by the mod) and .mp3 (browsers without Ogg Vorbis).
+   It plays when the Clap passes its events.voice time (0.15 s), or on key V (any animation), always to its end.
+   Loudness: the files are normalized loud (peak -1 dB); effects play at SFX_MIX of the volume so the voice stays on top.
+   The mouth follows a loudness curve made beforehand with tools/lipsync.html (30 values per second):
+   live audio analysis gives zeros on file:// pages. env: loudness 0-35 (base 36 digit), zcr: brightness 0-9.
+   The curve runs on its own clock, so the mouth moves the same with the sound muted or still locked
+   (browsers allow sound only after the first click or key) - and the same as in the mod. */
+const VOICE_LINES = [
+  { id: 'i_am_god', src: '../../../../sounds/mobs/the_boys/homelander/i_am_god',
+    // 77 values = the whole 2.55 s file (the quiet "...GOD" tail included: the line is never cut short)
+    env: '6iuyzzvsssmdbfmtutsstsstkb9aa635ivywuttvzzzyutqkjha53211000000001121122222122',
+    zcr: '52322224511354422334331003698555523333332222332445455555555555551111111111111' }
+];
+// vol: 0.85 by default; the dock slider changes it (saved in this browser).
+const voice = { on: true, unlocked: false, line: null, start: 0, anim: null, audio: null, vol: 0.85 };
+try { const s = localStorage.getItem('homelander.voiceVol'); if (s !== null && isFinite(+s)) voice.vol = clamp(+s, 0, 1); } catch (e) { /* storage blocked: keep the default */ }
+const AUDIO_EXT = new Audio().canPlayType('audio/ogg; codecs="vorbis"') ? '.ogg' : '.mp3';
+VOICE_LINES.forEach((v) => { v.audio = new Audio(v.src + AUDIO_EXT); v.audio.preload = 'auto'; v.audio.volume = voice.vol; });
+
+// Start a line now: S = the sim whose mouth it drives; anim = stop it when this animation ends ('' = never).
+function sayLine(S, id = 'i_am_god', anim = '') {
+  const v = VOICE_LINES.find((l) => l.id === id);
+  if (!v) return;
+  stopLine();
+  voice.line = v; voice.start = S.time; voice.anim = anim;
+  if (voice.on && voice.unlocked) { v.audio.currentTime = 0; v.audio.play().catch(() => {}); }
+}
+function stopLine() {
+  if (voice.line) voice.line.audio.pause();
+  voice.line = null;
+}
+// Every frame, before step(): feed the mouth from the line's curve at the line's own clock.
+function updateVoice(S) {
+  const v = voice.line, T = S.talk;
+  // (an animation that is cut off does NOT stop the shout: the line always plays to its end, user rule)
+  if (!voice.line) { T.active = false; return; }
+  const i = Math.floor((S.time - voice.start) * 30);
+  if (i >= v.env.length) { voice.line = null; T.active = false; return; }   // curve done: the sound plays out by itself (never cut)
+  T.active = true;
+  T.level = Math.min(1, parseInt(v.env[Math.max(0, i)], 36) / 35 * 1.1);
+  T.shape = +v.zcr[Math.max(0, i)] / 9;
+}
+function setVoiceVol(x) {
+  voice.vol = clamp(x, 0, 1);
+  VOICE_LINES.forEach((l) => { l.audio.volume = voice.vol; });
+  for (const n in SFX) SFX[n].audio.volume = voice.vol * SFX_MIX;
+}
+/* ───────── Sound effects (punch, grab, whoosh, slap, laser) ─────────
+   Made by tools/sfx/make_homelander_sfx.ps1. Played on animation events (SFX_EVENTS in anims.js),
+   same on/off button and volume as the voice line. A sound stops when its animation is cut off. */
+const SFX = {}, SFX_MIX = 0.7;                     // effects a bit under the voice, so "I AM GOD" is never drowned out
+['punch', 'grab', 'whoosh', 'slap', 'laser'].forEach((n) => {
+  const a = new Audio('../../../../sounds/mobs/the_boys/homelander/' + n + AUDIO_EXT); a.preload = 'auto'; a.volume = voice.vol * SFX_MIX; SFX[n] = { audio: a, anim: '', count: 0 };
+});
+// name from SFX_EVENTS ('-laser' = stop it); anim = the animation that started it
+function playSfx(name, anim = '') {
+  if (name[0] === '-') { stopSfx(name.slice(1)); return; }
+  const s = SFX[name];
+  if (!s) return;
+  s.count++; s.anim = anim;                        // count: the tests check that every event fired
+  if (voice.on && voice.unlocked) { s.audio.currentTime = 0; s.audio.play().catch(() => {}); }
+}
+function stopSfx(name) { const s = SFX[name]; if (s) { s.audio.pause(); s.anim = ''; } }
+function updateSfx(S) { for (const n in SFX) if (SFX[n].anim && SFX[n].anim !== S.anim) stopSfx(n); }
+
+const unlockVoice = () => { voice.unlocked = true; };
+window.addEventListener('pointerdown', unlockVoice);
+window.addEventListener('keydown', unlockVoice);
+
+/* ───────── Victims (shared with the mod) ─────────
+   Where a victim stands for each attack (texels, Homelander's model space: +z = his front, feet at y 0).
+   Grab attacks hold the victim by the neck at HAND_PT (a point in forearm_right's space, front of the fist).
+   Blocky heads sit right on the body (no neck), so the fist goes UNDER the head, against the throat:
+   the victim's neck (top of its body) is HANG_UP texels above the hand and its body center HANG_OUT texels
+   further away (fist half width + body half depth + 0.4 room for the turning fist): they touch, never pass through.
+   THROW_VY = how fast the Throw flings the victim straight up (blocks per second; the mod uses it too). */
+const HAND_PT = [0, -5.0, 0.6];
+const HANG_UP = 1.9, HANG_OUT = 4.3;
+const DUMMY_SCALE = 0.9375;                 // player size: the 32-texel player model is drawn 0.9375 big
+const DUMMY_NECK = 24 * DUMMY_SCALE;        // 22.5 texels: top of the body box
+const THROW_VY = 24, GRAVITY_B = 32;        // blocks/s, blocks/s^2 (Minecraft: 0.08 blocks/tick^2)
+const GRAB_LIFT = 0.15;                     // seconds: a grabbed victim is lifted to the hand over this time
+const VICTIM = {
+  attack: { spot: [0, 0, 18] },             // punched: the fist just reaches its chest at the hit, then knocked back
+  special: { spot: [0, 0, 56] },            // 3.5 blocks: the beams come down onto its chest
+  throw: { grab: true },                    // spot = under the hand at events.grab (computed below)
+  clap: { spot: [0, 0, 12] },               // head between his palms (they smack its ears)
+  throatLaser: { grab: true }
+};
+
+/* ───────── Dummy model ─────────
+   A plain player-shaped mannequin (8x8x8 head, 8x12x4 body, arms and legs 4x12x4 split in two), burlap colors.
+   Bones: root (feet) > body (hips) > head (neck); arm_r/l (shoulder) > elbow_r/l; leg_r/l (hip) > knee_r/l.
+   2 bones per arm and leg, like every mob: elbows and knees bend. Faces Homelander. */
+const dummy = (() => {
+  const T = TEXEL * DUMMY_SCALE;
+  const mats = [0xc9b28a, 0x9b8460, 0x2b2620].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, metalness: 0, transparent: true, opacity: 0 }));
+  const [cloth, dark, eye] = mats;
+  const group = (parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x * T, y * T, z * T); g.rotation.order = 'ZYX'; parent.add(g); return g; };
+  const cube = (parent, m, w, h, d, x, y, z, name) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w * T, h * T, d * T), m);
+    mesh.position.set(x * T, y * T, z * T); mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = name; parent.add(mesh); return mesh;
+  };
+  const root = new THREE.Group(); root.rotation.order = 'YXZ'; root.visible = false; scene.add(root);
+  const body = group(root, 0, 12, 0);
+  cube(body, cloth, 8, 12, 4, 0, 6, 0, 'body');
+  cube(body, dark, 8.2, 1, 4.2, 0, 1, 0, 'belt');
+  const head = group(body, 0, 12, 0);
+  cube(head, cloth, 8, 8, 8, 0, 4, 0, 'head');
+  cube(head, eye, 1, 1, 0.2, -2, 4, 4.05, 'eye_r'); cube(head, eye, 1, 1, 0.2, 2, 4, 4.05, 'eye_l');   // button eyes
+  const mouth = cube(head, dark, 4, 0.6, 0.2, 0, 2, 4.05, 'mouth');                                 // stitched mouth (gapes in pain)
+  const limb = (parent, x, y, side, kind) => {           // upper part + joint group + lower part (6 + 6 long)
+    const top = group(parent, x, y, 0);
+    cube(top, dark, 4, 6, 4, 0, -3, 0, `${kind}_${side}`);
+    const joint = group(top, 0, -6, 0);
+    cube(joint, dark, 4, 6, 4, 0, -3, 0, `${kind === 'arm' ? 'forearm' : 'shin'}_${side}`);
+    return [top, joint];
+  };
+  const [armR, elbowR] = limb(body, -6, 12, 'r', 'arm'), [armL, elbowL] = limb(body, 6, 12, 'l', 'arm');
+  const [legR, kneeR] = limb(root, -2, 12, 'r', 'leg'), [legL, kneeL] = limb(root, 2, 12, 'l', 'leg');
+  // Hit puffs (punch, ear smack): a few small cubes, flying on fixed paths (no state)
+  const puffMat = new THREE.MeshBasicMaterial({ color: 0x8e1b21, transparent: true, opacity: 0, depthWrite: false });
+  const puffGeo = new THREE.BoxGeometry(1.2 * TEXEL, 1.2 * TEXEL, 1.2 * TEXEL);
+  const puffs = Array.from({ length: 14 }, (_, i) => {
+    const m = new THREE.Mesh(puffGeo, puffMat); m.visible = false; scene.add(m);
+    const a = i * 2.39996, up = 0.3 + (i % 5) * 0.17;       // golden-angle spread
+    return { m, v: [Math.cos(a) * 40, 30 + up * 60, Math.sin(a) * 40], side: i % 2 ? 1 : -1 };
+  });
+  return { root, body, head, mouth, armR, armL, elbowR, elbowL, legR, legL, kneeR, kneeL, mats, puffs, puffMat, opacity: 0, shown: null, on: true };
+})();
+
+// Hands on its own ears (2-bone arm, solved for an 8x8 head on a 4-wide arm: hand right beside the head):
+// upper arm out and up, forearm folds back in. Right arm values; the left arm is mirrored.
+const EAR_POSE = { arm: -1.911, elbow: -2.461 };
+
+/* ───────── Victim pose per attack (a function of the attack's time: no state) ─────────
+   Fills DS: feet position (texels), lean back (rad), spin, arms up 0..1, cower, flail, hands on its ears 0..1,
+   legs kick / knees buckle, head tilt / jolt, mouth gape, burn 0..1, blood puffs (time since the hit + where). */
+const DS = { x: 0, y: 0, z: 0, lean: 0, spin: 0, arms: 0, cower: 0, kick: 0, burn: 0, faceBurn: 0, headBack: 0, gape: 0, flail: 0,
+             ears: 0, buckle: 0, jolt: 0, puff: -1, puffAt: [0, 0, 0], puffEars: false };
+const smooth01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+const vHand = new THREE.Vector3();
+
+// Feet position of a victim held by the neck at world point h (texels): see HANG_UP / HANG_OUT.
+function hangFrom(h, out) {
+  const len = Math.hypot(h.x, h.z) || 1;
+  out[0] = h.x + h.x / len * HANG_OUT; out[1] = h.y + HANG_UP - DUMMY_NECK; out[2] = h.z + h.z / len * HANG_OUT;
+  return out;
+}
+function handWorld(out) {
+  vHand.set(HAND_PT[0] * TEXEL, HAND_PT[1] * TEXEL, HAND_PT[2] * TEXEL);
+  bones.forearm_right.localToWorld(vHand);
+  return out.set(vHand.x / TEXEL, vHand.y / TEXEL, vHand.z / TEXEL);
+}
+// Grab attacks: run each once (a throwaway sim, at load) to read the hand at the grab and at the release.
+// spot = where the victim stands before the grab (under the hand); release = where it hangs when let go.
+// (The page's own sim poses the bones again before the first frame is drawn.)
+(function findGrabSpots() {
+  const h = new THREE.Vector3();
+  const handAt = (name, t) => {
+    const S = makeSim(1); S.events = false; S.anim = name; S.follow.on = false;
+    for (let k = 0; k < Math.round(t * 120); k++) step(S, 1 / 120);
+    mobRoot.updateMatrixWorld(true);
+    return hangFrom(handWorld(h), [0, 0, 0]);
+  };
+  for (const name of Object.keys(VICTIM)) {
+    if (!VICTIM[name].grab) continue;
+    const s = handAt(name, ANIMS[name].events.grab), r = handAt(name, ANIMS[name].events.release);
+    VICTIM[name].spot = [s[0], 0, s[2]];
+    VICTIM[name].release = [r[0], Math.max(0, r[1]), r[2]];
+  }
+})();
+const hTmp = new THREE.Vector3(), aTmp = [0, 0, 0];   // reused every frame
+
+function victimPose(name, t, S) {
+  Object.assign(DS, { lean: 0, spin: 0, arms: 0, cower: 0, kick: 0, burn: 0, faceBurn: 0, headBack: 0, gape: 0, flail: 0,
+                      ears: 0, buckle: 0, jolt: 0, puff: -1, puffEars: false });
+  const sp = VICTIM[name].spot, ev = ANIMS[name].events || {};
+  [DS.x, DS.y, DS.z] = sp;
+  if (name === 'attack') {
+    const u = t - ev.hit;
+    if (u > 0) {   // knocked back ~2.5 blocks with a short hop, lands on its back
+      DS.z = sp[2] + 40 * (1 - Math.exp(-u * 5));
+      DS.y = u < 0.5 ? 48 * u - 96 * u * u : 0;
+      DS.lean = -Math.PI / 2 * smooth01(u / 0.45);
+      DS.flail = smooth01(u / 0.15) * (1 - smooth01((u - 0.4) / 0.3));
+      DS.puff = u; DS.puffAt[0] = 0; DS.puffAt[1] = 24; DS.puffAt[2] = sp[2] - 2;
+    }
+  } else if (name === 'special') {
+    DS.burn = kf(t, [[0, 0], [ev.laserOn, 0], [ev.laserOn + 0.4, 1], [ev.laserOff, 1], [ev.laserOff + 0.5, 0.6], [ANIMS.special.T, 0.6]]);
+    DS.lean = -Math.PI / 2 * smooth01((t - ev.laserOff) / 0.5);
+    DS.arms = 0.5 * smooth01((t - ev.laserOn) / 0.3);    // arms up in front of the face
+    DS.buckle = 0.4 * smooth01((t - ev.laserOn) / 0.5);
+  } else if (name === 'throw' || name === 'throatLaser') {
+    if (t >= ev.grab && t < ev.release) {        // held by the throat: hangs under his fist, kicks, arms flail
+      hangFrom(handWorld(hTmp), aTmp); [DS.x, DS.y, DS.z] = aTmp;
+      DS.y = Math.max(0, DS.y) * smooth01((t - ev.grab) / GRAB_LIFT); // yanked off the ground
+      DS.flail = smooth01((t - ev.grab) / 0.2);
+      DS.headBack = 0.6 * smooth01((t - ev.grab) / 0.2);
+      DS.gape = smooth01((t - ev.grab) / 0.3);
+      DS.kick = smooth01((t - ev.grab) / 0.3) * Math.sin(TAU * 2.6 * t);
+      if (name === 'throatLaser') DS.faceBurn = kf(t, [[0, 0], [ev.burnOn, 0], [ev.burnOn + 0.15, 1], [ev.burnOff, 1], [ev.burnOff + 0.3, 0.5], [ANIMS[name].T, 0.5]]);
+    } else if (t >= ev.release) {
+      const r = VICTIM[name].release, u = t - ev.release;
+      [DS.x, DS.y, DS.z] = r;
+      if (name === 'throw') {                     // flung straight up, spins, falls back down onto its back
+        const land = (THROW_VY + Math.sqrt(THROW_VY * THROW_VY + 2 * GRAVITY_B * r[1] / 16)) / GRAVITY_B; // seconds in the air
+        DS.y = Math.max(0, r[1] + 16 * (THROW_VY * u - 0.5 * GRAVITY_B * u * u));
+        DS.spin = 2 * TAU * smooth01(u / land);    // exactly 2 rolls in the air: lands upright-ish, no snap
+        DS.lean = -Math.PI / 2 * smooth01((u - land) / 0.15);
+        DS.flail = 1 - smooth01((u - land) / 0.2);
+      } else {                                    // dropped: falls, crumples
+        DS.y = Math.max(0, r[1] - 16 * 0.5 * GRAVITY_B * u * u);
+        DS.z = r[2] + 6 * smooth01(u / 0.35);      // staggers away from him as it drops (clear of his lowering arm)
+        DS.buckle = smooth01(u / 0.25);
+        DS.lean = -Math.PI / 2 * smooth01((u - 0.2) / 0.35);
+        DS.faceBurn = 0.5;
+      }
+    }
+  } else if (name === 'clap') {
+    // First HIS hit, then its reaction: it flinches while his arms rise (shrinks back a little, no hands up).
+    // The smack on both ears: head jolts, blood from the ears; THEN (his hands are off) it puts both hands on its
+    // ears, screams (mouth wide, shaking), staggers back, knees buckle, falls on its back and lies there
+    // screaming with its hands on its ears, legs kicking and head rolling side to side.
+    const u = t - ev.hit;
+    DS.cower = kf(t, [[0, 0], [0.4, 0], [0.9, 0.5], [ev.hit, 0.5], [ev.hit + 0.1, 0], [ANIMS.clap.T, 0]]);
+    DS.lean = -0.12 * DS.cower;
+    DS.ears = kf(t, [[0, 0], [ev.hit + 0.18, 0], [ev.hit + 0.4, 1], [ANIMS.clap.T, 1]]);   // after his hands are off
+    if (u > 0) {
+      const down = smooth01((u - 0.95) / 0.4);                          // 0 standing .. 1 lying on its back
+      DS.jolt = Math.exp(-u * 9) * Math.sin(TAU * 7 * u) + 0.35 * down * Math.sin(TAU * 1.4 * u);   // snaps, then rolls in pain
+      DS.gape = smooth01((u - 0.1) / 0.15) * (0.85 + 0.15 * Math.sin(TAU * 9 * u));   // screams once its hands are up
+      DS.headBack = 0.5 * smooth01((u - 0.15) / 0.2) * (1 - smooth01((u - 0.7) / 0.3));
+      DS.z = sp[2] + 7 * smooth01(u / 0.8) + 3 * down;                   // knocked back by the smack, staggers, falls away
+      DS.buckle = smooth01((u - 0.5) / 0.4) * (1 - 0.55 * down);         // knees give, half straighten once it lies
+      DS.lean = -0.12 * DS.cower - Math.PI / 2 * down;
+      DS.y = 2 * DUMMY_SCALE * down;                                     // lying: its back (body half depth) on the floor, not in it
+      DS.kick = down * Math.sin(TAU * 2.1 * u);                          // legs kick while it writhes
+      DS.puff = u; DS.puffAt[0] = 0; DS.puffAt[1] = 26; DS.puffAt[2] = sp[2]; DS.puffEars = true;
+    }
+  }
+  return DS;
+}
+
+/* ───────── Per frame ─────────
+   Shown only during attacks: fades in at the start and out at the end of each loop (so the reset
+   at the loop wrap is never seen), and fades out before it moves to another attack's spot. */
+function updateDummy(S, dt) {
+  const D = dummy, want = D.on && VICTIM[S.anim] ? S.anim : null;
+  const A = want && ANIMS[want], t = want ? S.t % A.T : 0;
+  const loopFade = want ? smooth01(t / 0.25) * smooth01((A.T - t) / 0.25) : 0;
+  const target = want && want === D.shown ? loopFade : 0;
+  D.opacity += (target - D.opacity) * filt(dt, 12);
+  if (D.opacity < 0.02 && want !== D.shown) D.shown = want;
+  D.root.visible = D.opacity > 0.01 && !!D.shown;
+  for (const m of D.mats) m.opacity = D.opacity;
+  for (const p of D.puffs) p.m.visible = false;
+  if (!D.root.visible) return;
+  mobRoot.updateMatrixWorld(true);              // the hand's world matrix of this frame's pose
+  const v = victimPose(D.shown, S.t % ANIMS[D.shown].T, S);
+  D.root.position.set(v.x * TEXEL, v.y * TEXEL, v.z * TEXEL);
+  D.root.rotation.set(v.lean, Math.atan2(-v.x, -v.z), v.spin);   // faces him, leans back, rolls
+  // Arms (right; left mirrored): flail = out to the sides and back, elbows bent (clear of his arms in front);
+  // cower = out a little; arms = raised in front of the face; ears = hands on its own ears.
+  const fl = v.flail * (1 + 0.12 * Math.sin(TAU * 5 * S.t)), e = v.ears;
+  const ax = (0.45 * fl - 1.3 * v.arms) * (1 - e), az = (-1.0 * fl - 0.5 * v.cower - 0.2 * v.arms) * (1 - e) + EAR_POSE.arm * e;
+  const ex = (-0.6 * fl - 1.2 * v.arms) * (1 - e), ez = (-0.3 * v.cower) * (1 - e) + EAR_POSE.elbow * e;
+  D.armR.rotation.set(ax, 0, az); D.armL.rotation.set(ax, 0, -az);
+  D.elbowR.rotation.set(ex, 0, ez); D.elbowL.rotation.set(ex, 0, -ez);
+  // Legs: kick while held (knees bend on the back swing); buckle = knees give, hips stay over the feet
+  const k = v.kick, bk = v.buckle;
+  D.legR.rotation.x = 0.35 * k - 0.7 * bk; D.legL.rotation.x = -0.35 * k - 0.7 * bk;
+  D.kneeR.rotation.x = 0.5 * Math.max(0, k) ** 2 + 1.4 * bk; D.kneeL.rotation.x = 0.5 * Math.max(0, -k) ** 2 + 1.4 * bk;
+  D.body.position.y = (12 - 12 * (1 - Math.cos(0.7 * bk))) * TEXEL * DUMMY_SCALE;  // sinks as the knees bend
+  D.body.rotation.x = 0.35 * bk;
+  D.head.rotation.set(-0.5 * v.headBack, 0, 0.35 * v.jolt);       // head tilts back (held / in pain), jolts on the smack
+  D.mouth.scale.y = 1 + 2.5 * v.gape;
+  const burn = Math.max(v.burn, 0);
+  for (const m of D.mats) m.emissive.setRGB(0.9 * burn, 0.25 * burn, 0.05 * burn);
+  if (v.faceBurn > 0) D.mats[0].emissive.setRGB(0.9 * Math.max(burn, v.faceBurn * 0.6), 0.25 * v.faceBurn * 0.6, 0.05);
+  // Puffs: burst from the hit point (or both ears, sideways), fall, fade
+  if (v.puff >= 0 && v.puff < 0.7) {
+    D.puffMat.opacity = D.opacity * (1 - v.puff / 0.7);
+    D.root.updateMatrixWorld(true);
+    for (const p of D.puffs) {
+      p.m.visible = true;
+      if (v.puffEars) {                           // from the ear on each side of the head, outward
+        D.head.getWorldPosition(hTmp);
+        p.m.position.set(hTmp.x + (p.side * 4 + p.side * Math.abs(p.v[0]) * 0.6 * v.puff) * TEXEL, hTmp.y + (4 + p.v[1] * 0.4 * v.puff - 256 * v.puff * v.puff) * TEXEL, hTmp.z + p.v[2] * 0.3 * v.puff * TEXEL);
+      } else p.m.position.set((v.puffAt[0] + p.v[0] * v.puff) * TEXEL, (v.puffAt[1] + p.v[1] * v.puff - 256 * v.puff * v.puff) * TEXEL, (v.puffAt[2] + p.v[2] * v.puff) * TEXEL);
+    }
+  }
+}
+
+// Special: the beams stop where they meet the dummy (its box at the spot), like the mod's ray hit.
+const rayO = new THREE.Vector3(), rayD = new THREE.Vector3();
+function dummyBeamLen() {
+  const D = dummy;
+  if (!D.root.visible || D.shown !== 'special') return 0;
+  bones.head.updateWorldMatrix(true, false);    // called inside step(): this frame's head
+  rayO.set(2 * TEXEL, 4.5 * TEXEL, 4.1 * TEXEL); bones.head.localToWorld(rayO);
+  rayD.set(0, 0, 1).transformDirection(bones.head.matrixWorld);
+  const sp = VICTIM.special.spot, lo = [sp[0] - 4, 0, sp[2] - 2].map((v) => v * TEXEL), hi = [sp[0] + 4, 30, sp[2] + 2].map((v) => v * TEXEL);
+  let t0 = 0, t1 = 1e9;
+  const o = [rayO.x, rayO.y, rayO.z], d = [rayD.x, rayD.y, rayD.z];
+  for (let k = 0; k < 3; k++) {   // slab test
+    if (Math.abs(d[k]) < 1e-9) { if (o[k] < lo[k] || o[k] > hi[k]) return 0; continue; }
+    let a = (lo[k] - o[k]) / d[k], b = (hi[k] - o[k]) / d[k];
+    if (a > b) [a, b] = [b, a];
+    t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+    if (t0 > t1) return 0;
+  }
+  return t0 / TEXEL;
+}
+
+/* ───────── Rig overlay ("Show bones" button, key B) ───────── */
+// Same block in every mob. A dot on every bone pivot (yellow) and a line to its parent
+// (cyan), drawn on top of the model. Buffers are made once; update() only rewrites them.
+const rigView = (() => {
+  const list = boneList.filter((b) => b.name !== 'root');
+  const linePos = new Float32Array(list.length * 6), dotPos = new Float32Array(list.length * 3);
+  const lineGeo = new THREE.BufferGeometry(), dotGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+  dotGeo.setAttribute('position', new THREE.BufferAttribute(dotPos, 3));
+  const lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: 0x67e8f9, depthTest: false, transparent: true, opacity: 0.9 }));
+  const dots = new THREE.Points(dotGeo, new THREE.PointsMaterial({ color: 0xfacc15, size: 6, sizeAttenuation: false, depthTest: false, transparent: true }));
+  for (const o of [lines, dots]) { o.renderOrder = 999; o.frustumCulled = false; o.visible = false; scene.add(o); }
+  const a = new THREE.Vector3(), b = new THREE.Vector3();
+  return {
+    on: false,
+    set(on) { this.on = on; lines.visible = dots.visible = on; if (on) this.update(); },
+    update() {
+      mobRoot.updateMatrixWorld(true);
+      list.forEach((g, i) => {
+        g.getWorldPosition(a);
+        (g.parent.isGroup && g.parent !== mobRoot ? g.parent : g).getWorldPosition(b);
+        const j = i * 6, k = i * 3; // plain writes: no new arrays per frame
+        linePos[j] = b.x; linePos[j + 1] = b.y; linePos[j + 2] = b.z;
+        linePos[j + 3] = a.x; linePos[j + 4] = a.y; linePos[j + 5] = a.z;
+        dotPos[k] = a.x; dotPos[k + 1] = a.y; dotPos[k + 2] = a.z;
+      });
+      lineGeo.attributes.position.needsUpdate = true;
+      dotGeo.attributes.position.needsUpdate = true;
+    }
+  };
+})();
+
+/* ───────── UI Controls ───────── */
+let sim = makeSim();   // random seed: every page load moves differently
+// The page's sim: Clap shouts its voice line at events.voice, events play their sound effects
+// (SFX_EVENTS); the beams stop at the test dummy.
+function hookSim(S) {
+  S.onEvent = (name, anim) => {
+    if (name === 'voice') sayLine(S, 'i_am_god', anim);
+    const fx = SFX_EVENTS[anim] && SFX_EVENTS[anim][name];
+    if (fx) playSfx(fx, anim);
+  };
+  S.beamLen = dummyBeamLen;
+  return S;
+}
+hookSim(sim);
+
+const dotsEl = document.getElementById('dots');
+VARIANTS.forEach((v, i) => {
+  const d = document.createElement('button');
+  d.className = 'dot';
+  d.title = `${v.name} colors`;
+  d.style.background = (v.pal.suitBase || BASE.suitBase);
+  d.addEventListener('click', () => setVariant(i));
+  dotsEl.appendChild(d);
+});
+
+const animBtns = document.querySelectorAll('.anim-btn');
+const markAnim = (name) => animBtns.forEach((b) => b.classList.toggle('active', b.dataset.anim === name));
+
+function selectAnim(name) {
+  switchAnim(sim, name);
+  markAnim(name);
+}
+animBtns.forEach((b) => b.addEventListener('click', () => selectAnim(b.dataset.anim)));
+
+const followBtn = document.getElementById('followBtn');
+followBtn.addEventListener('click', () => {
+  sim.follow.on = !sim.follow.on;
+  followBtn.classList.toggle('on', sim.follow.on);
+  followBtn.setAttribute('aria-pressed', String(sim.follow.on));
+});
+
+const bonesBtn = document.getElementById('bonesBtn');
+function toggleBones() {
+  rigView.set(!rigView.on);
+  bonesBtn.classList.toggle('on', rigView.on);
+  bonesBtn.setAttribute('aria-pressed', String(rigView.on));
+}
+bonesBtn.addEventListener('click', toggleBones);
+
+// Voice line on/off + volume (key V = shout it now)
+const voiceBtn = document.getElementById('voiceBtn'), voiceVol = document.getElementById('voiceVol');
+voiceBtn.addEventListener('click', () => {
+  voice.on = !voice.on;
+  if (!voice.on) { stopLine(); for (const n in SFX) stopSfx(n); }
+  voiceBtn.classList.toggle('on', voice.on);
+  voiceBtn.setAttribute('aria-pressed', String(voice.on));
+  voiceVol.disabled = !voice.on;
+});
+voiceVol.value = String(Math.round(voice.vol * 100));
+voiceVol.title = `Volume: ${voiceVol.value}%`;
+voiceVol.addEventListener('input', () => {
+  setVoiceVol(+voiceVol.value / 100);
+  voiceVol.title = `Volume: ${voiceVol.value}%`;
+  try { localStorage.setItem('homelander.voiceVol', String(voice.vol)); } catch (e) { /* storage blocked: fine */ }
+});
+
+// Walk while attacking on/off (key W): the legs keep walking under every attack
+const walkAtkBtn = document.getElementById('walkAtkBtn');
+function toggleWalkAtk() {
+  sim.walkAtk = sim.walkAtk ? 0 : 1;
+  walkAtkBtn.classList.toggle('on', !!sim.walkAtk);
+  walkAtkBtn.setAttribute('aria-pressed', String(!!sim.walkAtk));
+  // switched on while he stands (Idle / Idle 2 / Hover): he starts walking, so the button visibly does
+  // something; every attack picked now keeps those walking legs (the layer only works under attacks)
+  if (sim.walkAtk && (sim.anim === 'idle' || sim.anim === 'idle2' || sim.anim === 'hover')) selectAnim('walk');
+}
+walkAtkBtn.addEventListener('click', toggleWalkAtk);
+
+// Test dummy on/off (key D): the victim of the attacks
+const dummyBtn = document.getElementById('dummyBtn');
+function toggleDummy() {
+  dummy.on = !dummy.on;
+  dummyBtn.classList.toggle('on', dummy.on);
+  dummyBtn.setAttribute('aria-pressed', String(dummy.on));
+}
+dummyBtn.addEventListener('click', toggleDummy);
+
+let resetting = false;
+document.getElementById('resetBtn').addEventListener('click', () => { resetting = true; });
+
+
+window.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return; // the volume slider keeps the keys
+  const i = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].indexOf(e.key);
+  if (i >= 0 && ANIM_ORDER[i]) selectAnim(ANIM_ORDER[i]);
+  if (e.key === 'r' || e.key === 'R') resetting = true;
+  if (e.key === 'b' || e.key === 'B') toggleBones();
+  if (e.key === 'd' || e.key === 'D') toggleDummy();
+  if (e.key === 'w' || e.key === 'W') toggleWalkAtk();
+  if (e.key === 'v' || e.key === 'V') { voice.unlocked = true; sayLine(sim, 'i_am_god'); }
+});
+
+window.addEventListener('pointermove', (e) => {
+  sim.follow.mx = (e.clientX / window.innerWidth) * 2 - 1;
+  sim.follow.my = -(e.clientY / window.innerHeight) * 2 + 1;
+  sim.follow.has = true;
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ───────── 60/120 FPS Locked Render Loop ───────── */
+let targetHz = 60, measuring = true, lastNow = 0, lastRender = 0;
+const intervals = [];
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (measuring) {
+    if (lastNow) intervals.push(now - lastNow);
+    lastNow = now;
+    if (intervals.length >= 30) {
+      const sorted = intervals.slice().sort((a, b) => a - b);
+      targetHz = 1000 / sorted[15] >= 110 ? 120 : 60;
+      measuring = false;
+    }
+  } else {
+    const interval = 1000 / targetHz;
+    if (now < lastRender + interval - 1) return;
+  }
+  const dt = lastRender ? Math.min((now - lastRender) / 1000, 0.1) : 1 / 60;
+  lastRender = measuring ? now : Math.max(lastRender + 1000 / targetHz, now - 1000 / targetHz);
+
+  updateVoice(sim);
+  updateSfx(sim);
+  step(sim, dt);
+  updateDummy(sim, dt);
+  if (rigView.on) rigView.update();
+
+  if (resetting) {
+    const k = filt(dt, 8);
+    camera.position.lerp(CAM_POS, k);
+    controls.target.lerp(CAM_TARGET, k);
+    if (camera.position.distanceTo(CAM_POS) < 0.005 && controls.target.distanceTo(CAM_TARGET) < 0.005) resetting = false;
+  }
+  controls.dampingFactor = filt(dt, 4.5);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+setVariant(0);
+
+/* ───────── Self-Tests & Headless Testing ───────── */
+function restPose() {
+  boneList.forEach((g) => {
+    g.rotation.copy(new THREE.Euler(g.userData.restRot.x, g.userData.restRot.y, g.userData.restRot.z, 'ZYX'));
+    g.position.copy(g.userData.rest);
+    g.scale.set(1, 1, 1);
+  });
+}
+
+// How deep the cape surface (cloth points and cell centers, CAPE_T thick) is inside each body box (texels),
+// using the boxes of the cloth's last step. Map: collider name -> worst depth.
+function clothDepth(C) {
+  const P = C.P, M = C.col, out = new Map(), q = [0, 0, 0];
+  const test = (x, y, z) => {
+    for (let c = 0; c < CLOTH_COL.length; c++) {
+      const o = c * 12, cube = CLOTH_COL[c], dx = x - M[o + 9], dy = y - M[o + 10], dz = z - M[o + 11];
+      q[0] = M[o] * dx + M[o + 1] * dy + M[o + 2] * dz; q[1] = M[o + 3] * dx + M[o + 4] * dy + M[o + 5] * dz; q[2] = M[o + 6] * dx + M[o + 7] * dy + M[o + 8] * dz;
+      let out2 = 0, inside = 1e9;
+      for (let a = 0; a < 3; a++) {
+        const e = Math.abs(q[a]) - (cube.size[a] / 2 + cube.inflate);
+        if (e > 0) out2 += e * e; else inside = Math.min(inside, -e);
+      }
+      const d = out2 > 0 ? CAPE_T - Math.sqrt(out2) : inside + CAPE_T;   // surface depth: thickness minus the gap
+      if (d > 0 && d > (out.get(cube.name) || 0)) out.set(cube.name, d);
+    }
+  };
+  for (let j = 0; j < P.length; j += 3) if (j % (NP * 3)) test(P[j], P[j + 1], P[j + 2]);
+  for (let k = 0; k < NK - 1; k++) for (let i = 1; i < CAPE_N; i++) {
+    const a = (k * NP + i) * 3, b = a + NP * 3;
+    test((P[a] + P[a + 3] + P[b] + P[b + 3]) / 4, (P[a + 1] + P[a + 4] + P[b + 1] + P[b + 4]) / 4, (P[a + 2] + P[a + 5] + P[b + 2] + P[b + 5]) / 4);
+  }
+  return out;
+}
+
+function clipTest() {
+  const meshes = cubeList.map((c) => c.mesh);
+  const inv = meshes.map(() => new THREE.Matrix4());
+  const half = cubeList.map((c) => c.size.map((s) => (Math.abs(s) / 2 + c.inflate) * TEXEL));
+  const pts = cubeList.map((c, i) => {
+    const [hx, hy, hz] = half[i], list = [];
+    for (let a = 0; a < 5; a++) for (let b = 0; b < 5; b++) {
+      const u = -1 + a * 0.5, v = -1 + b * 0.5;
+      list.push([hx, u * hy, v * hz], [-hx, u * hy, v * hz], [u * hx, hy, v * hz], [u * hx, -hy, v * hz], [u * hx, v * hy, hz], [u * hx, v * hy, -hz]);
+    }
+    return list.map((p) => new THREE.Vector3(...p));
+  });
+  const radius = half.map((h) => Math.hypot(h[0], h[1], h[2]) * 2.2);
+  const centers = meshes.map(() => new THREE.Vector3());
+  const EPS = 0.06, LAYER = 0.15;
+  const wp = new THREE.Vector3(), lp = new THREE.Vector3();
+
+  function depthInside(j, p) {
+    const [hx, hy, hz] = half[j];
+    const dx = hx - Math.abs(p.x), dy = hy - Math.abs(p.y), dz = hz - Math.abs(p.z);
+    if (dx <= 0 || dy <= 0 || dz <= 0) return 0;
+    return Math.min(dx, dy, dz);
+  }
+
+  function measure() {
+    mobRoot.updateMatrixWorld(true);
+    meshes.forEach((m, i) => { inv[i].copy(m.matrixWorld).invert(); centers[i].setFromMatrixPosition(m.matrixWorld); });
+    const res = new Map();
+    for (let i = 0; i < meshes.length; i++) for (let j = 0; j < meshes.length; j++) {
+      if (i === j || cubeList[i].bone === cubeList[j].bone) continue;
+      if (centers[i].distanceTo(centers[j]) > radius[i] + radius[j]) continue;
+      let worst = 0;
+      for (const p of pts[i]) {
+        wp.copy(p).applyMatrix4(meshes[i].matrixWorld);
+        lp.copy(wp).applyMatrix4(inv[j]);
+        const d = depthInside(j, lp);
+        if (d > worst) worst = d;
+      }
+      if (worst > 0) res.set(i + ':' + j, worst / TEXEL);
+    }
+    return res;
+  }
+
+  const JOINTS = [
+    [/^(thigh_|calf_|boot_)/, /^torso_suit$/],
+    [/^(calf_|boot_)/, /^thigh_/],
+    [/^(lower_arm_|gauntlet_)/, /^(upper_arm_|pauldron_)/],
+    [/^(upper_arm_|pauldron_)/, /^(torso_suit|head_cranium)$/],
+    [/^head_cranium$/, /^torso_suit$/],
+    [/^cape_seg_([1-9]|10)$/, /^(torso_suit|head_cranium|hair_main|pauldron_|upper_arm_)/],   // shoulders (top 4 texels = 10 bones)
+    ...CAPE.slice(1).map((n, i) => [new RegExp(`^${n}$`), new RegExp(`^${CAPE[i]}$`)]) // each bone with the one above
+  ];
+  const isJoint = (a, b) => JOINTS.some(([x, y]) => (x.test(a) && y.test(b)) || (x.test(b) && y.test(a)));
+
+  restPose();
+  const baseline = measure();
+  const report = {
+    cubes: cubeList.length, bones: NB, atlas: [ATLAS_W, ATLAS_H],
+    clips: {}, joints: {}, ground: {},
+    layeredAtRest: [...baseline].filter(([, d]) => d > EPS).map(([k, d]) => k.split(':').map((i) => cubeList[i].name).join(' / ') + ' ' + d.toFixed(2))
+  };
+
+  const boots = cubeList.filter((c) => /^boot_/.test(c.name));
+  const corner = new THREE.Vector3();
+  const mice = [[0, 0], [-0.95, 0], [0.95, 0], [0, 0.95], [0, -0.95]];
+
+  // every animation with the 5 mouse spots, + every attack with "walk while attacking" on (center mouse)
+  const ATTACKS = ANIM_ORDER.filter((n) => !['idle', 'idle2', 'walk', 'run'].includes(n));
+  const runs = [...ALL_ANIMS.map((n) => [n, 0, mice]), ...ATTACKS.map((n) => [n, 1, [[0, 0]]])];
+  for (const [name, walkAtk, spots] of runs) {
+    let low = 99;
+    const label = walkAtk ? name + '+walk' : name;
+    for (const [mx, my] of spots) {
+      const S = makeSim(99);
+      S.anim = name;
+      S.walkAtk = walkAtk; S.walkW = walkAtk;
+      S.events = false; // no random anim switches while testing one animation
+      Object.assign(S.follow, { on: true, has: true, mx, my });
+      const dt = 1 / 120;
+      for (let t = 0; t < ANIMS[name].T; t += dt) step(S, dt);
+      let since = 0;
+      for (let t = 0; t < ANIMS[name].T * 2; t += dt) {
+        step(S, dt);
+        since += dt;
+        if (since < 1 / 20) continue;
+        since = 0;
+        for (const [key, d] of measure()) {
+          const base = baseline.get(key) || 0;
+          const [i, j] = key.split(':').map(Number);
+          const a = cubeList[i].name, b = cubeList[j].name;
+          const joint = isJoint(a, b);
+          if (!joint && d <= (base > EPS ? base + LAYER : EPS)) continue;
+          if (joint && d <= base + EPS) continue;
+          const bucket = joint ? report.joints : report.clips;
+          const id = `${a} in ${b}`;
+          if (!bucket[id] || bucket[id].depth < d) bucket[id] = { depth: +d.toFixed(3), rest: +base.toFixed(3), anim: label };
+        }
+        for (const [cname, d] of clothDepth(S.cloth)) {
+          if (d <= EPS) continue;
+          const id = `cape cloth in ${cname}`;
+          if (!report.clips[id] || report.clips[id].depth < d) report.clips[id] = { depth: +d.toFixed(3), rest: 0, anim: label };
+        }
+        for (const c of boots) {
+          const [hx, hy, hz] = half[cubeList.indexOf(c)];
+          for (let k = 0; k < 8; k++) {
+            corner.set(k & 1 ? hx : -hx, k & 2 ? hy : -hy, k & 4 ? hz : -hz).applyMatrix4(c.mesh.matrixWorld);
+            low = Math.min(low, corner.y / TEXEL);
+          }
+        }
+      }
+    }
+    report.ground[label] = +low.toFixed(3);
+  }
+
+  // Victim clipping: the test dummy against his cubes in every attack (both directions, 5x5 points per face).
+  // Hands on the victim's head/neck are the attack itself ("contact"); everything else counts as a clip.
+  const dMeshes = [];
+  dummy.root.traverse((o) => { if (o.isMesh) dMeshes.push(o); });
+  const dHalf = dMeshes.map((m) => [m.geometry.parameters.width / 2, m.geometry.parameters.height / 2, m.geometry.parameters.depth / 2]);
+  const dInv = dMeshes.map(() => new THREE.Matrix4());
+  const grid = (h) => { const l = []; for (let a = 0; a < 5; a++) for (let b = 0; b < 5; b++) { const u = -1 + a * 0.5, v = -1 + b * 0.5; l.push([h[0], u * h[1], v * h[2]], [-h[0], u * h[1], v * h[2]], [u * h[0], h[1], v * h[2]], [u * h[0], -h[1], v * h[2]], [u * h[0], v * h[1], h[2]], [u * h[0], v * h[1], -h[2]]); } return l.map((p) => new THREE.Vector3(...p)); };
+  const dPts = dHalf.map(grid);
+  const inside = (h, p) => { const dx = h[0] - Math.abs(p.x), dy = h[1] - Math.abs(p.y), dz = h[2] - Math.abs(p.z); return dx > 0 && dy > 0 && dz > 0 ? Math.min(dx, dy, dz) : 0; };
+  const HAND = /^(lower_arm_|gauntlet_)/;
+  report.victim = { clips: {}, contact: {} };
+  const keepDummy = { shown: dummy.shown, opacity: dummy.opacity };
+  for (const name of Object.keys(VICTIM)) {
+    const S = makeSim(99); S.anim = name; S.events = false; S.follow.on = false;
+    dummy.shown = name;
+    for (let t = 0, since = 1; t < ANIMS[name].T; t += 1 / 120) {
+      step(S, 1 / 120); since += 1 / 120;
+      if (since < 1 / 20) continue;
+      since = 0;
+      dummy.opacity = 1; updateDummy(S, 0);
+      if (!dummy.root.visible) continue;
+      dummy.root.updateMatrixWorld(true); mobRoot.updateMatrixWorld(true);
+      meshes.forEach((m, i) => inv[i].copy(m.matrixWorld).invert());
+      dMeshes.forEach((m, j) => dInv[j].copy(m.matrixWorld).invert());
+      for (let j = 0; j < dMeshes.length; j++) for (let i = 0; i < meshes.length; i++) {
+        let worst = 0;
+        for (const p of dPts[j]) { wp.copy(p).applyMatrix4(dMeshes[j].matrixWorld).applyMatrix4(inv[i]); worst = Math.max(worst, inside(half[i], wp)); }
+        for (const p of pts[i]) { wp.copy(p).applyMatrix4(meshes[i].matrixWorld).applyMatrix4(dInv[j]); worst = Math.max(worst, inside(dHalf[j], wp)); }
+        if (worst / TEXEL <= EPS) continue;
+        const evs = ANIMS[name].events, touchAt = Math.min(evs.grab !== undefined ? evs.grab : 1e9, evs.hit !== undefined ? evs.hit : 1e9);
+        const contact = HAND.test(cubeList[i].name) && (S.t % ANIMS[name].T) >= touchAt - 0.05;
+        const bucket = contact ? report.victim.contact : report.victim.clips;
+        const id = `${cubeList[i].name} / dummy ${dMeshes[j].name} (${name})`;
+        if (!bucket[id] || bucket[id].depth < worst / TEXEL) bucket[id] = { depth: +(worst / TEXEL).toFixed(3), t: +(S.t % ANIMS[name].T).toFixed(2) };
+      }
+    }
+  }
+  Object.assign(dummy, keepDummy);
+
+  const bb = buildBBModel();
+  const badUV = bb.elements.filter((e) => Object.values(e.faces).some((f) => f.uv.some((v, k) => v < 0 || v > (k % 2 ? ATLAS_H : ATLAS_W)))).map((e) => e.name);
+  report.export = {
+    elements: bb.elements.length, badUV,
+    animations: bb.animations.map((a) => ({ name: a.name, bones: Object.keys(a.animators).length, keyframes: Object.values(a.animators).reduce((n, x) => n + x.keyframes.length, 0) })),
+    bytes: JSON.stringify(bb).length
+  };
+
+  const out = document.createElement('pre');
+  out.id = 'cliptest';
+  out.textContent = JSON.stringify(report, null, 1);
+  document.body.appendChild(out);
+}
+
+function dumpFrame() {
+  controls.update();
+  renderer.render(scene, camera);
+  const out = document.createElement('pre');
+  out.id = 'shot';
+  out.textContent = canvas.toDataURL('image/png');
+  document.body.appendChild(out);
+}
+
+function shot(anim, variant, secs) {
+  setVariant(variant);
+  sim.anim = anim;
+  sim.events = false;
+  Object.assign(sim.follow, { has: true, mx: 0.25, my: 0.15 });
+  if (anim === 'special') {
+    camera.position.set(2.8, 2.2, 3.4);
+    controls.target.set(0, 1.45, 0);
+  }
+  for (let t = 0; t < secs; t += 1 / 60) step(sim, 1 / 60);
+  dumpFrame();
+}
+
+/* #strip-<anim>-<variant>-<from>-<to>-<step>[-<camDeg>[-<dist>]]: one JPEG filmstrip of an animation with the
+   test dummy (fixed seed: same frames every run). camDeg = camera angle around him (0 = front, 90 = his left side),
+   dist = camera distance in blocks. Result: data URL in <pre id="strip">. */
+function strip(anim, variant, from, to, stepS, camDeg = 35, dist = 3.8) {
+  setVariant(variant);
+  sim = hookSim(makeSim(5));
+  sim.events = false; sim.anim = anim; sim.follow.has = false;
+  const victim = !!VICTIM[anim];                  // only attacks have a victim
+  dummy.shown = victim ? anim : null; dummy.opacity = victim ? 1 : 0;
+  const a = camDeg * Math.PI / 180, tgt = CAM_TARGET.clone();
+  camera.position.set(tgt.x + Math.sin(a) * dist, tgt.y + 0.25, tgt.z + Math.cos(a) * dist);
+  controls.target.copy(tgt); controls.update();
+  const times = [];
+  for (let t = from; t <= to + 1e-6; t += stepS) times.push(t);
+  const TW = 240, cols = Math.min(times.length, 6), rows = Math.ceil(times.length / cols);
+  const out = document.createElement('canvas'); out.width = cols * TW; out.height = rows * TW;
+  const g = out.getContext('2d');
+  g.fillStyle = '#0f1115'; g.fillRect(0, 0, out.width, out.height);
+  let simT = 0;
+  times.forEach((t, k) => {
+    while (simT < t - 1e-6) { const dt = Math.min(1 / 120, t - simT); updateVoice(sim); step(sim, dt); simT += dt; }
+    if (victim) { dummy.opacity = 1; updateDummy(sim, 0); }
+    renderer.render(scene, camera);
+    const s = Math.min(canvas.width, canvas.height);
+    g.drawImage(canvas, (canvas.width - s) / 2, (canvas.height - s) / 2, s, s, (k % cols) * TW, Math.floor(k / cols) * TW, TW, TW);
+    g.fillStyle = '#facc15'; g.font = '14px sans-serif'; g.fillText(t.toFixed(2), (k % cols) * TW + 4, Math.floor(k / cols) * TW + 16);
+  });
+  const pre = document.createElement('pre'); pre.id = 'strip'; pre.textContent = out.toDataURL('image/jpeg', 0.7);
+  document.body.appendChild(pre);
+}
+
+window.setVariant = setVariant;
+window.selectAnim = selectAnim;
+window.homelanderDebug = { cubeList, bones, boneList, atlas, get sim() { return sim; }, ANIMS, camera, controls, dumpFrame, setVariant, selectAnim, buildBBModel, rigView, toggleBones, makeSim, step, HB, VICTIM, dummy, voice, clothDepth };
+// Headless JSON modes (tools/export_mod_assets.ps1, .bbmodel save): the result goes into <pre id="...">.
+const dumpJson = (id, obj) => { const pre = document.createElement('pre'); pre.id = id; pre.textContent = JSON.stringify(obj); document.body.appendChild(pre); };
+if (location.hash === '#cliptest') clipTest();
+else if (location.hash === '#modexport') dumpJson('modexport', modExport());
+else if (location.hash === '#modtrace') dumpJson('modtrace', modTrace());
+else if (location.hash === '#bbmodel') dumpJson('bbmodel', buildBBModel());
+else if (location.hash === '#rest') { restPose(); dumpFrame(); }
+else if (location.hash === '#back') { restPose(); camera.position.set(0, 1.7, -3.6); controls.target.set(0, 1.05, 0); dumpFrame(); }
+else if (location.hash.startsWith('#shot')) { const [, a, v, s] = location.hash.split('-'); shot(a, +v, +s); }
+else if (location.hash.startsWith('#strip')) { const [, a, v, f, t, s, c, d] = location.hash.split('-'); strip(a, +v, +f, +t, +s, c === undefined ? 35 : +c, d === undefined ? 3.8 : +d); }
+else requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
+

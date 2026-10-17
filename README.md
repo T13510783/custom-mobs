@@ -9,43 +9,57 @@ Custom Minecraft mobs for **Minecraft 1.21.1 + NeoForge**, made in three steps:
 
 ## Mobs
 
-| Mob | Viewer | In the mod |
+Viewers are grouped by franchise (the movie, show or game a character comes from).
+Paths below start in `custom-models/mobs/`.
+
+| Mob | Franchise | Viewer | In the mod |
+|---|---|---|---|
+| The King | internet meme ("plane guy") | `memes/the_king/the_king.html` | yes |
+| Homelander | The Boys | `the_boys/homelander/homelander.html` | yes |
+| Black Noir | The Boys | `the_boys/black_noir/black_noir.html` | not yet |
+| Bane | DC | `dc/bane/bane.html` | not yet |
+| The Joker | DC | `dc/the_joker/the_joker.html` | not yet |
+| Reverse-Flash | DC | `dc/reverse_flash/reverse_flash.html` | not yet |
+| Thanos | Marvel | `marvel/thanos/thanos.html` | not yet |
+| Darth Vader | Star Wars | `star_wars/darth_vader/darth_vader.html` | not yet |
+| Davy Jones | Pirates of the Caribbean | `pirates_of_the_caribbean/davy_jones/davy_jones.html` | not yet |
+| Patrick Bateman | American Psycho | `american_psycho/patrick_bateman/patrick_bateman.html` | not yet |
+| Anton Chigurh | No Country for Old Men | `no_country_for_old_men/anton_chigurh/anton_chigurh.html` | not yet |
+| Hannibal Lecter | Hannibal | `hannibal/hannibal/hannibal.html` | not yet |
+| Dexter Morgan | Dexter | `dexter/dexter/dexter.html` | not yet |
+| Jason Voorhees | Friday the 13th | `friday_the_13th/jason_voorhees/jason_voorhees.html` | not yet |
+| Michael Myers | Halloween | `halloween/michael_myers/michael_myers.html` | not yet |
+| Ghostface | Scream | `scream/ghostface/ghostface.html` | not yet |
+| Pennywise | It | `it/pennywise/pennywise.html` | not yet |
+| Billy the Puppet (work in progress) | Saw | `saw/billy_the_puppet/billy_the_puppet_bad.html` | not yet |
+| John Kramer / Jigsaw (work in progress) | Saw | `saw/john_kramer/john_kramer_bad.html` | not yet |
+| Freddy Fazbear | Five Nights at Freddy's | `five_nights_at_freddys/freddy_fazbear/freddy_fazbear.html` | not yet |
+| Victor Perkins (Vector) | Despicable Me | `despicable_me/victor_perkins/victor_perkins.html` | not yet |
+
+Vehicles (not a mob, paths start in `custom-models/vehicles/`):
+
+| Vehicle | Franchise | Viewer |
 |---|---|---|
-| The King | `mobs/the_king/thekingv3.html` | yes |
-| Homelander | `mobs/homelander/homelander.html` | yes |
-| Black Noir | `mobs/black_noir/black_noir.html` | not yet |
-| Reverse-Flash | `mobs/reverse_flash/reverse_flash.html` | not yet |
-| Darth Vader | `mobs/darth_vader/darth_vader.html` | not yet |
-| Thanos | `mobs/thanos/thanos.html` | not yet |
-| Patrick Bateman | `mobs/patrick_bateman/patrick_bateman.html` | not yet |
-| Anton Chigurh | `mobs/anton_chigurh/anton_chigurh.html` | not yet |
-| The Joker | `mobs/the_joker/the_joker.html` | not yet |
-| Jason Voorhees | `mobs/jason_voorhees/jason_voorhees.html` | not yet |
-| Hannibal Lecter | `mobs/hannibal/hannibal.html` | not yet |
-| Michael Myers | `mobs/michael_myers/michael_myers.html` | not yet |
-| Bane | `mobs/bane/bane.html` | not yet |
-| Davy Jones | `mobs/davy_jones/davy_jones.html` | not yet |
-| Ghostface | `mobs/ghostface/ghostface.html` | not yet |
-| Pennywise | `mobs/pennywise/pennywise.html` | not yet |
-| Victor Perkins | `mobs/victor_perkins/victor_perkins.html` | not yet |
-| Dexter | `mobs/dexter/dexter.html` | not yet |
-| Freddy Fazbear | `mobs/freddy_fazbear/freddy_fazbear.html` | not yet |
-| Billy the Puppet (Saw, work in progress) | `mobs/saw(belong together)/billy/billy_the_puppet_BAD.html` | not yet |
-| John Kramer (Saw, work in progress) | `mobs/saw(belong together)/john_kramer/john_kramer_BAD.html` | not yet |
+| The Flying Dutchman | Pirates of the Caribbean | `pirates_of_the_caribbean/the_flying_dutchman/the_flying_dutchman.html` |
 
 Viewer controls: number keys = animations, `B` = show bones, `R` = reset camera,
 eye button = head follows the mouse, dots = color variants, top right = expression menu (Auto / Happy / Sad / Angry / Afraid) + reset camera.
-Shared viewer UI for every mob: `mobs/_shared/` (`viewer.css`, `viewer.js`, `viewer_template.html` = start page for a new mob).
+Shared viewer UI for every mob: `custom-models/_shared/` (`viewer.css`, `viewer.js`, `viewer_template.html` = start page for a new mob).
 
 ## Folders
 
+`references/`, `sounds/` and `archive/` use the same `<kind>/<franchise>/<name>/` path as the viewer,
+so everything about one character is easy to find (e.g. `references/mobs/saw/john_kramer/`).
+
 | Folder | What is in it |
 |---|---|
-| `mobs/<mob>/` | viewer pages |
+| `custom-models/mobs/<franchise>/<mob>/` | mob viewer pages |
+| `custom-models/vehicles/<franchise>/<vehicle>/` | vehicle viewer pages |
+| `custom-models/_shared/` | viewer UI every page shares + start page for a new mob |
+| `references/<kind>/<franchise>/<name>/` | reference photos and videos |
+| `sounds/<kind>/<franchise>/<name>/` | sounds (`.ogg` for the mod, `.mp3` for the browser) |
+| `archive/<kind>/<franchise>/<name>/` | old versions of a viewer or sound |
 | `mod/` | the NeoForge mod (Gradle project) |
-| `references/<mob>/` | reference photos and videos |
-| `sounds/<mob>/` | sounds (`.ogg` for the mod, `.mp3` for the browser) |
-| `archive/<mob>/` | old versions (e.g. `<mob>_old.html`) |
 | `tools/` | test and helper scripts (PowerShell) |
 | `docs/` | changelog, latest session, who works on what |
 

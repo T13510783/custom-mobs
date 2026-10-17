@@ -56,7 +56,7 @@ Make or switch branches and open/merge PRs whenever needed.
   - `docs/changelog.md`: keep **all** entries, newest on top (sort by the time in the heading).
   - `docs/latest.md`: keep the newest one.
   - `docs/working_on.md`: keep everyone's lines.
-  - Viewer pages (`mobs/<mob>/*.html`): only one person per mob at a time (see `docs/working_on.md`).
+  - Viewer pages (`custom-models/<kind>/<franchise>/<name>/*.html`): only one person per mob at a time (see `docs/working_on.md`).
   - Binary files (png, jpg, ogg, mp3, mp4, jar) can't be merged: keep both versions, ask your user which one wins.
 
 ## 5. Never

@@ -1,7 +1,7 @@
 """Homelander sound effects, made from code (no recordings, no licences needed).
 
 Writes 44.1 kHz mono 16-bit .wav files; tools/sfx/make_homelander_sfx.ps1 turns them into
-sounds/homelander/<name>.ogg (mod + browser) and .mp3 (browser backup).
+sounds/mobs/the_boys/homelander/<name>.ogg (mod + browser) and .mp3 (browser backup).
   punch   - Attack: the super-punch lands (thump + smack)
   grab    - Throw / Clap / Throat laser: the hand closes on a neck or head
   whoosh  - Throw: the victim is flung up into the sky

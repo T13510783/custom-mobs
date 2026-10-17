@@ -17,11 +17,11 @@ Always apply these, every session, without being reminded:
 - **Co-Authored-By trailer on every commit and every squash-merge**: the last line names Claude and the exact model, e.g. `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. `.claude/settings.json` keeps `"includeCoAuthoredBy": true`.
 - **Viewer buttons:** no "Download .bbmodel" / "Download Blockbench Model" button in any HTML viewer, ever; the "Show bones" toggle (key `B`) is in every HTML viewer, always (rule 10).
 - **Expression menu, ALWAYS, every character** (user rule, 2026-10-16): every HTML viewer has an expression menu next to the camera-reset button (top right): `Auto`, `Happy`, `Sad`, `Angry`, `Afraid`, each with its icon, in the viewer's own pill style. A pick forces that face (eyes, brows, mouth eased in, never snapped) until `Auto` gives the face back to the animations (rule 10). A viewer gets it when its mob is worked on.
-- **Shared viewer files** (user rule, 2026-10-16): `mobs/_shared/viewer.css` (UI look), `mobs/_shared/viewer.js` (UI parts every mob shares: expression menu) and `mobs/_shared/viewer_template.html` (start page for a new mob). A viewer links the css + js; shared UI is changed there once, never copied into the pages (rule 10).
+- **Shared viewer files** (user rule, 2026-10-16): `custom-models/_shared/viewer.css` (UI look), `custom-models/_shared/viewer.js` (UI parts every mob shares: expression menu) and `custom-models/_shared/viewer_template.html` (start page for a new mob). A viewer links the css + js; shared UI is changed there once, never copied into the pages (rule 10).
 - **Only touch the mob you were asked about** (user rule, 2026-10-16): never edit another character's viewer, files or mod code unless the user names it (other people and agents work on them).
 - **Every request ends with:** re-organise + optimise all files and folders (rule 15), then commit + push yourself (GitHub section). Never ask first, never skip.
 - **Edits** (user rule, 2026-10-16): use the `Edit` tool (the user sees the diff) or a script (`node`, `sed`), whichever gives the best quality and is fastest at that moment.
-- **Other characters' viewers are never edited by hand** (user rule, 2026-10-16): only the mob the user asks about; shared UI changes go into `mobs/_shared/` (html/css/js), never into the other pages.
+- **Other characters' viewers are never edited by hand** (user rule, 2026-10-16): only the mob the user asks about; shared UI changes go into `custom-models/_shared/` (html/css/js), never into the other pages.
 - **Branch cleanup:** only your own branches (`tivek87/*`, own `backup/*`); a branch of `T13510783` or anyone else only when the user explicitly allows it (2026-10-16: allowed for all branches: finish/merge their work into `main`, then delete, never lose it).
 - **Hygiene:** root, folders and git branches stay clean: files in logical folders, finished branches merged and deleted, no leftover or obsolete files, no stale branches or worktrees (rule 15, `AGENTS.md` section 7).
 - **1-on-1 parity:** every mob in Minecraft is 100% identical to its HTML viewer: model, bone count, idles, face, attacks, audio / voice lines, VFX and physical interactions (rule 23).
@@ -129,7 +129,7 @@ When the user says "model from A, animations from B":
    - eyelids (user rule, 2026-10-16): ALWAYS make and animate them whenever a mob gets eyes / brows / a face: real lid parts that slide over the eye in every blink, squint and closed-eye moment, in every animation, high quality (see rule 7);
    - eyebrows: raise / frown with the motion;
    - mouth: open/close or change shape (breath, snarl, shout, yawn, grin).
-   - **Standard mouth = the Homelander type, every mob with a face** (user rule, 2026-10-16; code: `mobs/homelander/homelander.html` + `mobs/_shared/viewer_template.html`):
+   - **Standard mouth = the Homelander type, every mob with a face** (user rule, 2026-10-16; code: `custom-models/mobs/the_boys/homelander/homelander.html` + `custom-models/_shared/viewer_template.html`):
      one thin lip line plane (2 x ~0.35 texels, lip color) on the mouth row, mouth corners painted skin shadow in the head texture;
      smirk = the line tilts (~0.14 rad) and slides ~0.25 toward the smirk side; open = line thicker (scale y `1 + 1.5 * open`); smile/wide = wider (scale x);
      grin = a white teeth plate (2 x 0.8) under the line that grows down (scale y 0 -> 1) and hides inside the head until it grins.
@@ -166,9 +166,9 @@ When the user says "model from A, animations from B":
 
 10. **Same UI for every mob, always:** dark background (`#0f1115`), same font and color tokens, floating pill bar at the bottom center (animation buttons, follow toggle, color-variant dots), small camera-reset button top right, orbit camera controls, number keys + `R` for reset. No new layouts, no other libraries.
     - **No "Download .bbmodel" button** (user rule, 2026-10-15). The page keeps its `.bbmodel` export code: Claude saves the file to `models/` with the page's headless export mode (workflow step 3).
-    - **Always the expression menu** (pill button `#expr` with face icon + word, glass list, next to the reset button, from `mobs/_shared/viewer.js`): Auto / Happy / Sad / Angry / Afraid. The page registers its face with `MobViewer.init({ ... })` and reads `MobViewer.expression` each frame; the forced face goes through the same smoothing filter as the rest of the face.
-    - **Shared files:** `mobs/_shared/viewer.css` + `mobs/_shared/viewer.js` (classic `<link>` / `<script src>`, loaded before the page's own module). New shared UI goes there, not into each page.
-      Each link has an `onerror` fallback to the jsDelivr copy (`https://cdn.jsdelivr.net/gh/T13510783/custom-mobs@main/mobs/_shared/...`, as in the template): a page opened where `../_shared/` is missing otherwise loses every button (they fall below the 3D view) and the expression menu (Bateman, 2026-10-16).
+    - **Always the expression menu** (pill button `#expr` with face icon + word, glass list, next to the reset button, from `custom-models/_shared/viewer.js`): Auto / Happy / Sad / Angry / Afraid. The page registers its face with `MobViewer.init({ ... })` and reads `MobViewer.expression` each frame; the forced face goes through the same smoothing filter as the rest of the face.
+    - **Shared files:** `custom-models/_shared/viewer.css` + `custom-models/_shared/viewer.js` (classic `<link>` / `<script src>`, loaded before the page's own module). New shared UI goes there, not into each page.
+      Each link has an `onerror` fallback to the jsDelivr copy (`https://cdn.jsdelivr.net/gh/T13510783/custom-mobs@main/custom-models/_shared/...`, as in the template): a page opened where `../../../_shared/` is missing otherwise loses every button (they fall below the 3D view) and the expression menu (Bateman, 2026-10-16).
     - **Always a "Show bones" button, in every viewer page, every mob, no exceptions** (bone icon in the dock, key `B`, user rule 2026-10-15): draws the rig on top of the model (a dot on every bone pivot, a line to its parent), updated live in every animation.
 11. **Follow-mouse toggle in every mob:** head and eyes follow the mouse pointer; an eye-icon button in the dock turns it on/off. On by default. When off, head and eyes ease back to the animation's own pose, never snap.
 12. **Two humanoid body styles** (style unclear for a new mob -> ask):
@@ -187,17 +187,21 @@ When the user says "model from A, animations from B":
 ## Files and folders
 
 15. **Always organised and sorted.** Clean folders grouped by kind, clear names, no loose test or temp files in the project. **At every request** (end of the turn): re-check all folders and files, re-organise and optimise what needs it (sort new files, delete duplicates and leftovers, shrink oversized files, fix stale paths and docs). Layout (2026-10-14):
-    - `mobs/<mob>/` viewer pages (only there, no copy in the root) · `archive/<mob>/` old versions (old sounds in `archive/<mob>/sounds/`)
-    - `references/<mob>/` only material the user gave (photos, videos); not yet tied to a mob -> `references/_unsorted/`
-    - `sounds/<mob>/` every sound as `.ogg` (the mod) + `.mp3` (browser backup); pages pick with `canPlayType` · `tools/` test and helper scripts · `docs/` changelog + session log
+    - **Grouped by franchise** (user rule, 2026-10-17): `<kind>/<franchise>/<name>/`, kind = `mobs` or `vehicles`, franchise = the movie/show/game/publisher, lowercase (`dc`, `marvel`, `the_boys`, `saw`, `pirates_of_the_caribbean`, `memes`, ...), also when it has one character (`dexter/dexter/`). Characters of one franchise share its folder (Saw: `saw/billy_the_puppet/` + `saw/john_kramer/`).
+    - `custom-models/<kind>/<franchise>/<name>/<name>.html` viewer pages (only there, no copy in the root) · `custom-models/_shared/` shared viewer UI + template
+    - `references/`, `sounds/`, `archive/` mirror that path: `references/mobs/saw/john_kramer/`, `sounds/mobs/the_boys/homelander/`, `archive/mobs/memes/the_king/` (old sounds in its `sounds/`). Moving or adding a mob: all four places + every path to it (pages, `tools/export_mod_assets.ps1`, Java comments, README).
+    - `references/...` only material the user gave (photos, videos); not yet tied to a mob -> `references/_unsorted/`
+    - sounds: every sound as `.ogg` (the mod) + `.mp3` (browser backup); pages pick with `canPlayType` · `tools/` test and helper scripts · `docs/` changelog + session log
+    - A viewer page sits 4 folders below the root: shared UI = `../../../_shared/`, sounds = `../../../../sounds/<kind>/<franchise>/<name>/`.
+    - `archive/` never keeps a copy identical to the live page (same hash -> delete; git history has it).
     - Root holds only `README.md`, `CLAUDE.md`, `AGENTS.md`, `run.txt`, `.gitignore`, `.gitattributes`, `.env` + `.env.example` (both local, git-ignored), `.vscode/`, `.claude/` and the folders. Never a copy of a viewer or reference in the root, even if asked for "in the root": sort it in. (2026-10-15)
     - New files from the user in the root -> sort them in; exact duplicates (same hash) -> delete.
     - File names: lowercase, `_` instead of spaces, say what it is (`drop_kick_slow_motion.mp4`, not `VID_2026....mp4` or a hash). Fix every path that points to a renamed file. (2026-10-15)
     - Test output (renders, clip reports, `shot_*.txt/.png`) goes to the session scratchpad / `%TEMP%`, never into the project. (2026-10-14)
     - Deleting project files can be blocked by the permission check: then list them for the user to delete; never work around it.
-16. **Max 10000 lines per file** (user rule, 2026-10-16). A mob viewer page stays ONE html file (no `js/` folder per mob); shared UI goes into `mobs/_shared/`. A file bigger than 10000 lines -> split it into a folder with parts by section (e.g. `style.css`, `painters.js`, `rig.js`, `anims.js`, `ui.js`). A split viewer page loads its parts with classic `<script src>` (no ES modules: they break when the page is opened as a local file).
+16. **Max 10000 lines per file** (user rule, 2026-10-16). A mob viewer page stays ONE html file (no `js/` folder per mob); shared UI goes into `custom-models/_shared/`. A file bigger than 10000 lines -> split it into a folder with parts by section (e.g. `style.css`, `painters.js`, `rig.js`, `anims.js`, `ui.js`). A split viewer page loads its parts with classic `<script src>` (no ES modules: they break when the page is opened as a local file).
 17. **Every file has sections and comments.** A header comment per section (e.g. `/* ───────── Painters ───────── */`) and short comments on anything not obvious (pivots, clamps, why a value). Comments in simple English.
-18. One viewer page per mob in `mobs/<mob>/` (e.g. `mobs/the_king/thekingv3.html`).
+18. One viewer page per mob in `custom-models/mobs/<franchise>/<mob>/<mob>.html` (e.g. `custom-models/mobs/memes/the_king/the_king.html`).
 19. Every new mob starts as a copy of the base mob and keeps its systems (texture system, loop, camera, UI); only the model, colors, animations, face parts and springs change.
 
 ## Mods (.jar)

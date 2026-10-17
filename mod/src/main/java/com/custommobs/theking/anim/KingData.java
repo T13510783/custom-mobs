@@ -14,7 +14,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/* ───────── The King's data, exported 1:1 from mobs/the_king/thekingv3.html (#modexport) ─────────
+/* ───────── The King's data, exported 1:1 from custom-models/mobs/memes/the_king/the_king.html (#modexport) ─────────
    assets/theking/king/rig.json  : bones (rest pose), cubes as finished quads, ground boxes, springs, voice curves, animation list
    assets/theking/king/anims.bin : every animation channel at 120 fps, 16-bit steps stored as frame-to-frame differences
    Units: texels and radians, axes like the viewer: +x = his left, +y = up, +z = his front.
