@@ -1,12 +1,12 @@
 # Latest session (Claude, Tivek87)
 
-**Date:** 2026-10-17 00:00
-**Request:** Commit + push everything.
+**Date:** 2026-10-17 14:53
+**Request:** Commit + push everything, images too.
 
 **Done:**
-- Committed the uncommitted team work: Dexter, Freddy Fazbear, Saw (Billy, John Kramer) viewers + references, `run.txt`; README mobs table updated.
-- Not committed: 10 images + `freddy_fazbear_3d_animatronic.html` in the root. They are exact copies of files already in `references/` / `mobs/freddy_fazbear/`; deleting them was blocked by the permission check.
+- Committed 6 new Davy Jones reference images (`references/davy_jones/`) on PR #47.
+- Not committed: 10 images + `freddy_fazbear_3d_animatronic.html` in the root. Exact copies (same md5) of files already in `references/freddy_fazbear/`, `references/saw(belong together)/john_kramer/` and `mobs/freddy_fazbear/freddy_fazbear.html`; deleting them was blocked by the permission check.
 
-**Files:** `mobs/dexter/`, `mobs/freddy_fazbear/`, `mobs/saw(belong together)/`, `references/` (same 3), `run.txt`, `README.md`, docs.
+**Files:** `references/davy_jones/` (6 images), `docs/changelog.md`, `docs/latest.md`.
 
-**Next:** user deletes the root duplicates; the Saw folder name and the UUID image names break the naming rule (rename once their owner is done).
+**Next:** user deletes the root duplicates; UUID / `image2.png` names and the Saw folder name break the naming rule (rename once their owner is done).
