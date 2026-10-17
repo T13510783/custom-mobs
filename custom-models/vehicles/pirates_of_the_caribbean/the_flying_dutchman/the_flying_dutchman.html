@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>The Flying Dutchman — Vanilla+ 16x16 Model Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0f1115;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    #viewport {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+    .pill-btn {
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .pill-btn.active {
+      background: rgba(94, 138, 117, 0.28);
+      color: #d8efe2;
+      border-color: rgba(126, 179, 152, 0.55);
+      box-shadow: 0 0 16px rgba(94, 138, 117, 0.25);
+    }
+  </style>
+</head>
+<body class="bg-[#0f1115] text-slate-200 antialiased">
+
+  <canvas id="viewport"></canvas>
+
+  <!-- Ultra-minimal floating bottom pill bar + small camera-reset button -->
+  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+    <div class="flex items-center gap-1 p-1.5 rounded-full bg-[#161920]/90 backdrop-blur-md border border-white/10 shadow-2xl">
+      <button data-anim="idle" class="pill-btn active px-4 py-1.5 rounded-full text-xs font-medium tracking-wide text-slate-300 border border-transparent hover:text-white">
+        Idle
+      </button>
+      <button data-anim="walk" class="pill-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide text-slate-300 border border-transparent hover:text-white">
+        Walk
+      </button>
+      <button data-anim="attack" class="pill-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide text-slate-300 border border-transparent hover:text-white">
+        Attack
+      </button>
+      <button data-anim="special" class="pill-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide text-slate-300 border border-transparent hover:text-white">
+        Special
+      </button>
+    </div>
+
+    <button id="resetCamBtn" title="Reset Camera" class="p-2.5 rounded-full bg-[#161920]/90 backdrop-blur-md border border-white/10 text-slate-400 hover:text-white hover:border-white/25 shadow-2xl transition-all active:scale-95">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+    </button>
+  </div>
+
+  <script>
+    // Deterministic seeded PRNG so every 16x16 pixel-art texture is crisp and reproducible
+    function createRNG(seed = 1337) {
+      let s = seed >>> 0;
+      return function() {
+        s = (s * 1664525 + 1013904223) >>> 0;
+        return s / 4294967296;
+      };
+    }
+
+    // Color utility helpers for Vanilla+ pixel shading
+    function hexToRgb(hex) {
+      const n = parseInt(hex.replace('#', ''), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+
+    function rgbStr(r, g, b, a = 1) {
+      const cr = Math.max(0, Math.min(255, Math.round(r)));
+      const cg = Math.max(0, Math.min(255, Math.round(g)));
+      const cb = Math.max(0, Math.min(255, Math.round(b)));
+      return a < 1 ? `rgba(${cr},${cg},${cb},${a})` : `rgb(${cr},${cg},${cb})`;
+    }
+
+    function shadeHex(hex, delta) {
+      const [r, g, b] = hexToRgb(hex);
+      return rgbStr(r + delta, g + delta, b + delta);
+    }
+
+    const textureCache = new Map();
+
+    function getPixelTexture(type, pw, ph, seedOffset = 0) {
+      // Enforce strict integer texel dimensions (1 model unit = 1 pixel, 16 pixels = 1 block)
+      const w = Math.max(1, Math.round(pw));
+      const h = Math.max(1, Math.round(ph));
+      const key = `${type}_${w}x${h}_${seedOffset}`;
+      if (textureCache.has(key)) return textureCache.get(key);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      const rng = createRNG(w * 739 + h * 911 + seedOffset * 3571 + type.length * 101);
+
+      // Base palettes matched to the three Flying Dutchman reference photos
+      const hullGreens = ['#38403c', '#2f3733', '#434d48', '#262d2a', '#4e5953'];
+      const rotDarks = ['#1b211f', '#222926', '#151a18'];
+      const rustOranges = ['#6e462a', '#825534', '#593821', '#91623e'];
+      const kelpGreens = ['#2b3b25', '#374a30', '#202d1c', '#45593c'];
+      const boneTones = ['#8c9388', '#a3aba0', '#70776d', '#585e55', '#b5bdb1'];
+      const sailTones = ['#636d65', '#747f77', '#535c56', '#828d85', '#444c47'];
+
+      if (type === 'hull_planks' || type === 'hull_waterline' || type === 'deck_planks') {
+        for (let y = 0; y < h; y++) {
+          const isSeam = (y % 4 === 0);
+          const plankRow = Math.floor(y / 4);
+          const rowShift = (plankRow * 7) % 16;
+          for (let x = 0; x < w; x++) {
+            const isButtJoint = ((x + rowShift) % 16 === 0);
+            let base = hullGreens[Math.floor(rng() * hullGreens.length)];
+            let delta = (rng() - 0.5) * 12;
+
+            if (type === 'deck_planks') {
+              base = '#464e49';
+              delta += 4;
+            }
+            if (isSeam || isButtJoint) {
+              ctx.fillStyle = rotDarks[(x + y) % rotDarks.length];
+            } else {
+              ctx.fillStyle = shadeHex(base, delta);
+            }
+            ctx.fillRect(x, y, 1, 1);
+
+            // Waterline orange-brown barnacle & rust patches (matching reference image 2)
+            if (type === 'hull_waterline') {
+              const n = Math.sin(x * 0.35 + seedOffset) * Math.cos(y * 0.45) + (rng() - 0.35);
+              if (y > h * 0.22 && n > 0.18) {
+                ctx.fillStyle = rustOranges[Math.floor(rng() * rustOranges.length)];
+                ctx.fillRect(x, y, 1, 1);
+              } else if (y > h * 0.65 && rng() > 0.45) {
+                ctx.fillStyle = '#232926';
+                ctx.fillRect(x, y, 1, 1);
+              }
+            }
+
+            // Seaweed/moss streaks hanging down the upper/middle hull (matching reference image 3)
+            if (type === 'hull_planks' && ((x * 13 + seedOffset) % 9 < 2) && y < h * 0.72 && rng() > 0.35) {
+              ctx.fillStyle = kelpGreens[Math.floor(rng() * kelpGreens.length)];
+              ctx.fillRect(x, y, 1, 1);
+            }
+          }
+        }
+      } else if (type === 'hull_rib') {
+        // Heavy carved external buttress ribs with notched edges and moss highlights
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const edge = (x === 0 || x === w - 1 || y % 5 === 0);
+            const highlight = (x === 1 || y % 5 === 1);
+            let col = edge ? '#212724' : (highlight ? '#56625b' : '#3e4742');
+            if (rng() > 0.78) col = kelpGreens[Math.floor(rng() * kelpGreens.length)];
+            ctx.fillStyle = shadeHex(col, (rng() - 0.5) * 10);
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      } else if (type === 'lion_gunport') {
+        // Ornate weathered bronze/gold-grey lion-head wreath around dark gunport opening (image 1)
+        const cx = (w - 1) / 2;
+        const cy = (h - 1) / 2;
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const dx = Math.abs(x - cx);
+            const dy = Math.abs(y - cy);
+            if (dx <= 1.2 && dy <= 1.2) {
+              ctx.fillStyle = '#0d100f';
+            } else if (dx <= 2.7 && dy <= 2.7) {
+              const wreathTones = ['#787252', '#8e8863', '#5c583f', '#6b7058'];
+              ctx.fillStyle = wreathTones[(x + y + Math.floor(rng() * 2)) % wreathTones.length];
+            } else {
+              ctx.fillStyle = shadeHex('#2b322e', (rng() - 0.5) * 12);
+            }
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      } else if (type === 'quarter_gallery') {
+        // Ornate stern galleries with gothic skeletal mullions, dark windows, and moss
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const isFrame = (x % 4 === 0 || y % 5 === 0 || x === w - 1 || y === h - 1);
+            const isWindow = (!isFrame && (y % 5 >= 2) && (x % 4 >= 1 && x % 4 <= 2));
+            if (isWindow) {
+              ctx.fillStyle = (rng() > 0.82) ? '#2f4538' : '#121715';
+            } else if (isFrame) {
+              ctx.fillStyle = boneTones[(x + y) % boneTones.length];
+            } else {
+              ctx.fillStyle = hullGreens[Math.floor(rng() * hullGreens.length)];
+            }
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      } else if (type === 'bone_tooth') {
+        // Weathered bone/ivory for bow monster teeth, skeletal figurehead & stern spires
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const grad = (1 - y / Math.max(1, h)) * 18;
+            const base = boneTones[Math.floor(rng() * boneTones.length)];
+            ctx.fillStyle = shadeHex(base, grad + (rng() - 0.5) * 10);
+            if (y < 2 && rng() > 0.5) ctx.fillStyle = '#2d3b27';
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      } else if (type === 'dark_iron') {
+        // Corroded dark sea-iron for cannons, triple bow guns & lantern cage
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const base = (x === 0 || y === 0) ? '#2f3734' : '#1a1f1d';
+            ctx.fillStyle = shadeHex(base, (rng() - 0.5) * 10);
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      } else if (type === 'mast_wood') {
+        // Vertical grained weathered mast & yard timber with rope wooldings
+        for (let y = 0; y < h; y++) {
+          const isRopeBand = (h >= 12 && (y % 14 === 0 || y % 14 === 1));
+          for (let x = 0; x < w; x++) {
+            if (isRopeBand) {
+              ctx.fillStyle = (x % 2 === 0) ? '#282c29' : '#3a403b';
+            } else {
+              const highlight = (x === 1) ? 12 : (x === w - 1 ? -12 : 0);
+              ctx.fillStyle = shadeHex('#49524c', highlight + (rng() - 0.5) * 10);
+            }
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      } else if (type === 'lantern_glow') {
+        // Ghostly sea-green / pale amber stern brazier core
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const d = Math.hypot(x - (w - 1) / 2, y - (h - 1) / 2);
+            ctx.fillStyle = d < 1.6 ? '#d9f7be' : (d < 2.8 ? '#87c48f' : '#3e6b48');
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      } else if (type === 'tattered_sail') {
+        // Crisp 16x16 pixel-art tattered ghost sails with vertical panel seams, holes & ragged fringes
+        ctx.clearRect(0, 0, w, h);
+        for (let x = 0; x < w; x++) {
+          const colWave = Math.sin(x * 0.75 + seedOffset) * 0.22 + Math.cos(x * 1.9 + seedOffset * 2) * 0.16;
+          const maxH = Math.floor(h * (0.64 + colWave + rng() * 0.22));
+          const isSeam = (x % 6 === 0);
+
+          for (let y = 0; y < h; y++) {
+            if (y > maxH && y > 2) continue;
+            if ((x === 0 || x === w - 1) && y > 3 && rng() > 0.45) continue;
+
+            // Interior tattered holes & vertical rips (matching reference images 1 & 3)
+            const holeNoise = Math.sin(x * 0.6 + seedOffset) * Math.sin(y * 0.45 + seedOffset);
+            if (y > 3 && y < maxH - 2 && holeNoise > 0.56 && rng() > 0.25) continue;
+
+            // Ribbon separation near bottom
+            if (y > h * 0.46 && ((x + seedOffset) % 4 === 0) && rng() > 0.32) continue;
+
+            let col = sailTones[(x + Math.floor(y / 3) + Math.floor(rng() * 2)) % sailTones.length];
+            let delta = (rng() - 0.5) * 14;
+            if (isSeam) delta -= 14;
+            if (y < 2) col = '#3c443f';
+            if (y > maxH - 4) delta -= 12;
+
+            ctx.fillStyle = shadeHex(col, delta);
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      } else if (type === 'sail_streamer') {
+        // Long draping shredded sail ribbons on front of foremast (reference image 1)
+        ctx.clearRect(0, 0, w, h);
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const centerDist = Math.abs(x - (w - 1) / 2);
+            if (y > h * 0.75 && centerDist > 1 && rng() > 0.3) continue;
+            if (centerDist >= w / 2 - 0.2 && rng() > 0.45) continue;
+            const col = sailTones[(x + y + Math.floor(rng() * 3)) % sailTones.length];
+            ctx.fillStyle = shadeHex(col, (rng() - 0.5) * 16);
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      } else if (type === 'kelp_fringe') {
+        // Hanging seaweed, moss & barnacle tendrils under bowsprit, jaws & hull
+        ctx.clearRect(0, 0, w, h);
+        for (let x = 0; x < w; x++) {
+          const strandLen = Math.floor(h * (0.38 + ((x * 7 + seedOffset) % 5) * 0.13 + rng() * 0.15));
+          for (let y = 0; y < Math.min(h, strandLen); y++) {
+            if (y > 2 && (x % 2 === 1) && rng() > 0.55) continue;
+            const col = kelpGreens[(x + y + Math.floor(rng() * 2)) % kelpGreens.length];
+            ctx.fillStyle = shadeHex(col, (rng() - 0.5) * 12);
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      } else if (type === 'rigging_net') {
+        // Ratline rope shrouds (pixel-art rope ladder matrix)
+        ctx.clearRect(0, 0, w, h);
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const isShroud = (x === 0 || x === w - 1 || x === Math.floor(w / 2));
+            const isRatline = (y % 4 === 0);
+            if (isShroud || isRatline) {
+              ctx.fillStyle = isShroud ? '#282d2a' : '#383f3b';
+              ctx.fillRect(x, y, 1, 1);
+            }
+          }
+        }
+      }
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.generateMipmaps = false;
+      tex.needsUpdate = true;
+      textureCache.set(key, tex);
+      return tex;
+    }
+
+    const materialCache = new Map();
+
+    function getFaceMaterial(type, w, h, seedOffset = 0, options = {}) {
+      const key = `${type}_${Math.round(w)}_${Math.round(h)}_${seedOffset}_${!!options.alpha}_${options.emissive || ''}`;
+      if (materialCache.has(key)) return materialCache.get(key);
+
+      const tex = getPixelTexture(type, w, h, seedOffset);
+      const matConfig = {
+        map: tex,
+        roughness: options.roughness !== undefined ? options.roughness : 0.88,
+        metalness: options.metalness !== undefined ? options.metalness : 0.08,
+      };
+      if (options.alpha) {
+        matConfig.transparent = true;
+        matConfig.alphaTest = 0.42;
+        matConfig.side = THREE.DoubleSide;
+      }
+      if (options.emissive) {
+        matConfig.emissive = new THREE.Color(options.emissive);
+        matConfig.emissiveIntensity = options.emissiveIntensity || 0.9;
+      }
+
+      const mat = new THREE.MeshStandardMaterial(matConfig);
+      materialCache.set(key, mat);
+      return mat;
+    }
+
+    // Creates a Blockbench-aligned box where 1 unit = 1 pixel (16 pixels = 1 block)
+    // and every face gets a 1:1 texel-matched NearestFilter texture
+    function createVoxelBox(w, h, d, type, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, seed = 0, opts = {}) {
+      const geom = new THREE.BoxGeometry(w, h, d);
+      const topType = opts.topType || type;
+      const sideType = type;
+
+      const materials = [
+        getFaceMaterial(sideType, d, h, seed + 1, opts), // +X (bow-facing)
+        getFaceMaterial(sideType, d, h, seed + 2, opts), // -X (stern-facing)
+        getFaceMaterial(topType,  w, d, seed + 3, opts), // +Y (top deck)
+        getFaceMaterial(sideType, w, d, seed + 4, opts), // -Y (bottom)
+        getFaceMaterial(sideType, w, h, seed + 5, opts), // +Z (starboard)
+        getFaceMaterial(sideType, w, h, seed + 6, opts), // -Z (port)
+      ];
+
+      const mesh = new THREE.Mesh(geom, materials);
+      mesh.position.set(x, y, z);
+      if (rx || ry || rz) mesh.rotation.set(rx, ry, rz);
+      mesh.castShadow = !opts.noShadow;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    // Creates a double-sided 16x16 pixel-art cutout plane (for tattered sail layers, kelp & shrouds)
+    function createPixelPlane(w, h, type, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, seed = 0) {
+      const geom = new THREE.PlaneGeometry(w, h);
+      const mat = getFaceMaterial(type, w, h, seed, { alpha: true, roughness: 0.92 });
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.position.set(x, y, z);
+      if (rx || ry || rz) mesh.rotation.set(rx, ry, rz);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    // Creates a taut pixel-aligned rigging rope between two 3D points in ship pixel coordinates
+    function createRiggingRope(p1, p2, thickness = 0.55, seed = 0) {
+      const v1 = new THREE.Vector3(p1[0], p1[1], p1[2]);
+      const v2 = new THREE.Vector3(p2[0], p2[1], p2[2]);
+      const dist = v1.distanceTo(v2);
+      const mid = v1.clone().add(v2).multiplyScalar(0.5);
+      const mesh = createVoxelBox(thickness, dist, thickness, 'dark_iron', mid.x, mid.y, mid.z, 0, 0, 0, seed, { noShadow: true });
+      const dir = v2.clone().sub(v1).normalize();
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      return mesh;
+    }
+
+    const canvas = document.getElementById('viewport');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#0f1115');
+    scene.fog = new THREE.FogExp2('#0f1115', 0.0026);
+
+    // Camera positioned on Starboard-Bow quarter so Bow is on the right (+X) and Stern is on the left (-X),
+    // matching the exact composition of all three reference photographs
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.5, 600);
+    const defaultCamPos = new THREE.Vector3(16, 20, 96);
+    const defaultCamTarget = new THREE.Vector3(4, 16, 0);
+    camera.position.copy(defaultCamPos);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.copy(defaultCamTarget);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxDistance = 195;
+    controls.minDistance = 24;
+    controls.maxPolarAngle = Math.PI * 0.54;
+    controls.update();
+
+    // Cohesive Vanilla+ ghostly maritime lighting setup
+    const hemiLight = new THREE.HemisphereLight('#b5c9bf', '#1b2421', 0.88);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight('#dcebe2', 1.28);
+    dirLight.position.set(45, 78, 55);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 10;
+    dirLight.shadow.camera.far = 200;
+    const dCam = 60;
+    dirLight.shadow.camera.left = -dCam;
+    dirLight.shadow.camera.right = dCam;
+    dirLight.shadow.camera.top = dCam;
+    dirLight.shadow.camera.bottom = -dCam;
+    dirLight.shadow.bias = -0.0005;
+    scene.add(dirLight);
+
+    // Subtle rim light from port-stern for carved hull rib depth
+    const rimLight = new THREE.DirectionalLight('#5f8575', 0.55);
+    rimLight.position.set(-55, 30, -45);
+    scene.add(rimLight);
+
+    // Soft shadow-catching ground plane
+    const shadowPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(320, 320),
+      new THREE.ShadowMaterial({ opacity: 0.4 })
+    );
+    shadowPlane.rotation.x = -Math.PI / 2;
+    shadowPlane.position.y = -0.1;
+    shadowPlane.receiveShadow = true;
+    scene.add(shadowPlane);
+
+    // Scale: 16 model pixels = 1 block (0.25 world units per pixel)
+    const PX = 0.25;
+    const dutchmanRoot = new THREE.Group();
+    dutchmanRoot.scale.set(PX, PX, PX);
+    scene.add(dutchmanRoot);
+
+    // Articulated rig groups for smooth animations & secondary motion
+    const shipRig = {
+      hullGroup: new THREE.Group(),
+      upperJawPivot: new THREE.Group(),
+      lowerJawPivot: new THREE.Group(),
+      portBowGunSpin: new THREE.Group(),
+      stbdBowGunSpin: new THREE.Group(),
+      reaperPivot: new THREE.Group(),
+      sternLanternPivot: new THREE.Group(),
+      rudderPivot: new THREE.Group(),
+      wheelPivot: new THREE.Group(),
+      masts: [],
+      sails: [],
+      streamers: [],
+      kelpStrips: [],
+      broadsideCannons: [],
+      muzzleFlashes: [],
+      wakeFoam: []
+    };
+    dutchmanRoot.add(shipRig.hullGroup);
+
+    const HULL = shipRig.hullGroup;
+
+    // 1. KEEL & LOWER WATERLINE HULL (with orange-brown barnacle patches from reference image 2)
+    HULL.add(createVoxelBox(132, 4, 8, 'hull_waterline', -4, 2, 0, 0, 0, 0, 10));
+    HULL.add(createVoxelBox(126, 6, 18, 'hull_waterline', -3, 6, 0, 0, 0, 0, 20));
+    // Extruded barnacle & timber hull plates along the lower waterline
+    for (let i = 0; i < 7; i++) {
+      const bx = -44 + i * 15;
+      HULL.add(createVoxelBox(12, 5, 20, 'hull_waterline', bx, 6.2, 0, 0, 0, 0, 30 + i));
+    }
+
+    // 2. LOWER GUN DECK HULL & UPPER GUN DECK HULL (with realistic tumblehome profile)
+    HULL.add(createVoxelBox(134, 8, 24, 'hull_planks', -3, 13, 0, 0, 0, 0, 40, { topType: 'deck_planks' }));
+    HULL.add(createVoxelBox(138, 8, 22, 'hull_planks', -2, 21, 0, 0, 0, 0, 50, { topType: 'deck_planks' }));
+
+    // Raised Forecastle (+X) and Stepped Quarterdeck / High Poop Deck (-X)
+    HULL.add(createVoxelBox(36, 6, 20, 'hull_planks', 50, 27, 0, 0, 0, 0, 60, { topType: 'deck_planks' }));
+    HULL.add(createVoxelBox(48, 6, 21, 'hull_planks', -46, 27, 0, 0, 0, 0, 70, { topType: 'deck_planks' }));
+    HULL.add(createVoxelBox(34, 7, 19, 'hull_planks', -56, 33, 0, 0, 0, 0, 80, { topType: 'deck_planks' }));
+    HULL.add(createVoxelBox(22, 6, 17, 'hull_planks', -64, 39, 0, 0, 0, 0, 90, { topType: 'deck_planks' }));
+
+    // Bulwark rails & skeletal timber stanchions along the waist and forecastle
+    for (const side of [-1, 1]) {
+      HULL.add(createVoxelBox(72, 3, 2, 'hull_rib', -2, 26, side * 10.5, 0, 0, 0, 100));
+      HULL.add(createVoxelBox(34, 3, 2, 'hull_rib', 50, 31, side * 9.5, 0, 0, 0, 105));
+      HULL.add(createVoxelBox(46, 3, 2, 'hull_rib', -46, 31, side * 10, 0, 0, 0, 110));
+      // Hanging seaweed/kelp layers draped along the upper hull sides (reference image 3)
+      for (let k = 0; k < 6; k++) {
+        const kx = -38 + k * 16;
+        const kelp = createPixelPlane(12, 10, 'kelp_fringe', kx, 20, side * 12.3, 0, 0, 0, 200 + k);
+        HULL.add(kelp);
+        shipRig.kelpStrips.push({ mesh: kelp, baseRotX: 0, phase: k * 0.9 + side });
+      }
+    }
+
+    // 3. ANGLED EXTERNAL HULL RIBS (BUTTRESSES) & LION-HEAD GUNPORTS (7 bays between 8 ribs per side)
+    const ribCount = 8;
+    const muzzleMatBase = new THREE.MeshBasicMaterial({ color: 0xa7f3d0, transparent: true, opacity: 0 });
+
+    for (let r = 0; r < ribCount; r++) {
+      const rxPos = -44 + r * 13.5;
+      for (const side of [-1, 1]) {
+        // Each external buttress rib angles slightly backward (-X) and inward (tumblehome) as it rises,
+        // matching all 3 reference photos of the Flying Dutchman's ribcage hull
+        const ribLower = createVoxelBox(3, 14, 3, 'hull_rib', rxPos, 11, side * 11.8, -side * 0.08, 0, 0.14, 300 + r);
+        const ribUpper = createVoxelBox(2.5, 13, 2.5, 'hull_rib', rxPos - 1.8, 22, side * 11.0, side * 0.09, 0, 0.14, 320 + r);
+        HULL.add(ribLower, ribUpper);
+
+        // Horizontal wales connecting the ribs
+        if (r < ribCount - 1) {
+          const bayX = rxPos + 6.75;
+          HULL.add(createVoxelBox(11.5, 1.5, 2, 'hull_rib', bayX, 9.5, side * 12.1, 0, 0, 0, 340 + r));
+          HULL.add(createVoxelBox(11.5, 1.5, 2, 'hull_rib', bayX - 0.8, 17.5, side * 11.8, 0, 0, 0, 360 + r));
+
+          // Lower Gun Deck: Ornate Golden-Grey Lion-Head Gunport Frame + Protruding Iron Cannon
+          const lionPort = createVoxelBox(7, 6, 2, 'lion_gunport', bayX - 0.3, 13.2, side * 11.6, 0, 0, 0, 400 + r);
+          HULL.add(lionPort);
+
+          const lowerCannon = createVoxelBox(2, 2, 4.5, 'dark_iron', bayX - 0.3, 13.0, side * 13.2, 0, 0, 0, 420 + r);
+          HULL.add(lowerCannon);
+          shipRig.broadsideCannons.push({ mesh: lowerCannon, baseZ: side * 13.2, side, bay: r, row: 0 });
+
+          // Muzzle flash sprite voxel for Attack animation
+          const flashMesh = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.8, 2.8), muzzleMatBase.clone());
+          flashMesh.position.set(bayX - 0.3, 13.0, side * 15.6);
+          HULL.add(flashMesh);
+          shipRig.muzzleFlashes.push({ mesh: flashMesh, bay: r, side, row: 0 });
+
+          // Upper Gun Deck: Recessed Gunport Arch + Upper Cannon
+          const upperPort = createVoxelBox(6, 5, 1.8, 'lion_gunport', bayX - 1.4, 21.0, side * 10.9, 0, 0, 0, 440 + r);
+          HULL.add(upperPort);
+
+          const upperCannon = createVoxelBox(1.8, 1.8, 4.0, 'dark_iron', bayX - 1.4, 20.8, side * 12.3, 0, 0, 0, 460 + r);
+          HULL.add(upperCannon);
+          shipRig.broadsideCannons.push({ mesh: upperCannon, baseZ: side * 12.3, side, bay: r, row: 1 });
+        }
+      }
+    }
+
+    // 4. MONSTROUS SAWFISH / KRAKEN BOW JAWS, SKELETAL FIGUREHEAD & TRIPLE BOW CHASERS (+X)
+    // Forward bulkhead cheeks with carved circular boss reliefs (seen clearly in reference image 3)
+    for (const side of [-1, 1]) {
+      HULL.add(createVoxelBox(12, 14, 4, 'lion_gunport', 64, 20, side * 8.5, 0, side * 0.22, 0, 500));
+      // Curved sweeping tusk cheeks framing the bowsprit
+      HULL.add(createVoxelBox(18, 3.5, 3, 'bone_tooth', 71, 21, side * 6.5, 0, side * 0.32, 0.25, 510));
+    }
+
+    // Upper Jaw & Bowsprit Assembly (pivots at X=64, Y=17)
+    shipRig.upperJawPivot.position.set(64, 17, 0);
+    HULL.add(shipRig.upperJawPivot);
+
+    // Sweeping upper beak/rostrum beams
+    for (const side of [-1, 1]) {
+      shipRig.upperJawPivot.add(createVoxelBox(28, 3.5, 3, 'hull_rib', 13, 3.5, side * 4.2, 0, side * 0.15, 0.24, 520));
+      shipRig.upperJawPivot.add(createVoxelBox(22, 2.5, 2.5, 'bone_tooth', 26, 8.2, side * 1.8, 0, side * 0.08, 0.28, 525));
+
+      // Row of 10 curved downward-pointing monster teeth along the upper jaw (images 2 & 3)
+      for (let t = 0; t < 10; t++) {
+        const tx = 3 + t * 3.1;
+        const ty = 0.2 + t * 0.72;
+        const tz = side * (5.2 - t * 0.36);
+        const toothLen = 6.5 - t * 0.32;
+        const tooth = createVoxelBox(1.4, toothLen, 1.4, 'bone_tooth', tx, ty - toothLen * 0.35, tz, 0, 0, -0.22, 530 + t);
+        shipRig.upperJawPivot.add(tooth);
+      }
+
+      // Hanging seaweed strands beneath the upper jaw & bowsprit
+      const bowKelp = createPixelPlane(14, 10, 'kelp_fringe', 18, 1.5, side * 2.8, 0, side * 0.12, 0.24, 545);
+      shipRig.upperJawPivot.add(bowKelp);
+      shipRig.kelpStrips.push({ mesh: bowKelp, baseRotX: 0, phase: 2.5 + side });
+    }
+
+    // Long Steeply Angled Bowsprit & Jibboom (extending to X+56 from upperJawPivot)
+    shipRig.upperJawPivot.add(createVoxelBox(48, 3.2, 3.2, 'mast_wood', 24, 12.5, 0, 0, 0, 0.36, 550));
+    shipRig.upperJawPivot.add(createVoxelBox(26, 2.0, 2.0, 'mast_wood', 46, 20.8, 0, 0, 0, 0.38, 552));
+    // Curved scythe-like bone tusk hanging under the outer bowsprit tip (distinctive detail in images 2 & 3)
+    shipRig.upperJawPivot.add(createVoxelBox(2, 9, 2, 'bone_tooth', 43, 15.5, 0, 0, 0, -0.35, 555));
+    shipRig.upperJawPivot.add(createVoxelBox(1.5, 6, 1.5, 'bone_tooth', 45, 11.2, 0, 0, 0, 0.25, 556));
+
+    // Skeletal Reaper Figurehead mounted under the bowsprit root (reference image 3)
+    shipRig.reaperPivot.position.set(22, 7.5, 0);
+    shipRig.upperJawPivot.add(shipRig.reaperPivot);
+    // Skull head, ribcage torso, and reaching bony arms
+    shipRig.reaperPivot.add(createVoxelBox(4.5, 4.5, 4.5, 'bone_tooth', 4, 1.5, 0, 0, 0, 0.2, 560));
+    shipRig.reaperPivot.add(createVoxelBox(7, 3.5, 4, 'bone_tooth', -1, 0, 0, 0, 0, 0.3, 561));
+    shipRig.reaperPivot.add(createVoxelBox(8, 1.5, 1.5, 'bone_tooth', 5, -1.2, 2.2, 0, -0.2, 0.1, 562));
+    shipRig.reaperPivot.add(createVoxelBox(8, 1.5, 1.5, 'bone_tooth', 5, -1.2, -2.2, 0, 0.2, 0.1, 563));
+
+    // Lower Jaw Assembly (pivots at X=61, Y=6.5 — opens and snaps in Attack/Special animations)
+    shipRig.lowerJawPivot.position.set(61, 6.5, 0);
+    HULL.add(shipRig.lowerJawPivot);
+
+    shipRig.lowerJawPivot.add(createVoxelBox(26, 3.5, 6, 'hull_rib', 11, 2.2, 0, 0, 0, 0.22, 570));
+    for (const side of [-1, 1]) {
+      shipRig.lowerJawPivot.add(createVoxelBox(24, 3, 2.5, 'bone_tooth', 12, 3.2, side * 3.2, 0, side * 0.14, 0.24, 572));
+      // Upward-pointing lower jaw fangs interlocking with upper teeth
+      for (let t = 0; t < 7; t++) {
+        const tx = 4 + t * 3.0;
+        const ty = 3.5 + t * 0.7;
+        const tz = side * (4.0 - t * 0.35);
+        shipRig.lowerJawPivot.add(createVoxelBox(1.3, 4.8, 1.3, 'bone_tooth', tx, ty, tz, 0, 0, 0.18, 580 + t));
+      }
+      // Dripping beard of kelp & barnacles hanging under the lower jaw chin (images 2 & 3)
+      const chinKelp = createPixelPlane(18, 9, 'kelp_fringe', 13, -1.2, side * 2.2, 0, side * 0.1, 0.22, 590);
+      shipRig.lowerJawPivot.add(chinKelp);
+      shipRig.kelpStrips.push({ mesh: chinKelp, baseRotX: 0, phase: 4.1 + side });
+    }
+
+    // Twin Triple-Barreled Rotating Bow Chaser Cannons (protruding forward at X=68..79, Y=19)
+    function buildTripleBowGun(group, seedBase) {
+      group.add(createVoxelBox(5, 4.5, 4.5, 'dark_iron', 0, 0, 0, 0, 0, 0, seedBase));
+      const offsets = [
+        [0, 1.3, 0],
+        [0, -0.8, 1.2],
+        [0, -0.8, -1.2]
+      ];
+      offsets.forEach((off, idx) => {
+        group.add(createVoxelBox(12, 1.3, 1.3, 'dark_iron', 5.5, off[1], off[2], 0, 0, 0, seedBase + idx + 1));
+      });
+    }
+    shipRig.portBowGunSpin.position.set(67, 19.5, -5.2);
+    shipRig.portBowGunSpin.rotation.z = 0.08;
+    buildTripleBowGun(shipRig.portBowGunSpin, 600);
+    HULL.add(shipRig.portBowGunSpin);
+
+    shipRig.stbdBowGunSpin.position.set(67, 19.5, 5.2);
+    shipRig.stbdBowGunSpin.rotation.z = 0.08;
+    buildTripleBowGun(shipRig.stbdBowGunSpin, 610);
+    HULL.add(shipRig.stbdBowGunSpin);
+
+    // 5. ORNATE MULTI-TIERED STERN CASTLE, DOUBLE QUARTER GALLERIES & OVERHANGING LANTERN (-X)
+    for (const side of [-1, 1]) {
+      // Lower bulbous quarter gallery wrapping around the stern quarter (images 1, 2, 3)
+      HULL.add(createVoxelBox(26, 6.5, 4.5, 'quarter_gallery', -58, 22, side * 11.8, -side * 0.12, side * 0.08, -0.08, 630));
+      // Upper bulbous quarter gallery tier
+      HULL.add(createVoxelBox(22, 6.5, 4.2, 'quarter_gallery', -62, 30, side * 10.8, -side * 0.10, side * 0.08, -0.08, 635));
+      // Curved skeletal bone corbels & gothic arches bracketing the galleries
+      for (let g = 0; g < 4; g++) {
+        const gx = -48 - g * 6.5;
+        HULL.add(createVoxelBox(2, 15, 2.5, 'bone_tooth', gx, 26, side * 13.0, 0, 0, -0.18, 640 + g));
+      }
+      // Spiky gothic bone spires along the quarterdeck & poop deck rails (images 1, 2, 3)
+      for (let s = 0; s < 9; s++) {
+        const sx = -42 - s * 3.5;
+        const sy = s < 4 ? 32 : (s < 7 ? 38 : 44);
+        const spireH = 4 + (s % 3) * 2.2;
+        HULL.add(createVoxelBox(1.4, spireH, 1.4, 'bone_tooth', sx, sy + spireH * 0.4, side * (9.5 - s * 0.2), 0, 0, -0.22, 660 + s));
+      }
+    }
+
+    // High carved transom backplate & gothic stern cresting
+    HULL.add(createVoxelBox(6, 22, 18, 'quarter_gallery', -73, 30, 0, 0, 0, -0.18, 680));
+    for (let zSpire = -7; zSpire <= 7; zSpire += 2.8) {
+      const hSpire = 7 + (Math.abs(zSpire) < 2 ? 4 : 1.5);
+      HULL.add(createVoxelBox(1.6, hSpire, 1.6, 'bone_tooth', -75, 42 + hSpire * 0.35, zSpire, 0, 0, -0.32, 690));
+    }
+
+    // Iconic Overhanging Stern Lantern / Wrought-Iron Brazier Basket on a curved boom (-X)
+    // Clearly visible jutting out from the high stern on the far left of all 3 reference photos
+    shipRig.sternLanternPivot.position.set(-74, 42, 0);
+    HULL.add(shipRig.sternLanternPivot);
+    // Outrigger boom and support struts
+    shipRig.sternLanternPivot.add(createVoxelBox(14, 1.8, 1.8, 'hull_rib', -6, 1.5, 0, 0, 0, -0.15, 700));
+    shipRig.sternLanternPivot.add(createVoxelBox(9, 1.4, 1.4, 'bone_tooth', -4, -1.2, 0, 0, 0, 0.35, 701));
+    // Wrought-iron basket cage + glowing ghostly green core
+    shipRig.sternLanternPivot.add(createVoxelBox(5.5, 6.5, 5.5, ' lantern_glow'.trim(), -12.5, 5.5, 0, 0, 0, 0, 702, {
+      emissive: '#6ee7b7',
+      emissiveIntensity: 0.95
+    }));
+    for (const cSide of [-1, 1]) {
+      shipRig.sternLanternPivot.add(createVoxelBox(1.2, 8, 1.2, 'dark_iron', -12.5 + cSide * 2.6, 5.8, cSide * 2.6, 0, 0, cSide * 0.15, 703));
+      shipRig.sternLanternPivot.add(createVoxelBox(1.2, 8, 1.2, 'dark_iron', -12.5 - cSide * 2.6, 5.8, cSide * 2.6, 0, 0, -cSide * 0.15, 704));
+    }
+
+    // Ghostly point light inside the stern lantern
+    const lanternLight = new THREE.PointLight('#6ee7b7', 0.85, 35);
+    lanternLight.position.set(-12.5, 6, 0);
+    shipRig.sternLanternPivot.add(lanternLight);
+
+    // Hinged Rudder at the lower stern post (-X)
+    shipRig.rudderPivot.position.set(-68, 9, 0);
+    HULL.add(shipRig.rudderPivot);
+    shipRig.rudderPivot.add(createVoxelBox(7, 14, 2.2, 'hull_waterline', -3.5, 0, 0, 0, 0, -0.12, 710));
+
+    // Helm Wheel & Organ-Pipe Superstructure details on the Quarterdeck
+    shipRig.wheelPivot.position.set(-42, 32.5, 0);
+    HULL.add(shipRig.wheelPivot);
+    shipRig.wheelPivot.add(createVoxelBox(1.5, 5, 5, 'bone_tooth', 0, 0, 0, 0, 0, 0, 715));
+
+    // 6. THREE TALL MASTS, CROW'S NESTS, YARDS & SHREDDED GHOST SAILS (Fore +X, Main Center, Mizzen -X)
+    const mastConfigs = [
+      {
+        name: 'fore',
+        x: 34,
+        baseY: 25,
+        lowerH: 48,
+        upperH: 34,
+        rake: -0.03,
+        yards: [
+          { y: 44, w: 38, sailH: 20, streamers: true, seed: 810 },
+          { y: 69, w: 30, sailH: 21, streamers: true, seed: 820 },
+          { y: 90, w: 18, sailH: 0,  streamers: false, seed: 830 }
+        ]
+      },
+      {
+        name: 'main',
+        x: -2,
+        baseY: 23,
+        lowerH: 56,
+        upperH: 40,
+        rake: -0.04,
+        yards: [
+          { y: 46, w: 44, sailH: 23, streamers: false, seed: 840 },
+          { y: 75, w: 34, sailH: 24, streamers: true,  seed: 850 },
+          { y: 100, w: 22, sailH: 0, streamers: false, seed: 860 }
+        ]
+      },
+      {
+        name: 'mizzen',
+        x: -38,
+        baseY: 29,
+        lowerH: 40,
+        upperH: 28,
+        rake: -0.05,
+        yards: [
+          { y: 46, w: 28, sailH: 17, streamers: false, seed: 870 },
+          { y: 68, w: 22, sailH: 16, streamers: false, seed: 880 },
+          { y: 84, w: 14, sailH: 0,  streamers: false, seed: 890 }
+        ]
+      }
+    ];
+
+    mastConfigs.forEach((mCfg, mIdx) => {
+      const mastGroup = new THREE.Group();
+      mastGroup.position.set(mCfg.x, mCfg.baseY, 0);
+      mastGroup.rotation.z = mCfg.rake;
+      HULL.add(mastGroup);
+      shipRig.masts.push(mastGroup);
+
+      // Lower Mast Timber
+      mastGroup.add(createVoxelBox(3.6, mCfg.lowerH, 3.6, 'mast_wood', 0, mCfg.lowerH / 2, 0, 0, 0, 0, 800 + mIdx));
+
+      // Crow's Nest Platform & Ribbed Railings at top of lower mast (reference image 2)
+      const nestY = mCfg.lowerH - 2;
+      mastGroup.add(createVoxelBox(9, 2, 9, 'hull_rib', 0, nestY, 0, 0, 0, 0, 803 + mIdx));
+      mastGroup.add(createVoxelBox(10.5, 3.2, 10.5, 'quarter_gallery', 0, nestY + 2.2, 0, 0, 0, 0, 806 + mIdx));
+
+      // Topmast & Topgallant Mast rising above the crow's nest (stepped slightly forward)
+      const topMastY = nestY + mCfg.upperH / 2;
+      mastGroup.add(createVoxelBox(2.4, mCfg.upperH, 2.4, 'mast_wood', 1.2, topMastY, 0, 0, 0, 0, 809 + mIdx));
+
+      // Upper Crosstrees / Spreader Bars at the masthead (clearly visible in reference image 2)
+      const headY = nestY + mCfg.upperH - 5;
+      mastGroup.add(createVoxelBox(9, 1.0, 14, 'dark_iron', 1.2, headY, 0, 0, 0, 0, 812 + mIdx));
+
+      // Ratline Shroud Nets angling from hull bulwarks up to the crow's nest on Port & Starboard
+      for (const side of [-1, 1]) {
+        const shroudH = nestY + 2;
+        const shroud = createPixelPlane(10, shroudH, 'rigging_net', -1.5, shroudH / 2 - 1, side * 5.8, -side * 0.17, Math.PI / 2, 0, 900 + mIdx * 2 + side);
+        mastGroup.add(shroud);
+      }
+
+      // Horizontal Yards, Layered Billowed Ghost Sails & Draping Foremast Streamers
+      mCfg.yards.forEach((yCfg, yIdx) => {
+        const localY = yCfg.y - mCfg.baseY;
+        const yardPivot = new THREE.Group();
+        yardPivot.position.set(yIdx > 0 ? 1.8 : 0.8, localY, 0);
+        // Angle the yards slightly to match the dramatic wind angle in images 1 & 3
+        yardPivot.rotation.y = 0.14;
+        mastGroup.add(yardPivot);
+
+        // Yardarm timber spar
+        yardPivot.add(createVoxelBox(2.0, 2.0, yCfg.w, 'mast_wood', 0, 0, 0, 0, 0, 0, yCfg.seed));
+
+        if (yCfg.sailH > 0) {
+          const sailPivot = new THREE.Group();
+          sailPivot.position.set(1.2, -0.5, 0);
+          yardPivot.add(sailPivot);
+
+          // Multi-segmented billowed sail (upper belly + lower tattered skirt) for 3D curved depth
+          const upperH = Math.round(yCfg.sailH * 0.52);
+          const lowerH = Math.round(yCfg.sailH * 0.58);
+          const sailW = yCfg.w - 2;
+
+          const upperBelly = createPixelPlane(
+            sailW,
+            upperH,
+            'tattered_sail',
+            1.4,
+            -upperH * 0.46,
+            0,
+            0,
+            Math.PI / 2,
+            0.22,
+            yCfg.seed + 1
+          );
+          const lowerSkirt = createPixelPlane(
+            sailW,
+            lowerH,
+            'tattered_sail',
+            2.6,
+            -upperH * 0.85 - lowerH * 0.44,
+            0,
+            0,
+            Math.PI / 2,
+            -0.08,
+            yCfg.seed + 2
+          );
+          // Secondary tattered overlay layer for rich volumetric Vanilla+ depth
+          const outerTatter = createPixelPlane(
+            sailW - 4,
+            upperH + 4,
+            'tattered_sail',
+            2.9,
+            -upperH * 0.55,
+            0,
+            0,
+            Math.PI / 2,
+            0.12,
+            yCfg.seed + 3
+          );
+
+          sailPivot.add(upperBelly, lowerSkirt, outerTatter);
+          shipRig.sails.push({
+            pivot: sailPivot,
+            upperBelly,
+            lowerSkirt,
+            outerTatter,
+            phase: mIdx * 1.3 + yIdx * 0.8
+          });
+
+          // Long Draping Shredded Sail Streamers hanging down the front of the Foremast & Mainmast (Image 1)
+          if (yCfg.streamers) {
+            const streamerCount = mCfg.name === 'fore' ? 3 : 2;
+            for (let s = 0; s < streamerCount; s++) {
+              const sz = (s - (streamerCount - 1) / 2) * (sailW * 0.28);
+              const sLen = mCfg.name === 'fore' ? 28 : 20;
+              const streamerGroup = new THREE.Group();
+              streamerGroup.position.set(2.8, -2, sz);
+              yardPivot.add(streamerGroup);
+
+              const ribbon1 = createPixelPlane(5, sLen, 'sail_streamer', 1.2, -sLen * 0.48, 0, 0, Math.PI / 2, 0.14, yCfg.seed + 10 + s);
+              const ribbon2 = createPixelPlane(4, sLen * 0.85, 'sail_streamer', 1.8, -sLen * 0.52, 0, 0, Math.PI / 2 + 0.25, 0.08, yCfg.seed + 20 + s);
+              streamerGroup.add(ribbon1, ribbon2);
+              shipRig.streamers.push({ group: streamerGroup, phase: s * 1.1 + mIdx + yIdx });
+            }
+          }
+        }
+      });
+    });
+
+    // Diagonal Lateen Spanker Yard on the Mizzenmast (seen in reference images 1 & 2)
+    HULL.add(createVoxelBox(28, 1.6, 1.6, 'mast_wood', -44, 50, 0, 0, 0, 0.58, 950));
+
+    // 7. STANDING & RUNNING RIGGING STAYS (connecting Bowsprit, Foremast, Mainmast, Mizzen & Stern)
+    const riggingLines = [
+      // Forestays from Foremast to Bowsprit
+      [[34, 70, 0], [86, 28, 0]],
+      [[34, 96, 0], [104, 35, 0]],
+      // Mainstays from Mainmast to Foremast base & Crow's nest
+      [[-2, 76, 0], [34, 30, 0]],
+      [[-2, 108, 0], [34, 70, 0]],
+      [[-2, 114, 0], [34, 96, 0]],
+      // Mizzen stays to Mainmast
+      [[-38, 66, 0], [-2, 32, 0]],
+      [[-38, 90, 0], [-2, 76, 0]],
+      // Backstays to Stern Castle
+      [[-38, 90, 0], [-68, 40, -6]],
+      [[-38, 90, 0], [-68, 40, 6]],
+      // Martingale stays under the Bowsprit
+      [[92, 29, 0], [74, 15, 0]],
+      [[106, 35, 0], [86, 20, 0]]
+    ];
+    riggingLines.forEach((pair, idx) => {
+      HULL.add(createRiggingRope(pair[0], pair[1], 0.48, 960 + idx));
+    });
+
+    // 8. GHOSTLY SEA WAKE FOAM & ABYSSAL MIST PARTICLES (for Walk & Special animations)
+    const foamMat = new THREE.MeshBasicMaterial({ color: 0x99d5c4, transparent: true, opacity: 0.35 });
+    for (let i = 0; i < 28; i++) {
+      const side = (i % 2 === 0) ? 1 : -1;
+      const t = Math.floor(i / 2) / 14;
+      const fx = 66 - t * 145;
+      const fz = side * (9 + Math.sin(t * Math.PI) * 7 + (i % 3) * 1.8);
+      const foam = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.8, 2.2), foamMat.clone());
+      foam.position.set(fx, 0.6, fz);
+      dutchmanRoot.add(foam);
+      shipRig.wakeFoam.push({
+        mesh: foam,
+        baseX: fx,
+        baseZ: fz,
+        side,
+        offset: t * Math.PI * 4
+      });
+    }
+
+    // UI State & Smooth Animation Blending
+    let currentAnim = 'idle';
+    let animTime = 0;
+    let specialTimer = 0;
+
+    const animButtons = document.querySelectorAll('.pill-btn');
+    animButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        animButtons.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentAnim = btn.getAttribute('data-anim');
+        if (currentAnim === 'special') {
+          specialTimer = 0;
+        }
+      });
+    });
+
+    document.getElementById('resetCamBtn').addEventListener('click', () => {
+      camera.position.copy(defaultCamPos);
+      controls.target.copy(defaultCamTarget);
+      controls.update();
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Smooth damping helper
+    function damp(current, target, lambda, dt) {
+      return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-lambda * dt));
+    }
+
+    let lastTime = performance.now();
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+
+      const rawDt = (now - lastTime) / 1000;
+      const dt = Math.min(rawDt, 0.1);
+      lastTime = now;
+      animTime += dt;
+
+      // Target rig transforms per animation state
+      let targetHullY = 0;
+      let targetHullPitch = 0; // rotation.z (+Z pitches bow up)
+      let targetHullRoll = 0;  // rotation.x
+      let targetHullYaw = 0;   // rotation.y
+      let targetUpperJawZ = 0;
+      let targetLowerJawZ = 0;
+      let sailWindPower = 1.0;
+      let wakeSpeed = 1.0;
+
+      if (currentAnim === 'idle') {
+        // Eerie ghostly buoyancy, gentle breathing roll/pitch, subtle jaw breathing
+        targetHullY = Math.sin(animTime * 1.5) * 1.4;
+        targetHullPitch = Math.cos(animTime * 1.2) * 0.025;
+        targetHullRoll = Math.sin(animTime * 0.95) * 0.035;
+        targetHullYaw = Math.sin(animTime * 0.5) * 0.015;
+        targetLowerJawZ = Math.sin(animTime * 1.8) * 0.04 - 0.03;
+        sailWindPower = 0.85;
+        wakeSpeed = 0.6;
+      } else if (currentAnim === 'walk') {
+        // Full Sail Prowl: aggressive forward surge through heavy swells, billowing sails & wake
+        targetHullY = Math.sin(animTime * 3.2) * 2.2 + 0.6;
+        targetHullPitch = Math.sin(animTime * 3.2 - 0.6) * 0.055 + 0.025;
+        targetHullRoll = Math.cos(animTime * 2.1) * 0.065;
+        targetHullYaw = Math.sin(animTime * 1.6) * 0.03;
+        targetLowerJawZ = Math.sin(animTime * 3.2) * 0.06 - 0.05;
+        sailWindPower = 1.65;
+        wakeSpeed = 3.2;
+      } else if (currentAnim === 'attack') {
+        // Broadside Salvo & Triple Bow Chaser Barrage + Snapping Monster Jaws
+        const cycle = animTime * 4.0;
+        const recoilWave = Math.max(0, Math.sin(cycle));
+        targetHullY = Math.sin(animTime * 2.5) * 1.2 - recoilWave * 0.8;
+        targetHullPitch = Math.cos(animTime * 2.5) * 0.03 + recoilWave * 0.03;
+        targetHullRoll = Math.sin(animTime * 4.0) * 0.095; // Heavy broadside recoil rock
+        // Monstrous bow jaws snap wide open and chomp
+        targetUpperJawZ = Math.max(0, Math.sin(animTime * 3.5)) * 0.14;
+        targetLowerJawZ = -Math.abs(Math.sin(animTime * 3.5)) * 0.28 - 0.04;
+        sailWindPower = 1.35;
+        wakeSpeed = 1.5;
+
+        // Spin the twin triple-barreled bow chasers & recoil
+        shipRig.portBowGunSpin.rotation.x += dt * 9.5;
+        shipRig.stbdBowGunSpin.rotation.x -= dt * 9.5;
+        shipRig.portBowGunSpin.position.x = 67 - Math.abs(Math.sin(animTime * 12)) * 2.2;
+        shipRig.stbdBowGunSpin.position.x = 67 - Math.abs(Math.cos(animTime * 12)) * 2.2;
+      } else if (currentAnim === 'special') {
+        // Davy Jones' Abyssal Dive & Breach ("Up from the Depths!")
+        specialTimer = (specialTimer + dt * 0.22) % 1.0;
+        const p = specialTimer;
+        if (p < 0.35) {
+          // Pitch bow down and plunge beneath the sea
+          const t = p / 0.35;
+          const ease = t * t * (3 - 2 * t);
+          targetHullY = -ease * 42;
+          targetHullPitch = -ease * 0.34;
+          targetHullRoll = Math.sin(t * Math.PI * 2) * 0.08;
+          targetLowerJawZ = -0.18 * ease;
+        } else if (p < 0.72) {
+          // Breach explosively upward out of the depths with bow rearing high!
+          const t = (p - 0.35) / 0.37;
+          const ease = 1 - Math.pow(1 - t, 3);
+          targetHullY = -42 + ease * 54;
+          targetHullPitch = -0.34 + Math.sin(t * Math.PI) * 0.62;
+          targetHullRoll = Math.cos(t * Math.PI * 3) * 0.11;
+          targetUpperJawZ = 0.16;
+          targetLowerJawZ = -0.32;
+        } else {
+          // Slam back onto the surface with heavy secondary heave
+          const t = (p - 0.72) / 0.28;
+          const settle = Math.cos(t * Math.PI * 2) * (1 - t);
+          targetHullY = 12 * (1 - t) + settle * 4;
+          targetHullPitch = settle * 0.14;
+          targetHullRoll = settle * 0.09;
+          targetLowerJawZ = -0.05;
+        }
+        sailWindPower = 2.1;
+        wakeSpeed = 4.0;
+      }
+
+      // Apply smooth damping to primary hull & jaw pivots
+      HULL.position.y = damp(HULL.position.y, targetHullY, 6.5, dt);
+      HULL.rotation.z = damp(HULL.rotation.z, targetHullPitch, 6.5, dt);
+      HULL.rotation.x = damp(HULL.rotation.x, targetHullRoll, 6.5, dt);
+      HULL.rotation.y = damp(HULL.rotation.y, targetHullYaw, 5.0, dt);
+
+      shipRig.upperJawPivot.rotation.z = damp(shipRig.upperJawPivot.rotation.z, targetUpperJawZ, 9.0, dt);
+      shipRig.lowerJawPivot.rotation.z = damp(shipRig.lowerJawPivot.rotation.z, targetLowerJawZ, 9.0, dt);
+
+      if (currentAnim !== 'attack') {
+        shipRig.portBowGunSpin.position.x = damp(shipRig.portBowGunSpin.position.x, 67, 8, dt);
+        shipRig.stbdBowGunSpin.position.x = damp(shipRig.stbdBowGunSpin.position.x, 67, 8, dt);
+      }
+
+      // Secondary Motion: Skeletal Reaper Figurehead & Overhanging Stern Lantern Counter-Swing
+      shipRig.reaperPivot.rotation.y = Math.sin(animTime * 2.1) * 0.12;
+      shipRig.reaperPivot.rotation.z = Math.cos(animTime * 1.7) * 0.08;
+      shipRig.sternLanternPivot.rotation.z = -HULL.rotation.z * 0.85 + Math.sin(animTime * 2.8) * 0.07;
+      shipRig.sternLanternPivot.rotation.x = -HULL.rotation.x * 0.85 + Math.cos(animTime * 2.3) * 0.06;
+      lanternLight.intensity = 0.8 + Math.sin(animTime * 7.5) * 0.2;
+
+      // Rudder & Helm Wheel secondary steering motion
+      shipRig.rudderPivot.rotation.y = Math.sin(animTime * 1.4) * 0.18 * wakeSpeed;
+      shipRig.wheelPivot.rotation.x = animTime * 0.8 * wakeSpeed;
+
+      // Secondary Motion: Billowing Tattered Sails, Foremast Streamers & Hanging Kelp
+      shipRig.sails.forEach((s) => {
+        const wave = Math.sin(animTime * 2.6 * sailWindPower + s.phase);
+        s.upperBelly.rotation.z = 0.20 + wave * 0.06 * sailWindPower;
+        s.lowerSkirt.rotation.z = -0.08 + Math.cos(animTime * 3.1 * sailWindPower + s.phase) * 0.09 * sailWindPower;
+        s.outerTatter.rotation.z = 0.12 + Math.sin(animTime * 3.8 * sailWindPower + s.phase + 1.0) * 0.08 * sailWindPower;
+      });
+
+      shipRig.streamers.forEach((st) => {
+        st.group.rotation.z = Math.sin(animTime * 3.0 * sailWindPower + st.phase) * 0.14 * sailWindPower;
+        st.group.rotation.x = Math.cos(animTime * 2.4 * sailWindPower + st.phase) * 0.09 * sailWindPower;
+      });
+
+      shipRig.kelpStrips.forEach((k) => {
+        k.mesh.rotation.x = Math.sin(animTime * 2.2 + k.phase) * 0.12 - HULL.rotation.x * 0.6;
+        k.mesh.rotation.z = Math.cos(animTime * 1.9 + k.phase) * 0.08;
+      });
+
+      // Broadside Cannon Ripple Recoil & Muzzle Flashes (active during Attack)
+      shipRig.broadsideCannons.forEach((c) => {
+        if (currentAnim === 'attack') {
+          const firePhase = (animTime * 5.5 - c.bay * 0.45 - c.row * 0.25) % (Math.PI * 2);
+          const kick = Math.max(0, Math.sin(firePhase));
+          const sharpKick = Math.pow(kick, 6);
+          c.mesh.position.z = c.baseZ - c.side * sharpKick * 2.1;
+        } else {
+          c.mesh.position.z = damp(c.mesh.position.z, c.baseZ, 8, dt);
+        }
+      });
+
+      shipRig.muzzleFlashes.forEach((f) => {
+        if (currentAnim === 'attack') {
+          const firePhase = (animTime * 5.5 - f.bay * 0.45) % (Math.PI * 2);
+          const kick = Math.pow(Math.max(0, Math.sin(firePhase)), 10);
+          f.mesh.material.opacity = kick * 0.92;
+          const s = 0.6 + kick * 1.4;
+          f.mesh.scale.set(s, s, s);
+        } else {
+          f.mesh.material.opacity = damp(f.mesh.material.opacity, 0, 12, dt);
+        }
+      });
+
+      // Wake Foam Streaming
+      shipRig.wakeFoam.forEach((w, idx) => {
+        const flow = ((animTime * 18 * wakeSpeed + idx * 11) % 145);
+        w.mesh.position.x = 68 - flow;
+        const progress = flow / 145;
+        w.mesh.position.z = w.side * (8.5 + Math.sin(progress * Math.PI) * 7.5 + Math.sin(animTime * 3 + idx) * 1.2);
+        w.mesh.material.opacity = Math.sin(progress * Math.PI) * (currentAnim === 'walk' || currentAnim === 'special' ? 0.55 : 0.24);
+      });
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function() {
+      requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

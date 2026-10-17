@@ -2,7 +2,7 @@ package com.custommobs.homelander.anim;
 
 import java.util.Arrays;
 
-/* ───────── Homelander's animation runtime: a 1:1 port of step() in mobs/homelander/homelander.html ─────────
+/* ───────── Homelander's animation runtime: a 1:1 port of step() in custom-models/mobs/the_boys/homelander/homelander.html ─────────
    Same order, same numbers: random extras (glow pulse, Hover, Idle 2), the random director (moods, look-around,
    eye darts, micro twitches), animation events, crossfade, talk, face filter, blinks, head-follow, pupils/lids/
    brows/mouth/teeth, eye glow + beam values, and the cape cloth (HomelanderCloth). Only the animation curves come

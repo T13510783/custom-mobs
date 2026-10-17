@@ -1,6 +1,6 @@
 package com.custommobs.theking.anim;
 
-/* ───────── The King's animation runtime: a 1:1 port of step() in mobs/the_king/thekingv3.html ─────────
+/* ───────── The King's animation runtime: a 1:1 port of step() in custom-models/mobs/memes/the_king/the_king.html ─────────
    Same order, same numbers: crossfade, loop fade, arm clamps, talk, head-follow, face filter, blinks,
    lids/pupils/brows/mouth, head lift, springs, crown, ground check. Only the animation curves come
    baked (60 fps) instead of as code. The 1:1 test (src/test) replays the viewer's recording.

@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Joker - 3D Vanilla+ Minecraft Model Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!--
+    The Joker (Arthur Fleck, fan model, vanilla+ humanoid): crimson suit, mustard waistcoat, green shirt, clown paint.
+    - Shared UI from ../../../_shared/: viewer.css (look) + viewer.js (expression menu, MobViewer.face(dt)).
+    - Rig: head 8x8x8 right on the torso top (no neck), body 8x12x4, 2-bone arms (arm_/forearm_) and legs
+      (leg_/knee_), feet at y = 0. Wavy hair (first look): side locks + flares, back curtain (springs), coat tails.
+    - Face (first look): white paint, skin at the jaw corners and sides. The painted eyes, brows and mouth are thin
+      planes on the head front, so they blink, glance, frown and grin. Blue painted eyelids slide over the eyes.
+      Mouth on row 6, one piece: smile / frown / smirk move the whole line (Homelander type), the jaw drops, teeth rows.
+    - Animations: 1 Idle (smoking), 2 Idle 2 (restless), 3 Walk (3 walks take turns), 4 Attack (revolver), 5 Dance
+      (the stairs), 6 Laugh (maniac). Follow mouse (eye), Show bones (B), cigarette mouth / hand / away (C), reset (R).
+      Extra Joker expressions: Grin, Laugh, Smug, Manic, Normal, Blank, Snarl.
+    - Test modes: #cliptest[-hand|-off], #rest, #shot-<anim>-<cig>-<sec>[-<cam>[-<expression>]] (cig: 0 mouth, h hand, o off).
+  -->
+
+  <!-- Shared viewer UI: custom-models/_shared/. When the page cannot reach that folder (opened from another folder,
+       a copy, or a preview that serves only this folder), the same files load from the public repo instead. -->
+  <link rel="stylesheet" href="../../../_shared/viewer.css"
+    onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/gh/T13510783/custom-mobs@main/custom-models/_shared/viewer.css'">
+  <script src="../../../_shared/viewer.js"
+    onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/T13510783/custom-mobs@main/custom-models/_shared/viewer.js';document.head.appendChild(s)"></script>
+
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body class="mv-ui">
+  <canvas id="viewport" tabindex="0"></canvas>
+
+  <!-- Top right: the expression menu (added by viewer.js) sits left of the reset button -->
+  <div id="topRight">
+    <button id="resetBtn" class="pill icon-btn" title="Reset camera (R)" aria-label="Reset camera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+    </button>
+  </div>
+
+  <!-- Bottom dock: animations, follow toggle, bones toggle, cigarette toggle (one outfit: no color dots) -->
+  <nav id="dock" class="pill">
+    <button class="anim-btn active" data-anim="idle"><kbd>1</kbd>Idle</button>
+    <button class="anim-btn" data-anim="idle2"><kbd>2</kbd>Idle 2</button>
+    <button class="anim-btn" data-anim="walk"><kbd>3</kbd>Walk</button>
+    <button class="anim-btn" data-anim="attack"><kbd>4</kbd>Attack</button>
+    <button class="anim-btn" data-anim="dance"><kbd>5</kbd>Dance</button>
+    <button class="anim-btn" data-anim="laugh"><kbd>6</kbd>Laugh</button>
+    <span class="sep"></span>
+    <button id="followBtn" class="icon-btn round-btn on" title="Head follows the mouse" aria-label="Follow mouse" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+    <button id="bonesBtn" class="icon-btn round-btn" title="Show bones (B)" aria-label="Show bones" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8 8l8 8"/></svg>
+    </button>
+    <button id="cigBtn" class="icon-btn round-btn on" title="Cigarette: in the mouth (C)" aria-label="Cigarette: in the mouth (C)" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="13" width="15" height="4" rx="1"/><path d="M14 13v4"/><path d="M20.5 13v4"/><path d="M18 10c0-2 2-2 2-4M15 10c0-2 2-2 2-4"/></svg>
+    </button>
+  </nav>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ───────── Setup ─────────
+   Rig units are texels; the mob root is scaled by 1/16 so 16 texels = 1 block. */
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const filt = (dt, rate) => 1 - Math.exp(-dt * rate);   // per-frame smoothing factor (frame-rate independent)
+const softLim = (x, l) => l * Math.tanh(x / l);        // soft limit: no hard corner at the edge
+const pos2 = (x) => (x > 0 ? x * x : 0);                // max(0, x)^2: smooth where it starts
+const softAbs = (x, e) => Math.sqrt(x * x + e * e) - e; // |x| without the corner at 0
+const softPos = (x, e) => 0.5 * (x + Math.sqrt(x * x + e * e));          // max(0, x) without the corner
+const softplus = (x, k) => k * Math.log1p(Math.exp(Math.min(50, x / k))); // smooth floor at 0
+
+/* ───────── Palette ───────── */
+
+/**
+ * COLOR PALETTE — Matched directly to the Arthur Fleck / Joker reference photos:
+ * - Crimson/Burgundy tailored suit jacket & trousers
+ * - Golden-mustard waistcoat (vest)
+ * - Emerald/Teal green patterned dress shirt
+ * - Chalky white face paint, crimson smile/nose/brows, slate-blue eye diamonds & tear drip
+ * - Swept-back mossy/olive green hair
+ * - Two-tone brown vintage wingtip dress shoes
+ */
+const PALETTE = {
+    // Face paint & skin
+    paintLight: '#f0f2f5',
+    paintBase:  '#e2e5ea',
+    paintShade: '#cbd0d8',
+    paintDark:  '#b0b7c2',
+    skinLight:  '#dca588',
+    skinBase:   '#c98d6e',
+    skinShade:  '#a86f52',
+    skinDark:   '#87543b',
+
+    // Clown makeup accents
+    makeupRedLight: '#cc2424',
+    makeupRedBase:  '#a61717',
+    makeupRedDark:  '#780e0e',
+    makeupBlueLight:'#26799e',
+    makeupBlueBase: '#185875',
+    makeupBlueDark: '#0f3c52',
+    eyeDark:        '#1d242b',
+    eyeSclera:      '#d9dee3',
+
+    // Mossy / Olive green hair
+    hairHighlight: '#6b9c3e',
+    hairLight:     '#527d2c',
+    hairBase:      '#3c611e',
+    hairShade:     '#2b4714',
+    hairDark:      '#1c300c',
+
+    // Crimson Red Suit
+    suitHighlight: '#cf2d2d',
+    suitLight:     '#b52121',
+    suitBase:      '#9c1919',
+    suitShade:     '#7d1212',
+    suitDark:      '#5e0c0c',
+    suitDeep:      '#420707',
+
+    // Golden-Mustard Waistcoat (Vest)
+    vestHighlight: '#f2b12e',
+    vestLight:     '#e09b1b',
+    vestBase:      '#c78310',
+    vestShade:     '#a3670a',
+    vestDark:      '#7d4c05',
+
+    // Emerald-Teal Dress Shirt
+    shirtHighlight:'#20876e',
+    shirtLight:    '#166e58',
+    shirtBase:     '#105745',
+    shirtShade:    '#0b4032',
+    shirtDark:     '#072b21',
+
+    // Vintage Brown Wingtip Shoes
+    shoeHighlight: '#855331',
+    shoeLight:     '#693f22',
+    shoeBase:      '#4d2c16',
+    shoeDark:      '#2b170b',
+    shoeSole:      '#170d06'
+};
+
+/* ───────── Texture + box factory ─────────
+   Crisp pixel-art CanvasTextures (NearestFilter): one texture per box face, 1 texel = 1 pixel. */
+function createPixelTexture(w, h, drawFn) {
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+
+    // Helper functions passed to the drawing callback
+    const api = {
+        ctx, w, h,
+        fill(color) { ctx.fillStyle = color; ctx.fillRect(0, 0, w, h); },
+        rect(x, y, rw, rh, color) { ctx.fillStyle = color; ctx.fillRect(x, y, rw, rh); },
+        px(x, y, color) { ctx.fillStyle = color; ctx.fillRect(x, y, 1, 1); },
+        noise(x, y, rw, rh, colors, density = 0.35, seedOffset = 0) {
+            for (let ix = x; ix < x + rw; ix++) {
+                for (let iy = y; iy < y + rh; iy++) {
+                    const hash = Math.sin((ix * 12.9898 + iy * 78.233 + seedOffset) * 43758.5453);
+                    const frac = hash - Math.floor(hash);
+                    if (frac < density) {
+                        ctx.fillStyle = colors[Math.floor((frac / density) * colors.length)];
+                        ctx.fillRect(ix, iy, 1, 1);
+                    }
+                }
+            }
+        }
+    };
+    drawFn(api);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+}
+
+/**
+ * 6 materials for a box of [w, h, d] texels. Face order of BoxGeometry:
+ * 0: right (+X), 1: left (-X), 2: top (+Y), 3: bottom (-Y), 4: front (+Z), 5: back (-Z).
+ * options.crop = { full, y0 }: a limb segment. Its side faces are painted at the full limb height and show only
+ *   rows y0 .. y0 + h, so the two segments of an arm or leg show exactly the one 12-high texture together.
+ * options.override = { face: painter }: replaces single faces (the hidden inner ends of a segment).
+ */
+function createBoxMaterials(w, h, d, facePainters, options = {}) {
+    const tw = Math.max(1, Math.round(w));
+    const th = Math.max(1, Math.round(h));
+    const td = Math.max(1, Math.round(d));
+    const dims = [[td, th], [td, th], [tw, td], [tw, td], [tw, th], [tw, th]];
+    const keys = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+    const crop = options.crop;
+
+    return keys.map((key, idx) => {
+        const [fw, fh] = dims[idx];
+        const painter = (options.override && options.override[key]) || facePainters[key] || facePainters.all || ((p) => p.fill('#ff00ff'));
+        let tex;
+        if (crop && (idx < 2 || idx > 3) && !(options.override && options.override[key])) {
+            tex = createPixelTexture(fw, crop.full, painter);
+            tex.repeat.set(1, fh / crop.full);                   // canvas row 0 = top of the face (flipY)
+            tex.offset.set(0, 1 - (crop.y0 + fh) / crop.full);
+        } else tex = createPixelTexture(fw, fh, painter);
+        return new THREE.MeshStandardMaterial({
+            map: tex,
+            roughness: Math.max(0.7, options.roughness ?? 0.82),  // >= 0.7: no glossy strips (mod has no gloss)
+            metalness: options.metalness ?? 0.05,
+            emissive: options.emissive ? new THREE.Color(options.emissive) : new THREE.Color(0x000000),
+            emissiveIntensity: options.emissive ? 1 : 0,
+            transparent: !!options.transparent,
+            alphaTest: options.alphaTest || 0
+        });
+    });
+}
+
+// A box of [w, h, d] texels with painted faces
+function createVoxelBox(w, h, d, facePainters, options = {}) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), createBoxMaterials(w, h, d, facePainters, options));
+    mesh.castShadow = options.castShadow ?? true;
+    mesh.receiveShadow = options.receiveShadow ?? true;
+    return mesh;
+}
+
+/* ───────── Painters ───────── */
+
+/**
+ * PROCEDURAL 16x16 PIXEL ART PAINTERS FOR THE JOKER
+ */
+const JokerTextures = {
+    // 1. HEAD (8x8x8 pixels)
+    head: {
+        front(p) {
+            // First look (user pick, 2026-10-16), whole face white (user, 2026-10-16): chalky greasepaint over every
+            // pixel below the green hairline, cheeks, jaw corners and chin included; only soft grey shading at the edges
+            p.fill(PALETTE.paintBase);
+            p.rect(0, 0, 8, 1, PALETTE.hairBase);            // top hairline edge
+            p.px(0, 0, PALETTE.hairShade);
+            p.px(7, 0, PALETTE.hairShade);
+            p.rect(1, 0, 6, 1, PALETTE.paintBase);
+            p.rect(2, 0, 4, 1, PALETTE.paintLight);          // chalky shading
+            p.px(1, 1, PALETTE.paintShade);
+            p.px(6, 1, PALETTE.paintShade);
+            p.px(0, 5, PALETTE.paintShade);                  // jaw edges a shade darker (reads as the face's round)
+            p.px(7, 5, PALETTE.paintShade);
+            p.px(0, 6, PALETTE.paintShade);
+            p.px(7, 6, PALETTE.paintShade);
+            p.rect(1, 7, 6, 1, PALETTE.paintShade);          // chin
+            p.px(0, 7, PALETTE.paintDark);
+            p.px(7, 7, PALETTE.paintDark);
+
+            // Row 1: greasepaint under the red brows. The brows are face planes (brow_ bones, same 2 red pixels each),
+            // so a raised or frowning brow never shows a second painted copy under it.
+            p.rect(1, 1, 2, 1, PALETTE.paintBase);
+            p.rect(5, 1, 2, 1, PALETTE.paintBase);
+
+            // Teal-blue eye diamonds (Rows 2, 3, 4)
+            p.px(1, 2, PALETTE.makeupBlueBase);              // upper points (row 2)
+            p.px(2, 2, PALETTE.makeupBlueLight);
+            p.px(5, 2, PALETTE.makeupBlueLight);
+            p.px(6, 2, PALETTE.makeupBlueBase);
+            p.px(1, 3, PALETTE.eyeSclera);                   // eyes (row 3)
+            p.px(2, 3, PALETTE.eyeDark);
+            p.px(5, 3, PALETTE.eyeDark);
+            p.px(6, 3, PALETTE.eyeSclera);
+            p.px(1, 4, PALETTE.makeupBlueDark);              // lower points (row 4)
+            p.px(2, 4, PALETTE.makeupBlueBase);
+            p.px(5, 4, PALETTE.makeupBlueBase);
+            p.px(6, 4, PALETTE.makeupBlueDark);
+            p.px(5, 5, PALETTE.makeupBlueLight);             // smeared tear streak under his left eye
+
+            // Red painted nose (Row 4, center x=3,4)
+            p.px(3, 4, PALETTE.makeupRedLight);
+            p.px(4, 4, PALETTE.makeupRedBase);
+
+            // Wide smeared crimson smile (first look, user 2026-10-16: keep this paint): cheek upturns (row 5), mouth
+            // row 6 (the mouth rig sits on it), lower lip smear (row 7)
+            p.px(1, 5, PALETTE.makeupRedLight);
+            p.px(6, 5, PALETTE.makeupRedLight);
+            p.px(1, 6, PALETTE.makeupRedBase);
+            p.rect(2, 6, 4, 1, PALETTE.makeupRedDark);
+            p.px(6, 6, PALETTE.makeupRedBase);
+            p.px(3, 7, PALETTE.makeupRedBase);
+            p.px(4, 7, PALETTE.makeupRedBase);
+        },
+        // Sides (first look): swept-back green hair on the top 2 rows and the back 5 columns (same clumpy noise as the
+        // locks). The white paint wraps only 2 columns round the cheek; ear and nape stay skin, so the face reads as the
+        // front of the head (an all-white side looked like one stretched slab, user 2026-10-16)
+        right(p) {
+            p.fill(PALETTE.skinBase);
+            p.rect(0, 0, 8, 2, PALETTE.hairBase);
+            p.rect(3, 0, 5, 7, PALETTE.hairBase);
+            p.noise(3, 0, 5, 7, [PALETTE.hairLight, PALETTE.hairShade, PALETTE.hairDark], 0.55, 11);
+            p.rect(0, 2, 1, 6, PALETTE.paintBase);           // x 0 = front edge: cheek paint
+            p.rect(1, 2, 1, 6, PALETTE.paintShade);
+            p.px(1, 7, PALETTE.paintDark);
+            p.px(2, 3, PALETTE.skinShade);                   // ear
+            p.px(2, 4, PALETTE.skinDark);
+        },
+        left(p) {
+            p.fill(PALETTE.skinBase);
+            p.rect(0, 0, 8, 2, PALETTE.hairBase);
+            p.rect(0, 0, 5, 7, PALETTE.hairBase);
+            p.noise(0, 0, 5, 7, [PALETTE.hairLight, PALETTE.hairShade, PALETTE.hairDark], 0.55, 22);
+            p.rect(7, 2, 1, 6, PALETTE.paintBase);           // x 7 = front edge: cheek paint
+            p.rect(6, 2, 1, 6, PALETTE.paintShade);
+            p.px(6, 7, PALETTE.paintDark);
+            p.px(5, 3, PALETTE.skinShade);                   // ear
+            p.px(5, 4, PALETTE.skinDark);
+        },
+        top(p) {
+            // Swept-back green hair strands
+            p.fill(PALETTE.hairBase);
+            for (let x = 0; x < 8; x++) {
+                const c = (x % 2 === 0) ? PALETTE.hairLight : PALETTE.hairShade;
+                p.rect(x, 0, 1, 8, c);
+            }
+            p.noise(0, 0, 8, 8, [PALETTE.hairHighlight, PALETTE.hairDark], 0.35, 33);
+            // Forehead white edge at front bottom of top face
+            p.rect(2, 7, 4, 1, PALETTE.paintBase);
+        },
+        back(p) {
+            p.fill(PALETTE.hairBase);
+            for (let x = 0; x < 8; x++) {
+                p.rect(x, 0, 1, 8, (x % 2 === 0) ? PALETTE.hairShade : PALETTE.hairBase);
+            }
+            p.noise(0, 0, 8, 8, [PALETTE.hairLight, PALETTE.hairDark, PALETTE.hairHighlight], 0.5, 44);
+        },
+        bottom(p) {
+            p.fill(PALETTE.skinDark);                        // neck (hidden by the torso)
+            p.rect(0, 0, 8, 2, PALETTE.paintDark);           // painted chin + jaw underside (y 0 = front)
+        }
+    },
+
+    // 2. HAIR LOCKS (Reusable mossy green wavy texture: crown, side locks, flares, back hair)
+    hairLayer: {
+        all(p) {
+            p.fill(PALETTE.hairBase);
+            for (let x = 0; x < p.w; x++) {
+                if (x % 2 === 0) p.rect(x, 0, 1, p.h, PALETTE.hairShade);
+            }
+            p.noise(0, 0, p.w, p.h, [PALETTE.hairHighlight, PALETTE.hairLight, PALETTE.hairDark], 0.55, 77);
+        }
+    },
+
+    // 3. TORSO BASE (8x12x4) — Shows Emerald Green Shirt + Golden Waistcoat + Red Trousers Waist
+    torso: {
+        front(p) {
+            // Base golden-mustard waistcoat
+            p.fill(PALETTE.vestBase);
+            p.noise(0, 0, 8, 10, [PALETTE.vestLight, PALETTE.vestShade], 0.35, 101);
+
+            // Deep Emerald-Teal patterned shirt at upper chest & neck (y = 0..4)
+            p.rect(2, 0, 4, 3, PALETTE.shirtBase);
+            p.rect(3, 3, 2, 2, PALETTE.shirtBase);
+            // Subtle circular pattern highlights on green shirt
+            p.px(2, 0, PALETTE.shirtHighlight);
+            p.px(4, 1, PALETTE.shirtHighlight);
+            p.px(3, 2, PALETTE.shirtLight);
+            p.px(4, 3, PALETTE.shirtHighlight);
+            // Open neck skin at very top center
+            p.rect(3, 0, 2, 1, PALETTE.skinShade);
+
+            // Shirt collar shading
+            p.px(2, 2, PALETTE.shirtDark);
+            p.px(5, 2, PALETTE.shirtDark);
+
+            // Waistcoat V-neck border highlights
+            p.px(2, 3, PALETTE.vestHighlight);
+            p.px(5, 3, PALETTE.vestHighlight);
+            p.px(3, 5, PALETTE.vestHighlight);
+            p.px(4, 5, PALETTE.vestLight);
+
+            // Waistcoat center seam & buttons (y = 5..9)
+            p.rect(4, 5, 1, 5, PALETTE.vestShade);
+            p.px(3, 5, PALETTE.vestDark);
+            p.px(3, 7, PALETTE.vestDark);
+            p.px(3, 9, PALETTE.vestDark);
+
+            // Waistcoat pockets & shading
+            p.rect(1, 7, 2, 1, PALETTE.vestDark);
+            p.rect(5, 7, 2, 1, PALETTE.vestDark);
+
+            // Bottom V-cut notches of the yellow vest exposing the red trousers underneath (y = 10..11)
+            p.rect(0, 10, 8, 2, PALETTE.suitBase);
+            p.rect(3, 10, 2, 2, PALETTE.suitDark); // Center notch between vest points
+            // Two golden vest points hanging down at x=1..2 and x=5..6 on row 10
+            p.rect(1, 10, 2, 1, PALETTE.vestBase);
+            p.rect(5, 10, 2, 1, PALETTE.vestBase);
+            p.px(2, 11, PALETTE.vestShade);
+            p.px(5, 11, PALETTE.vestShade);
+        },
+        back(p) {
+            p.fill(PALETTE.suitBase);
+            p.noise(0, 0, 8, 12, [PALETTE.suitLight, PALETTE.suitShade], 0.4, 102);
+            // Center back seam of suit jacket
+            p.rect(4, 0, 1, 12, PALETTE.suitShade);
+            // Green collar edge at top
+            p.rect(2, 0, 4, 1, PALETTE.shirtShade);
+        },
+        right(p) {
+            p.fill(PALETTE.suitShade);
+            p.noise(0, 0, 4, 12, [PALETTE.suitBase, PALETTE.suitDark], 0.4, 103);
+        },
+        left(p) {
+            p.fill(PALETTE.suitShade);
+            p.noise(0, 0, 4, 12, [PALETTE.suitBase, PALETTE.suitDark], 0.4, 104);
+        },
+        top(p) {
+            p.fill(PALETTE.shirtBase);
+            p.rect(0, 0, 2, 4, PALETTE.suitBase);
+            p.rect(6, 0, 2, 4, PALETTE.suitBase);
+        },
+        bottom(p) {
+            p.fill(PALETTE.suitDark);
+        }
+    },
+
+    // 4. SUIT JACKET OUTER PANELS & LAPELS
+    suitPanel: {
+        front(p) {
+            p.fill(PALETTE.suitBase);
+            p.noise(0, 0, p.w, p.h, [PALETTE.suitLight, PALETTE.suitShade], 0.35, 201);
+            // Subtle inner lapel highlight along inner edge
+            p.rect(0, 0, 1, p.h, PALETTE.suitHighlight);
+            // Pocket welt detail
+            if (p.h >= 10) {
+                p.rect(0, 8, p.w, 1, PALETTE.suitDark);
+                p.rect(0, 9, p.w, 1, PALETTE.suitHighlight);
+            }
+        },
+        all(p) {
+            p.fill(PALETTE.suitBase);
+            p.noise(0, 0, p.w, p.h, [PALETTE.suitLight, PALETTE.suitShade, PALETTE.suitDark], 0.4, 202);
+        }
+    },
+
+    // 5. ARMS (4x12x4) — Red Suit Sleeve + Emerald Green Cuff + Painted/Skin Hands
+    arm: {
+        all(p) {
+            // Suit sleeve top (y = 0..8)
+            p.fill(PALETTE.suitBase);
+            p.noise(0, 0, p.w, 9, [PALETTE.suitLight, PALETTE.suitShade], 0.4, 301);
+            p.rect(0, 8, p.w, 1, PALETTE.suitDark);
+
+            // Emerald green patterned shirt cuff peeking out at wrist (y = 9)
+            p.rect(0, 9, p.w, 1, PALETTE.shirtLight);
+            p.px(1, 9, PALETTE.shirtHighlight);
+            p.px(3, 9, PALETTE.shirtShade);
+
+            // Hand skin & knuckles (y = 10..11)
+            p.rect(0, 10, p.w, 2, PALETTE.skinBase);
+            p.rect(0, 11, p.w, 1, PALETTE.skinShade);
+            p.px(1, 10, PALETTE.skinLight);
+        },
+        top(p) {
+            p.fill(PALETTE.suitLight);
+            p.noise(0, 0, 4, 4, [PALETTE.suitBase, PALETTE.suitHighlight], 0.35, 302);
+        },
+        bottom(p) {
+            p.fill(PALETTE.skinDark);
+        }
+    },
+
+    // 6. LEGS (4x12x4) — Crimson Suit Trousers + Vintage Brown Leather Wingtip Shoes
+    leg: {
+        front(p) {
+            // Crimson trousers (y = 0..9)
+            p.fill(PALETTE.suitBase);
+            p.noise(0, 0, 4, 10, [PALETTE.suitLight, PALETTE.suitShade], 0.35, 401);
+            // Crisp vertical trouser crease down center
+            p.rect(1, 0, 1, 9, PALETTE.suitHighlight);
+            p.rect(3, 0, 1, 10, PALETTE.suitShade);
+
+            // Vintage two-tone brown dress shoes (y = 10..11)
+            p.rect(0, 10, 4, 2, PALETTE.shoeBase);
+            p.rect(1, 10, 2, 1, PALETTE.shoeHighlight); // Polished leather tongue/instep
+            p.px(1, 11, PALETTE.shoeLight);
+            p.px(2, 11, PALETTE.shoeLight);
+            p.px(0, 11, PALETTE.shoeSole);
+            p.px(3, 11, PALETTE.shoeSole);
+        },
+        back(p) {
+            p.fill(PALETTE.suitShade);
+            p.noise(0, 0, 4, 10, [PALETTE.suitBase, PALETTE.suitDark], 0.4, 402);
+            p.rect(0, 10, 4, 2, PALETTE.shoeDark);
+        },
+        right(p) {
+            p.fill(PALETTE.suitBase);
+            p.noise(0, 0, 4, 10, [PALETTE.suitLight, PALETTE.suitShade], 0.4, 403);
+            p.rect(2, 0, 1, 10, PALETTE.suitDark); // Side seam
+            p.rect(0, 10, 4, 2, PALETTE.shoeBase);
+            p.rect(0, 11, 4, 1, PALETTE.shoeSole);
+        },
+        left(p) {
+            p.fill(PALETTE.suitBase);
+            p.noise(0, 0, 4, 10, [PALETTE.suitLight, PALETTE.suitShade], 0.4, 404);
+            p.rect(1, 0, 1, 10, PALETTE.suitDark);
+            p.rect(0, 10, 4, 2, PALETTE.shoeBase);
+            p.rect(0, 11, 4, 1, PALETTE.shoeSole);
+        },
+        top(p) {
+            p.fill(PALETTE.suitDark);
+        },
+        bottom(p) {
+            p.fill(PALETTE.shoeSole);
+        }
+    }
+};
+
+/* ───────── Renderer / scene ───────── */
+const BG = 0x0f1115;
+const canvas = document.getElementById('viewport');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: /^#(shot|rest)/.test(location.hash) });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(BG);
+scene.fog = new THREE.Fog(BG, 8, 17);
+
+const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 60);
+const HOME = { pos: new THREE.Vector3(2.6, 1.7, 4.5), tgt: new THREE.Vector3(0, 1.05, 0) };
+camera.position.copy(HOME.pos);
+const controls = new OrbitControls(camera, canvas);
+controls.target.copy(HOME.tgt);
+Object.assign(controls, { enableDamping: true, dampingFactor: 0.08, enablePan: false, minDistance: 1.2, maxDistance: 10,
+  maxPolarAngle: Math.PI * 0.495, rotateSpeed: 0.7, zoomSpeed: 0.8 });
+
+// Lights: soft fill, one shadow-casting key, a cool teal-blue rim (the subway / stairs look) and a warm fill
+scene.add(new THREE.HemisphereLight(0xdbe4ff, 0x1c1a22, 1.3));
+const key = new THREE.DirectionalLight(0xfff5e4, 2.4);
+key.position.set(3.5, 5.5, 4.0); key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+Object.assign(key.shadow.camera, { left: -2, right: 2, top: 2.8, bottom: -1.4, near: 1, far: 14 });
+key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x5aa6d6, 1.1); rim.position.set(-3.5, 3.0, -3.2); scene.add(rim);
+const fill = new THREE.DirectionalLight(0xf5b860, 0.4); fill.position.set(-2.5, 1.2, 2.5); scene.add(fill);
+
+// Floor: soft radial disc with a faint 1-block grid
+{
+  const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d');
+  const rg = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  rg.addColorStop(0, 'rgba(34,38,46,1)'); rg.addColorStop(0.55, 'rgba(24,27,33,.9)'); rg.addColorStop(1, 'rgba(15,17,21,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, S, S);
+  g.globalCompositeOperation = 'source-atop'; g.strokeStyle = 'rgba(255,255,255,.035)'; g.lineWidth = 2;
+  for (let i = 0; i <= 8; i++) { const p = i * S / 8; g.beginPath(); g.moveTo(p, 0); g.lineTo(p, S); g.moveTo(0, p); g.lineTo(S, p); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), new THREE.MeshLambertMaterial({ map: t, transparent: true, depthWrite: false }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+}
+// Contact shadow blob (follows the hips)
+const blob = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const rg = g.createRadialGradient(64, 64, 0, 64, 64, 64); rg.addColorStop(0, 'rgba(0,0,0,.55)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, 128, 128);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 0.8), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.y = 0.002; scene.add(m); return m;
+})();
+
+/* ───────── Rig ─────────
+   Every bone = a Group with its pivot at the joint (texels, Blockbench style); cubes hang from it.
+   Same cubes, sizes and spots as the first Joker model; only split into bones:
+   limbs 2 bones each (arm_ shoulder -> forearm_ elbow, leg_ hip -> knee_ knee), coat tails on the thighs (coat_),
+   hair locks (hair_right / hair_left / hair_back) on springs, cigarette (cig) and revolver (gun) as props. */
+const root = new THREE.Group(); root.name = 'joker'; root.scale.setScalar(1 / 16); scene.add(root);
+const bones = {}, R = bones, built = [];             // built = every cube (the clip test checks them)
+function bone(name, parent, x, y, z, rr = [0, 0, 0]) {
+  const g = new THREE.Group(); g.name = name; g.position.set(x, y, z); g.rotation.order = 'ZYX';
+  g.userData.rest = g.position.clone(); g.userData.rr = rr; g.rotation.set(...rr);
+  parent.add(g); bones[name] = g; return g;
+}
+function cube(parent, w, h, d, x, y, z, painters, opt = {}) {
+  const m = createVoxelBox(w, h, d, painters, opt);
+  m.position.set(x, y, z); if (opt.rot) m.rotation.set(...opt.rot);
+  parent.add(m); if (!opt.noClip) built.push(m); return m;
+}
+const T_ = JokerTextures;
+const innerSuit = (p) => p.fill(PALETTE.suitShade);   // hidden inner ends of the limb segments (seen only in a bend)
+const SH_Y = 11.2;                                      // shoulder pivot: 0.8 below the torso top, so a turned head clears the arm tops
+
+bone('body', root, 0, 12, 0);                          // hips: the torso hangs up from here
+bone('head', R.body, 0, 12, 0);                        // no neck: the head sits right on the torso top
+bone('hair_right', R.head, -4.35, 7.7, -1.1);          // side locks: pivot on their top edge, beside the temples
+bone('hair_left', R.head, 4.35, 7.7, -1.1);
+bone('hair_back', R.head, 0, 7.2, -4.45);              // back curtain: pivot on its top edge, behind the head
+bone('cig', R.head, -1.45, 1.5, 3.9, [0.25, -0.75, 0]);   // cigarette in his right mouth corner, just past the mouth line's end, pointing out to his right (never across the mouth)
+for (const [s, sx] of [['right', -1], ['left', 1]]) {
+  bone(`arm_${s}`, R.body, sx * 6, SH_Y, 0);
+  bone(`forearm_${s}`, R[`arm_${s}`], 0, -5.2, 0);     // elbow (torso y 6)
+  bone(`leg_${s}`, root, sx * 2, 12, 0);               // hip
+  bone(`knee_${s}`, R[`leg_${s}`], 0, -6, 0);          // knee (the shoe is painted on the shin)
+  bone(`coat_${s}`, R[`leg_${s}`], sx * 1, 0.4, 0);    // coat tail: top edge, outer half of the thigh
+}
+bone('gun', R.forearm_right, 0, -5.2, 2.2, [Math.PI / 2, 0, 0]);   // revolver in the right fist, barrel down the arm
+bone('cig_hand', R.forearm_right, 1.4, -5.0, 1.4);     // cigarette between the fingers: inner front corner of the fist
+
+// 1. Torso (8x12x4) + 3D suit jacket layers
+cube(R.body, 8, 12, 4, 0, 6, 0, T_.torso);
+cube(R.body, 2.3, 12.2, 0.5, -2.85, 6, 2.15, T_.suitPanel);   // open jacket fronts (end flush with the torso side)
+cube(R.body, 2.3, 12.2, 0.5, 2.85, 6, 2.15, T_.suitPanel);
+const lapel = (seed, edge) => ({ all: (p) => {
+  p.fill(PALETTE.suitLight);
+  p.noise(0, 0, p.w, p.h, [PALETTE.suitHighlight, PALETTE.suitBase], 0.4, seed);
+  p.rect(edge ? p.w - 1 : 0, 0, 1, p.h, PALETTE.suitHighlight);
+} });
+cube(R.body, 1.8, 6.5, 0.45, -2.1, 8.3, 2.5, lapel(501, false), { rot: [0, 0, -0.18] });   // peaked lapels
+cube(R.body, 1.8, 6.5, 0.45, 2.1, 8.3, 2.5, lapel(502, true), { rot: [0, 0, 0.18] });
+const collar = { all: (p) => { p.fill(PALETTE.shirtLight); p.px(0, 0, PALETTE.shirtHighlight); } };
+cube(R.body, 1.4, 2.2, 0.35, -1.15, 10.7, 2.15, collar, { rot: [0, 0, 0.22] });              // green shirt collar points
+cube(R.body, 1.4, 2.2, 0.35, 1.15, 10.7, 2.15, collar, { rot: [0, 0, -0.22] });
+cube(R.body, 8, 12.2, 0.45, 0, 6, -2.15, T_.suitPanel);                                      // back coat layer
+
+// 2. Head (8x8x8) + red nose + layered green hair
+cube(R.head, 8, 8, 8, 0, 4, 0, T_.head);
+cube(R.head, 1.8, 1.5, 0.85, 0, 3.65, 4.35, { all: (p) => { p.fill(PALETTE.makeupRedLight); p.px(0, 1, PALETTE.makeupRedBase); } },
+  { castShadow: false });   // no shadow: it painted a dark block over the mouth right under it
+cube(R.head, 8.6, 1.15, 8.65, 0, 8.575, -0.175, T_.hairLayer);   // slicked-back crown: starts on the head top (y 8) and
+                                                                  // overhangs the forehead by 0.15 (never on the face plane)
+cube(R.head, 7.6, 1.0, 7.2, 0, 9.4, -0.7, T_.hairLayer);
+// puffy band around the temples and the back (first look): hangs 0.4 below the head top, its front stays 0.15 behind
+// the face plane (no flicker on the forehead) and its sides 0.05 inside the crown's (no z-fighting)
+cube(R.head, 8.5, 0.9, 8.3, 0, 8.05, -0.3, T_.hairLayer);
+// Wavy hair, the first Joker look (user pick, 2026-10-16): chunky mossy clumps with bright highlights (hairLayer
+// texture), per side a lock over the ear and a flare curling out below it, at the back a curtain and a lower wave over
+// the collar. The side flares end 1.9 above the head bottom and the back wave 1.0: raised arms (dance, aiming) pass
+// under them (the locks also lift and calm down on a rising shoulder, see Physics).
+for (const [s, sx] of [['right', -1], ['left', 1]]) {
+  const h = R[`hair_${s}`];
+  cube(h, 1.3, 5.6, 5.5, 0, -2.8, 0, T_.hairLayer, { rot: [0, 0, -sx * 0.08] });              // lock over the ear
+  cube(h, 1.4, 2.8, 4.2, sx * 0.45, -4.4, -0.3, T_.hairLayer, { rot: [0, 0, -sx * 0.2] });     // flare curling out
+}
+cube(R.hair_back, 7.4, 6.2, 1.5, 0, -3.1, 0, T_.hairLayer, { rot: [0.08, 0, 0] });            // curtain
+cube(R.hair_back, 7.0, 2.2, 1.3, 0, -5.1, -0.25, T_.hairLayer, { rot: [0.16, 0, 0] });        // lower wave (narrower: clears the locks)
+
+// 3. Cigarette (filter, paper, glowing ember): one in the mouth, one in the right hand (toggle: mouth / hand / off)
+function addCig(parent) {
+  cube(parent, 0.65, 0.65, 0.9, 0, 0, 0.45, { all: (p) => p.fill('#d4883b') });
+  cube(parent, 0.65, 0.65, 2.1, 0, 0, 1.95, { all: (p) => p.fill('#f2f2eb') });
+  return cube(parent, 0.68, 0.68, 0.45, 0, 0, 3.2, { all: (p) => p.fill('#ff4d00') }, { emissive: '#ff3a00' });
+}
+const ember = addCig(R.cig), emberHand = addCig(R.cig_hand);
+
+// 4. Arms: red sleeve, green cuff, hand (one 4x12x4 texture over 2 bones) + sleeve shells, flush on the inner side
+for (const [s, sx] of [['right', -1], ['left', 1]]) {
+  const arm = R[`arm_${s}`], fore = R[`forearm_${s}`];
+  cube(arm, 4, 6, 4, 0, -2.2, 0, T_.arm, { crop: { full: 12, y0: 0 }, override: { bottom: innerSuit } });
+  cube(arm, 4.225, 6, 4.45, sx * 0.1125, -2.2, 0, T_.suitPanel);           // upper sleeve: torso y 12 (flush with the torso top) -> 6
+  cube(fore, 4, 6, 4, 0, -3, 0, T_.arm, { crop: { full: 12, y0: 6 }, override: { top: innerSuit } });
+  cube(fore, 4.225, 2.8, 4.45, sx * 0.1125, -1.1, 0, T_.suitPanel);        // lower sleeve: torso y 6.3 -> 3.5
+}
+
+// 5. Legs: crimson trousers + wingtip shoes (one 4x12x4 texture over 2 bones), cuff break, coat tails
+for (const s of ['right', 'left']) {
+  const leg = R[`leg_${s}`], knee = R[`knee_${s}`];
+  cube(leg, 4, 6, 4, 0, -3, 0, T_.leg, { crop: { full: 12, y0: 0 }, override: { bottom: innerSuit } });
+  cube(knee, 4, 6, 4, 0, -3, 0, T_.leg, { crop: { full: 12, y0: 6 }, override: { top: innerSuit } });
+  cube(knee, 4.35, 2.2, 4.35, 0, -2.8, 0, T_.suitPanel);
+  cube(R[`coat_${s}`], 2.6, 3.2, 4.6, 0, -1.6, 0, T_.suitPanel);
+}
+
+// 6. Snub-nosed revolver (Attack): grows in the fist on the draw, shrinks away after
+const metal = { roughness: 0.7, metalness: 0.3 };
+cube(R.gun, 1.2, 2.6, 1.4, 0, 0, -0.4, { all: (p) => { p.fill('#4a2c18'); p.px(0, 0, '#693f22'); } }, { rot: [0.25, 0, 0] });
+cube(R.gun, 1.4, 1.8, 3.2, 0, 1.4, 0.8, { all: (p) => { p.fill('#2b3038'); p.px(0, 0, '#454d59'); } }, metal);
+cube(R.gun, 1.8, 1.6, 1.6, 0, 1.4, 0.5, { all: (p) => { p.fill('#1f2329'); p.px(0, 0, '#3a414d'); } }, metal);
+cube(R.gun, 1.1, 1.1, 2.4, 0, 1.65, 3.0, { all: (p) => p.fill('#363c47') }, metal);
+const flash = cube(R.gun, 3.2, 3.2, 3.2, 0, 1.65, 5.2, { all: (p) => { p.fill('#ffae00'); p.rect(1, 1, 2, 2, '#ffffff'); } },
+  { emissive: '#ffb020', noClip: true, castShadow: false });
+flash.visible = false;
+
+/* ───────── Face rig ─────────
+   The painted face pixels move onto thin planes just in front of the head (head front = z 4).
+   Rows of the 8x8 face (0 = top): brows row 1, eyes row 3, mouth row 6 (head-local y = 8 - row - 0.5).
+   Eyes: white + pupil (rests in the middle of the white), blue painted lids slide down from their top edge.
+   Brows: the two red brow pixels, painted over with greasepaint in the head texture. */
+const FZ = 4, FACE = {};
+const faceMats = {};
+const fmat = (c) => faceMats[c] || (faceMats[c] = new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, metalness: 0 }));
+function plane(parent, w, h, x, y, z, mat) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);   // PlaneGeometry normals face +z (the front)
+  m.position.set(x, y, z); m.receiveShadow = true; parent.add(m); return m;
+}
+for (const [s, x] of [['right', -2], ['left', 2]]) {
+  const eye = bone(`eye_${s}`, R.head, x, 4.5, FZ + 0.04);                  // eye white, row 3
+  FACE['white_' + s] = plane(eye, 2, 1, 0, 0, 0, fmat(PALETTE.eyeSclera));
+  const pupil = bone(`pupil_${s}`, eye, 0, 0, 0.03);                         // scales: pinpricks (manic, afraid) .. wide
+  plane(pupil, 1, 1, 0, 0, 0, fmat(PALETTE.eyeDark));
+  const lid = bone(`lid_${s}`, R.head, x, 5, FZ + 0.1);                     // upper lid: pivot on the eye's top edge
+  FACE['lid_' + s] = plane(lid, 2, 1, 0, -0.5, 0, fmat(PALETTE.makeupBlueBase));
+  FACE['lash_' + s] = plane(lid, 2, 0.22, 0, -0.89, 0.01, fmat(PALETTE.makeupBlueDark));
+  const llid = bone(`llid_${s}`, R.head, x, 4, FZ + 0.1);                   // lower lid: pivot on the eye's bottom edge,
+  FACE['llid_' + s] = plane(llid, 2, 1, 0, 0.5, 0, fmat(PALETTE.makeupBlueDark));  // rises for a real smile / laugh
+  const brow = bone(`brow_${s}`, R.head, x, 6.5, FZ + 0.12);                // brow, row 1: outer pixel dark red, inner light
+  const tex = createPixelTexture(2, 1, (p) => {
+    p.px(0, 0, s === 'right' ? PALETTE.makeupRedBase : PALETTE.makeupRedLight);
+    p.px(1, 0, s === 'right' ? PALETTE.makeupRedLight : PALETTE.makeupRedBase);
+  });
+  plane(brow, 2, 0.8, 0, 0, 0, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0 }));   // thin painted arch
+}
+// Mouth: made for the Joker (Homelander / Bateman only as the example): blocky pixel pieces, no curves, inside the painted
+// smile (row 6, first look). A 2-wide middle + two 0.7-wide corner blocks (3.4 wide in all) on the lip line at y 1.5.
+// The corners never step on their own: the whole mouth moves as one piece (Homelander as the example). Smile = wider and
+// a little up, frown = narrower and down, smirk = the whole line tilts and slides up toward his left. The jaw drops: the
+// pieces grow down from their top edge, dark inside. Upper teeth hang from the top of the opening, lower teeth sit on
+// its bottom (laughing, clenched snarl). All pieces stay on the face plane: nothing pops in or sticks out.
+const MOUTH_D = '#2a0404', TEETH = '#ddd5c2';
+bone('mouth', R.head, 0, 1.65, FZ + 0.05);                     // top edge of the lip line (line center y 1.5, row 6)
+FACE.mid = plane(R.mouth, 2, 0.3, 0, -0.15, 0.02, fmat(MOUTH_D));
+bone('mouth_cr', R.mouth, -1, 0, 0);                            // his right corner block (the cigarette side)
+bone('mouth_cl', R.mouth, 1, 0, 0);                             // his left corner block
+FACE.cr = plane(R.mouth_cr, 0.7, 0.3, -0.35, -0.15, 0.02, fmat(MOUTH_D));
+FACE.cl = plane(R.mouth_cl, 0.7, 0.3, 0.35, -0.15, 0.02, fmat(MOUTH_D));
+FACE.teethUp = plane(R.mouth, 2.3, 0.4, 0, -0.2, 0.03, fmat(TEETH));
+FACE.teethLo = plane(R.mouth, 1.8, 0.3, 0, -0.5, 0.03, fmat(TEETH));
+FACE.teethUp.visible = FACE.teethLo.visible = false;
+
+/* ───────── Curves ─────────
+   Keyframe tracks [[t, v], ...] through a monotone cubic (Fritsch-Butland tangents): smooth, flows
+   through the keys, never overshoots (no surprise clipping), flat at the first/last key (seamless loop). */
+function curve(keys) {
+  const n = keys.length, T = keys.map((k) => k[0]), V = keys.map((k) => k[1]), M = new Array(n).fill(0);
+  for (let i = 1; i < n - 1; i++) {
+    const d0 = (V[i] - V[i - 1]) / (T[i] - T[i - 1]), d1 = (V[i + 1] - V[i]) / (T[i + 1] - T[i]);
+    M[i] = d0 * d1 <= 0 ? 0 : 2 * d0 * d1 / (d0 + d1);
+  }
+  return (t) => {
+    if (t <= T[0]) return V[0];
+    if (t >= T[n - 1]) return V[n - 1];
+    let i = 1; while (t > T[i]) i++;
+    const h = T[i] - T[i - 1], u = (t - T[i - 1]) / h, u2 = u * u, u3 = u2 * u;
+    return (2 * u3 - 3 * u2 + 1) * V[i - 1] + (u3 - 2 * u2 + u) * h * M[i - 1] + (-2 * u3 + 3 * u2) * V[i] + (u3 - u2) * h * M[i];
+  };
+}
+// {'bone.x': keys, 'f.channel': keys, gun: keys} -> evaluators that add into a pose Q
+function tracks(spec) {
+  return Object.entries(spec).map(([k, keys]) => {
+    const f = curve(keys), [b, a] = k.split('.');
+    if (b === 'gun') return (t, Q) => { Q.gun = f(t); };
+    if (b === 'spin') return (t, Q) => { Q.spin = f(t); };
+    if (b === 'f') return (t, Q) => { Q.f[a] += f(t); };
+    const i = 'xyz'.indexOf(a);
+    return (t, Q) => { (Q.r[b] || (Q.r[b] = [0, 0, 0]))[i] += f(t); };
+  });
+}
+const bump = (t, c, w) => pos2(Math.cos(clamp((t - c) / w, -1, 1) * Math.PI / 2));   // smooth pulse around c, half width w
+const kick = (x) => softPos(x, 0.2) - softPos(-1, 0.2);                               // smooth max(0, x), 0 at x = -1
+
+/* ───────── Arm IK ─────────
+   Puts a fist (5 below the elbow) on a target in torso space (texels; torso pivot = hips, shoulders at (±6, SH_Y, 0),
+   chest front z = 2). Upper arm 5.2, forearm to fist 5. pole = the way the elbow points.
+   Both bones turn the shortest way from hanging straight down (no twist around the arm: the square boxes keep their
+   faces square to the torso). Returns [upper arm Euler x,y,z, forearm Euler x,y,z] (ZYX). Scratch objects reused. */
+const L1 = 5.2, L2 = 5;
+const _ik = { u: new THREE.Vector3(), p: new THREE.Vector3(), a: new THREE.Vector3(), c: new THREE.Vector3(),
+  down: new THREE.Vector3(0, -1, 0), fwd: new THREE.Vector3(0, 0, 1), qa: new THREE.Quaternion(),
+  fold: new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0, 'ZYX')), qf: new THREE.Quaternion(), qi: new THREE.Quaternion(),
+  e: new THREE.Euler(0, 0, 0, 'ZYX') };
+function armIK(side, t, pole) {
+  const k = _ik;
+  k.u.set(t[0] - (side === 'right' ? -6 : 6), t[1] - SH_Y, t[2]);
+  const d = clamp(k.u.length(), 1.5, L1 + L2 - 0.05); k.u.normalize();
+  const a1 = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1));   // shoulder angle (law of cosines)
+  k.p.set(...pole); k.p.addScaledVector(k.u, -k.p.dot(k.u)).normalize();          // pole across the shoulder->fist line
+  k.a.copy(k.u).multiplyScalar(Math.cos(a1)).addScaledVector(k.p, Math.sin(a1));   // upper arm direction
+  k.c.copy(k.u).multiplyScalar(d).addScaledVector(k.a, -L1).normalize();           // elbow -> fist
+  k.qa.setFromUnitVectors(k.down, k.a); k.e.setFromQuaternion(k.qa, 'ZYX');
+  const ax = k.e.x, ay = k.e.y, az = k.e.z;
+  k.c.applyQuaternion(k.qi.copy(k.qa).invert());                                   // forearm direction in upper-arm space
+  // forearm: the shortest turn from "folded straight forward" (an elbow never points back, so this never flips)
+  k.qf.setFromUnitVectors(k.fwd, k.c).multiply(k.fold); k.e.setFromQuaternion(k.qf, 'ZYX');
+  return [ax, ay, az, k.e.x, k.e.y, k.e.z];
+}
+// Euler angles unwrapped by ± 2π to the side of ref: blends take the short way, no full-turn flip between frames
+const wrapNear = (v, r) => v - TAU * Math.round((v - r) / TAU);
+// Blend an IK gesture over the FK pose of one arm (w 0..1, smooth curves only). The fist travels from where the FK
+// pose has it to the target on a path bowed forward (it never cuts through the chest), solved by IK all the way;
+// each bone eases from the FK rotation to that solution as a rotation (slerp), so at w = 0 it is exactly the FK pose.
+const _gb = { q0: new THREE.Quaternion(), q1: new THREE.Quaternion(), e: new THREE.Euler(0, 0, 0, 'ZYX'), f: new THREE.Vector3(), tg: [0, 0, 0] };
+function gesture(Q, side, w, t, pole) {
+  if (w <= 1e-4) return;
+  const A = Q.r[`arm_${side}`] || (Q.r[`arm_${side}`] = [0, 0, 0]), F = Q.r[`forearm_${side}`] || (Q.r[`forearm_${side}`] = [0, 0, 0]);
+  const k = _gb;
+  k.q0.setFromEuler(k.e.set(A[0], A[1], A[2], 'ZYX')); k.q1.setFromEuler(k.e.set(F[0], F[1], F[2], 'ZYX'));
+  k.f.set(0, -L2, 0).applyQuaternion(k.q1); k.f.y -= L1; k.f.applyQuaternion(k.q0);
+  k.f.x += side === 'right' ? -6 : 6; k.f.y += SH_Y;                                 // FK fist position (torso space)
+  const far = Math.hypot(t[0] - k.f.x, t[1] - k.f.y, t[2] - k.f.z);
+  const bulge = 4 * w * (1 - w) * 2.5 * far * far / (far * far + 16), sx = side === 'right' ? -1 : 1;
+  for (let i = 0; i < 3; i++) k.tg[i] = k.f.getComponent(i) + (t[i] - k.f.getComponent(i)) * w;
+  k.tg[0] += 0.3 * sx * bulge; k.tg[2] += bulge;
+  const g = armIK(side, k.tg, pole), b = 1 - (1 - w) ** 3;
+  for (const [E, o] of [[A, 0], [F, 3]]) {
+    k.q0.setFromEuler(k.e.set(E[0], E[1], E[2], 'ZYX')); k.q1.setFromEuler(k.e.set(g[o], g[o + 1], g[o + 2], 'ZYX'));
+    k.q0.slerp(k.q1, b); k.e.setFromQuaternion(k.q0, 'ZYX');
+    E[0] = wrapNear(k.e.x, E[0]); E[1] = wrapNear(k.e.y, E[1]); E[2] = wrapNear(k.e.z, E[2]);
+  }
+}
+
+/* ───────── Animations ─────────
+   Each anim: fn(t, Q) fills bone rotations Q.r[bone] = [x, y, z] (rad), hip drift Q.root = [x, y, z] (texels; y is
+   added on top of the ground contact), whole-body turn Q.yaw, face channels Q.f, head-follow weight Q.fw, the
+   revolver Q.gun (0..1) and its twirl Q.spin (rad). Lengths T are whole 1/120 s frames. Smooth curves only.
+   Signs: x + = limb back / head chin down / shin back, arm z outward (right -, left +), y + = turn to his left. */
+const FACE_KEYS = ['brow', 'tilt', 'smile', 'open', 'teeth', 'squint', 'wide', 'glance', 'look', 'laugh', 'arch', 'shut', 'smoke',
+  'pupil', 'cheek', 'furrow', 'clench'];
+// laugh = laughing (mouth flaps ~3.6 per second, teeth, eyes squeezed); arch = one raised brow + one-sided smirk (his
+// left); shut = eyes closed (bliss); smoke = exhaling smoke (lips pushed together, puffs from the mouth); pupil = pupil
+// size (-1 pinpricks .. 1 wide); cheek = lower lids rise (a real smile / laugh squeezes the eyes from below);
+// furrow = brows pull together and down (anger); clench = teeth bared and gritted (snarl)
+const ANIM_ORDER = ['idle', 'idle2', 'walk', 'attack', 'dance', 'laugh'];
+const sstep = (x) => { const u = clamp(x, 0, 1); return u * u * (3 - 2 * u); };          // smoothstep: flat at both ends
+const win = (t, a, b, e) => sstep((t - a) / e + 0.5) - sstep((t - b) / e + 0.5);          // 0 -> 1 around a, back to 0 around b
+
+// 1 · Idle: brooding Arthur, smoking. Breathes, takes a drag (hand to the mouth), blows the smoke up, shifts his
+// weight to the other leg, a nervous tic, a small one-sided smirk. 12 s.
+const IDLE_DRAG = curve([[0, 0], [3, 0], [3.8, 1], [4.9, 1], [5.7, 0], [12, 0]]);
+const IDLE_SMOKE = curve([[0, 0], [5.5, 0], [5.9, 1], [6.9, 0.6], [7.6, 0], [12, 0]]);
+const IDLE_SHIFT = curve([[0, 0], [6.5, 0], [7.6, 1], [10.8, 1], [11.9, 0], [12, 0]]);   // weight: right leg -> left leg -> back
+// 2 · Idle 2: restless. Looks around (eyes lead), tugs his lapels straight twice, cracks his neck, taps his foot with a
+// blank stare, then a small smirk. 10 s.
+const I2_LOOK = curve([[0, 0], [0.4, 0], [1.0, 0.45], [1.9, 0.45], [2.5, -0.45], [3.3, -0.45], [3.9, 0], [10, 0]]);
+const I2_LAPEL = curve([[0, 0], [3.8, 0], [4.5, 1], [5.6, 1], [6.2, 0], [10, 0]]);
+const I2_TUG = curve([[0, 0], [4.6, 0], [4.85, 1], [5.05, 0.2], [5.3, 1], [5.6, 0], [10, 0]]);
+const I2_CRACK = curve([[0, 0], [6.3, 0], [6.6, 1], [6.9, 1], [7.2, -1], [7.5, -1], [7.9, 0], [10, 0]]);
+
+// 3 · Walk: three walks that take turns (4 steps each, 0.9 s crossfade), all on the same step rhythm so they blend:
+// A the street strut (right hand up, left hand in the pocket), B Arthur's slouch (hands in both pockets, head down,
+// short steps, blank), C the swagger (chin up, loose arms swinging wide, big steps, grin).
+const WALK_T = 16.5, WSEG = 5.5, WFADE = 0.9;
+function walkW(t) {
+  const S_ = (x) => sstep(x / WFADE + 0.5);
+  const a = S_(t) - S_(t - WSEG) + S_(t - 3 * WSEG), b = S_(t - WSEG) - S_(t - 2 * WSEG);
+  return [a, b, 1 - a - b];
+}
+
+// 4 · Attack: hand to the jacket pocket, pulls the revolver out with a flourish, steps in and aims (cocky head tilt), two
+// shots with recoil + muzzle flash, flicks the gun up, giggles. Shots at 0.86 s and 1.32 s.
+const ATK_T = 2.25, ATK_SHOTS = [0.86, 1.32];
+const ATK_LAUGH = curve([[0, 0], [1.55, 0], [1.7, 1], [2.05, 0.4], [ATK_T, 0]]);   // giggle after the shots
+const ATK = tracks({
+  'body.x': [[0, 0.03], [0.3, 0.1], [0.78, -0.04], [0.92, -0.18], [1.05, -0.04], [1.38, -0.18], [1.52, -0.04], [2.0, 0.06], [ATK_T, 0.03]],
+  'body.y': [[0, 0], [0.3, -0.15], [0.78, 0.3], [1.55, 0.3], [2.05, 0.05], [ATK_T, 0]],
+  'head.x': [[0, 0.06], [0.3, 0.0], [0.78, 0.02], [0.92, -0.12], [1.05, 0.02], [1.38, -0.12], [1.6, 0], [ATK_T, 0.06]],
+  'head.y': [[0, 0], [0.3, 0.1], [0.78, -0.05], [1.6, -0.05], [2.05, 0], [ATK_T, 0]],
+  'head.z': [[0, 0], [0.6, 0], [0.78, 0.1], [1.6, 0.1], [2.05, 0], [ATK_T, 0]],   // cocky tilt away from the gun arm
+  'arm_right.x': [[0, 0.05], [0.3, 0.22], [0.6, -1.35], [0.78, -1.45], [0.92, -1.72], [1.05, -1.45], [1.38, -1.72], [1.52, -1.42], [1.75, -1.0], [2.05, -0.2], [ATK_T, 0.05]],
+  'arm_right.y': [[0, 0], [0.3, 0], [0.6, -1.1], [0.78, -0.35], [1.6, -0.35], [2.05, 0], [ATK_T, 0]],   // flourish + aim swing out by turning (y), not by z: z on a raised arm pushes its top corner into the head
+  'arm_right.z': [[0, -0.05], [0.3, -0.16], [0.6, 0.1], [0.78, 0.12], [1.6, 0.12], [1.75, 0], [2.05, -0.08], [ATK_T, -0.05]],
+  'forearm_right.x': [[0, -0.15], [0.3, -0.45], [0.6, -1.0], [0.78, -0.05], [0.92, -0.25], [1.05, -0.05], [1.38, -0.25], [1.52, -0.05], [1.75, -0.6], [2.05, -0.3], [ATK_T, -0.15]],
+  'arm_left.x': [[0, 0.03], [0.6, 0.05], [0.78, 0.25], [0.92, 0.4], [1.05, 0.25], [1.38, 0.4], [1.6, 0.2], [ATK_T, 0.03]],
+  'arm_left.z': [[0, 0.05], [0.78, 0.3], [1.6, 0.3], [2.05, 0.08], [ATK_T, 0.05]],
+  'forearm_left.x': [[0, -0.12], [0.78, -0.45], [1.6, -0.4], [ATK_T, -0.12]],
+  'leg_left.x': [[0, 0], [0.6, 0], [0.78, -0.35], [1.8, -0.35], [2.15, 0], [ATK_T, 0]],
+  'knee_left.x': [[0, 0.05], [0.6, 0.05], [0.78, 0.3], [1.8, 0.3], [2.15, 0.05], [ATK_T, 0.05]],
+  'leg_right.x': [[0, 0], [0.6, 0], [0.78, 0.22], [1.8, 0.22], [2.15, 0], [ATK_T, 0]],
+  'knee_right.x': [[0, 0.03], [0.78, 0.12], [1.8, 0.12], [2.15, 0.03], [ATK_T, 0.03]],
+  gun: [[0, 0], [0.35, 0], [0.55, 1], [1.95, 1], [2.15, 0], [ATK_T, 0]],
+  spin: [[0, 0], [1.55, 0], [1.72, -0.7], [1.95, 0], [ATK_T, 0]],   // wrist flick: barrel tips up and back
+  'f.brow': [[0, 0], [0.3, -0.5], [0.78, -0.2], [0.86, 0.5], [1.05, 0], [1.32, 0.5], [1.6, 0.3], [ATK_T, 0]],
+  'f.tilt': [[0, 0], [0.3, -0.7], [0.78, -0.3], [0.9, 0], [ATK_T, 0]],
+  'f.squint': [[0, 0], [0.3, 0.5], [0.78, 0.55], [0.86, 0], [1.05, 0.4], [1.32, 0], [1.8, 0.3], [ATK_T, 0]],
+  'f.wide': [[0, 0], [0.84, 0], [0.9, 1], [1.05, 0.2], [1.36, 1], [1.5, 0], [ATK_T, 0]],
+  'f.smile': [[0, 0.1], [0.3, -0.2], [0.78, 0.6], [0.9, 1], [1.6, 1], [2.2, 0.1], [ATK_T, 0.1]],
+  'f.teeth': [[0, 0], [0.78, 0.2], [0.9, 1], [1.7, 0.8], [2.2, 0], [ATK_T, 0]],
+  'f.laugh': [[0, 0], [1.55, 0], [1.7, 1], [2.05, 0.5], [ATK_T, 0]],
+  'f.arch': [[0, 0], [0.6, 0], [0.78, 0.8], [0.86, 0], [ATK_T, 0]],
+  'f.look': [[0, 0], [0.3, -0.6], [0.78, 0], [0.92, 0.3], [ATK_T, 0]],
+  'f.clench': [[0, 0], [0.2, 0], [0.4, 0.9], [0.7, 0.7], [0.84, 0], [ATK_T, 0]],     // gritted teeth while he aims
+  'f.furrow': [[0, 0], [0.2, 0], [0.4, 1], [0.78, 0.6], [0.9, 0], [ATK_T, 0]],
+  'f.pupil': [[0, 0], [0.8, 0], [0.9, -1], [1.5, -0.8], [1.9, 0], [ATK_T, 0]],       // pinpricks while he fires
+  'f.cheek': [[0, 0], [1.55, 0], [1.75, 0.8], [2.1, 0.2], [ATK_T, 0]],
+});
+
+// 5 · Dance: the stairs dance (same moves). The face runs through bliss (eyes closed) -> grin -> smug -> manic ->
+// laughing -> bliss over the 12 s loop.
+const DANCE_FACE = tracks({
+  'f.shut': [[0, 1], [2.2, 1], [2.7, 0], [10.6, 0], [11.2, 1], [12, 1]],
+  'f.smile': [[0, 0.8], [2.7, 1], [4.4, 1], [4.9, 0.6], [6.4, 0.6], [6.9, 1], [10.4, 1], [11, 0.8], [12, 0.8]],
+  'f.teeth': [[0, 0.2], [2.4, 0.2], [2.9, 1], [4.4, 1], [4.9, 0], [6.4, 0], [6.9, 1], [10.4, 1], [11, 0.2], [12, 0.2]],
+  'f.arch': [[0, 0], [4.5, 0], [5, 1], [6.3, 1], [6.8, 0], [12, 0]],
+  'f.wide': [[0, 0], [6.5, 0], [7, 1], [8.3, 1], [8.8, 0], [12, 0]],
+  'f.open': [[0, 0.15], [2.5, 0.15], [3, 0.3], [4.4, 0.3], [4.9, 0], [6.4, 0], [6.9, 0.6], [8.4, 0.5], [9, 0.2], [12, 0.15]],
+  'f.laugh': [[0, 0], [8.4, 0], [8.9, 1], [10.2, 1], [10.8, 0], [12, 0]],
+  'f.brow': [[0, 0.3], [2.6, 0.3], [3, 0.6], [4.4, 0.6], [4.9, 0], [6.4, 0], [6.9, 1], [8.4, 0.9], [9, 0.4], [12, 0.3]],
+  'f.look': [[0, 0.7], [2.5, 0.7], [3, 0.3], [6.5, 0.1], [7, 0.3], [12, 0.7]],
+  'f.squint': [[0, 0], [4.5, 0], [5, 0.45], [6.3, 0.45], [6.8, 0], [12, 0]],
+  'f.pupil': [[0, 0], [6.5, 0], [7, -1], [8.3, -1], [8.8, 0], [12, 0]],               // manic: pinprick pupils
+  'f.cheek': [[0, 0.3], [2.4, 0.3], [2.9, 0.6], [4.4, 0.6], [4.9, 0.2], [6.4, 0.2], [6.9, 0], [8.4, 0], [8.9, 0.8],
+    [10.2, 0.8], [10.8, 0.3], [12, 0.3]],                                              // smiling eyes in grin + laugh
+});
+
+// 6 · Laugh: the maniac laugh. Thrown back cackling (chest out, arms loose, eyes wide), then doubled over holding his
+// belly (eyes squeezed, pained brows), then up again. The body shakes 22 times per loop (3.5 per second).
+const LAUGH_T = 6.25;
+const LG_BACK = curve([[0, 0.6], [0.6, 1], [2.3, 1], [2.9, 0], [4.9, 0], [5.6, 0.6], [LAUGH_T, 0.6]]);
+const LG_FOLD = curve([[0, 0], [2.4, 0], [3.1, 1], [4.5, 1], [5.2, 0], [LAUGH_T, 0]]);
+
+const ANIMS = {
+  idle: { T: 12, fn(t, Q) {
+    const br = Math.sin(TAU * t / 3), sw = Math.sin(TAU * t / 12), D = IDLE_DRAG(t), K = IDLE_SMOKE(t), W = IDLE_SHIFT(t);
+    const tic = bump(t, 9.4, 0.25), smirk = win(t, 10, 11.6, 0.8), lean = 0.035 - 0.07 * W;   // torso rolls over the standing leg
+    Q.r.body = [0.05 + 0.02 * br - 0.04 * K, 0.06 * sw - 0.08 * D, lean + 0.02 * sw];
+    Q.r.head = [0.08 + 0.025 * Math.sin(TAU * t / 3 + 0.8) - 0.15 * K - 0.07 * tic + 0.05 * D,
+      0.12 * Math.sin(TAU * t / 12 + 0.5) * (1 - D), -0.04 + 0.03 * sw + 0.06 * tic - lean];
+    Q.r.arm_right = [0.05 - 0.02 * br, 0, -0.06]; Q.r.forearm_right = [-0.15 - 0.04 * (0.5 + 0.5 * br), 0, 0];
+    Q.r.arm_left = [-0.03 + 0.03 * br, 0, 0.07]; Q.r.forearm_left = [-0.5 - 0.03 * br, 0, 0];   // left hand at the pocket
+    gesture(Q, 'right', D, [-2.6, 12.2, 8.0], [-0.3, -1, 0]);   // the drag: fist in front of the mouth, elbow down
+    Q.r.leg_right = [-0.06 * W, 0, -0.03]; Q.r.knee_right = [0.03 + 0.15 * W, 0, 0];
+    Q.r.leg_left = [-0.06 * (1 - W), 0, 0.03]; Q.r.knee_left = [0.03 + 0.15 * (1 - W), 0, 0];
+    Q.f.smile = 0.05 + 0.5 * smirk; Q.f.arch = 0.7 * smirk; Q.f.squint = 0.1 + 0.35 * D + 0.9 * tic;
+    Q.f.brow = -0.15 * D + 0.25 * K + 0.3 * tic; Q.f.tilt = -0.3 * tic; Q.f.look = -0.15 + 0.5 * K;
+    Q.f.smoke = K; Q.f.open = 0.03 + 0.2 * K; Q.f.glance = 0.3 * Math.sin(TAU * t / 6 + 2) * (1 - D);
+    Q.fw = 0.85 * (1 - win(t, 2.8, 6.0, 0.6));                    // head-follow fades out before the hand comes up
+  } },
+  idle2: { T: 10, fn(t, Q) {
+    const L = I2_LOOK(t), P = I2_LAPEL(t), G = I2_TUG(t), C = I2_CRACK(t), br = Math.sin(TAU * t / 2.5);
+    const tap = win(t, 8.0, 9.6, 0.4) * pos2(Math.sin(TAU * 2 * (t - 8))), smirk = win(t, 9.1, 10.4, 0.6);
+    Q.r.body = [0.04 + 0.015 * br + 0.05 * P, 0.3 * L, 0.02 + 0.06 * C];
+    Q.r.head = [0.04 + 0.06 * P, 0.35 * L, 0.08 * C];
+    Q.r.arm_right = [0.04, 0, -0.07]; Q.r.forearm_right = [-0.2, 0, 0];
+    Q.r.arm_left = [0.04, 0, 0.07]; Q.r.forearm_left = [-0.2, 0, 0];
+    gesture(Q, 'right', P, [-2.4, 8.8 - 0.7 * G, 6.5], [-1, -1, 0]);   // fists on the lapels, tugging them down
+    gesture(Q, 'left', P, [2.4, 8.8 - 0.7 * G, 6.5], [1, -1, 0]);
+    Q.r.leg_right = [-0.12 * tap, 0, -0.03]; Q.r.knee_right = [0.04 + 0.3 * tap, 0, 0];
+    Q.r.leg_left = [0, 0, 0.03]; Q.r.knee_left = [0.04, 0, 0];
+    Q.f.glance = 1.2 * L; Q.f.squint = 0.25 + 0.5 * C * C - 0.2 * P; Q.f.brow = -0.3 * P + 0.1 * Math.abs(L);
+    Q.f.tilt = -0.3 * P; Q.f.smile = -0.15 * P + 0.5 * smirk; Q.f.arch = 0.6 * smirk; Q.f.look = -0.1 - 0.2 * P;
+    Q.fw = 0.3 * (1 - win(t, 3.4, 6.4, 0.6));                 // head-follow fades out before the hands come up
+  } },
+  walk: { T: WALK_T, fn(t, Q) {
+    const [wa, wb, wc] = walkW(t);
+    const p = TAU * t / 1.375, s = Math.sin(p), c = Math.cos(p), bob = softAbs(c, 0.2);
+    const stride = 0.55 * wa + 0.36 * wb + 0.62 * wc, lift = 0.95 * wa + 0.6 * wb + 1.05 * wc;
+    for (const [side, o, sz] of [['right', 0, -0.02], ['left', Math.PI, 0.02]]) {
+      const q = p + o;
+      Q.r[`leg_${side}`] = [stride * Math.sin(q), 0, sz];
+      Q.r[`knee_${side}`] = [0.05 + lift * pos2(-Math.cos(q + 0.3)) + 0.15 * pos2(Math.cos(q - 5.21)), 0, 0];
+    }
+    const m = (A, B, C) => A.map((v, i) => wa * v + wb * B[i] + wc * C[i]);
+    Q.yaw = 0.12 * s * wa + 0.05 * s * wb + 0.16 * s * wc;
+    Q.root = [(0.35 * wa + 0.15 * wb + 0.3 * wc) * c, 0, 0];
+    Q.r.body = m([0.09 + 0.04 * bob, -0.22 * s, 0.06 * c - 0.06], [0.2 + 0.03 * bob, -0.1 * s, 0.02 * c], [0.02, -0.3 * s, 0.08 * c]);
+    Q.r.head = m([0.08 + 0.03 * bob, 0.08 * s - 0.04, -0.1 - 0.04 * c], [0.12, 0.05 * s, -0.03], [-0.08, 0.06 * s, 0.08 * c]);
+    Q.r.arm_right = m([-0.5 + 0.14 * Math.sin(p + 0.6), -0.25, -0.62 - 0.08 * c], [0.08 + 0.04 * s, -0.05, -0.08], [-0.4 * s, 0, -0.05]);
+    Q.r.forearm_right = m([-0.95 - 0.18 * Math.sin(p + 1.3), 0, 0], [-0.35, 0, 0], [-0.35 - 0.25 * (0.5 - 0.5 * Math.sin(p - 0.6)), 0, 0]);
+    Q.r.arm_left = m([0.05 + 0.04 * s, 0.1, 0.1], [0.08 - 0.04 * s, 0.05, 0.08], [0.4 * s, 0, 0.05]);   // no outward z: on a swung arm it tips the shoulder corner into the head
+    Q.r.forearm_left = m([-0.36, 0, 0], [-0.35, 0, 0], [-0.35 - 0.25 * (0.5 + 0.5 * Math.sin(p - 0.6)), 0, 0]);
+    Q.f.smile = 0.8 * wa - 0.05 * wb + 1 * wc; Q.f.teeth = 0.25 * wa + 0.8 * wc; Q.f.brow = 0.3 * wa - 0.1 * wb + 0.35 * wc;
+    Q.f.squint = 0.3 * wa + 0.35 * wb; Q.f.look = -0.3 * wa - 0.45 * wb + 0.35 * wc; Q.f.arch = 0.4 * wa;
+    Q.f.open = (0.06 + 0.08 * (0.5 + 0.5 * Math.sin(2 * p))) * wa + 0.15 * wc; Q.f.glance = 0.2 * s * (wa + wc);
+    Q.fw = 0.25 * wa + 0.3 * wb + 0.15 * wc;                      // raised right arm (strut): little head-follow
+  } },
+  attack: { T: ATK_T, fn(t, Q) {
+    for (const e of ATK) e(t, Q);
+    // the draw: the hand drops to the jacket's right hip pocket (FK keys at 0.3 s), the gun grows in the fist there
+    const L = ATK_LAUGH(t), ha = Math.sin(TAU * 3.5 * t);
+    Q.r.body[0] += 0.06 * L * ha; Q.r.head[2] += 0.05 * L * ha;
+    Q.root = [0, 0.2 * L * (0.5 + 0.5 * ha), -0.6 * (bump(t, 0.9, 0.08) + bump(t, 1.36, 0.08))];   // recoil, giggle bounce
+    Q.fw = 0.15;                                                  // aiming arm beside the head: almost no head-follow
+  } },
+  dance: { T: 12, fn(t, Q) {
+    const B = TAU * t / 1.5, sB = Math.sin(B), cB = Math.cos(B), hB = Math.sin(B / 2);
+    const kr = kick(sB), kl = kick(-sB), air = softAbs(sB, 0.25) / 0.781;   // air: 0 between kicks, 1 at a kick's top
+    const land = 0.3 * (1 - air);                                           // both knees give between the kicks
+    Q.yaw = 0.65 * Math.sin(TAU * t / 4);
+    Q.root = [1.2 * hB, 1.15 * air, 0];
+    Q.r.body = [-0.18 + 0.12 * cB, 0.28 * cB, 0.18 * sB];
+    Q.r.head = [-0.16 + 0.12 * sB, 0.12 * hB, -0.22 * sB];   // thrown back (the torso leans back too)
+    Q.r.arm_right = [-0.45 + 0.35 * cB, 0, -1.15 - 0.45 * sB];
+    Q.r.arm_left = [-0.45 - 0.35 * cB, 0, 1.15 - 0.45 * sB];
+    Q.r.forearm_right = [-0.3 - 0.25 * (0.5 + 0.5 * Math.sin(B - 1.1)), 0, -0.2 * Math.sin(B - 1.3)];
+    Q.r.forearm_left = [-0.3 - 0.25 * (0.5 - 0.5 * Math.sin(B - 1.1)), 0, -0.2 * Math.sin(B - 1.3)];
+    Q.r.leg_right = [-0.95 * kr + 0.25 * kl - 0.1 * land, 0, -0.22 * kr];
+    Q.r.leg_left = [-0.95 * kl + 0.25 * kr - 0.1 * land, 0, 0.22 * kl];
+    Q.r.knee_right = [0.85 * pos2(Math.sin(B + 0.9)) + land, 0, 0];
+    Q.r.knee_left = [0.85 * pos2(-Math.sin(B + 0.9)) + land, 0, 0];
+    for (const e of DANCE_FACE) e(t, Q);
+    Q.f.open += 0.08 * Math.sin(2 * B);                                     // singing along with the beat
+    Q.fw = 0.15;
+  } },
+  laugh: { T: LAUGH_T, fn(t, Q) {
+    const B = LG_BACK(t), F = LG_FOLD(t), ha = Math.sin(TAU * 22 * t / LAUGH_T), sway = Math.sin(TAU * 2 * t / LAUGH_T);
+    const bob = 0.05 * (0.5 + 0.5 * ha) * (B + F);
+    Q.r.body = [-0.22 * B + 0.42 * F + 0.05 * ha, 0.1 * sway, 0.05 * Math.sin(TAU * 11 * t / LAUGH_T)];
+    Q.r.head = [-0.15 * B + 0.05 * Math.sin(TAU * 22 * t / LAUGH_T + 0.7), 0, 0.06 * sway];   // folding: the torso carries the head down
+    Q.r.arm_right = [0.05 * B + 0.04 * ha, 0, -0.35 * B - 0.06]; Q.r.forearm_right = [-0.6 * B - 0.1, 0, 0];
+    Q.r.arm_left = [0.05 * B - 0.04 * ha, 0, 0.35 * B + 0.06]; Q.r.forearm_left = [-0.6 * B - 0.1, 0, 0];
+    gesture(Q, 'right', F, [-3.0, 5.6, 7.0], [-1, -1.4, 0]);        // doubled over: both hands hold the belly
+    gesture(Q, 'left', F, [3.0, 5.6, 7.0], [1, -1.4, 0]);
+    Q.r.leg_right = [-0.25 * F - bob, 0, -0.03]; Q.r.knee_right = [0.05 + 0.45 * F + 2 * bob, 0, 0];
+    Q.r.leg_left = [-0.25 * F - bob, 0, 0.03]; Q.r.knee_left = [0.05 + 0.45 * F + 2 * bob, 0, 0];
+    Q.root = [0, 0.25 * B * (0.5 + 0.5 * ha), 0];
+    Q.f.laugh = 1; Q.f.teeth = 1; Q.f.smile = 1; Q.f.wide = 0.8 * B * (0.6 + 0.4 * sway); Q.f.squint = 0.6 * F;
+    Q.f.tilt = 0.5 * F; Q.f.brow = 0.6 * B + 0.2 * F; Q.f.look = 0.6 * B - 0.4 * F;
+    Q.fw = 0.1;
+  } },
+};
+
+/* ───────── Sim (state) ───────── */
+const S = {
+  anim: 'idle', t: 0, prev: null, prevT: 0, blend: 1, time: 0, frozen: false,
+  face: Object.fromEntries(FACE_KEYS.map((k) => [k, 0])),
+  blink: { t: -1, wait: 1.6, again: false },
+  sacc: { v: 0, target: 0, wait: 1.2 },                         // small random eye glances (saccades)
+  follow: { on: true, has: false, tYaw: 0, tPitch: 0, yaw: 0, pitch: 0, eye: 0, w: 1 },
+  spring: { side: { a: 0, v: 0 }, fwd: { a: 0, v: 0 }, back: { a: 0, v: 0 }, flare: { a: 0, v: 0 } },
+  lag: { right: 0, left: 0 }, prevLeg: { right: 0, left: 0 },
+  ph: [0, 0, 0], prevRootY: 0, prevRootX: 0, prevRootV: 0,
+  gun: 0, lastT: 0, flashT: 1,
+  cig: 'mouth', cigM: 1, cigH: 0,                                // cigarette: 'mouth' | 'hand' | 'off'; eased visibility
+  liftR: 0, liftL: 0,                                            // side locks resting on a raised shoulder
+};
+const mkPose = () => ({ r: {}, f: Object.fromEntries(FACE_KEYS.map((k) => [k, 0])), root: [0, 0, 0], yaw: 0, fw: 1, gun: 0, spin: 0 });
+const poseA = mkPose(), poseB = mkPose();
+function evalAnim(name, t, Q) {
+  for (const k in Q.r) delete Q.r[k];
+  for (const k of FACE_KEYS) Q.f[k] = 0;
+  Q.root[0] = Q.root[1] = Q.root[2] = 0; Q.yaw = 0; Q.fw = 1; Q.gun = 0; Q.spin = 0;
+  ANIMS[name].fn(t % ANIMS[name].T, Q);
+}
+function selectAnim(name) {
+  if (!ANIMS[name] || name === S.anim) return;
+  S.prev = S.anim; S.prevT = S.t; S.anim = name; S.t = 0; S.blend = 0; S.lastT = 0;
+  document.querySelectorAll('.anim-btn').forEach((b) => b.classList.toggle('active', b.dataset.anim === name));
+}
+function stepSpring(s, target, dt, k, d) { s.v += ((target - s.a) * k - s.v * d) * dt; s.a += s.v * dt; }
+
+/* ───────── Ground ─────────
+   The hip height comes from the leg angles: the lowest shoe corner (smooth min over the corners of both feet) is
+   put on the floor, so feet never sink or float, without hard clamps. */
+const FOOT = [[-2, -6, -2], [2, -6, -2], [-2, -6, 2], [2, -6, 2]];   // shoe bottom corners in knee space
+const _c = new THREE.Vector3(), _ys = new Array(8).fill(0);
+function footLow() {
+  root.updateMatrixWorld(true);
+  let i = 0;
+  for (const s of ['right', 'left']) for (const c of FOOT) { _c.set(...c).applyMatrix4(R[`knee_${s}`].matrixWorld); _ys[i++] = _c.y * 16; }
+  const m = Math.min(..._ys); let sum = 0;
+  for (const y of _ys) sum += Math.exp(-(y - m) / 0.015);
+  return m - 0.015 * Math.log(sum);                             // smooth min (heel/toe hand-over without a corner)
+}
+let groundRest = 0;                                             // footLow() of the rest pose: rest stays at exactly y = 0
+
+/* ───────── Cigarette in the hand ─────────
+   It sits at the inner front corner of the right fist and always points forward, a little inward and down in
+   torso space (held between the fingers), whatever the arm does: the bone's turn cancels the forearm's turn. */
+const _q0 = new THREE.Quaternion(), _q1 = new THREE.Quaternion();
+const _qCig = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0.35, -0.3, 1).normalize());
+function aimHandCig() {
+  R.body.getWorldQuaternion(_q0); R.forearm_right.getWorldQuaternion(_q1);
+  _q1.premultiply(_q0.invert());                                // forearm turn in torso space
+  R.cig_hand.quaternion.copy(_q1.invert()).multiply(_qCig);
+}
+
+/* ───────── Step: pose, follow, expression, springs, face ───────── */
+function step(dt) {
+  S.time += dt; S.t += dt; S.prevT += dt;
+  S.blend = Math.min(1, S.blend + dt / 0.3);
+  const w = S.blend * S.blend * (3 - 2 * S.blend), mixing = S.prev && w < 1;    // smooth crossfade between animations
+  evalAnim(S.anim, S.t, poseA);
+  if (mixing) evalAnim(S.prev, S.prevT, poseB);
+  const k = mixing ? w : 1, lerp = (b, a) => b + (a - b) * k, P = mixing ? poseB : poseA;
+  for (const n in bones) { const b = bones[n]; b.position.copy(b.userData.rest); b.rotation.set(...b.userData.rr); }
+  const names = new Set([...Object.keys(poseA.r), ...(mixing ? Object.keys(poseB.r) : [])]);
+  for (const n of names) {
+    const a = poseA.r[n] || [0, 0, 0], b = (mixing && poseB.r[n]) || [0, 0, 0];
+    bones[n].rotation.set(lerp(b[0], a[0]), lerp(b[1], a[1]), lerp(b[2], a[2]));
+  }
+  root.rotation.y = lerp(P.yaw, poseA.yaw);
+  root.position.set(lerp(P.root[0], poseA.root[0]) / 16, 0, lerp(P.root[2], poseA.root[2]) / 16);
+  const fo = {};
+  for (const f of FACE_KEYS) fo[f] = lerp(P.f[f], poseA.f[f]);
+  const fw = lerp(P.fw, poseA.fw);
+
+  // Feet on the floor: hip height from the leg angles (+ the animation's hop)
+  root.position.y = (groundRest - footLow() + lerp(P.root[1], poseA.root[1])) / 16;
+  aimHandCig();
+
+  // Head + eyes follow the mouse; off -> they ease back to the animation's pose (never snap)
+  const F = S.follow, on = F.on && F.has;
+  F.w += ((on ? fw : 0) - F.w) * filt(dt, 5);
+  F.yaw += (F.tYaw - F.yaw) * filt(dt, 6); F.pitch += (F.tPitch - F.pitch) * filt(dt, 6);
+  F.eye += ((on ? F.tYaw / 0.85 : 0) * fw - F.eye) * filt(dt, 10);
+  const H = R.head.rotation;
+  H.y += F.yaw * F.w; H.x += F.pitch * F.w;
+
+  // Forced expression from the shared menu: eases over the animation's face + head pose
+  const xf = window.MobViewer ? window.MobViewer.face(dt) : null;
+  if (xf && xf.w > 1e-4) {
+    const mix = (c, v) => { fo[c] += (v - fo[c]) * xf.w; };
+    const X = xf.x || {}, xv = (c) => X[c] || 0;               // page channels of the Joker's extra expressions
+    mix('brow', 0.9 * xf.brow); mix('tilt', xf.tilt); mix('smile', xf.smile); mix('open', 0.8 * xf.open);
+    mix('teeth', clamp(0.9 * Math.max(0, xf.smile) * (1 - xv('noteeth')) + xv('teeth'), 0, 1));
+    mix('squint', 0.7 * Math.max(0, -xf.eyes)); mix('wide', Math.max(0, xf.eyes)); mix('glance', 0); mix('look', 0.6 * xf.look);
+    mix('laugh', xv('laugh')); mix('arch', xv('arch')); mix('shut', 0); mix('smoke', 0);
+    const pos = (v) => Math.max(0, v);                          // standard faces get the Joker's extra channels too:
+    mix('furrow', clamp(0.9 * pos(-xf.tilt) * pos(-xf.brow) + xv('furrow'), 0, 1));            // angry: brows pulled in
+    mix('clench', clamp(0.9 * pos(-xf.smile) * pos(-xf.tilt) + xv('clench'), 0, 1));          // angry: gritted teeth
+    mix('pupil', clamp(-0.85 * pos(xf.eyes) * pos(xf.brow) + xv('pupil'), -1, 1));            // afraid: pinpricks
+    mix('cheek', clamp(pos(xf.smile) * pos(-xf.eyes) * 1.2 + xv('cheek'), 0, 1));             // happy: smiling eyes
+    H.x += window.MobViewer.head.pitch; H.z += window.MobViewer.head.roll;
+  }
+  // No neck: soft limits keep the head out of the torso and shoulders. A turned head tilts less (a turned head corner
+  // hangs over a shoulder: tilting would dip it in); looking up tilts less than down (the back corners sit over the arms).
+  H.y = softLim(H.y, 0.6); const yy = Math.tanh((H.y / 0.4) ** 2), fac = 1 - yy;
+  const upFac = 1 - Math.tanh((H.y / 0.15) ** 2);              // looking up + turned: a back corner drops onto a shoulder
+  H.x = H.x > 0 ? softLim(H.x, 0.12 * fac + 0.01) : softLim(H.x, 0.08 * upFac + 0.01);
+  H.z = softLim(H.z, 0.06 * (1 - 0.9 * yy) + 0.005);
+
+  // Revolver: grows in the fist on the draw (never pops), twirls; muzzle flash on each shot
+  S.gun += (lerp(P.gun, poseA.gun) - S.gun) * filt(dt, 18);
+  R.gun.scale.setScalar(Math.max(0.001, S.gun)); R.gun.visible = S.gun > 0.003;
+  R.gun.rotation.x += lerp(P.spin, poseA.spin);
+  if (S.anim === 'attack') {
+    const tt = S.t % ATK_T;
+    for (const sh of ATK_SHOTS) if (tt >= sh && (S.lastT < sh || S.lastT > tt)) S.flashT = 0;
+    S.lastT = tt;
+  }
+  S.flashT += dt;
+  const fl = bump(S.flashT, 0.05, 0.05);
+  flash.visible = fl > 0.01 && R.gun.visible; flash.scale.setScalar(Math.max(0.001, fl)); flash.rotation.z = S.flashT * 30;
+
+  // Cigarette: mouth / hand / put away. Grows and shrinks (never pops); the hand one steps aside for the revolver
+  S.cigM += ((S.cig === 'mouth' ? 1 : 0) - S.cigM) * filt(dt, 10);
+  S.cigH += ((S.cig === 'hand' ? 1 - S.gun : 0) - S.cigH) * filt(dt, 10);
+  R.cig.scale.setScalar(Math.max(0.001, S.cigM)); R.cig.visible = S.cigM > 0.003;
+  R.cig_hand.scale.setScalar(Math.max(0.001, S.cigH)); R.cig_hand.visible = S.cigH > 0.003;
+
+  springs(dt);
+  updateFace(dt, fo, F);
+  updateSmoke(dt, S.face.smoke);
+
+  // Contact shadow follows the hips
+  blob.position.x = root.position.x; blob.position.z = root.position.z;
+}
+
+/* ───────── Physics: hair locks, back hair, coat tails ─────────
+   Springs driven by the body's motion, always clamped (soft limits). The side locks swing forward / back and flare
+   outward (first look: lively), the back hair only backward. A rising shoulder lifts its lock, so it rests on the arm. */
+// How far (texels) the top corners of an upper arm rise above their rest height (arm-bone turn only)
+const _sq = new THREE.Vector3();
+function shoulderLift(arm) {
+  let m = -9;
+  for (const x of [-2.1, 2.1]) for (const z of [-2.2, 2.2]) m = Math.max(m, _sq.set(x, 0.8, z).applyQuaternion(arm.quaternion).y);
+  return m - 0.8;
+}
+function springs(dt) {
+  if (dt <= 0) return;
+  const sp = S.spring, n = Math.max(1, Math.ceil(dt * 240)), h = dt / n, kf = Math.min(1, dt * 60);
+  const hx = R.head.rotation.x + R.body.rotation.x, hy = R.head.rotation.y + R.body.rotation.y + root.rotation.y,
+    hz = R.head.rotation.z + R.body.rotation.z;
+  const wx = (hx - S.ph[0]) / dt, wy = (hy - S.ph[1]) / dt, wz = (hz - S.ph[2]) / dt;
+  S.ph[0] = hx; S.ph[1] = hy; S.ph[2] = hz;
+  const rx = root.position.x * 16, rv = (rx - S.prevRootX) / dt, ra = (rv - S.prevRootV) / dt; S.prevRootX = rx; S.prevRootV = rv;
+  const vy = (root.position.y * 16 - S.prevRootY) / dt; S.prevRootY = root.position.y * 16;
+  sp.side.v += clamp(-wz * 0.5 - ra * 0.002, -3, 3) * kf;
+  sp.fwd.v += clamp(wx * 0.5 - vy * 0.012, -3, 3) * kf;
+  sp.back.v += clamp(wx * 0.6 - vy * 0.015, -3, 3) * kf;
+  const breeze = 0.02 * Math.sin(S.time * 1.7) + 0.012 * Math.sin(S.time * 2.9 + 1);
+  const flareT = 0.1 * softAbs(wy, 0.5);                        // turning fast throws the locks outward
+  for (let i = 0; i < n; i++) {
+    stepSpring(sp.side, breeze, h, 110, 8); stepSpring(sp.fwd, breeze * 0.5, h, 120, 8);
+    stepSpring(sp.back, 0.03 + breeze, h, 90, 7); stepSpring(sp.flare, flareT, h, 80, 9);
+  }
+  // a shoulder rising under a lock (aiming, dance) lifts it a little, smoothly (filtered, max 0.12 rad): it rests on the arm
+  S.liftR += (softLim(softplus(shoulderLift(R.arm_right) - 0.6, 0.1) * 0.2, 0.12) - S.liftR) * filt(dt, 12);
+  S.liftL += (softLim(softplus(shoulderLift(R.arm_left) - 0.6, 0.1) * 0.2, 0.12) - S.liftL) * filt(dt, 12);
+  // a lock resting on a rising shoulder calms down (its swing fades smoothly, never snaps)
+  const calmR = Math.exp(-15 * S.liftR), calmL = Math.exp(-15 * S.liftL);
+  const sway = softLim(sp.fwd.a, 0.2), swayR = sway * calmR, swayL = sway * calmL;
+  R.hair_right.rotation.set(swayR + S.liftR, 0, -calmR * softLim(softplus(sp.flare.a - sp.side.a, 0.03), 0.25));
+  R.hair_left.rotation.set(swayL + S.liftL, 0, calmL * softLim(softplus(sp.flare.a + sp.side.a, 0.03), 0.25));
+  // the back hair is pushed along by the side locks swinging back (they overlap at its corners): smooth max
+  const pushB = 0.5 * (swayR + swayL + Math.sqrt((swayR - swayL) ** 2 + 0.0025));
+  R.hair_back.rotation.x = softLim(softplus(sp.back.a, 0.03) + softplus(pushB, 0.03), 0.35);
+
+  // coat tails lag behind the thighs (follow-through) and flare out with the stride, soft-limited
+  for (const s of ['right', 'left']) {
+    const lx = R[`leg_${s}`].rotation.x, wv = (lx - S.prevLeg[s]) / dt; S.prevLeg[s] = lx;
+    S.lag[s] += (softLim(-wv * 0.03, 0.1) - S.lag[s]) * filt(dt, 10);
+    const sx = s === 'right' ? -1 : 1;
+    R[`coat_${s}`].rotation.set(S.lag[s], 0, sx * (0.03 + 0.12 * softAbs(lx, 0.1)));
+  }
+}
+
+/* ───────── Face ─────────
+   All channels run through the per-frame smoothing filter (keyframe jumps, loop wraps and crossfades never
+   snap). Blinks: the lid slides down and up from its top edge (~0.18 s sine bump), sometimes a double blink. */
+const FX = Object.fromEntries(FACE_KEYS.map((k) => [k, 0]));    // face after the laugh layer (reused, no new objects)
+function updateFace(dt, fo, F) {
+  for (const f of FACE_KEYS) S.face[f] += (fo[f] - S.face[f]) * filt(dt, 16);
+  const fc = S.face, bl = S.blink;
+  let blinkV = 0;
+  if (bl.t < 0) { bl.wait -= dt; if (bl.wait <= 0) { bl.t = 0; bl.again = Math.random() < 0.18; } }
+  if (bl.t >= 0) {
+    bl.t += dt;
+    if (bl.t >= 0.18) { bl.t = -1; bl.wait = bl.again ? 0.12 : 1.8 + Math.random() * 3.4; bl.again = false; }
+    else blinkV = Math.sin(Math.PI * bl.t / 0.18);
+  }
+  // saccades: every 1-3.5 s a new small glance target, eyes glide there
+  const sc = S.sacc; sc.wait -= dt;
+  if (sc.wait <= 0) { sc.target = Math.random() < 0.4 ? 0 : (Math.random() * 2 - 1) * 0.45; sc.wait = 1 + Math.random() * 2.5; }
+  sc.v += (sc.target - sc.v) * filt(dt, 14);
+  // laughing: mouth flaps ~3.6 per second (a sine, never a step), teeth, eyes squeezed, brows up
+  for (const f of FACE_KEYS) FX[f] = fc[f];
+  const lf = clamp(fc.laugh, 0, 1), flap = 0.5 + 0.5 * Math.sin(TAU * 3.6 * S.time);
+  FX.open += lf * (0.35 + 0.55 * flap); FX.teeth += 0.7 * lf; FX.squint += 0.45 * lf * (1 - clamp(fc.wide, 0, 1));
+  FX.tilt += 0.3 * lf; FX.smile += 0.7 * lf; FX.brow += 0.2 * lf; FX.cheek += 0.55 * lf;
+  applyFace(FX, blinkV, clamp(fc.glance + sc.v * (1 - Math.abs(F.eye)) + F.eye * 0.7, -1, 1));
+}
+function applyFace(fc, blinkV, glance) {
+  const wide = clamp(fc.wide + 0.3 * Math.max(0, fc.look), 0, 1);
+  const look = Math.min(0, fc.look);                             // looking down lowers the lids
+  const closed = clamp(Math.max(blinkV, fc.squint * 0.5 - look * 0.35, fc.shut), 0, 1);
+  const cheek = clamp(fc.cheek, 0, 1) * (1 - 0.8 * wide);        // lower lids: up to 0.45 of the eye
+  const arch = clamp(fc.arch, 0, 1), furrow = clamp(fc.furrow, 0, 1), pu = clamp(fc.pupil, -1, 1);
+  const ps = 1 + 0.2 * Math.max(0, pu) - 0.45 * Math.max(0, -pu);   // pupil scale: 0.55 (pinprick) .. 1.2
+  for (const s of ['right', 'left']) {
+    const sg = s === 'right' ? 1 : -1;                           // +x = toward the face middle for the right side
+    FACE['white_' + s].scale.y = 1 + 0.35 * wide;
+    const pupil = R[`pupil_${s}`];
+    pupil.position.x = glance * 0.5 * (1 + 0.35 * (1 - ps));    // small pupils can glance further
+    pupil.scale.set(ps, Math.min(1.2, ps * (1 + 0.35 * wide)), 1);
+    const lid = R[`lid_${s}`], hgt = 1 + 0.35 * wide;
+    lid.position.y = 5 + 0.175 * wide;
+    const cl = closed;
+    lid.visible = cl > 0.004;                                    // hidden while open: the rest pose has open eyes
+    FACE['lid_' + s].scale.y = Math.max(0.001, cl * hgt); FACE['lid_' + s].position.y = -0.5 * cl * hgt;
+    FACE['lash_' + s].scale.y = Math.min(1, cl * 5); FACE['lash_' + s].position.y = -cl * hgt + 0.11 * Math.min(1, cl * 5);
+    const ll = R[`llid_${s}`], lo = 0.45 * cheek * (1 - cl) * hgt;   // shrinks as the upper lid closes: never overlap,
+                                                                        // and a blink still closes the eye fully
+    ll.position.y = 4 - 0.175 * wide; ll.visible = lo > 0.004;
+    FACE['llid_' + s].scale.y = Math.max(0.001, lo); FACE['llid_' + s].position.y = 0.5 * lo;
+    const brow = R[`brow_${s}`];
+    brow.position.x = (s === 'right' ? -2 : 2) + sg * 0.25 * furrow;   // furrow pulls both brows toward the middle
+    brow.position.y = 6.5 + clamp(0.5 * fc.brow + 0.25 * Math.max(0, fc.look) - 0.12 * Math.max(0, -fc.tilt) - 0.2 * furrow
+      + (s === 'left' ? 0.32 : -0.08) * arch, -0.4, 0.55);       // max 0.55 up: stays under the hair crown (y 8)
+    brow.rotation.z = sg * 0.32 * clamp(fc.tilt - 0.6 * furrow, -1.2, 1) + (s === 'left' ? 0.18 * arch : 0);
+  }
+  // Mouth. open: the jaw drops (the pieces grow down from their top edge). smile / frown / smirk move the whole mouth
+  // (no corner steps); arch / a closed smile = the smirk. teeth: upper teeth in the opening (a grin also
+  // opens it a little); laugh + clench: lower teeth too. clench alone = a gritted snarl (narrow opening, both rows).
+  // smoke: lips pushed together (narrower).
+  const open = clamp(fc.open, 0, 1), sm = clamp(fc.smile, -1, 1), grin = clamp(fc.teeth, 0, 1), smk = clamp(fc.smoke, 0, 1);
+  const cln = clamp(fc.clench, 0, 1), lf = clamp(fc.laugh, 0, 1);
+  const smirk = clamp(Math.max(0, sm) * (1 - grin) * 0.5 + arch, 0, 1);
+  const h = 0.3 + 0.75 * open + 0.2 * grin + 0.22 * cln - 0.06 * smk;   // opening height (the middle)
+  const hc = 0.3 + 0.4 * open + 0.08 * grin + 0.1 * cln;                // corners open less
+  FACE.mid.scale.y = h / 0.3; FACE.mid.position.y = -h / 2;
+  FACE.cr.scale.y = FACE.cl.scale.y = hc / 0.3; FACE.cr.position.y = FACE.cl.position.y = -hc / 2;
+  // whole mouth as one piece: smile lifts it and makes it wider, frown lowers it; smirk tilts it (0.14 rad, his left
+  // side up) and slides it up toward that side (Homelander type). Corners stay level with the middle.
+  R.mouth_cl.position.set(1, 0, 0);
+  R.mouth_cr.position.set(-1, 0, 0);
+  R.mouth.rotation.z = 0.14 * smirk;
+  R.mouth.position.x = 0.25 * smirk;
+  R.mouth.position.y = 1.65 + 0.12 * sm + 0.12 * smirk;
+  R.mouth.scale.x = 1 + 0.15 * Math.max(0, sm) - 0.08 * Math.max(0, -sm) + 0.08 * grin - 0.3 * smk;
+  // Teeth share the opening: alone the upper row fills ~85%; with the lower row (laugh, clench) each takes ~45%, so a
+  // dark gap line always stays between them (gritted teeth read as two rows, not one white strip).
+  const two = clamp(Math.max(lf, cln) * 3 - 0.6, 0, 1);         // 0 = upper row only .. 1 = both rows (smooth, no step)
+  const room = Math.max(0, h - 0.08);
+  const tu = Math.max(grin, cln) * Math.min(0.4, room * (0.85 - 0.4 * two));
+  FACE.teethUp.visible = tu > 0.004; FACE.teethUp.scale.y = Math.max(0.001, tu / 0.4); FACE.teethUp.position.y = -0.02 - tu / 2;
+  const tl = Math.max(lf * grin, cln) * Math.min(0.3, room * 0.42 * two);
+  FACE.teethLo.visible = tl > 0.004; FACE.teethLo.scale.y = Math.max(0.001, tl / 0.3); FACE.teethLo.position.y = -h + 0.01 + tl / 2;
+  // the cigarette rides his right mouth corner (x -1.45 on the tilted, shifted line), drops with the jaw
+  R.cig.position.y = R.mouth.position.y - 0.15 + Math.tan(R.mouth.rotation.z) * (-1.45 - R.mouth.position.x) - 0.3 * open;
+  R.cig.rotation.x = 0.25 + 0.15 * open;
+}
+
+/* ───────── Smoke: tiny voxel puffs (made once, reused round-robin) ─────────
+   A thin trail rises from the lit tip; an exhale (smoke channel) blows a stream out of the mouth, forward and up. */
+const SMOKE_N = 30, smoke = [];
+{
+  const g = new THREE.BoxGeometry(0.03, 0.03, 0.03);
+  for (let i = 0; i < SMOKE_N; i++) {
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xcbd2db, transparent: true, opacity: 0, depthWrite: false }));
+    m.visible = false; scene.add(m); smoke.push({ m, age: 9, max: 1, v: new THREE.Vector3(), size: 1 });
+  }
+}
+let smokeNext = 0, tipAt = 0, exhaleAt = 0;
+const _em = new THREE.Vector3(), _sd = new THREE.Vector3(), _hq = new THREE.Quaternion();
+function puff(pos, vx, vy, vz, max, size) {
+  const p = smoke[smokeNext]; smokeNext = (smokeNext + 1) % SMOKE_N;
+  p.m.position.copy(pos); p.v.set(vx, vy, vz); p.age = 0; p.max = max; p.size = size; p.m.visible = true;
+}
+function updateSmoke(dt, exhale) {
+  tipAt -= dt;
+  const lit = Math.max(S.cigM, S.cigH);
+  if (lit > 0.5 && tipAt <= 0) {
+    tipAt = 0.22; (S.cigH > S.cigM ? emberHand : ember).getWorldPosition(_em);
+    puff(_em, (Math.random() - 0.5) * 0.04, 0.22, (Math.random() - 0.5) * 0.04, 2.5, 1);
+  }
+  exhaleAt -= dt;
+  if (exhale > 0.3 && S.cig !== 'off' && exhaleAt <= 0) {
+    exhaleAt = 0.05; R.mouth.getWorldPosition(_em); R.head.getWorldQuaternion(_hq);
+    _sd.set((Math.random() - 0.5) * 0.15, 0.35, 1).applyQuaternion(_hq).multiplyScalar(0.3 * exhale);
+    puff(_em, _sd.x, _sd.y, _sd.z, 1.6, 1.5);
+  }
+  smoke.forEach((p, i) => {
+    if (p.age >= p.max) { if (p.m.visible) { p.m.visible = false; p.m.material.opacity = 0; } return; }
+    p.age += dt;
+    const life = p.age / p.max;
+    p.v.multiplyScalar(Math.exp(-dt * 1.2)); p.v.y += dt * 0.12;    // slows down and drifts up
+    p.m.position.addScaledVector(p.v, dt);
+    p.m.position.x += Math.sin(S.time * 2 + i) * 0.04 * dt;
+    p.m.scale.setScalar((0.6 + life * 1.6) * p.size);
+    p.m.material.opacity = Math.sin(life * Math.PI) * 0.28;
+  });
+}
+
+/* ───────── Show bones (B): a dot on every pivot, a line to its parent, updated every frame ───────── */
+const rigView = new THREE.Group(); rigView.visible = false; scene.add(rigView);
+const boneList = Object.values(bones);
+const dotGeo = new THREE.SphereGeometry(0.012, 8, 6), dotMat = new THREE.MeshBasicMaterial({ color: 0x60a5fa, depthTest: false });
+const dots = boneList.map(() => { const m = new THREE.Mesh(dotGeo, dotMat); m.renderOrder = 10; rigView.add(m); return m; });
+const linePos = new Float32Array(boneList.length * 6);
+const lineGeo = new THREE.BufferGeometry(); lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+const lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: 0x93c5fd, depthTest: false }));
+lines.renderOrder = 9; rigView.add(lines);
+const vA = new THREE.Vector3(), vB = new THREE.Vector3();
+function updateRigView() {
+  if (!rigView.visible) return;
+  root.updateMatrixWorld(true);
+  boneList.forEach((b, i) => {
+    b.getWorldPosition(vA); dots[i].position.copy(vA);
+    if (b.parent && b.parent !== root) b.parent.getWorldPosition(vB); else vB.copy(vA);
+    linePos[i * 6] = vA.x; linePos[i * 6 + 1] = vA.y; linePos[i * 6 + 2] = vA.z; linePos[i * 6 + 3] = vB.x; linePos[i * 6 + 4] = vB.y; linePos[i * 6 + 5] = vB.z;
+  });
+  lineGeo.attributes.position.needsUpdate = true;
+}
+function toggleBones() {
+  rigView.visible = !rigView.visible;
+  const b = document.getElementById('bonesBtn'); b.classList.toggle('on', rigView.visible); b.setAttribute('aria-pressed', String(rigView.visible));
+}
+
+/* ───────── UI ───────── */
+document.querySelectorAll('.anim-btn').forEach((b) => b.addEventListener('click', () => selectAnim(b.dataset.anim)));
+const followBtn = document.getElementById('followBtn');
+followBtn.addEventListener('click', () => {
+  S.follow.on = !S.follow.on; followBtn.classList.toggle('on', S.follow.on); followBtn.setAttribute('aria-pressed', String(S.follow.on));
+});
+document.getElementById('bonesBtn').addEventListener('click', toggleBones);
+// Cigarette button (key C): in the mouth -> in the right hand -> put away -> in the mouth ...
+const CIG_MODES = ['mouth', 'hand', 'off'], CIG_LABEL = { mouth: 'in the mouth', hand: 'in the hand', off: 'put away' };
+const cigBtn = document.getElementById('cigBtn');
+function setCig(mode) {
+  S.cig = mode;
+  cigBtn.classList.toggle('on', mode !== 'off'); cigBtn.setAttribute('aria-pressed', String(mode !== 'off'));
+  cigBtn.title = `Cigarette: ${CIG_LABEL[mode]} (C)`; cigBtn.setAttribute('aria-label', cigBtn.title);
+}
+const cycleCig = () => setCig(CIG_MODES[(CIG_MODES.indexOf(S.cig) + 1) % 3]);
+cigBtn.addEventListener('click', cycleCig);
+setCig(S.cig);
+let camTween = null;
+const resetCam = () => { camTween = { t: 0, p: camera.position.clone(), q: controls.target.clone() }; };
+document.getElementById('resetBtn').addEventListener('click', resetCam);
+addEventListener('keydown', (e) => {
+  const n = parseInt(e.key, 10);
+  if (n >= 1 && n <= ANIM_ORDER.length) selectAnim(ANIM_ORDER[n - 1]);
+  else if (e.key === 'r' || e.key === 'R') resetCam();
+  else if (e.key === 'b' || e.key === 'B') toggleBones();
+  else if (e.key === 'c' || e.key === 'C') cycleCig();
+});
+function resize() {
+  const a = innerWidth / innerHeight;
+  camera.aspect = a; camera.fov = a < 0.8 ? 44 : 32; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight, false);
+}
+addEventListener('resize', resize); resize();
+
+// Pointer -> head-follow target: the point under the pointer at head distance, in torso space.
+// No pointer yet (or idle 4 s): he looks at the camera.
+const ptr = new THREE.Vector2(); let ptrT = -1e9;
+const ray = new THREE.Raycaster(), _t = new THREE.Vector3(), _h = new THREE.Vector3();
+addEventListener('pointermove', (e) => { ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ptrT = performance.now(); S.follow.has = true; });
+function followTarget(now) {
+  const F = S.follow; F.has = true;
+  R.head.getWorldPosition(_h);
+  if (now - ptrT < 4000) { ray.setFromCamera(ptr, camera); ray.ray.at(camera.position.distanceTo(_h), _t); } else _t.copy(camera.position);
+  R.body.worldToLocal(_t); _t.y -= 16.5;                         // head pivot (12) + eye height (4.5)
+  let yaw = Math.atan2(_t.x, _t.z), pitch = -Math.atan2(_t.y, Math.hypot(_t.x, _t.z));
+  if (Math.abs(yaw) > 1.75) { yaw = 0; pitch = 0; }               // behind him: look ahead
+  F.tYaw = clamp(yaw, -0.85, 0.85); F.tPitch = clamp(pitch, -0.45, 0.4);
+}
+
+// The Joker's own extra expressions in the shared menu (x = page channels: laugh, arch, teeth, noteeth, pupil, cheek,
+// furrow, clench)
+if (window.MobViewer && window.MobViewer.addExpressions) {
+  const C = '<circle cx="12" cy="12" r="9"/>';
+  window.MobViewer.addExpressions({
+    grin: { label: 'Grin', icon: C + '<path d="M7.5 13.5h9c-.6 2.6-2.4 3.8-4.5 3.8s-3.9-1.2-4.5-3.8z"/><path d="M8 9l2 .6M16 9l-2 .6"/>',
+      brow: 0.2, tilt: -0.35, smile: 1, open: 0.15, eyes: -0.15, look: -0.5, roll: 0.45, x: { teeth: 1, cheek: 0.45, pupil: -0.3 } },
+    laugh: { label: 'Laugh', icon: C + '<path d="M8 13h8c-.5 2.4-2 3.6-4 3.6S8.5 15.4 8 13z"/><path d="M7.5 10c.8-.8 1.7-.8 2.5 0M14 10c.8-.8 1.7-.8 2.5 0"/>',
+      brow: 0.6, tilt: 0.55, smile: 1, open: 0.45, eyes: -0.3, look: 0.7, roll: -0.35, shake: 0.45, x: { laugh: 1, teeth: 1, cheek: 0.8 } },
+    smug: { label: 'Smug', icon: C + '<path d="M9 15.5c1.6.8 3.6.6 6-1"/><path d="M8 9.5h2.5M14 8.5l2.5-.8"/>',
+      brow: 0.05, smile: 0.35, eyes: -0.55, look: -0.25, roll: 0.45, x: { arch: 1, noteeth: 1, cheek: 0.2 } },
+    manic: { label: 'Manic', icon: C + '<circle cx="9" cy="10" r="1.6"/><circle cx="15" cy="10" r="1.6"/><path d="M7.5 14h9c-.6 2.2-2.4 3.2-4.5 3.2s-3.9-1-4.5-3.2z"/>',
+      brow: 1, tilt: -0.2, smile: 1, open: 0.35, eyes: 1, look: -0.2, roll: 0.3, shake: 0.35, x: { teeth: 1, pupil: -1 } },
+    normal: { label: 'Normal', icon: C + '<path d="M9 10h.01M15 10h.01"/><path d="M9 15h6"/>',
+      x: { noteeth: 1 } },
+    blank: { label: 'Blank', icon: C + '<path d="M7.8 10.2h2.6M13.6 10.2h2.6"/><path d="M9 15.3h6"/>',
+      brow: -0.1, smile: -0.1, eyes: -0.6, look: -0.4, x: { noteeth: 1, pupil: -0.4 } },
+    snarl: { label: 'Snarl', icon: C + '<path d="M8 8.5l3 1.5M16 8.5l-3 1.5"/><rect x="8.5" y="14" width="7" height="2.4" rx=".4"/><path d="M8.5 15.2h7"/>',
+      brow: -0.9, tilt: -1, smile: -0.3, eyes: -0.25, look: -0.35, shake: 0.2, x: { clench: 1, furrow: 1, pupil: -0.5 } },
+  });
+}
+
+/* ───────── Rest pose + sim reset (tests) ───────── */
+function restPose() {
+  for (const n in bones) { const b = bones[n]; b.position.copy(b.userData.rest); b.rotation.set(...b.userData.rr); }
+  root.position.set(0, 0, 0); root.rotation.set(0, 0, 0);
+  R.gun.scale.setScalar(0.001); R.gun.visible = false; flash.visible = false;
+  for (const [b, on] of [[R.cig, S.cig === 'mouth'], [R.cig_hand, S.cig === 'hand']]) { b.scale.setScalar(on ? 1 : 0.001); b.visible = on; }
+  applyFace(Object.fromEntries(FACE_KEYS.map((k) => [k, 0])), 0, 0);
+  root.updateMatrixWorld(true);
+}
+function resetSim(anim, mx = 0, my = 0) {
+  Object.assign(S, { anim, t: 0, prev: null, prevT: 0, blend: 1, time: 0, prevRootY: 0, prevRootX: 0, prevRootV: 0, gun: 0, lastT: 0, flashT: 1, liftR: 0, liftL: 0 });
+  S.ph = [0, 0, 0]; S.cigM = S.cig === 'mouth' ? 1 : 0; S.cigH = S.cig === 'hand' ? 1 : 0;
+  for (const k of FACE_KEYS) S.face[k] = 0;
+  for (const s of Object.values(S.spring)) { s.a = 0; s.v = 0; }
+  S.lag = { right: 0, left: 0 }; S.prevLeg = { right: 0, left: 0 };
+  Object.assign(S.follow, { on: true, has: true, tYaw: mx * 0.85, tPitch: my * 0.4, yaw: mx * 0.85, pitch: my * 0.4, eye: 0, w: 1 });
+  S.blink.wait = 1e9; S.sacc.wait = 1e9; S.sacc.v = 0;
+  document.querySelectorAll('.anim-btn').forEach((b) => b.classList.toggle('active', b.dataset.anim === anim));
+}
+
+/* ───────── Clip test (#cliptest) ─────────
+   Per frame (20 Hz, one full loop after a warm-up loop), every animation, mouse at the center, edges and corners:
+   a 5x5 grid of points on every face of cube A goes into cube B's local space; points deeper than 0.06 texel inside
+   B count. Parts already layered at rest (shells, collars, hair) may only go 0.15 deeper than at rest. Joint pairs
+   (shoulder, elbow, hip, knee, head on torso, props in the fist / mouth) are listed apart. */
+const pairKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+const JOINTS = new Set([['body', 'head'], ['head', 'cig'], ['head', 'hair_right'], ['head', 'hair_left'], ['head', 'hair_back'],
+  ['forearm_right', 'gun'], ['forearm_right', 'cig_hand'],
+  ['forearm_right', 'cig'],                                        // the drag: the fist holds the cigarette at the mouth
+  ...['right', 'left'].flatMap((s) => [[`arm_${s}`, 'body'], [`arm_${s}`, `forearm_${s}`], ['body', `leg_${s}`], [`knee_${s}`, `leg_${s}`],
+    [`coat_${s}`, `leg_${s}`], [`coat_${s}`, `knee_${s}`], ['body', `coat_${s}`]])]
+  .map(([a, b]) => pairKey(a, b)));
+const isJoint = (a, b) => JOINTS.has(pairKey(a, b));
+function clipTest(cig = 'mouth') {                                 // #cliptest-hand: with the cigarette in the hand
+  setCig(cig);
+  const EPS = 0.06, LAYER = 0.15;
+  const wp = new THREE.Vector3(), lp = new THREE.Vector3(), ca = new THREE.Vector3(), cb = new THREE.Vector3();
+  const mice = [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, 1]];
+  const list = built.map((m) => { const g = m.geometry.parameters;
+    return { m, bone: m.parent.name, half: [g.width / 2, g.height / 2, g.depth / 2], name: `${m.parent.name}[${g.width}x${g.height}x${g.depth}]` }; });
+  const pts = list.map((c) => { const [hx, hy, hz] = c.half, out = [];
+    for (let u = 0; u <= 4; u++) for (let w = 0; w <= 4; w++) { const a = u / 2 - 1, b = w / 2 - 1;
+      out.push([hx, a * hy, b * hz], [-hx, a * hy, b * hz], [a * hx, hy, b * hz], [a * hx, -hy, b * hz], [a * hx, b * hy, hz], [a * hx, b * hy, -hz]); }
+    return out.map((p) => new THREE.Vector3(...p)); });
+  const rad = list.map((c) => Math.hypot(...c.half));
+  const inv = list.map(() => new THREE.Matrix4());
+  function measure() {
+    root.updateMatrixWorld(true);
+    list.forEach((c, i) => inv[i].copy(c.m.matrixWorld).invert());
+    const res = new Map();
+    for (let i = 0; i < list.length; i++) {
+      if (!list[i].m.parent.visible || list[i].m.parent.scale.x < 0.5) continue;    // hidden revolver
+      ca.setFromMatrixPosition(list[i].m.matrixWorld);
+      for (let j = 0; j < list.length; j++) {
+        if (i === j || list[i].bone === list[j].bone || !list[j].m.parent.visible || list[j].m.parent.scale.x < 0.5) continue;
+        cb.setFromMatrixPosition(list[j].m.matrixWorld);
+        if (ca.distanceTo(cb) * 16 > rad[i] + rad[j]) continue;
+        const [hx, hy, hz] = list[j].half; let worst = 0;
+        for (const p of pts[i]) {
+          lp.copy(wp.copy(p).applyMatrix4(list[i].m.matrixWorld)).applyMatrix4(inv[j]);
+          const d = Math.min(hx - Math.abs(lp.x), hy - Math.abs(lp.y), hz - Math.abs(lp.z));
+          if (d > worst) worst = d;
+        }
+        if (worst > 0) res.set(i + ':' + j, worst);
+      }
+    }
+    return res;
+  }
+  restPose();
+  const base = measure(), rv = { clips: {}, joints: {}, ground: {} };
+  for (const name of ANIM_ORDER) {
+    const T = ANIMS[name].T; let low = 99, high = -99;
+    for (const [mx, my] of mice) {
+      resetSim(name, mx, my);
+      const dt = 1 / 120;
+      for (let t = 0; t < T; t += dt) step(dt);
+      let since = 1;
+      for (let t = 0; t < T; t += dt) {
+        step(dt); since += dt;
+        if (since < 1 / 20) continue; since = 0;
+        for (const [key, d] of measure()) {
+          const [i, j] = key.split(':').map(Number), b0 = base.get(key) || 0, a = list[i], b = list[j];
+          const joint = isJoint(a.bone, b.bone);
+          if (!joint && d <= (b0 > EPS ? b0 + LAYER : EPS)) continue;
+          if (joint && d <= b0 + EPS) continue;
+          const bucket = joint ? rv.joints : rv.clips, id = `${a.name} in ${b.name}`;
+          if (!bucket[id] || bucket[id].depth < d) bucket[id] = { depth: +d.toFixed(3), rest: +b0.toFixed(3), anim: name, t: +(S.t % T).toFixed(2), mouse: [mx, my] };
+        }
+        let m = 99;
+        for (const s of ['right', 'left']) for (const c of FOOT) { _c.set(...c).applyMatrix4(R[`knee_${s}`].matrixWorld); m = Math.min(m, _c.y * 16); }
+        low = Math.min(low, m); high = Math.max(high, m);
+      }
+    }
+    rv.ground[name] = { lowest: +low.toFixed(3), highestLowPoint: +high.toFixed(3) };
+  }
+  rv.clipCount = Object.keys(rv.clips).length;
+  rv.bones = Object.keys(bones).length;
+  const out = document.createElement('pre'); out.id = 'cliptest'; out.textContent = JSON.stringify(rv, null, 1);
+  document.body.appendChild(out);
+}
+
+/* ───────── Still frames (#rest, #shot-<anim>-<variant>-<sec>[-<cam>[-<expression>]]) ─────────
+   The picture goes into <pre id="shot"> as a PNG data URL; the loop stops so a screenshot sees the same. */
+const CAMS = { full: [HOME.pos, HOME.tgt], face: [new THREE.Vector3(0.3, 1.8, 2.0), new THREE.Vector3(0, 1.73, 0)],
+  bust: [new THREE.Vector3(0.9, 1.6, 3.0), new THREE.Vector3(0, 1.4, 0)],
+  side: [new THREE.Vector3(4.9, 1.3, 0.3), new THREE.Vector3(0, 1.0, 0)], back: [new THREE.Vector3(-2.6, 1.7, -4.6), new THREE.Vector3(0, 1.05, 0)],
+  front: [new THREE.Vector3(0, 1.25, 5.2), new THREE.Vector3(0, 1.05, 0)],
+  mouth: [new THREE.Vector3(0.12, 1.62, 1.3), new THREE.Vector3(0, 1.6, 0)],     // close-up of the face (mouth checks)
+  mouthlow: [new THREE.Vector3(-0.55, 1.48, 1.05), new THREE.Vector3(0, 1.62, 0)] };   // close-up from below-left
+function dumpFrame(cam = 'full') {
+  const [p, t] = CAMS[cam] || CAMS.full; camera.position.copy(p); controls.target.copy(t); controls.update();
+  renderer.render(scene, camera);
+  const out = document.createElement('pre'); out.id = 'shot'; out.textContent = canvas.toDataURL('image/png');
+  document.body.appendChild(out);
+}
+
+/* ───────── Start ───────── */
+restPose(); groundRest = footLow();
+window.jokerDebug = { S, bones, FACE, ANIMS, selectAnim, step, restPose, resetSim, clipTest, setCig, camera, controls, toggleBones, rigView };
+// Test modes. The "variant" field picks the cigarette: 0 = mouth, h = hand, o = put away (#shot-walk-h-3, #cliptest-hand)
+const hash = decodeURIComponent(location.hash.slice(1));
+if (hash.startsWith('cliptest')) { S.frozen = true; setTimeout(() => clipTest(hash.split('-')[1] || 'mouth'), 0); }
+else if (hash === 'rest') { S.frozen = true; restPose(); dumpFrame('full'); }
+else if (hash.startsWith('shot-')) {
+  const [, anim, vi, sec, cam, expr] = hash.split('-');
+  document.head.insertAdjacentHTML('beforeend', '<style>#dock,#topRight,#expr{display:none!important}</style>');   // clean still: no UI
+  setCig(vi === 'h' ? 'hand' : vi === 'o' ? 'off' : 'mouth');
+  resetSim(ANIMS[anim] ? anim : 'idle', 0.18, 0.1);
+  if (expr && window.MobViewer) window.MobViewer.set(expr);
+  for (let t = 0; t < (+sec || 0); t += 1 / 120) step(1 / 120);
+  S.frozen = true; dumpFrame(cam || 'full');
+}
+
+/* ───────── Loop: 120 FPS when the screen can (measured over ~30 frames), else 60 ───────── */
+let last = performance.now(), acc = 0, rate = 60, probe = [], lastRaf = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (probe.length < 30) { if (lastRaf) probe.push(now - lastRaf); lastRaf = now; if (probe.length === 30) { probe.sort((a, b) => a - b); rate = 1000 / probe[15] >= 110 ? 120 : 60; } }
+  acc += now - last; last = now;
+  if (acc < 1000 / rate - 1) return;                             // lock to the chosen rate
+  const dt = Math.min(acc / 1000, 0.1); acc = 0;
+  if (S.frozen) return;
+  followTarget(now);
+  step(dt);
+  if (camTween) {
+    camTween.t = Math.min(1, camTween.t + dt / 0.7);
+    const k = 1 - (1 - camTween.t) ** 3;
+    camera.position.lerpVectors(camTween.p, HOME.pos, k); controls.target.lerpVectors(camTween.q, HOME.tgt, k);
+    if (camTween.t >= 1) camTween = null;
+  }
+  controls.update();
+  updateRigView();
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

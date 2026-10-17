@@ -5,7 +5,7 @@ He picks fights, dropkicks people, and dances on every kill.
 
 | | |
 |---|---|
-| Viewer (source of truth) | `mobs/the_king/thekingv3.html` |
+| Viewer (source of truth) | `custom-models/mobs/memes/the_king/the_king.html` |
 | Mod | **The King: Crowned Brawler** in `mod/` (NeoForge 1.21.1, 21.1.251 or newer, mod id `theking`) |
 | In Modrinth | instance "take a guess": `mods/the-king-crowned-brawler-1.0.0.jar` |
 | Built jars | `builds/theking-<version>-<date-time>.jar` (newest 5 kept) |

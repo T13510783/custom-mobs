@@ -3,7 +3,7 @@ param([string]$url, [string]$expr, [string]$out, [int]$timeoutSec = 600, [int]$p
 # $extra: more browser flags, e.g. '--allow-file-access-from-files' (read local video/audio pixels and samples).
 # $shot: also save a JPEG screenshot of the page (to the scratchpad, never the project) once $expr returns.
 # Headless Brave + DevTools protocol: open $url, poll $expr until it returns a non-empty string, save it to $out.
-# Example: cdp.ps1 -url 'file:///C:/custom%20mobs/files/thekingv3.html#cliptest' -expr "(document.getElementById('cliptest')||{}).textContent||''" -out clip.txt
+# Example: cdp.ps1 -url 'file:///C:/custom-mobs/custom-models/mobs/memes/the_king/the_king.html#cliptest' -expr "(document.getElementById('cliptest')||{}).textContent||''" -out clip.txt
 $b = 'C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe'
 $ud = Join-Path $env:TEMP ('brv_' + [guid]::NewGuid().ToString('N'))
 Start-Process -FilePath $b -ArgumentList (@('--headless=new', '--enable-unsafe-swiftshader', "--user-data-dir=$ud",

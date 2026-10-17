@@ -1,6 +1,6 @@
 package com.custommobs.homelander.anim;
 
-/* ───────── Homelander's cape cloth: a 1:1 port of the Cloth section in mobs/homelander/homelander.html ─────────
+/* ───────── Homelander's cape cloth: a 1:1 port of the Cloth section in custom-models/mobs/the_boys/homelander/homelander.html ─────────
    Verlet cloth of NK chains x NP points hanging from the chest; gravity, air drag, a random breeze, distance
    constraints (along, across, diagonal, bending, max distance from the top), collisions with his body boxes
    (shortest way out; with both hands behind his back the arms push it onto his back) and the floor; then every cape bone turns to follow its piece of cloth.

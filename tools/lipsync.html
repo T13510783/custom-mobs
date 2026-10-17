@@ -1,9 +1,9 @@
 <!DOCTYPE html><html><body><pre id="out"></pre><script>
 // Lip-sync curves for a mob's voice lines: per 1/30 s, loudness (0-35, base36 char) and brightness (zero crossings, 0-9).
-// Run: tools\cdp.ps1 -url "file:///C:/custom-mobs/tools/lipsync.html?mob=homelander&lines=i_am_god:i_am_god.ogg" -expr "document.getElementById('out').textContent" -out x.json -extra '--allow-file-access-from-files'
-// ?mob=<folder in sounds/> &lines=<id>:<file>,<id>:<file>  (no query = The King's lines). Then paste env/zcr into the viewer's VOICE_LINES.
+// Run: tools\cdp.ps1 -url "file:///C:/custom-mobs/tools/lipsync.html?mob=mobs/the_boys/homelander&lines=i_am_god:i_am_god.ogg" -expr "document.getElementById('out').textContent" -out x.json -extra '--allow-file-access-from-files'
+// ?mob=<folder in sounds/, e.g. mobs/the_boys/homelander> &lines=<id>:<file>,<id>:<file>  (no query = The King's lines). Then paste env/zcr into the viewer's VOICE_LINES.
 const Q = new URLSearchParams(location.search);
-const R = new URL('../sounds/' + (Q.get('mob') || 'the_king') + '/', location.href).href; // sounds folder next to tools/
+const R = new URL('../sounds/' + (Q.get('mob') || 'mobs/memes/the_king') + '/', location.href).href; // sounds folder next to tools/
 const LINES = Q.get('lines')
   ? Object.fromEntries(Q.get('lines').split(',').map((s) => s.split(':')))
   : { cussing_short: 'cussingshort.ogg', cussing_long: 'cussing_long_final.ogg', take_your_stuff: 'take_ur_stuff_and_get_out_of_my_seat_please_final.ogg' };

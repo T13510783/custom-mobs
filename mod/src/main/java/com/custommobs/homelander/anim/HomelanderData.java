@@ -14,7 +14,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/* ───────── Homelander's data, exported 1:1 from mobs/homelander/homelander.html (#modexport) ─────────
+/* ───────── Homelander's data, exported 1:1 from custom-models/mobs/the_boys/homelander/homelander.html (#modexport) ─────────
    assets/homelander/homelander/rig.json  : bones (rest pose), cubes as finished quads, cape cloth, eye glow + beam
                                             geometry, victim spots, voice curve, animation list
    assets/homelander/homelander/anims.bin : every animation channel at 120 fps, 16-bit steps stored as frame-to-frame differences

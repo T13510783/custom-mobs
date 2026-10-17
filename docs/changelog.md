@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-17 23:25
+- Folder layout by franchise: viewers in `custom-models/<kind>/<franchise>/<name>/` (`mobs/` + `vehicles/`), shared UI in `custom-models/_shared/`; `references/`, `sounds/`, `archive/` mirror the same path.
+- Saw folder renamed to `saw/` (`billy_the_puppet/`, `john_kramer/`), The King page `thekingv3.html` -> `the_king.html`, The Flying Dutchman viewer + references added under `vehicles/pirates_of_the_caribbean/`.
+- Clear names for 44 reference images (were UUIDs, `image2.png`, `anton1.png`, ...); deleted 5 archive pages and 1 image that were exact duplicates.
+- Fixed every path: viewer links (`../../../_shared/`, sounds, CDN fallback), `tools/export_mod_assets.ps1`, `tools/lipsync.html`, `tools/sfx/`, `tools/cdp.ps1`, Java comments, `README.md`, `CLAUDE.md` rule 15, `AGENTS.md`, `docs/the_king.md`.
+
 ## 2026-10-17 14:53
 - Committed 6 new Davy Jones reference images in `references/davy_jones/`.
 
