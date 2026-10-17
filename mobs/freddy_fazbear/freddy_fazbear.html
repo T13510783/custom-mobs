@@ -1,0 +1,1672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Freddy Fazbear — 3D Animatronic Showcase</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0f1115;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #f3f4f6;
+    }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    .pill-bar {
+      background: rgba(20, 23, 29, 0.82);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(0, 0, 0, 0.4);
+    }
+
+    .anim-btn {
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      color: rgba(255, 255, 255, 0.55);
+    }
+
+    .anim-btn:hover {
+      color: rgba(255, 255, 255, 0.92);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .anim-btn.active {
+      color: #ffffff;
+      background: rgba(217, 119, 6, 0.25);
+      border-color: rgba(245, 158, 11, 0.45);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 2px 10px rgba(217, 119, 6, 0.22);
+    }
+
+    .reset-btn {
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      color: rgba(255, 255, 255, 0.55);
+    }
+
+    .reset-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
+      transform: rotate(-15deg);
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <!-- Ultra-minimal floating bottom pill bar -->
+    <div class="fixed bottom-7 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 p-1.5 rounded-full pill-bar">
+      <button data-anim="idle" class="anim-btn active px-4 py-2 rounded-full text-xs font-medium tracking-wide border border-transparent">
+        Idle
+      </button>
+      <button data-anim="walk" class="anim-btn px-4 py-2 rounded-full text-xs font-medium tracking-wide border border-transparent">
+        Walk
+      </button>
+      <button data-anim="attack" class="anim-btn px-4 py-2 rounded-full text-xs font-medium tracking-wide border border-transparent">
+        Attack
+      </button>
+      <button data-anim="special" class="anim-btn px-4 py-2 rounded-full text-xs font-medium tracking-wide border border-transparent">
+        Special
+      </button>
+
+      <div class="w-px h-5 bg-white/10 mx-1"></div>
+
+      <button id="reset-cam-btn" title="Reset Camera" aria-label="Reset Camera" class="reset-btn p-2 rounded-full border border-transparent flex items-center justify-center">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    window.onload = function () {
+      const container = document.getElementById('canvas-container');
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f1115);
+      scene.fog = new THREE.FogExp2(0x0f1115, 0.042);
+
+      const camera = new THREE.PerspectiveCamera(
+        36,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        100
+      );
+      const defaultCamPos = new THREE.Vector3(0, 2.35, 7.4);
+      const defaultCamTarget = new THREE.Vector3(0, 1.95, 0);
+      camera.position.copy(defaultCamPos);
+
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance'
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.08;
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.copy(defaultCamTarget);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.065;
+      controls.maxPolarAngle = Math.PI * 0.505;
+      controls.minDistance = 2.0;
+      controls.maxDistance = 15.0;
+      controls.update();
+
+      // 1 Minecraft Block = 16x16x16 model pixels
+      const P = 1 / 16;
+
+      // Deterministic hash for 16x16 pixel-art noise & mottling
+      function fract(x) {
+        return x - Math.floor(x);
+      }
+      function hash2(x, y, seed = 0) {
+        return fract(Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123);
+      }
+      function valueNoise(x, y, seed = 0) {
+        const ix = Math.floor(x);
+        const iy = Math.floor(y);
+        const fx = x - ix;
+        const fy = y - iy;
+        const ux = fx * fx * (3 - 2 * fx);
+        const uy = fy * fy * (3 - 2 * fy);
+        const a = hash2(ix, iy, seed);
+        const b = hash2(ix + 1, iy, seed);
+        const c = hash2(ix, iy + 1, seed);
+        const d = hash2(ix + 1, iy + 1, seed);
+        return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+      }
+
+      // Color Palettes tuned 1:1 to FNAF 1 Freddy Fazbear references
+      const PALETTES = {
+        // Warm golden-rusty mottled animatronic brown suit
+        furMain: [
+          [78, 34, 8],     // 0: deep grime shadow
+          [104, 48, 12],   // 1: dark mottled brown
+          [132, 64, 17],   // 2: mid-dark suit brown
+          [156, 78, 22],   // 3: core Freddy brown
+          [178, 94, 28],   // 4: warm golden-brown highlight
+          [198, 110, 35]   // 5: bright plush rim highlight
+        ],
+        // Lighter sandy tan-ochre for belly patch, puffy snout, and inner palms
+        furLight: [
+          [128, 66, 18],   // 0: shaded tan edge
+          [158, 86, 26],   // 1: darker mottled tan
+          [184, 108, 38],  // 2: base warm tan
+          [206, 126, 48],  // 3: mid golden tan
+          [222, 144, 60],  // 4: bright tan highlight
+          [236, 162, 76]   // 5: specular plush edge
+        ],
+        // Deep dark brown for inner ear bowls & mouth/snout creases
+        furDark: [
+          [28, 11, 3],
+          [44, 18, 5],
+          [62, 27, 8],
+          [80, 36, 11],
+          [96, 45, 14]
+        ],
+        // Cloudy silver-on-black FNAF 1 marbled texture (Top Hat, Bowtie, Mic Handle)
+        marbledBlack: [
+          [8, 9, 12],
+          [16, 18, 24],
+          [28, 32, 40],
+          [52, 58, 70],
+          [88, 96, 112],
+          [134, 144, 162]
+        ],
+        // Glossy deep black for nose, eyebrows, and eye socket rims
+        glossyBlack: [
+          [6, 7, 9],
+          [12, 14, 18],
+          [22, 25, 32],
+          [46, 52, 64],
+          [85, 94, 110]
+        ],
+        // Exposed dark gunmetal endoskeleton joints, spine, and rods
+        endoSteel: [
+          [18, 20, 25],
+          [32, 36, 44],
+          [50, 56, 68],
+          [76, 84, 98],
+          [112, 122, 140]
+        ],
+        // Off-white ceramic animatronic teeth with subtle lower gum shade
+        teeth: [
+          [148, 154, 166],
+          [184, 190, 200],
+          [214, 220, 228],
+          [238, 242, 247],
+          [252, 254, 255]
+        ],
+        // Silver metallic mesh for microphone grille head
+        micChrome: [
+          [56, 62, 72],
+          [96, 104, 118],
+          [148, 158, 174],
+          [196, 206, 220],
+          [236, 242, 250]
+        ]
+      };
+
+      function setPx(ctx, x, y, rgb, alpha = 1) {
+        ctx.fillStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+        ctx.fillRect(x, y, 1, 1);
+      }
+
+      // Creates a crisp THREE.CanvasTexture locked to THREE.NearestFilter (strict 16x16 Blockbench pixel art)
+      function makePixelCanvasTexture(pxW, pxH, drawFn) {
+        const w = Math.max(1, Math.round(pxW));
+        const h = Math.max(1, Math.round(pxH));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        drawFn(ctx, w, h);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.magFilter = THREE.NearestFilter;
+        tex.minFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        tex.encoding = THREE.sRGBEncoding;
+        tex.needsUpdate = true;
+        return tex;
+      }
+
+      // Standard Vanilla+ mottled pixel painter with bevel shading, grime splotches, and pixel noise
+      function paintMottledFace(ctx, w, h, paletteName, faceIndex, seed = 1, extraFn = null) {
+        const pal = PALETTES[paletteName];
+        const maxIdx = pal.length - 1;
+
+        // Vanilla+ directional face brightness bias: Top (+Y=2) brightest, Bottom (-Y=3) darkest, Front (+Z=4) warm
+        const faceBias = [0.0, -0.15, 0.45, -0.55, 0.2, -0.25][faceIndex] || 0;
+
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            // Coarse mottled FNAF grunge + fine pixel grain
+            const coarse = valueNoise((x + seed * 7) * 0.34, (y + seed * 13) * 0.34, seed);
+            const fine = hash2(x, y, seed + faceIndex * 19);
+
+            // Edge bevel shading (classic Blockbench / Vanilla+ depth framing)
+            const isBorder = (x === 0 || x === w - 1 || y === 0 || y === h - 1) && (w >= 3 && h >= 3);
+            const isTopEdge = y === 0 && h >= 3 && faceIndex !== 3;
+            const isBotEdge = y === h - 1 && h >= 3;
+
+            let val = coarse * 0.68 + fine * 0.32 + faceBias * 0.25;
+            if (isTopEdge) val += 0.18;
+            if (isBotEdge) val -= 0.24;
+            else if (isBorder) val -= 0.14;
+
+            // Occasional dark FNAF 1 oil/wear stain patches on main suit
+            if (paletteName === 'furMain' && coarse < 0.28) {
+              val -= 0.22;
+            }
+
+            const idx = Math.max(0, Math.min(maxIdx, Math.floor(val * pal.length)));
+            setPx(ctx, x, y, pal[idx]);
+          }
+        }
+
+        if (extraFn) {
+          extraFn(ctx, w, h, faceIndex);
+        }
+      }
+
+      // Builds a Three.js Mesh with BoxGeometry of size (pxW*P, pxH*P, pxD*P) where every face has exact 1:1 texel density
+      function createBlockbenchBox(pxW, pxH, pxD, paletteName, options = {}) {
+        const {
+          seed = 1,
+          roughness = 0.82,
+          metalness = 0.08,
+          faceExtras = null,
+          customMaterials = null
+        } = options;
+
+        const geo = new THREE.BoxGeometry(pxW * P, pxH * P, pxD * P);
+
+        if (customMaterials) {
+          const mesh = new THREE.Mesh(geo, customMaterials);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          return mesh;
+        }
+
+        // BoxGeometry face order: 0:+X(R), 1:-X(L), 2:+Y(Top), 3:-Y(Bot), 4:+Z(Front), 5:-Z(Back)
+        const faceDims = [
+          [pxD, pxH], // 0: Right
+          [pxD, pxH], // 1: Left
+          [pxW, pxD], // 2: Top
+          [pxW, pxD], // 3: Bottom
+          [pxW, pxH], // 4: Front
+          [pxW, pxH]  // 5: Back
+        ];
+
+        const materials = faceDims.map(([fw, fh], fIdx) => {
+          const tex = makePixelCanvasTexture(fw, fh, (ctx, w, h) => {
+            paintMottledFace(ctx, w, h, paletteName, fIdx, seed + fIdx * 11, faceExtras);
+          });
+          return new THREE.MeshStandardMaterial({
+            map: tex,
+            roughness,
+            metalness
+          });
+        });
+
+        const mesh = new THREE.Mesh(geo, materials);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        return mesh;
+      }
+
+      // Pitch-black material for deep eye sockets & inner mouth void
+      const voidBlackMat = new THREE.MeshBasicMaterial({ color: 0x040406 });
+
+      // Create 16x16 Vanilla+ Pixel Stage Floor Texture
+      const stageFloorTex = makePixelCanvasTexture(64, 64, (ctx, w, h) => {
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const tileX = Math.floor(x / 8);
+            const tileY = Math.floor(y / 8);
+            const isAlt = (tileX + tileY) % 2 === 0;
+            const n = hash2(x, y, 99) * 6;
+            const base = isAlt ? 17 : 21;
+            const edge = (x % 8 === 0 || y % 8 === 0) ? -3 : 0;
+            const c = Math.max(10, Math.floor(base + n + edge));
+            setPx(ctx, x, y, [c, c + 2, c + 6]);
+          }
+        }
+      });
+      stageFloorTex.wrapS = THREE.RepeatWrapping;
+      stageFloorTex.wrapT = THREE.RepeatWrapping;
+      stageFloorTex.repeat.set(4, 4);
+
+      const ambientLight = new THREE.AmbientLight(0x332924, 0.92);
+      scene.add(ambientLight);
+
+      const keyLight = new THREE.SpotLight(0xffb56b, 2.5);
+      keyLight.position.set(3.8, 6.2, 5.2);
+      keyLight.angle = Math.PI / 3.1;
+      keyLight.penumbra = 0.65;
+      keyLight.decay = 1.5;
+      keyLight.distance = 25;
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.width = 2048;
+      keyLight.shadow.mapSize.height = 2048;
+      keyLight.shadow.camera.near = 1.5;
+      keyLight.shadow.camera.far = 16;
+      keyLight.shadow.bias = -0.0005;
+      scene.add(keyLight);
+
+      const fillLight = new THREE.DirectionalLight(0xd98a4e, 0.95);
+      fillLight.position.set(-4.2, 3.8, 3.5);
+      scene.add(fillLight);
+
+      const rimLight = new THREE.SpotLight(0xff9442, 2.15);
+      rimLight.position.set(0, 6.5, -4.8);
+      rimLight.angle = Math.PI / 2.5;
+      rimLight.penumbra = 0.8;
+      scene.add(rimLight);
+
+      // Internal face/mouth strobe light for the Special "Power Outage / Toreador March" animation
+      const powerOutageLight = new THREE.PointLight(0xffdf80, 0, 3.6, 2.0);
+      powerOutageLight.position.set(0, 3.25, 0.65);
+      scene.add(powerOutageLight);
+
+      // Shadow-receiving dark stage floor
+      const floorGeo = new THREE.PlaneGeometry(40, 40);
+      const floorMat = new THREE.ShadowMaterial({ opacity: 0.58 });
+      const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+      floorMesh.rotation.x = -Math.PI / 2;
+      floorMesh.position.y = 0;
+      floorMesh.receiveShadow = true;
+      scene.add(floorMesh);
+
+      // Subtle 16x16 pixel-tiled dark stage pedestal disc
+      const stageDiscGeo = new THREE.CylinderGeometry(3.6, 3.8, 0.08, 32);
+      const stageDiscMat = new THREE.MeshStandardMaterial({
+        map: stageFloorTex,
+        roughness: 0.88,
+        metalness: 0.12
+      });
+      const stageDisc = new THREE.Mesh(stageDiscGeo, stageDiscMat);
+      stageDisc.position.y = -0.04;
+      stageDisc.receiveShadow = true;
+      scene.add(stageDisc);
+
+      const rig = {};
+      const freddyRoot = new THREE.Group();
+      scene.add(freddyRoot);
+      rig.root = freddyRoot;
+
+      // Pelvis / Hips Pivot (at y = 26.5 pixels = 1.65625 world units)
+      const pelvisPivot = new THREE.Group();
+      pelvisPivot.position.set(0, 26.5 * P, 0);
+      freddyRoot.add(pelvisPivot);
+      rig.pelvis = pelvisPivot;
+
+      // Blockbench Pelvis / Under-torso trunks block (15x4x10 px) + lower stepped crotch block (9x1.5x9 px)
+      const pelvisMain = createBlockbenchBox(15, 4, 10, 'furMain', { seed: 10 });
+      pelvisMain.position.set(0, 0.5 * P, 0);
+      pelvisPivot.add(pelvisMain);
+
+      const pelvisLowerStep = createBlockbenchBox(9, 1.5, 9, 'furMain', { seed: 12 });
+      pelvisLowerStep.position.set(0, -2.0 * P, 0);
+      pelvisPivot.add(pelvisLowerStep);
+
+      // Exposed Endoskeleton Waist Spine & Hydraulic Pistons connecting Pelvis to Torso
+      const waistSpine = createBlockbenchBox(5, 3, 5, 'endoSteel', {
+        seed: 14,
+        roughness: 0.35,
+        metalness: 0.82,
+        faceExtras: (ctx, w, h) => {
+          // Horizontal metallic spine ribs
+          for (let y = 1; y < h; y += 2) {
+            ctx.fillStyle = '#111318';
+            ctx.fillRect(0, y, w, 1);
+          }
+        }
+      });
+      waistSpine.position.set(0, 3.5 * P, 0);
+      pelvisPivot.add(waistSpine);
+
+      for (let side of [-1, 1]) {
+        const piston = createBlockbenchBox(1.2, 3, 1.2, 'endoSteel', {
+          seed: 15,
+          roughness: 0.3,
+          metalness: 0.85
+        });
+        piston.position.set(side * 4.2 * P, 3.5 * P, 1.2 * P);
+        pelvisPivot.add(piston);
+      }
+
+      // Torso Pivot (at y = 4.0 px above pelvis -> 30.5 px world)
+      const torsoPivot = new THREE.Group();
+      torsoPivot.position.set(0, 4.0 * P, 0);
+      pelvisPivot.add(torsoPivot);
+      rig.torso = torsoPivot;
+
+      // Barrel / Pear-shaped FNAF 1 Freddy Torso constructed with layered Blockbench cubes:
+      // 1. Core torso box (15 x 17 x 10.5 px)
+      const torsoCore = createBlockbenchBox(15, 17, 10.5, 'furMain', {
+        seed: 21,
+        faceExtras: (ctx, w, h, fIdx) => {
+          // Iconic dark grime patches on lower right side of Freddy's torso (Reference 2 & 5)
+          if (fIdx === 4 || fIdx === 0) {
+            ctx.fillStyle = 'rgba(42, 16, 4, 0.55)';
+            ctx.fillRect(1, h - 6, 3, 4);
+            ctx.fillRect(2, h - 7, 2, 2);
+          }
+        }
+      });
+      torsoCore.position.set(0, 8.5 * P, 0);
+      torsoPivot.add(torsoCore);
+
+      // 2. Extruded lower pot-belly outer layer (16 x 11.5 x 11.2 px) for authentic pear silhouette
+      const torsoBellyWrap = createBlockbenchBox(16, 11.5, 11.2, 'furMain', { seed: 25 });
+      torsoBellyWrap.position.set(0, 6.5 * P, 0.15 * P);
+      torsoPivot.add(torsoBellyWrap);
+
+      // 3. Upper chest / shoulder taper block (13.5 x 1.5 x 9.5 px)
+      const torsoTopBevel = createBlockbenchBox(13.5, 1.5, 9.5, 'furMain', { seed: 28 });
+      torsoTopBevel.position.set(0, 17.5 * P, 0);
+      torsoPivot.add(torsoTopBevel);
+
+      // 4. Lighter Tan-Gold Extruded Front Belly Patch (11 x 13 x 1 px + top rounded step 9 x 1.5 x 1 px)
+      const bellyPatchMain = createBlockbenchBox(11, 13, 1.0, 'furLight', {
+        seed: 31,
+        faceExtras: (ctx, w, h, fIdx) => {
+          if (fIdx === 4) {
+            // Subtle worn smudge near bottom-left & bottom-right of belly patch (Reference 2 & 5)
+            ctx.fillStyle = 'rgba(110, 56, 14, 0.45)';
+            ctx.fillRect(0, h - 5, 2, 4);
+            ctx.fillRect(w - 2, h - 4, 2, 3);
+          }
+        }
+      });
+      bellyPatchMain.position.set(0, 7.2 * P, 5.45 * P);
+      torsoPivot.add(bellyPatchMain);
+
+      const bellyPatchTop = createBlockbenchBox(9, 1.5, 1.0, 'furLight', { seed: 33 });
+      bellyPatchTop.position.set(0, 14.45 * P, 5.45 * P);
+      torsoPivot.add(bellyPatchTop);
+
+      // 5. Iconic 3D Blockbench Black Marbled Bowtie at top of chest
+      const bowtieGroup = new THREE.Group();
+      bowtieGroup.position.set(0, 15.2 * P, 5.8 * P);
+      torsoPivot.add(bowtieGroup);
+      rig.bowtie = bowtieGroup;
+
+      const bowKnot = createBlockbenchBox(2.2, 2.2, 1.4, 'marbledBlack', {
+        seed: 40,
+        roughness: 0.32,
+        metalness: 0.35
+      });
+      bowtieGroup.add(bowKnot);
+
+      for (let side of [-1, 1]) {
+        const bowWingInner = createBlockbenchBox(2.4, 2.8, 1.2, 'marbledBlack', {
+          seed: 41 + side,
+          roughness: 0.32,
+          metalness: 0.35
+        });
+        bowWingInner.position.set(side * 2.1 * P, 0, -0.1 * P);
+        bowWingInner.rotation.z = side * -0.08;
+        bowtieGroup.add(bowWingInner);
+
+        const bowWingOuter = createBlockbenchBox(2.0, 3.6, 1.1, 'marbledBlack', {
+          seed: 44 + side,
+          roughness: 0.32,
+          metalness: 0.35
+        });
+        bowWingOuter.position.set(side * 3.8 * P, 0, -0.15 * P);
+        bowWingOuter.rotation.z = side * -0.12;
+        bowtieGroup.add(bowWingOuter);
+      }
+
+      // Exposed Endoskeleton Neck Column
+      const neckEndo = createBlockbenchBox(4.2, 3.2, 4.2, 'endoSteel', {
+        seed: 48,
+        roughness: 0.32,
+        metalness: 0.85,
+        faceExtras: (ctx, w, h) => {
+          ctx.fillStyle = '#12141a';
+          ctx.fillRect(0, 1, w, 1);
+        }
+      });
+      neckEndo.position.set(0, 18.8 * P, 0);
+      torsoPivot.add(neckEndo);
+
+      // Head Pivot (at y = 19.6 px relative to torso -> 50.1 px world)
+      const headPivot = new THREE.Group();
+      headPivot.position.set(0, 19.6 * P, 0);
+      torsoPivot.add(headPivot);
+      rig.head = headPivot;
+
+      // 1. Upper Cranium Box (13 x 9.5 x 11 px) + Top Crown Bevel (11 x 1 x 9.5 px)
+      const craniumBox = createBlockbenchBox(13, 9.5, 11, 'furMain', {
+        seed: 52,
+        faceExtras: (ctx, w, h, fIdx) => {
+          // Dark animatronic shadow under right brow/cheek like Reference 1
+          if (fIdx === 4) {
+            ctx.fillStyle = 'rgba(55, 22, 5, 0.45)';
+            ctx.fillRect(0, 4, 2, 4);
+          }
+        }
+      });
+      craniumBox.position.set(0, 8.25 * P, -0.2 * P);
+      headPivot.add(craniumBox);
+
+      const craniumCrown = createBlockbenchBox(11, 1.0, 9.5, 'furMain', { seed: 55 });
+      craniumCrown.position.set(0, 13.5 * P, -0.2 * P);
+      headPivot.add(craniumCrown);
+
+      // Subtle Vanilla+ Upper Brow Ridge Overhang (13.4 x 2.0 x 1.2 px)
+      const browHood = createBlockbenchBox(13.4, 2.0, 1.2, 'furMain', { seed: 57 });
+      browHood.position.set(0, 10.6 * P, 5.0 * P);
+      headPivot.add(browHood);
+
+      // 2. Signature FNAF 1 Flared Lower Cheek Jowls (Left & Right stepped Blockbench cheek volumes)
+      const cheekWrap = createBlockbenchBox(16.2, 4.8, 9.2, 'furMain', { seed: 60 });
+      cheekWrap.position.set(0, 4.9 * P, 0.1 * P);
+      headPivot.add(cheekWrap);
+
+      for (let side of [-1, 1]) {
+        const outerJowl = createBlockbenchBox(1.6, 3.8, 7.6, 'furMain', { seed: 62 + side });
+        outerJowl.position.set(side * 8.6 * P, 4.6 * P, 0.2 * P);
+        headPivot.add(outerJowl);
+      }
+
+      // 3. Puffy Bilobed Snout / Muzzle (Lighter tan-gold pixel art with 3 black whisker dots per lobe)
+      const snoutGroup = new THREE.Group();
+      snoutGroup.position.set(0, 4.5 * P, 5.8 * P);
+      headPivot.add(snoutGroup);
+
+      // Dark center philtrum cleft divider between the two snout pads
+      const philtrumBox = createBlockbenchBox(1.0, 3.8, 4.2, 'furDark', { seed: 66 });
+      philtrumBox.position.set(0, 0, -0.1 * P);
+      snoutGroup.add(philtrumBox);
+
+      for (let side of [-1, 1]) {
+        // Left (side=1) and Right (side=-1) puffy snout lobes (6.5 x 4.2 x 4.6 px)
+        const lobeBox = createBlockbenchBox(6.5, 4.2, 4.6, 'furLight', {
+          seed: 70 + side,
+          faceExtras: (ctx, w, h, fIdx) => {
+            if (fIdx === 4) {
+              // 3 Iconic Black Whisker Follicle Dots arranged in a triangle on the front face (Reference 1, 2, 3, 5)
+              ctx.fillStyle = '#08090c';
+              if (side === -1) {
+                // Viewer's left lobe
+                ctx.fillRect(2, 1, 1, 1);
+                ctx.fillRect(4, 1, 1, 1);
+                ctx.fillRect(3, 2, 1, 1);
+              } else {
+                // Viewer's right lobe
+                ctx.fillRect(w - 3, 1, 1, 1);
+                ctx.fillRect(w - 5, 1, 1, 1);
+                ctx.fillRect(w - 4, 2, 1, 1);
+              }
+              // Warm lower snout shadow bevel
+              ctx.fillStyle = 'rgba(95, 44, 10, 0.45)';
+              ctx.fillRect(0, h - 1, w, 1);
+            }
+          }
+        });
+        lobeBox.position.set(side * 3.45 * P, 0, 0);
+        snoutGroup.add(lobeBox);
+      }
+
+      // Upper Snout Bridge connecting between the eye sockets
+      const snoutBridge = createBlockbenchBox(5.5, 1.2, 3.5, 'furLight', { seed: 74 });
+      snoutBridge.position.set(0, 2.4 * P, -0.4 * P);
+      snoutGroup.add(snoutBridge);
+
+      // Glossy Black Bear Nose perched on top center of snout (4.4 x 2.0 x 2.8 px)
+      const noseBox = createBlockbenchBox(4.4, 2.0, 2.8, 'glossyBlack', {
+        seed: 77,
+        roughness: 0.16,
+        metalness: 0.28,
+        faceExtras: (ctx, w, h, fIdx) => {
+          // Crisp white-silver specular pixel highlight on top/front of nose (Reference 1 & 3)
+          if (fIdx === 4 || fIdx === 2) {
+            ctx.fillStyle = 'rgba(220, 230, 245, 0.65)';
+            ctx.fillRect(1, 0, 2, 1);
+          }
+        }
+      });
+      noseBox.position.set(0, 2.55 * P, 1.2 * P);
+      snoutGroup.add(noseBox);
+
+      // Custom 16x16 resolution pixel-art eyeball face texture (12x12 crisp texels for high detail within the 3.2px eye cube)
+      const eyeFrontNormalTex = makePixelCanvasTexture(12, 12, (ctx, w, h) => {
+        // Sclera base with subtle corner shading
+        ctx.fillStyle = '#dde3ee';
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#b0bac9';
+        ctx.fillRect(0, 0, w, 1);
+        ctx.fillRect(0, h - 1, w, 1);
+        ctx.fillRect(0, 0, 1, h);
+        ctx.fillRect(w - 1, 0, 1, h);
+
+        // Cerulean/cobalt blue animatronic iris (6x6 px centered)
+        ctx.fillStyle = '#1d4ed8';
+        ctx.fillRect(3, 3, 6, 6);
+        ctx.fillStyle = '#3b82f6';
+        ctx.fillRect(4, 3, 4, 6);
+        ctx.fillRect(3, 4, 6, 4);
+        ctx.fillStyle = '#60a5fa';
+        ctx.fillRect(4, 7, 4, 1);
+
+        // Deep black square pupil (2x2 px)
+        ctx.fillStyle = '#06070a';
+        ctx.fillRect(5, 5, 2, 2);
+
+        // Crisp white animatronic pixel catchlight in upper-left of iris (Reference 1 & 2)
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(4, 4, 2, 2);
+      });
+
+      // Emissive golden-white eye texture for the Special "Toreador March" Power Outage mode (Reference 4)
+      const eyeFrontGlowTex = makePixelCanvasTexture(12, 12, (ctx, w, h) => {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#d97706';
+        ctx.fillRect(2, 2, 8, 8);
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(3, 3, 6, 6);
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(4, 4, 4, 4);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(5, 5, 2, 2);
+      });
+
+      const eyeSideMat = new THREE.MeshStandardMaterial({
+        color: 0xcbd5e1,
+        roughness: 0.25,
+        metalness: 0.05
+      });
+
+      const eyeFrontMat = new THREE.MeshStandardMaterial({
+        map: eyeFrontNormalTex,
+        roughness: 0.14,
+        metalness: 0.08,
+        emissive: new THREE.Color(0xffffff),
+        emissiveMap: eyeFrontGlowTex,
+        emissiveIntensity: 0.0
+      });
+
+      const eyeballMaterials = [
+        eyeSideMat,
+        eyeSideMat,
+        eyeSideMat,
+        eyeSideMat,
+        eyeFrontMat,
+        eyeSideMat
+      ];
+
+      rig.eyes = [];
+      rig.eyelids = [];
+      rig.eyebrows = [];
+
+      for (let side of [-1, 1]) {
+        const socketX = side * 3.15 * P;
+        const socketY = 8.4 * P;
+
+        // Deep Pitch-Black Eye Socket Cavity (4.0 x 3.6 x 1.8 px)
+        const socketVoid = new THREE.Mesh(
+          new THREE.BoxGeometry(4.0 * P, 3.6 * P, 1.8 * P),
+          voidBlackMat
+        );
+        socketVoid.position.set(socketX, socketY, 4.65 * P);
+        headPivot.add(socketVoid);
+
+        // Blockbench Eyeball Pivot & Cube (3.1 x 3.1 x 2.0 px)
+        const eyePivot = new THREE.Group();
+        eyePivot.position.set(socketX, socketY, 4.75 * P);
+        headPivot.add(eyePivot);
+        rig.eyes.push(eyePivot);
+
+        const eyeballCube = createBlockbenchBox(3.1, 3.1, 2.0, 'teeth', {
+          customMaterials: eyeballMaterials
+        });
+        eyePivot.add(eyeballCube);
+
+        // Heavy Animatronic Upper Eyelid (3.5 x 1.4 x 2.3 px)
+        const eyelidPivot = new THREE.Group();
+        eyelidPivot.position.set(socketX, socketY + 0.95 * P, 4.8 * P);
+        headPivot.add(eyelidPivot);
+        rig.eyelids.push(eyelidPivot);
+
+        const eyelidBox = createBlockbenchBox(3.5, 1.4, 2.3, 'glossyBlack', {
+          seed: 80 + side,
+          roughness: 0.25,
+          metalness: 0.2
+        });
+        eyelidBox.position.set(0, 0.2 * P, 0.2 * P);
+        eyelidPivot.add(eyelidBox);
+
+        // Thick Floating Black Eyebrow perched above the socket (4.4 x 1.25 x 1.2 px)
+        const browPivot = new THREE.Group();
+        browPivot.position.set(side * 3.25 * P, 11.2 * P, 5.65 * P);
+        browPivot.rotation.z = side * -0.08;
+        headPivot.add(browPivot);
+        rig.eyebrows.push(browPivot);
+
+        const browBox = createBlockbenchBox(4.4, 1.25, 1.2, 'glossyBlack', {
+          seed: 85 + side,
+          roughness: 0.2,
+          metalness: 0.22
+        });
+        browPivot.add(browBox);
+      }
+
+      // 4. Articulated Round Blockbench Bear Ears on Exposed Endoskeleton Rods
+      rig.ears = [];
+      for (let side of [-1, 1]) {
+        const earPivot = new THREE.Group();
+        earPivot.position.set(side * 6.4 * P, 12.2 * P, -0.2 * P);
+        earPivot.rotation.z = side * -0.58;
+        headPivot.add(earPivot);
+        rig.ears.push(earPivot);
+
+        // Exposed metallic endoskeleton ear stem rod
+        const earStem = createBlockbenchBox(1.2, 2.4, 1.2, 'endoSteel', {
+          seed: 90,
+          roughness: 0.3,
+          metalness: 0.85
+        });
+        earStem.position.set(0, 1.0 * P, 0);
+        earPivot.add(earStem);
+
+        // Stepped Blockbench Outer Ear Disc (5.0 x 5.0 x 1.6 px core + 3.6 x 5.8 x 1.6 px vertical & 5.8 x 3.6 x 1.6 px horizontal octo-steps)
+        const earMain = createBlockbenchBox(4.6, 4.6, 1.6, 'furMain', { seed: 92 + side });
+        earMain.position.set(0, 4.0 * P, 0);
+        earPivot.add(earMain);
+
+        const earStepH = createBlockbenchBox(5.4, 3.0, 1.5, 'furMain', { seed: 94 + side });
+        earStepH.position.set(0, 4.0 * P, -0.02 * P);
+        earPivot.add(earStepH);
+
+        const earStepV = createBlockbenchBox(3.0, 5.4, 1.5, 'furMain', { seed: 96 + side });
+        earStepV.position.set(0, 4.0 * P, -0.02 * P);
+        earPivot.add(earStepV);
+
+        // Recessed Dark Inner Ear Pad (3.2 x 3.2 x 0.6 px)
+        const innerEarBox = createBlockbenchBox(3.2, 3.2, 0.6, 'furDark', { seed: 98 + side });
+        innerEarBox.position.set(0, 4.0 * P, 0.65 * P);
+        earPivot.add(innerEarBox);
+      }
+
+      // 5. Iconic Marbled Black Top Hat on top of the cranium
+      const hatGroup = new THREE.Group();
+      hatGroup.position.set(0, 14.1 * P, -0.1 * P);
+      headPivot.add(hatGroup);
+      rig.hat = hatGroup;
+
+      // Stepped Blockbench Hat Brim (8.4 x 1.1 x 8.4 px + 9.2 x 1.0 x 6.4 px cross-bevel)
+      const hatBrimCore = createBlockbenchBox(8.4, 1.1, 8.4, 'marbledBlack', {
+        seed: 101,
+        roughness: 0.3,
+        metalness: 0.38
+      });
+      hatGroup.add(hatBrimCore);
+
+      const hatBrimW = createBlockbenchBox(9.2, 1.0, 6.2, 'marbledBlack', {
+        seed: 102,
+        roughness: 0.3,
+        metalness: 0.38
+      });
+      hatGroup.add(hatBrimW);
+
+      const hatBrimD = createBlockbenchBox(6.2, 1.0, 9.2, 'marbledBlack', {
+        seed: 103,
+        roughness: 0.3,
+        metalness: 0.38
+      });
+      hatGroup.add(hatBrimD);
+
+      // Tall Stove-Pipe Hat Crown (6.0 x 6.2 x 6.0 px + slightly wider top flare 6.3 x 1.6 x 6.3 px)
+      const hatCrown = createBlockbenchBox(6.0, 6.2, 6.0, 'marbledBlack', {
+        seed: 105,
+        roughness: 0.3,
+        metalness: 0.38
+      });
+      hatCrown.position.set(0, 3.5 * P, 0);
+      hatGroup.add(hatCrown);
+
+      const hatTopFlare = createBlockbenchBox(6.3, 1.6, 6.3, 'marbledBlack', {
+        seed: 107,
+        roughness: 0.3,
+        metalness: 0.38
+      });
+      hatTopFlare.position.set(0, 6.0 * P, 0);
+      hatGroup.add(hatTopFlare);
+
+      // 6. Inner Mouth Cavity, Visible Endoskeleton Jaw & Hinged Lower Jaw with Individual Blocky Teeth
+      const upperMouthVoid = new THREE.Mesh(
+        new THREE.BoxGeometry(9.5 * P, 2.6 * P, 7.5 * P),
+        voidBlackMat
+      );
+      upperMouthVoid.position.set(0, 2.6 * P, 1.2 * P);
+      headPivot.add(upperMouthVoid);
+
+      // Internal Endoskeleton Upper Jaw Frame & 4 Small Endo Teeth (visible inside mouth in Reference 1, 2, 5)
+      const endoUpperJaw = createBlockbenchBox(4.8, 1.4, 4.2, 'endoSteel', {
+        seed: 110,
+        roughness: 0.35,
+        metalness: 0.85
+      });
+      endoUpperJaw.position.set(0, 2.2 * P, 3.2 * P);
+      headPivot.add(endoUpperJaw);
+
+      for (let i = -1.5; i <= 1.5; i += 1) {
+        const endoTooth = createBlockbenchBox(0.85, 0.9, 0.6, 'teeth', {
+          seed: 112,
+          roughness: 0.25,
+          metalness: 0.1
+        });
+        endoTooth.position.set(i * 1.05 * P, 1.35 * P, 4.9 * P);
+        headPivot.add(endoTooth);
+      }
+
+      // Hinged Lower Jaw Pivot (hinged at the back so it swings down realistically)
+      const jawPivot = new THREE.Group();
+      jawPivot.position.set(0, 2.4 * P, -1.0 * P);
+      headPivot.add(jawPivot);
+      rig.jaw = jawPivot;
+      jawPivot.rotation.x = 0.16;
+
+      // Sculpted Blockbench Lower Jaw Chin (13.4 x 3.2 x 9.2 px + lower stepped chin 10.6 x 1.0 x 7.8 px)
+      const jawMainBox = createBlockbenchBox(13.4, 3.2, 9.2, 'furMain', {
+        seed: 115,
+        faceExtras: (ctx, w, h, fIdx) => {
+          // Subtle central chin cleft & warm grime on front of lower jaw (Reference 1 & 3)
+          if (fIdx === 4) {
+            const mid = Math.floor(w / 2);
+            ctx.fillStyle = 'rgba(48, 18, 4, 0.55)';
+            ctx.fillRect(mid, 0, 1, h);
+            ctx.fillRect(1, 0, 3, h - 1);
+          }
+        }
+      });
+      jawMainBox.position.set(0, -1.8 * P, 4.6 * P);
+      jawPivot.add(jawMainBox);
+
+      const jawBottomBevel = createBlockbenchBox(10.6, 1.0, 7.8, 'furMain', { seed: 118 });
+      jawBottomBevel.position.set(0, -3.8 * P, 4.6 * P);
+      jawPivot.add(jawBottomBevel);
+
+      // Dark Inner Lower Mouth Well
+      const lowerMouthVoid = new THREE.Mesh(
+        new THREE.BoxGeometry(10.4 * P, 0.8 * P, 7.0 * P),
+        voidBlackMat
+      );
+      lowerMouthVoid.position.set(0, -0.1 * P, 4.6 * P);
+      jawPivot.add(lowerMouthVoid);
+
+      // 6 Front + 2 Side Blocky White Lower Animatronic Teeth (Reference 1, 2, 3, 5)
+      for (let i = 0; i < 6; i++) {
+        const tx = (i - 2.5) * 1.55 * P;
+        const toothBox = createBlockbenchBox(1.25, 1.45, 0.85, 'teeth', {
+          seed: 120 + i,
+          roughness: 0.24,
+          metalness: 0.08
+        });
+        toothBox.position.set(tx, 0.45 * P, 8.45 * P);
+        jawPivot.add(toothBox);
+      }
+      for (let side of [-1, 1]) {
+        const sideTooth = createBlockbenchBox(0.85, 1.35, 1.25, 'teeth', {
+          seed: 128 + side,
+          roughness: 0.24,
+          metalness: 0.08
+        });
+        sideTooth.position.set(side * 4.5 * P, 0.4 * P, 7.2 * P);
+        jawPivot.add(sideTooth);
+      }
+
+      rig.arms = {};
+
+      for (let side of [-1, 1]) {
+        const sideKey = side === -1 ? 'right' : 'left'; // Character's Right is -X (viewer's left)
+
+        // Shoulder Joint Pivot attached to upper torso
+        const shoulderPivot = new THREE.Group();
+        shoulderPivot.position.set(side * 9.6 * P, 16.2 * P, 0);
+        torsoPivot.add(shoulderPivot);
+
+        // Exposed Endoskeleton Shoulder Strut
+        const shoulderEndo = createBlockbenchBox(2.8, 2.8, 2.8, 'endoSteel', {
+          seed: 130,
+          roughness: 0.32,
+          metalness: 0.85
+        });
+        shoulderPivot.add(shoulderEndo);
+
+        // Floating Blockbench Shoulder Armor Pad (5.2 x 2.2 x 6.2 px)
+        const shoulderPadPivot = new THREE.Group();
+        shoulderPadPivot.position.set(side * 0.4 * P, 1.5 * P, 0);
+        shoulderPivot.add(shoulderPadPivot);
+
+        const padBox = createBlockbenchBox(5.2, 2.2, 6.2, 'furMain', { seed: 132 + side });
+        padBox.rotation.z = side * -0.35;
+        shoulderPadPivot.add(padBox);
+
+        // Upper Arm Pivot
+        const upperArmPivot = new THREE.Group();
+        shoulderPivot.add(upperArmPivot);
+
+        // Layered Blockbench Upper Arm (5.2 x 8.5 x 5.2 px core + 5.8 x 6.0 x 5.8 px outer contour shell)
+        const upperArmCore = createBlockbenchBox(5.2, 8.5, 5.2, 'furMain', { seed: 135 + side });
+        upperArmCore.position.set(0, -5.2 * P, 0);
+        upperArmPivot.add(upperArmCore);
+
+        const upperArmOuter = createBlockbenchBox(5.8, 6.0, 5.8, 'furMain', {
+          seed: 138 + side,
+          faceExtras: (ctx, w, h, fIdx) => {
+            // Iconic FNAF 1 dark smudge on right upper arm (Reference 5)
+            if (side === -1 && fIdx === 4) {
+              ctx.fillStyle = 'rgba(48, 18, 4, 0.55)';
+              ctx.fillRect(1, 2, 3, 3);
+            }
+          }
+        });
+        upperArmOuter.position.set(0, -5.2 * P, 0);
+        upperArmPivot.add(upperArmOuter);
+
+        // Elbow Joint Pivot (at y = -10.5 px relative to shoulder)
+        const elbowPivot = new THREE.Group();
+        elbowPivot.position.set(0, -10.5 * P, 0);
+        upperArmPivot.add(elbowPivot);
+
+        // Exposed Endoskeleton Elbow Hinge
+        const elbowHinge = createBlockbenchBox(3.2, 2.4, 3.2, 'endoSteel', {
+          seed: 142,
+          roughness: 0.32,
+          metalness: 0.85
+        });
+        elbowPivot.add(elbowHinge);
+
+        // Layered Blockbench Forearm (5.0 x 8.0 x 5.0 px core + 5.6 x 5.5 x 5.6 px outer cuff)
+        const forearmCore = createBlockbenchBox(5.0, 8.0, 5.0, 'furMain', { seed: 145 + side });
+        forearmCore.position.set(0, -5.0 * P, 0);
+        elbowPivot.add(forearmCore);
+
+        const forearmOuter = createBlockbenchBox(5.6, 5.5, 5.6, 'furMain', { seed: 148 + side });
+        forearmOuter.position.set(0, -5.0 * P, 0);
+        elbowPivot.add(forearmOuter);
+
+        // Wrist Pivot (at y = -9.8 px relative to elbow)
+        const wristPivot = new THREE.Group();
+        wristPivot.position.set(0, -9.8 * P, 0);
+        elbowPivot.add(wristPivot);
+
+        const wristEndo = createBlockbenchBox(2.8, 1.8, 2.8, 'endoSteel', {
+          seed: 150,
+          roughness: 0.3,
+          metalness: 0.85
+        });
+        wristPivot.add(wristEndo);
+
+        // Boxy Animatronic Bear Hand Palm (5.2 x 4.4 x 2.8 px)
+        const palmBox = createBlockbenchBox(5.2, 4.4, 2.8, 'furMain', { seed: 152 + side });
+        palmBox.position.set(0, -2.6 * P, 0);
+        wristPivot.add(palmBox);
+
+        // Extruded Lighter Tan Inner Palm Pad (3.6 x 3.0 x 0.5 px)
+        const palmPad = createBlockbenchBox(3.6, 3.0, 0.5, 'furLight', { seed: 155 + side });
+        palmPad.position.set(0, -2.6 * P, 1.5 * P);
+        wristPivot.add(palmPad);
+
+        // 4 Articulated Blockbench Fingers (3 Fingers + 1 Thumb)
+        const fingers = [];
+        for (let f = 0; f < 3; f++) {
+          const fingerPivot = new THREE.Group();
+          const fx = (f - 1) * 1.65 * P;
+          fingerPivot.position.set(fx, -4.8 * P, 0.2 * P);
+          wristPivot.add(fingerPivot);
+
+          const proxSeg = createBlockbenchBox(1.4, 2.0, 1.5, 'furMain', { seed: 160 + f });
+          proxSeg.position.set(0, -0.9 * P, 0);
+          fingerPivot.add(proxSeg);
+
+          const distalPivot = new THREE.Group();
+          distalPivot.position.set(0, -1.9 * P, 0);
+          fingerPivot.add(distalPivot);
+
+          const distSeg = createBlockbenchBox(1.3, 1.8, 1.4, 'furMain', { seed: 165 + f });
+          distSeg.position.set(0, -0.8 * P, 0);
+          distalPivot.add(distSeg);
+
+          fingers.push({ root: fingerPivot, tip: distalPivot });
+        }
+
+        // Articulated Thumb
+        const thumbPivot = new THREE.Group();
+        thumbPivot.position.set(-side * 2.6 * P, -2.2 * P, 0.6 * P);
+        thumbPivot.rotation.z = -side * 0.6;
+        wristPivot.add(thumbPivot);
+
+        const thumbBox = createBlockbenchBox(1.5, 2.6, 1.5, 'furMain', { seed: 170 + side });
+        thumbBox.position.set(0, -1.1 * P, 0);
+        thumbPivot.add(thumbBox);
+
+        // Attach Freddy's Classic Blockbench Microphone to his Right Hand (side === -1)
+        if (side === -1) {
+          fingers.forEach((fg) => {
+            fg.root.rotation.x = -1.25;
+            fg.tip.rotation.x = -1.1;
+          });
+          thumbPivot.rotation.x = -0.75;
+          thumbPivot.rotation.y = 0.55;
+
+          const micGroup = new THREE.Group();
+          micGroup.position.set(0.3 * P, -3.0 * P, 2.3 * P);
+          micGroup.rotation.x = Math.PI * 0.42;
+          micGroup.rotation.z = -0.15;
+          wristPivot.add(micGroup);
+          rig.microphone = micGroup;
+
+          // Tapered Black Marbled Microphone Handle (1.8 x 6.5 x 1.8 px)
+          const micHandle = createBlockbenchBox(1.8, 6.5, 1.8, 'marbledBlack', {
+            seed: 175,
+            roughness: 0.32,
+            metalness: 0.4
+          });
+          micGroup.add(micHandle);
+
+          // Flared Dark Collar Ring under the Grille (3.0 x 1.2 x 3.0 px)
+          const micCollar = createBlockbenchBox(3.0, 1.2, 3.0, 'marbledBlack', {
+            seed: 176,
+            roughness: 0.3,
+            metalness: 0.45
+          });
+          micCollar.position.set(0, 3.6 * P, 0);
+          micGroup.add(micCollar);
+
+          // Silver Chrome Mesh Grille Head (3.6 x 3.4 x 3.6 px + 2.8 x 4.0 x 2.8 px cap)
+          const drawGrille = (ctx, w, h) => {
+            for (let y = 0; y < h; y++) {
+              for (let x = 0; x < w; x++) {
+                if ((x + y) % 2 === 0) {
+                  ctx.fillStyle = 'rgba(30, 35, 44, 0.55)';
+                  ctx.fillRect(x, y, 1, 1);
+                }
+              }
+            }
+          };
+
+          const micHeadMain = createBlockbenchBox(3.6, 3.2, 3.6, 'micChrome', {
+            seed: 178,
+            roughness: 0.25,
+            metalness: 0.85,
+            faceExtras: drawGrille
+          });
+          micHeadMain.position.set(0, 5.4 * P, 0);
+          micGroup.add(micHeadMain);
+
+          const micHeadCap = createBlockbenchBox(2.8, 3.8, 2.8, 'micChrome', {
+            seed: 179,
+            roughness: 0.25,
+            metalness: 0.85,
+            faceExtras: drawGrille
+          });
+          micHeadCap.position.set(0, 5.4 * P, 0);
+          micGroup.add(micHeadCap);
+        } else {
+          // Left hand natural slightly curved open pose
+          fingers.forEach((fg, idx) => {
+            fg.root.rotation.x = -0.25 - idx * 0.05;
+            fg.tip.rotation.x = -0.32;
+          });
+        }
+
+        rig.arms[sideKey] = {
+          shoulder: upperArmPivot,
+          shoulderPad: shoulderPadPivot,
+          elbow: elbowPivot,
+          wrist: wristPivot,
+          fingers,
+          thumb: thumbPivot
+        };
+      }
+
+      rig.legs = {};
+
+      for (let side of [-1, 1]) {
+        const sideKey = side === -1 ? 'right' : 'left';
+
+        // Hip Pivot (at y = -1.5 px relative to Pelvis -> 25.0 px world)
+        const hipPivot = new THREE.Group();
+        hipPivot.position.set(side * 4.8 * P, -1.5 * P, 0);
+        pelvisPivot.add(hipPivot);
+
+        const hipEndo = createBlockbenchBox(3.2, 2.8, 3.2, 'endoSteel', {
+          seed: 180,
+          roughness: 0.32,
+          metalness: 0.85
+        });
+        hipPivot.add(hipEndo);
+
+        // Layered Blockbench Upper Thigh (6.8 x 9.5 x 6.8 px core + 7.4 x 7.0 x 7.4 px outer plush contour)
+        const thighCore = createBlockbenchBox(6.8, 9.5, 6.8, 'furMain', { seed: 182 + side });
+        thighCore.position.set(0, -5.6 * P, 0);
+        hipPivot.add(thighCore);
+
+        const thighOuter = createBlockbenchBox(7.4, 7.0, 7.4, 'furMain', { seed: 184 + side });
+        thighOuter.position.set(0, -5.6 * P, 0);
+        hipPivot.add(thighOuter);
+
+        // Knee Joint Pivot (at y = -11.5 px relative to hip -> 13.5 px world)
+        const kneePivot = new THREE.Group();
+        kneePivot.position.set(0, -11.5 * P, 0);
+        hipPivot.add(kneePivot);
+
+        const kneeEndo = createBlockbenchBox(3.8, 3.0, 3.8, 'endoSteel', {
+          seed: 186,
+          roughness: 0.32,
+          metalness: 0.85
+        });
+        kneePivot.add(kneeEndo);
+
+        // Distinct Horizontal Blockbench Knee Cap Shell Segment (7.2 x 2.4 x 7.4 px)
+        const kneeCapBox = createBlockbenchBox(7.2, 2.4, 7.4, 'furMain', { seed: 188 + side });
+        kneeCapBox.position.set(0, 0, 0.3 * P);
+        kneePivot.add(kneeCapBox);
+
+        // Layered Blockbench Lower Shin / Calf (6.4 x 8.5 x 6.4 px core + 7.0 x 6.0 x 7.0 px outer wrap)
+        const shinCore = createBlockbenchBox(6.4, 8.5, 6.4, 'furMain', { seed: 190 + side });
+        shinCore.position.set(0, -5.8 * P, 0);
+        kneePivot.add(shinCore);
+
+        const shinOuter = createBlockbenchBox(7.0, 6.0, 7.0, 'furMain', { seed: 192 + side });
+        shinOuter.position.set(0, -5.8 * P, 0);
+        kneePivot.add(shinOuter);
+
+        // Ankle Joint Pivot (at y = -10.5 px relative to knee -> 3.0 px world, foot bottom touches y = 0.0)
+        const anklePivot = new THREE.Group();
+        anklePivot.position.set(0, -10.5 * P, 0);
+        kneePivot.add(anklePivot);
+
+        const ankleEndo = createBlockbenchBox(3.4, 2.2, 3.4, 'endoSteel', {
+          seed: 194,
+          roughness: 0.32,
+          metalness: 0.85
+        });
+        anklePivot.add(ankleEndo);
+
+        // Wide Animatronic Foot Block (8.6 x 3.0 x 7.5 px)
+        const footHeelBox = createBlockbenchBox(8.6, 3.0, 7.5, 'furMain', { seed: 196 + side });
+        footHeelBox.position.set(0, -1.5 * P, 0.4 * P);
+        anklePivot.add(footHeelBox);
+
+        // 3 Large Sculpted Blockbench Front Toes per Foot (matching Reference 2, 4, 5)
+        for (let t = -1; t <= 1; t++) {
+          const toeW = t === 0 ? 2.8 : 2.6;
+          const toeD = t === 0 ? 3.8 : 3.4;
+          const toeBox = createBlockbenchBox(toeW, 2.6, toeD, 'furMain', {
+            seed: 200 + t + side * 3,
+            faceExtras: (ctx, w, h, fIdx) => {
+              // Dark bottom sole rim pixel line
+              if (fIdx === 4 || fIdx === 0 || fIdx === 1) {
+                ctx.fillStyle = 'rgba(32, 12, 3, 0.65)';
+                ctx.fillRect(0, h - 1, w, 1);
+              }
+            }
+          });
+          toeBox.position.set(
+            t * 2.95 * P,
+            -1.7 * P,
+            (4.8 + (t === 0 ? 0.3 : 0)) * P
+          );
+          anklePivot.add(toeBox);
+        }
+
+        rig.legs[sideKey] = {
+          hip: hipPivot,
+          knee: kneePivot,
+          ankle: anklePivot
+        };
+      }
+
+      let currentAnim = 'idle';
+      let animTime = 0;
+
+      // Subtle mouse/pointer tracking for secondary head & eye gaze motion
+      const pointerNDC = new THREE.Vector2(0, 0);
+      const smoothPointer = new THREE.Vector2(0, 0);
+      window.addEventListener('pointermove', (e) => {
+        pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+        pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      });
+
+      function damp(current, target, lambda, dt) {
+        return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-lambda * dt));
+      }
+
+      // Quantized servo step function to give authentic animatronic stepper-motor feel
+      function servoStep(val, steps = 24) {
+        const stepped = Math.round(val * steps) / steps;
+        return val * 0.62 + stepped * 0.38;
+      }
+
+      function evaluateTargetPose(state, t) {
+        const basePelvisY = 26.5 * P;
+        const pose = {
+          pelvisPos: [0, basePelvisY, 0],
+          pelvisRot: [0, 0, 0],
+          torsoRot: [0, 0, 0],
+          headRot: [0, 0, 0],
+          jawRotX: 0.16,
+          earLRotZ: 0.58,
+          earRRotZ: -0.58,
+          browLRotZ: 0.08,
+          browRRotZ: -0.08,
+          eyelidPosY: 0.95 * P,
+          eyeLook: [0, 0],
+          // Right arm holds the microphone
+          armRShoulder: [0, 0, -0.32],
+          armRElbow: [0, 0, 0],
+          armRWrist: [0, 0, 0],
+          // Left arm free
+          armLShoulder: [0, 0, 0.32],
+          armLElbow: [0, 0, 0],
+          armLWrist: [0, 0, 0],
+          // Legs
+          legRHip: [0, -0.08, -0.02],
+          legRKnee: [0, 0, 0],
+          legRAnkle: [0, 0, 0.02],
+          legLHip: [0, 0.08, 0.02],
+          legLKnee: [0, 0, 0],
+          legLAnkle: [0, 0, -0.02],
+          // Stage lighting & special effects
+          eyeGlow: 0.0,
+          stageLightScale: 1.0,
+          outageFlicker: 0.0
+        };
+
+        const breath = Math.sin(t * 2.1) * 0.02;
+
+        if (state === 'idle') {
+          // Classic FNAF 1 Show Stage Animatronic Performance
+          const sw = servoStep(Math.sin(t * 1.45), 20);
+
+          pose.pelvisPos[1] = basePelvisY + Math.abs(Math.sin(t * 1.45)) * 0.014;
+          pose.pelvisRot[1] = sw * 0.08;
+          pose.torsoRot[0] = 0.03 + breath;
+          pose.torsoRot[1] = sw * 0.16;
+          pose.torsoRot[2] = Math.sin(t * 0.725) * 0.045;
+
+          // Mechanical head turns with slight robotic pause & tilt
+          pose.headRot[0] = Math.sin(t * 1.8) * 0.07 + smoothPointer.y * 0.12;
+          pose.headRot[1] = servoStep(Math.sin(t * 0.95) * 0.34, 16) + smoothPointer.x * 0.22;
+          pose.headRot[2] = Math.cos(t * 1.45) * 0.095;
+
+          // Robotic singing jaw articulation
+          const singPulse = Math.max(0, Math.sin(t * 5.2) * Math.sin(t * 1.6));
+          pose.jawRotX = 0.14 + singPulse * 0.34;
+
+          // Subtle ear & eyebrow servo follow-through
+          pose.earLRotZ = 0.58 + Math.sin(t * 2.9 - 0.4) * 0.06;
+          pose.earRRotZ = -0.58 + Math.cos(t * 2.9 - 0.4) * 0.06;
+          pose.browLRotZ = 0.08 + singPulse * 0.08;
+          pose.browRRotZ = -0.08 - singPulse * 0.08;
+
+          // Occasional mechanical blink
+          const blinkCycle = t % 4.6;
+          pose.eyelidPosY = (blinkCycle > 4.38 && blinkCycle < 4.54) ? 0.15 * P : 0.95 * P;
+          pose.eyeLook = [smoothPointer.x * 0.16, -smoothPointer.y * 0.10];
+
+          // Right arm holding microphone up toward chest/mouth (matches Reference 1, 2, 3, 5)
+          pose.armRShoulder = [-0.52 + singPulse * -0.14, -0.25, -0.40];
+          pose.armRElbow = [-1.24 + singPulse * -0.12, 0.30, 0.12];
+          pose.armRWrist = [0.15, -0.32, 0.10];
+
+          // Left arm performing classic animatronic stage wave / gesture (Reference 2 & 5)
+          const wavePhase = Math.sin(t * 1.45 - 0.5);
+          pose.armLShoulder = [-0.35 + wavePhase * 0.25, 0.15, 0.44 + Math.max(0, wavePhase) * 0.35];
+          pose.armLElbow = [-0.88 - wavePhase * 0.32, -0.22, -0.12];
+          pose.armLWrist = [0, 0.25, Math.sin(t * 2.9) * 0.18];
+
+        } else if (state === 'walk') {
+          // Heavy, menacing animatronic stalk walk cycle with authentic weight shift
+          const walkSpeed = 3.4;
+          const phase = t * walkSpeed;
+          const sinP = Math.sin(phase);
+          const cosP = Math.cos(phase);
+
+          const stepBounce = Math.abs(sinP);
+          pose.pelvisPos[0] = cosP * 0.06;
+          pose.pelvisPos[1] = basePelvisY - 0.04 + stepBounce * 0.07;
+          pose.pelvisRot[0] = 0.06;
+          pose.pelvisRot[1] = -sinP * 0.14;
+          pose.pelvisRot[2] = cosP * 0.055;
+
+          pose.torsoRot[0] = 0.09 + Math.sin(phase * 2) * 0.035;
+          pose.torsoRot[1] = sinP * 0.18;
+          pose.torsoRot[2] = -cosP * 0.065;
+
+          const stepImpact = Math.pow(Math.max(0, Math.abs(cosP) - 0.75) * 4, 2);
+          pose.headRot[0] = -0.06 + stepImpact * 0.06 + smoothPointer.y * 0.1;
+          pose.headRot[1] = -sinP * 0.08 + smoothPointer.x * 0.18;
+          pose.headRot[2] = cosP * 0.08;
+
+          pose.jawRotX = 0.18 + stepImpact * 0.14;
+          pose.earLRotZ = 0.58 + stepImpact * 0.09;
+          pose.earRRotZ = -0.58 - stepImpact * 0.09;
+          pose.eyelidPosY = 0.82 * P; // narrowed menacing animatronic stare
+
+          const rLift = Math.max(0, cosP);
+          const lLift = Math.max(0, -cosP);
+
+          pose.legRHip = [sinP * 0.44 - rLift * 0.22, -0.05, -0.02];
+          pose.legRKnee = [rLift * 0.72 + 0.08, 0, 0];
+          pose.legRAnkle = [-sinP * 0.22 - rLift * 0.25, 0, 0.02];
+
+          pose.legLHip = [-sinP * 0.44 - lLift * 0.22, 0.05, 0.02];
+          pose.legLKnee = [lLift * 0.72 + 0.08, 0, 0];
+          pose.legLAnkle = [sinP * 0.22 - lLift * 0.25, 0, -0.02];
+
+          pose.armRShoulder = [-0.38 - sinP * 0.32, -0.15, -0.34];
+          pose.armRElbow = [-0.95 + cosP * 0.18, 0.2, 0.1];
+          pose.armRWrist = [0.1, -0.2, 0];
+
+          pose.armLShoulder = [sinP * 0.38 - 0.12, 0.1, 0.34];
+          pose.armLElbow = [-0.55 - Math.max(0, sinP) * 0.35, -0.1, 0];
+          pose.armLWrist = [0, 0.15, 0];
+
+        } else if (state === 'attack') {
+          // FNAF 1 Classic Jumpscare Lunge & Violent Animatronic Shake
+          const cycle = t % 2.4;
+          const lunge = cycle < 1.65 ? Math.min(1.0, cycle * 4.5) : Math.max(0.0, 1.0 - (cycle - 1.65) * 1.8);
+          const jitterX = Math.sin(t * 58.0) * 0.09 * lunge;
+          const jitterY = Math.cos(t * 67.0) * 0.09 * lunge;
+          const jitterZ = Math.sin(t * 49.0) * 0.11 * lunge;
+
+          pose.pelvisPos[1] = basePelvisY - lunge * 0.10;
+          pose.pelvisPos[2] = lunge * 0.46;
+          pose.pelvisRot[0] = lunge * 0.18;
+
+          pose.torsoRot[0] = lunge * 0.32 + jitterX * 0.4;
+          pose.torsoRot[1] = Math.sin(t * 16.0) * 0.14 * lunge;
+          pose.torsoRot[2] = jitterZ * 0.5;
+
+          pose.headRot[0] = -0.12 * lunge + jitterX;
+          pose.headRot[1] = jitterY * 1.4;
+          pose.headRot[2] = Math.sin(t * 22.0) * 0.24 * lunge + jitterZ;
+
+          // Jaw snaps wide open exposing inner endoskeleton teeth
+          pose.jawRotX = 0.16 + lunge * (0.58 + Math.abs(Math.sin(t * 38.0)) * 0.18);
+
+          // Ears flare, eyebrows angle down aggressively, eyelids snap wide open
+          pose.earLRotZ = 0.58 + lunge * 0.25 + jitterZ;
+          pose.earRRotZ = -0.58 - lunge * 0.25 - jitterZ;
+          pose.browLRotZ = 0.08 - lunge * 0.38;
+          pose.browRRotZ = -0.08 + lunge * 0.38;
+          pose.eyelidPosY = (0.95 + lunge * 0.65) * P;
+          pose.eyeGlow = lunge * 0.35;
+
+          pose.armRShoulder = [-1.35 * lunge - 0.3, -0.35 * lunge, -0.48];
+          pose.armRElbow = [-0.65 - 0.35 * (1 - lunge) + jitterX, 0.2, 0];
+          pose.armRWrist = [-0.3 * lunge, 0, jitterZ];
+
+          pose.armLShoulder = [-1.42 * lunge - 0.2, 0.35 * lunge, 0.48];
+          pose.armLElbow = [-0.55 + jitterY, -0.2, 0];
+          pose.armLWrist = [-0.35 * lunge, 0, -jitterZ];
+
+          pose.legRHip = [-0.28 * lunge, -0.12, -0.06];
+          pose.legRKnee = [0.46 * lunge, 0, 0];
+          pose.legRAnkle = [-0.18 * lunge, 0, 0.06];
+
+          pose.legLHip = [-0.18 * lunge, 0.12, 0.06];
+          pose.legLKnee = [0.36 * lunge, 0, 0];
+          pose.legLAnkle = [-0.18 * lunge, 0, -0.06];
+
+        } else if (state === 'special') {
+          // Iconic FNAF 1 Power Outage — "Toreador March" Music Box Sequence (Reference 4)
+          pose.stageLightScale = 0.08;
+          const strobeWave = Math.sin(t * 19.0) * Math.cos(t * 11.3) + Math.sin(t * 31.7) * 0.5;
+          const isLit = strobeWave > -0.15 ? 1.0 : 0.12;
+          pose.eyeGlow = isLit * (1.45 + Math.sin(t * 27.0) * 0.35);
+          pose.outageFlicker = isLit * (1.85 + Math.sin(t * 23.0) * 0.6);
+
+          const beat = t * 2.6;
+          const sway = servoStep(Math.sin(beat), 14);
+          const doubleBeat = Math.sin(beat * 2);
+
+          pose.pelvisPos[1] = basePelvisY + Math.abs(doubleBeat) * 0.016;
+          pose.pelvisRot[1] = sway * 0.12;
+
+          pose.torsoRot[0] = 0.04 + doubleBeat * 0.03;
+          pose.torsoRot[1] = sway * 0.22;
+          pose.torsoRot[2] = sway * 0.07;
+
+          pose.headRot[0] = Math.sin(beat * 1.5) * 0.11;
+          pose.headRot[1] = -sway * 0.24 + smoothPointer.x * 0.15;
+          pose.headRot[2] = servoStep(Math.sin(beat) * 0.19, 10);
+
+          pose.jawRotX = 0.12 + Math.max(0, Math.sin(beat * 2)) * 0.32;
+          pose.earLRotZ = 0.58 + Math.sin(beat * 2 - 0.5) * 0.08;
+          pose.earRRotZ = -0.58 - Math.sin(beat * 2 - 0.5) * 0.08;
+          pose.browLRotZ = 0.14;
+          pose.browRRotZ = -0.14;
+          pose.eyelidPosY = 0.92 * P;
+
+          pose.armRShoulder = [-0.58 + doubleBeat * 0.08, -0.22, -0.36];
+          pose.armRElbow = [-1.22, 0.28, 0.1];
+          pose.armRWrist = [0.18, -0.3, 0];
+
+          pose.armLShoulder = [-0.18 + sway * 0.15, 0.12, 0.32];
+          pose.armLElbow = [-0.42 - Math.abs(sway) * 0.25, -0.15, 0];
+          pose.armLWrist = [0, 0.2, sway * 0.15];
+        }
+
+        return pose;
+      }
+
+      let prevHeadRotZ = 0;
+      let prevHeadRotX = 0;
+
+      function applyPoseWithDamping(pose, dt) {
+        const speed = currentAnim === 'attack' ? 22.0 : 11.5;
+
+        smoothPointer.x = damp(smoothPointer.x, pointerNDC.x, 6.0, dt);
+        smoothPointer.y = damp(smoothPointer.y, pointerNDC.y, 6.0, dt);
+
+        // Pelvis
+        rig.pelvis.position.x = damp(rig.pelvis.position.x, pose.pelvisPos[0], speed, dt);
+        rig.pelvis.position.y = damp(rig.pelvis.position.y, pose.pelvisPos[1], speed, dt);
+        rig.pelvis.position.z = damp(rig.pelvis.position.z, pose.pelvisPos[2], speed, dt);
+        rig.pelvis.rotation.x = damp(rig.pelvis.rotation.x, pose.pelvisRot[0], speed, dt);
+        rig.pelvis.rotation.y = damp(rig.pelvis.rotation.y, pose.pelvisRot[1], speed, dt);
+        rig.pelvis.rotation.z = damp(rig.pelvis.rotation.z, pose.pelvisRot[2], speed, dt);
+
+        // Torso
+        rig.torso.rotation.x = damp(rig.torso.rotation.x, pose.torsoRot[0], speed, dt);
+        rig.torso.rotation.y = damp(rig.torso.rotation.y, pose.torsoRot[1], speed, dt);
+        rig.torso.rotation.z = damp(rig.torso.rotation.z, pose.torsoRot[2], speed, dt);
+
+        // Head
+        rig.head.rotation.x = damp(rig.head.rotation.x, pose.headRot[0], speed, dt);
+        rig.head.rotation.y = damp(rig.head.rotation.y, pose.headRot[1], speed, dt);
+        rig.head.rotation.z = damp(rig.head.rotation.z, pose.headRot[2], speed, dt);
+
+        const headVelZ = (rig.head.rotation.z - prevHeadRotZ) / Math.max(dt, 0.001);
+        const headVelX = (rig.head.rotation.x - prevHeadRotX) / Math.max(dt, 0.001);
+        prevHeadRotZ = rig.head.rotation.z;
+        prevHeadRotX = rig.head.rotation.x;
+
+        // Jaw with subtle gravity/inertia follow-through
+        const targetJaw = pose.jawRotX + Math.max(0, headVelX * 0.025);
+        rig.jaw.rotation.x = damp(rig.jaw.rotation.x, targetJaw, speed * 1.35, dt);
+
+        // Ears with secondary inertia lag
+        rig.ears[0].rotation.z = damp(rig.ears[0].rotation.z, pose.earRRotZ - headVelZ * 0.035, 9.0, dt);
+        rig.ears[1].rotation.z = damp(rig.ears[1].rotation.z, pose.earLRotZ - headVelZ * 0.035, 9.0, dt);
+
+        // Subtle hat wobble on sudden head movement
+        rig.hat.rotation.z = damp(rig.hat.rotation.z, -headVelZ * 0.018, 10.0, dt);
+        rig.hat.rotation.x = damp(rig.hat.rotation.x, headVelX * 0.018, 10.0, dt);
+
+        // Eyebrows, Eyelids & Eyes
+        rig.eyebrows[0].rotation.z = damp(rig.eyebrows[0].rotation.z, pose.browLRotZ, speed, dt);
+        rig.eyebrows[1].rotation.z = damp(rig.eyebrows[1].rotation.z, pose.browRRotZ, speed, dt);
+
+        rig.eyelids.forEach((lid) => {
+          lid.position.y = damp(lid.position.y, 8.4 * P + pose.eyelidPosY, 18.0, dt);
+        });
+
+        rig.eyes.forEach((eye) => {
+          eye.rotation.y = damp(eye.rotation.y, pose.eyeLook[0], 14.0, dt);
+          eye.rotation.x = damp(eye.rotation.x, pose.eyeLook[1], 14.0, dt);
+        });
+
+        // Arms & Secondary Shoulder Pad lift
+        const rArm = rig.arms.right;
+        rArm.shoulder.rotation.x = damp(rArm.shoulder.rotation.x, pose.armRShoulder[0], speed, dt);
+        rArm.shoulder.rotation.y = damp(rArm.shoulder.rotation.y, pose.armRShoulder[1], speed, dt);
+        rArm.shoulder.rotation.z = damp(rArm.shoulder.rotation.z, pose.armRShoulder[2], speed, dt);
+        rArm.elbow.rotation.x = damp(rArm.elbow.rotation.x, pose.armRElbow[0], speed * 0.9, dt);
+        rArm.elbow.rotation.y = damp(rArm.elbow.rotation.y, pose.armRElbow[1], speed * 0.9, dt);
+        rArm.elbow.rotation.z = damp(rArm.elbow.rotation.z, pose.armRElbow[2], speed * 0.9, dt);
+        rArm.wrist.rotation.x = damp(rArm.wrist.rotation.x, pose.armRWrist[0], speed * 0.8, dt);
+        rArm.wrist.rotation.y = damp(rArm.wrist.rotation.y, pose.armRWrist[1], speed * 0.8, dt);
+        rArm.wrist.rotation.z = damp(rArm.wrist.rotation.z, pose.armRWrist[2], speed * 0.8, dt);
+        rArm.shoulderPad.rotation.z = damp(rArm.shoulderPad.rotation.z, rArm.shoulder.rotation.z * 0.35, 10.0, dt);
+
+        const lArm = rig.arms.left;
+        lArm.shoulder.rotation.x = damp(lArm.shoulder.rotation.x, pose.armLShoulder[0], speed, dt);
+        lArm.shoulder.rotation.y = damp(lArm.shoulder.rotation.y, pose.armLShoulder[1], speed, dt);
+        lArm.shoulder.rotation.z = damp(lArm.shoulder.rotation.z, pose.armLShoulder[2], speed, dt);
+        lArm.elbow.rotation.x = damp(lArm.elbow.rotation.x, pose.armLElbow[0], speed * 0.9, dt);
+        lArm.elbow.rotation.y = damp(lArm.elbow.rotation.y, pose.armLElbow[1], speed * 0.9, dt);
+        lArm.elbow.rotation.z = damp(lArm.elbow.rotation.z, pose.armLElbow[2], speed * 0.9, dt);
+        lArm.wrist.rotation.x = damp(lArm.wrist.rotation.x, pose.armLWrist[0], speed * 0.8, dt);
+        lArm.wrist.rotation.y = damp(lArm.wrist.rotation.y, pose.armLWrist[1], speed * 0.8, dt);
+        lArm.wrist.rotation.z = damp(lArm.wrist.rotation.z, pose.armLWrist[2], speed * 0.8, dt);
+        lArm.shoulderPad.rotation.z = damp(lArm.shoulderPad.rotation.z, lArm.shoulder.rotation.z * 0.35, 10.0, dt);
+
+        // Legs
+        const rLeg = rig.legs.right;
+        rLeg.hip.rotation.x = damp(rLeg.hip.rotation.x, pose.legRHip[0], speed, dt);
+        rLeg.hip.rotation.y = damp(rLeg.hip.rotation.y, pose.legRHip[1], speed, dt);
+        rLeg.hip.rotation.z = damp(rLeg.hip.rotation.z, pose.legRHip[2], speed, dt);
+        rLeg.knee.rotation.x = damp(rLeg.knee.rotation.x, pose.legRKnee[0], speed, dt);
+        rLeg.ankle.rotation.x = damp(rLeg.ankle.rotation.x, pose.legRAnkle[0], speed, dt);
+        rLeg.ankle.rotation.z = damp(rLeg.ankle.rotation.z, pose.legRAnkle[2], speed, dt);
+
+        const lLeg = rig.legs.left;
+        lLeg.hip.rotation.x = damp(lLeg.hip.rotation.x, pose.legLHip[0], speed, dt);
+        lLeg.hip.rotation.y = damp(lLeg.hip.rotation.y, pose.legLHip[1], speed, dt);
+        lLeg.hip.rotation.z = damp(lLeg.hip.rotation.z, pose.legLHip[2], speed, dt);
+        lLeg.knee.rotation.x = damp(lLeg.knee.rotation.x, pose.legLKnee[0], speed, dt);
+        lLeg.ankle.rotation.x = damp(lLeg.ankle.rotation.x, pose.legLAnkle[0], speed, dt);
+        lLeg.ankle.rotation.z = damp(lLeg.ankle.rotation.z, pose.legLAnkle[2], speed, dt);
+
+        // Dynamic Stage & Power-Outage Lighting transitions
+        keyLight.intensity = damp(keyLight.intensity, 2.5 * pose.stageLightScale, 8.0, dt);
+        fillLight.intensity = damp(fillLight.intensity, 0.95 * pose.stageLightScale, 8.0, dt);
+        rimLight.intensity = damp(rimLight.intensity, 2.15 * Math.max(0.35, pose.stageLightScale), 8.0, dt);
+        ambientLight.intensity = damp(ambientLight.intensity, 0.92 * Math.max(0.22, pose.stageLightScale), 8.0, dt);
+
+        eyeFrontMat.emissiveIntensity = damp(eyeFrontMat.emissiveIntensity, pose.eyeGlow, 24.0, dt);
+        powerOutageLight.intensity = damp(powerOutageLight.intensity, pose.outageFlicker, 24.0, dt);
+      }
+
+      const animButtons = document.querySelectorAll('.anim-btn');
+      animButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          animButtons.forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentAnim = btn.getAttribute('data-anim');
+          if (currentAnim === 'attack') {
+            animTime = 0;
+          }
+        });
+      });
+
+      let resettingCamera = false;
+      document.getElementById('reset-cam-btn').addEventListener('click', () => {
+        resettingCamera = true;
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      controls.addEventListener('start', () => {
+        resettingCamera = false;
+      });
+
+      const FIXED_STEP = 1 / 60;
+      let accumulator = 0;
+      let lastTimestamp = performance.now();
+
+      function animate(now) {
+        requestAnimationFrame(animate);
+
+        const rawDelta = Math.min((now - lastTimestamp) / 1000, 0.1);
+        lastTimestamp = now;
+        accumulator += rawDelta;
+
+        while (accumulator >= FIXED_STEP) {
+          animTime += FIXED_STEP;
+          const targetPose = evaluateTargetPose(currentAnim, animTime);
+          applyPoseWithDamping(targetPose, FIXED_STEP);
+
+          if (resettingCamera) {
+            camera.position.lerp(defaultCamPos, 0.12);
+            controls.target.lerp(defaultCamTarget, 0.12);
+            if (
+              camera.position.distanceTo(defaultCamPos) < 0.01 &&
+              controls.target.distanceTo(defaultCamTarget) < 0.01
+            ) {
+              camera.position.copy(defaultCamPos);
+              controls.target.copy(defaultCamTarget);
+              resettingCamera = false;
+            }
+          }
+
+          controls.update();
+          accumulator -= FIXED_STEP;
+        }
+
+        renderer.render(scene, camera);
+      }
+
+      requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>

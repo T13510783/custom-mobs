@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-17 14:53
+- Committed 6 new Davy Jones reference images in `references/davy_jones/`.
+
+## 2026-10-17 00:00
+- Committed the team's uncommitted work: viewers `mobs/dexter/`, `mobs/freddy_fazbear/`, `mobs/saw(belong together)/` (Billy, John Kramer) + their references, and the shorter `run.txt`.
+- `README.md`: the 4 new viewers in the mobs table.
+
 ## 2026-10-16 23:46
 - Anton Chigurh (`mobs/anton_chigurh/anton_chigurh.html`): face acts with what he does, smoother animations.
   - Idle: weight shift (knees + tank), eyes lead the scan and narrow at each side, one slow heavy blink in the middle.

@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>John Kramer (Jigsaw) — Vanilla+ 16x16 3D Model Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #0f1115;
+      overflow: hidden;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      background: radial-gradient(circle at 50% 42%, #1a1d24 0%, #0f1115 72%);
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .pill-bar {
+      background: rgba(18, 21, 27, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(180, 24, 35, 0.12);
+    }
+    .anim-btn {
+      position: relative;
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      color: #8b93a4;
+    }
+    .anim-btn:hover {
+      color: #e2e8f0;
+    }
+    .anim-btn.active {
+      color: #ffffff;
+      background: linear-gradient(135deg, #8f141b 0%, #5e0b10 100%);
+      box-shadow: 0 2px 12px rgba(168, 22, 31, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    }
+    .reset-btn {
+      background: rgba(18, 21, 27, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #8b93a4;
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+    .reset-btn:hover {
+      color: #ffffff;
+      border-color: rgba(185, 28, 28, 0.45);
+      transform: translateY(-1px);
+    }
+    .reset-btn:active {
+      transform: translateY(0px) scale(0.96);
+    }
+  </style>
+</head>
+
+<body class="bg-[#0f1115] text-white antialiased">
+  <div id="canvas-container">
+    <!-- Floating Bottom Control Bar (Animation Switcher + Camera Reset) -->
+    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5">
+      <div class="pill-bar rounded-full p-1.5 flex items-center gap-1" role="group" aria-label="Animation Controls">
+        <button data-anim="idle" class="anim-btn active px-4 py-1.5 rounded-full text-xs font-medium tracking-wide">
+          Idle
+        </button>
+        <button data-anim="walk" class="anim-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide">
+          Walk
+        </button>
+        <button data-anim="attack" class="anim-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide">
+          Attack
+        </button>
+        <button data-anim="special" class="anim-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide">
+          Special
+        </button>
+      </div>
+
+      <button id="reset-camera-btn" title="Reset Camera" aria-label="Reset Camera" class="reset-btn w-9 h-9 rounded-full flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // Deterministic pseudo-random generator for cohesive Vanilla+ pixel dithering
+      let seedVal = 1337;
+      function seededRandom() {
+        seedVal = (seedVal * 16807) % 2147483647;
+        return (seedVal - 1) / 2147483646;
+      }
+
+      // Shift hex color lightness for crisp pixel-art shading
+      function shadeHex(hex, lumDelta) {
+        const clean = hex.replace('#', '');
+        const num = parseInt(clean, 16);
+        let r = (num >> 16) + lumDelta;
+        let g = ((num >> 8) & 0x00ff) + lumDelta;
+        let b = (num & 0x0000ff) + lumDelta;
+        r = Math.max(0, Math.min(255, Math.round(r)));
+        g = Math.max(0, Math.min(255, Math.round(g)));
+        b = Math.max(0, Math.min(255, Math.round(b)));
+        return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+      }
+
+      // Create crisp 16x16 Vanilla+ CanvasTexture using NearestFilter
+      function createPixelCanvas(w = 16, h = 16, drawFn) {
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        drawFn(ctx, w, h);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.magFilter = THREE.NearestFilter;
+        tex.minFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        tex.needsUpdate = true;
+        return tex;
+      }
+
+      function px(ctx, x, y, color, w = 1, h = 1) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, w, h);
+      }
+
+      function fillTextured(ctx, w, h, baseHex, variance = 5) {
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const delta = (seededRandom() - 0.5) * variance * 2;
+            px(ctx, x, y, shadeHex(baseHex, delta));
+          }
+        }
+      }
+
+      // Reference 1, 2, 5, 6, 7 accuracy:
+      // - High forehead with wispy white-blonde crown hair and receding temples
+      // - Deep horizontal forehead creases & vertical glabella frown lines
+      // - Piercing pale icy-blue irises, heavy hooded brows, reddish lower waterlines, crow's feet
+      // - Prominent narrow nose bridge, gaunt weathered cheeks, deep nasolabial folds
+      // - Fine white/grey stubble around upper lip and cleft chin
+      function makeFaceFrontTexture(isSmiling = false) {
+        return createPixelCanvas(16, 16, (ctx) => {
+          // Base weathered pale warm skin
+          fillTextured(ctx, 16, 16, '#d5a384', 4);
+
+          // Upper hairline: thinning wispy white-blonde center (image 6 & 7) + white temple hair (image 1 & 5)
+          const hairBright = '#f0ece1';
+          const hairMid = '#dad4c5';
+          const hairThin = '#dfc0a8';
+          px(ctx, 0, 0, hairBright, 4, 1);
+          px(ctx, 12, 0, hairBright, 4, 1);
+          px(ctx, 4, 0, hairThin, 8, 1);
+          // Fine white strands across the high crown
+          px(ctx, 5, 0, hairMid, 1, 1);
+          px(ctx, 7, 0, hairBright, 2, 1);
+          px(ctx, 10, 0, hairMid, 1, 1);
+
+          // Receding temples (M-shape high forehead)
+          px(ctx, 0, 1, hairBright, 2, 2);
+          px(ctx, 14, 1, hairBright, 2, 2);
+          px(ctx, 2, 1, hairMid, 1, 1);
+          px(ctx, 13, 1, hairMid, 1, 1);
+          px(ctx, 6, 1, '#e3c7b2', 4, 1); // wispy forelock highlight
+          px(ctx, 0, 3, '#c7c0b2', 1, 3); // temple hair sideburn wisps
+          px(ctx, 15, 3, '#c7c0b2', 1, 3);
+
+          // Deep horizontal forehead wrinkles (images 1, 5, 6, 7)
+          px(ctx, 3, 2, '#b37b5d', 10, 1); // upper crease
+          px(ctx, 2, 3, '#deb092', 12, 1); // forehead ridge highlight
+          px(ctx, 3, 4, '#ad7457', 10, 1); // middle crease
+          px(ctx, 3, 5, '#d6a487', 10, 1); // lower brow highlight
+
+          // Glabella vertical frown creases between brows
+          px(ctx, 7, 4, '#945b40', 1, 2);
+          px(ctx, 8, 4, '#9e6448', 1, 2);
+
+          // Hooded silver-blonde/taupe eyebrows angled inward (image 1)
+          px(ctx, 2, 5, '#c4b8a8', 3, 1);
+          px(ctx, 5, 5, '#a8846c', 2, 1);
+          px(ctx, 9, 5, '#a8846c', 2, 1);
+          px(ctx, 11, 5, '#c4b8a8', 3, 1);
+
+          // Deep-set eye sockets & hooded upper eyelid fold
+          px(ctx, 2, 6, '#7d473b', 5, 1);
+          px(ctx, 9, 6, '#7d473b', 5, 1);
+
+          // Piercing pale icy-blue eyes (image 1 & 5)
+          px(ctx, 2, 7, '#8f5246', 1, 1);  // outer eye shadow
+          px(ctx, 3, 7, '#e2ebf2', 1, 1);  // left sclera
+          px(ctx, 4, 7, '#6397c2', 1, 1);  // left icy blue iris
+          px(ctx, 5, 7, '#1e3952', 1, 1);  // left pupil & dark inner iris
+          px(ctx, 6, 7, '#9e584c', 1, 1);  // left inner caruncle
+
+          px(ctx, 9, 7, '#9e584c', 1, 1);  // right inner caruncle
+          px(ctx, 10, 7, '#1e3952', 1, 1); // right pupil & dark inner iris
+          px(ctx, 11, 7, '#6397c2', 1, 1); // right icy blue iris
+          px(ctx, 12, 7, '#e2ebf2', 1, 1); // right sclera
+          px(ctx, 13, 7, '#8f5246', 1, 1); // outer eye shadow
+
+          // Reddish lower waterlines, tear bags & deep crow's feet (images 1, 6, 7)
+          px(ctx, 1, 6, '#965e46', 1, 3);  // left crow's feet lines
+          px(ctx, 14, 6, '#965e46', 1, 3); // right crow's feet lines
+          px(ctx, 2, 8, '#a6594e', 4, 1);  // left reddish lower eyelid
+          px(ctx, 10, 8, '#a6594e', 4, 1); // right reddish lower eyelid
+          px(ctx, 3, 9, '#b0765b', 3, 1);  // under-eye tear trough
+          px(ctx, 10, 9, '#b0765b', 3, 1);
+
+          // Narrow prominent nose bridge & slightly bulbous tip (image 1)
+          px(ctx, 7, 6, '#cfa082', 2, 1);
+          px(ctx, 7, 7, '#e4b89b', 2, 3);  // nose bridge highlight
+          px(ctx, 6, 7, '#a66e53', 1, 3);  // left nose wall shadow
+          px(ctx, 9, 7, '#a66e53', 1, 3);  // right nose wall shadow
+          px(ctx, 7, 10, '#e8be9f', 2, 1); // nose tip
+          px(ctx, 6, 10, '#7d4632', 1, 1); // left nostril wing
+          px(ctx, 9, 10, '#7d4632', 1, 1); // right nostril wing
+
+          // Gaunt weathered cheek hollows & vertical age lines (image 1 & 5)
+          px(ctx, 1, 9, '#ad765b', 2, 4);
+          px(ctx, 13, 9, '#ad765b', 2, 4);
+          px(ctx, 2, 10, '#c48f73', 2, 3);
+          px(ctx, 12, 10, '#c48f73', 2, 3);
+
+          // Deep nasolabial folds (parentheses lines from nose to mouth)
+          px(ctx, 5, 10, '#8f553d', 1, 2);
+          px(ctx, 10, 10, '#8f553d', 1, 2);
+          px(ctx, 4, 11, '#8c523b', 1, 3);
+          px(ctx, 11, 11, '#8c523b', 1, 3);
+
+          // Upper lip with subtle white/silver stubble texture (image 5)
+          px(ctx, 6, 11, '#d4b09b', 4, 1);
+          px(ctx, 7, 11, '#b88b73', 2, 1); // philtrum hollow
+
+          if (!isSmiling) {
+            // Stern, thin, slightly downturned Jigsaw mouth (images 1, 2, 5, 6)
+            px(ctx, 5, 12, '#7d3f36', 6, 1);
+            px(ctx, 6, 12, '#693129', 4, 1);
+            px(ctx, 4, 13, '#783c32', 1, 1); // downturned left corner
+            px(ctx, 11, 13, '#783c32', 1, 1);// downturned right corner
+            px(ctx, 6, 13, '#c4927a', 4, 1); // lower lip highlight
+          } else {
+            // Image 7 (Saw III) knowing toothy smile with crinkled cheeks
+            px(ctx, 4, 11, '#753930', 1, 2); // upturned smile corner left
+            px(ctx, 11, 11, '#753930', 1, 2);// upturned smile corner right
+            px(ctx, 5, 12, '#5e2820', 6, 2); // mouth cavity
+            px(ctx, 5, 12, '#ebe5d8', 6, 1); // upper teeth row
+            px(ctx, 6, 12, '#f5f0e6', 4, 1); // central incisors highlight
+            px(ctx, 6, 13, '#b87e68', 4, 1); // lower lip curve
+          }
+
+          // Chin groove, cleft chin & frosty white stubble along jawline (image 1 & 5)
+          px(ctx, 6, 14, '#99624a', 4, 1);
+          px(ctx, 5, 15, '#d6b29d', 6, 1); // chin prominence with stubble tint
+          px(ctx, 7, 15, '#ab7860', 2, 1); // subtle chin cleft
+          px(ctx, 0, 13, '#8c5840', 2, 3); // outer jaw shadow left
+          px(ctx, 14, 13, '#8c5840', 2, 3);// outer jaw shadow right
+          px(ctx, 2, 14, '#c7a089', 3, 2);
+          px(ctx, 11, 14, '#c7a089', 3, 2);
+        });
+      }
+
+      function makeHeadSideTexture(isLeft) {
+        return createPixelCanvas(16, 16, (ctx) => {
+          fillTextured(ctx, 16, 16, '#c99678', 4);
+
+          // Swept-back fine white/blonde-silver hair matching image 3 (profile) & image 5
+          for (let y = 0; y < 13; y++) {
+            for (let x = 0; x < 16; x++) {
+              const frontX = isLeft ? x : (15 - x);
+              const isHair =
+                y < 3 ||
+                (y < 6 && frontX > 3) ||
+                (y < 10 && frontX > 7) ||
+                (y < 13 && frontX > 10);
+              if (isHair) {
+                const wave = (frontX + y * 2) % 4;
+                const col = wave === 0 ? '#f4f0e6' : (wave === 1 ? '#e0dacb' : (wave === 2 ? '#c9c2b2' : '#b3ab9b'));
+                px(ctx, x, y, col);
+              }
+            }
+          }
+
+          const fX = (offset) => (isLeft ? offset : 15 - offset);
+          // Deep crow's feet & temple wrinkles in profile (image 3)
+          px(ctx, fX(0), 5, '#996047', 3, 1);
+          px(ctx, fX(0), 7, '#8f533d', 3, 1);
+          px(ctx, fX(1), 8, '#a66c52', 3, 1);
+          px(ctx, fX(1), 10, '#9c6349', 2, 4);
+
+          // Detailed ear in profile (image 3 & 5)
+          px(ctx, fX(6), 6, '#cfa084', 3, 6);
+          px(ctx, fX(6), 6, '#e3b69b', 2, 1); // upper helix rim
+          px(ctx, fX(7), 7, '#874f38', 1, 3); // ear canal hollow
+          px(ctx, fX(6), 11, '#bf8c70', 2, 1);// earlobe
+        });
+      }
+
+      function makeHeadTopTexture() {
+        return createPixelCanvas(16, 16, (ctx) => {
+          // Fluffy white-blonde hair around crown with thinning center front scalp (images 5, 6, 7)
+          fillTextured(ctx, 16, 16, '#e6e1d5', 5);
+          for (let y = 0; y < 16; y++) {
+            for (let x = 0; x < 16; x++) {
+              if ((x + y) % 2 === 0) px(ctx, x, y, '#f4f0e6');
+              if ((x * 3 + y) % 5 === 0) px(ctx, x, y, '#c2baa9');
+            }
+          }
+          // Warm scalp showing through wispy front-center hair (images 6 & 7)
+          px(ctx, 4, 11, '#dfc0a8', 8, 4);
+          px(ctx, 5, 12, '#e8cbb5', 6, 3);
+          // Wispy white strands crossing over the thinning front crown
+          px(ctx, 5, 11, '#f0ece1', 1, 4);
+          px(ctx, 8, 12, '#f0ece1', 1, 3);
+          px(ctx, 10, 11, '#e6e1d5', 1, 4);
+        });
+      }
+
+      function makeHeadBackTexture() {
+        return createPixelCanvas(16, 16, (ctx) => {
+          fillTextured(ctx, 16, 16, '#ded8ca', 5);
+          for (let y = 0; y < 13; y++) {
+            for (let x = 0; x < 16; x++) {
+              const col = (x % 2 === 0) ? '#f0ece2' : '#c7c0b0';
+              px(ctx, x, y, (x + y) % 4 === 0 ? '#b0a898' : col);
+            }
+          }
+          // Feathered white nape hair ends over weathered neck skin (image 3 & 5)
+          px(ctx, 0, 13, '#bd8a6e', 16, 3);
+          for (let x = 1; x < 15; x += 2) {
+            px(ctx, x, 13, '#e8e3d8', 1, 2);
+          }
+          px(ctx, 4, 15, '#99654b', 8, 1);
+        });
+      }
+
+      function makeHeadBottomTexture() {
+        return createPixelCanvas(16, 16, (ctx) => {
+          fillTextured(ctx, 16, 16, '#ad795e', 4);
+          // Prominent neck tendons (sternocleidomastoid cords) & tracheal hollow (images 1, 6, 7)
+          px(ctx, 3, 2, '#c9967a', 10, 12);
+          px(ctx, 4, 4, '#8f5940', 2, 10); // left tendon shadow
+          px(ctx, 10, 4, '#8f5940', 2, 10);// right tendon shadow
+          px(ctx, 7, 5, '#7d4b34', 2, 8);  // center throat hollow
+        });
+      }
+
+      // Reference 2, 3, 4, 5, 6, 7 accuracy:
+      // - Exposed weathered neck V-area at top with vertical neck tendons
+      // - Deep maroon/burgundy crew-neck undershirt in center
+      // - Wide crimson-red lapels with dark metallic snap-buttons
+      // - Deep black outer cloak panels
+      function makeTorsoFrontTexture() {
+        return createPixelCanvas(16, 16, (ctx) => {
+          // Deep burgundy/maroon crew-neck shirt (images 2, 4, 5, 6)
+          fillTextured(ctx, 16, 16, '#541218', 4);
+
+          // Exposed neck & throat tendons at top center (images 1, 5, 6, 7)
+          px(ctx, 4, 0, '#c49174', 8, 2);
+          px(ctx, 5, 2, '#b37f63', 6, 1);
+          px(ctx, 5, 0, '#8f5840', 1, 2); // left neck cord
+          px(ctx, 10, 0, '#8f5840', 1, 2);// right neck cord
+          px(ctx, 7, 1, '#824c35', 2, 2); // throat hollow
+
+          // Ribbed burgundy crew-neck collar rim
+          px(ctx, 4, 2, '#731921', 2, 1);
+          px(ctx, 10, 2, '#731921', 2, 1);
+          px(ctx, 5, 3, '#7d1c25', 6, 1);
+          px(ctx, 5, 4, '#36090d', 6, 1); // collar shadow crease
+
+          // Realistic horizontal drape folds on the burgundy inner shirt
+          px(ctx, 5, 6, '#3d0b10', 6, 1);
+          px(ctx, 6, 7, '#69171f', 4, 1);
+          px(ctx, 5, 10, '#38090e', 6, 1);
+          px(ctx, 6, 11, '#61141b', 4, 1);
+          px(ctx, 5, 14, '#2e070b', 6, 2);
+
+          // Outer Black Cloak side panels
+          for (let y = 0; y < 16; y++) {
+            for (let x = 0; x < 3; x++) {
+              const shade = (x + y) % 2 === 0 ? '#121418' : '#181b20';
+              px(ctx, x, y, shade);
+              px(ctx, 15 - x, y, shade);
+            }
+          }
+
+          // Crimson Red Lapel Bands running down both sides of the chest
+          for (let y = 0; y < 16; y++) {
+            const cMain = y % 2 === 0 ? '#ab1d25' : '#991820';
+            px(ctx, 3, y, cMain, 2, 1);
+            px(ctx, 4, y, '#c7242e', 1, 1);
+            px(ctx, 11, y, cMain, 2, 1);
+            px(ctx, 11, y, '#c7242e', 1, 1);
+          }
+
+          // Dark metallic snap buttons along the crimson lapels (images 4, 5, 6, 7)
+          [3, 7, 11, 14].forEach((by) => {
+            px(ctx, 3, by, '#22262e', 1, 1);
+            px(ctx, 12, by, '#22262e', 1, 1);
+          });
+        });
+      }
+
+      function makeBlackFabricTexture(withSmockedWaist = false) {
+        return createPixelCanvas(16, 16, (ctx) => {
+          fillTextured(ctx, 16, 16, '#13151a', 3);
+          for (let y = 0; y < 16; y++) {
+            for (let x = 0; x < 16; x++) {
+              if ((x + y * 3) % 5 === 0) px(ctx, x, y, '#1b1e25');
+              if ((x * 2 + y) % 7 === 0) px(ctx, x, y, '#0c0d11');
+            }
+          }
+          if (withSmockedWaist) {
+            // Elasticated/shirred waist band clearly visible in profile/back in image 3 (image_9adde1.jpg)
+            px(ctx, 0, 10, '#090a0d', 16, 1);
+            px(ctx, 0, 11, '#1f232b', 16, 4);
+            px(ctx, 0, 15, '#090a0d', 16, 1);
+            for (let x = 1; x < 16; x += 2) {
+              px(ctx, x, 11, '#0b0c10', 1, 4); // tight vertical smocking pleats
+            }
+            // Upper back drapery folds
+            px(ctx, 4, 1, '#0c0d11', 1, 9);
+            px(ctx, 11, 1, '#0c0d11', 1, 9);
+            px(ctx, 7, 2, '#1d2028', 2, 8);
+          }
+        });
+      }
+
+      function makeCrimsonLiningTexture(withSnapButtons = false) {
+        return createPixelCanvas(16, 16, (ctx) => {
+          fillTextured(ctx, 16, 16, '#a31b23', 5);
+          for (let y = 0; y < 16; y++) {
+            px(ctx, 0, y, '#bf242d', 2, 1);
+            px(ctx, 14, y, '#781016', 2, 1);
+            if (y % 4 === 0) {
+              px(ctx, 2, y, '#87131a', 12, 1);
+            }
+          }
+          if (withSnapButtons) {
+            // Dark gunmetal ring snaps on the crimson lapel (images 5, 6, 7)
+            [2, 6, 10, 14].forEach((by) => {
+              px(ctx, 6, by, '#1f242d', 4, 2);
+              px(ctx, 7, by, '#647082', 2, 1); // metallic ring highlight
+            });
+          }
+        });
+      }
+
+      function makeRobeTailFrontTexture(isLeft) {
+        return createPixelCanvas(16, 16, (ctx) => {
+          fillTextured(ctx, 16, 16, '#13151a', 3);
+          // Continuous bold crimson-red front border stripe running down to the hem (images 3 & 4)
+          const redStartX = isLeft ? 0 : 11;
+          for (let y = 0; y < 16; y++) {
+            px(ctx, redStartX, y, '#ab1c24', 5, 1);
+            px(ctx, isLeft ? 4 : 11, y, '#c92630', 1, 1);
+            px(ctx, isLeft ? 0 : 15, y, '#801218', 1, 1);
+          }
+          // Deep vertical fabric fold on the black skirt panel
+          const foldX = isLeft ? 9 : 6;
+          px(ctx, foldX, 0, '#0b0c0f', 2, 16);
+          px(ctx, foldX + (isLeft ? 2 : -2), 0, '#1e222a', 1, 16);
+        });
+      }
+
+      function makeHandSkinTexture() {
+        return createPixelCanvas(16, 16, (ctx) => {
+          fillTextured(ctx, 16, 16, '#cfa084', 4);
+          // Aged hand tendons and knuckles (image 4)
+          px(ctx, 3, 2, '#ad785c', 1, 9);
+          px(ctx, 7, 2, '#ad785c', 1, 10);
+          px(ctx, 11, 2, '#ad785c', 1, 9);
+          px(ctx, 1, 11, '#945f44', 14, 1);
+          for (let x = 4; x <= 12; x += 4) {
+            px(ctx, x, 11, '#75432d', 1, 5);
+          }
+          for (let x = 1; x < 15; x += 4) {
+            px(ctx, x, 14, '#e3bca4', 2, 2);
+          }
+        });
+      }
+
+      function makeShoeTexture() {
+        return createPixelCanvas(16, 16, (ctx) => {
+          // Polished black leather dress shoes with crisp specular highlight (images 3 & 4)
+          fillTextured(ctx, 16, 16, '#101216', 2);
+          px(ctx, 3, 9, '#2d333d', 10, 2);
+          px(ctx, 5, 10, '#525b6e', 6, 1);
+          px(ctx, 0, 14, '#07080a', 16, 2);
+          px(ctx, 0, 13, '#1e2128', 16, 1);
+        });
+      }
+
+      function makeRecorderTexture() {
+        return createPixelCanvas(16, 16, (ctx) => {
+          fillTextured(ctx, 16, 16, '#9ba3b0', 3);
+          px(ctx, 1, 1, '#cbd5e1', 14, 2);
+          px(ctx, 2, 4, '#1e2229', 12, 7);
+          px(ctx, 3, 5, '#333945', 10, 5);
+          px(ctx, 4, 6, '#e2e8f0', 3, 3);
+          px(ctx, 5, 7, '#111317', 1, 1);
+          px(ctx, 9, 6, '#e2e8f0', 3, 3);
+          px(ctx, 10, 7, '#111317', 1, 1);
+          px(ctx, 4, 9, '#b91c1c', 8, 1);
+          px(ctx, 13, 2, '#ef4444', 2, 2);
+          for (let y = 12; y < 15; y++) {
+            for (let x = 3; x < 13; x += 2) {
+              px(ctx, x, y, '#1e2229', 1, 1);
+            }
+          }
+        });
+      }
+
+      function makeBladeTexture() {
+        return createPixelCanvas(16, 16, (ctx) => {
+          fillTextured(ctx, 16, 16, '#94a3b8', 3);
+          px(ctx, 0, 0, '#f1f5f9', 3, 16);
+          px(ctx, 13, 0, '#f1f5f9', 3, 16);
+          px(ctx, 7, 1, '#475569', 2, 14);
+          px(ctx, 7, 0, '#991b1b', 2, 5);
+        });
+      }
+
+      const textures = {
+        faceFrontStern: makeFaceFrontTexture(false),
+        faceFrontSmile: makeFaceFrontTexture(true),
+        headLeft: makeHeadSideTexture(true),
+        headRight: makeHeadSideTexture(false),
+        headTop: makeHeadTopTexture(),
+        headBack: makeHeadBackTexture(),
+        headBottom: makeHeadBottomTexture(),
+        torsoFront: makeTorsoFrontTexture(),
+        blackFabric: makeBlackFabricTexture(false),
+        blackBackSmocked: makeBlackFabricTexture(true),
+        crimsonLining: makeCrimsonLiningTexture(false),
+        crimsonLapel: makeCrimsonLiningTexture(true),
+        robeTailLeft: makeRobeTailFrontTexture(true),
+        robeTailRight: makeRobeTailFrontTexture(false),
+        handSkin: makeHandSkinTexture(),
+        shoe: makeShoeTexture(),
+        recorder: makeRecorderTexture(),
+        blade: makeBladeTexture()
+      };
+
+      function mat(tex, roughness = 0.82, metalness = 0.04) {
+        return new THREE.MeshStandardMaterial({
+          map: tex,
+          roughness,
+          metalness
+        });
+      }
+
+      // Helper to create a 6-sided box material array: [Right, Left, Top, Bottom, Front, Back]
+      function boxMats(right, left, top, bottom, front, back, rough = 0.82, metal = 0.04) {
+        return [
+          mat(right, rough, metal),
+          mat(left, rough, metal),
+          mat(top, rough, metal),
+          mat(bottom, rough, metal),
+          mat(front, rough, metal),
+          mat(back, rough, metal)
+        ];
+      }
+
+      const container = document.getElementById('canvas-container');
+      const scene = new THREE.Scene();
+
+      // Scale convention: 1 Minecraft pixel unit = 0.1 Three.js world units
+      // Full model height (~32 pixels) = 3.2 world units
+      const PX = 0.1;
+
+      const camera = new THREE.PerspectiveCamera(
+        38,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        100
+      );
+      const DEFAULT_CAM_POS = new THREE.Vector3(0.45, 2.15, 5.4);
+      const DEFAULT_TARGET = new THREE.Vector3(0, 1.65, 0);
+      camera.position.copy(DEFAULT_CAM_POS);
+
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance'
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.08;
+      container.appendChild(renderer.domElement);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.copy(DEFAULT_TARGET);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.065;
+      controls.minDistance = 2.0;
+      controls.maxDistance = 10.5;
+      controls.maxPolarAngle = Math.PI * 0.51;
+      controls.update();
+
+      // Dramatic Saw-inspired studio lighting that highlights both the dark black cloak,
+      // the crimson inner lining, and every pixel wrinkle on John Kramer's face
+      const ambientLight = new THREE.AmbientLight(0xdbe4f0, 0.58);
+      scene.add(ambientLight);
+
+      const keyLight = new THREE.DirectionalLight(0xfff4e8, 1.15);
+      keyLight.position.set(3.2, 5.6, 4.2);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.width = 2048;
+      keyLight.shadow.mapSize.height = 2048;
+      keyLight.shadow.camera.near = 0.5;
+      keyLight.shadow.camera.far = 15;
+      const d = 2.6;
+      keyLight.shadow.camera.left = -d;
+      keyLight.shadow.camera.right = d;
+      keyLight.shadow.camera.top = d;
+      keyLight.shadow.camera.bottom = -d;
+      keyLight.shadow.bias = -0.0005;
+      scene.add(keyLight);
+
+      // Cool clinical fill light from the left (reminiscent of Saw's fluorescent lighting)
+      const fillLight = new THREE.DirectionalLight(0x90b4d4, 0.48);
+      fillLight.position.set(-3.8, 3.0, 2.2);
+      scene.add(fillLight);
+
+      // Crimson rim light from behind to accentuate the black & red Jigsaw silhouette
+      const rimLight = new THREE.DirectionalLight(0xd92632, 0.52);
+      rimLight.position.set(0.0, 3.8, -3.6);
+      scene.add(rimLight);
+
+      // Soft shadow-receiving ground plane
+      const groundGeo = new THREE.PlaneGeometry(24, 24);
+      const groundMat = new THREE.ShadowMaterial({ opacity: 0.42 });
+      const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+      groundMesh.rotation.x = -Math.PI / 2;
+      groundMesh.position.y = 0;
+      groundMesh.receiveShadow = true;
+      scene.add(groundMesh);
+
+      function createVoxelBox(wPx, hPx, dPx, materials, offsetX = 0, offsetY = 0, offsetZ = 0) {
+        const geo = new THREE.BoxGeometry(wPx * PX, hPx * PX, dPx * PX);
+        const mesh = new THREE.Mesh(geo, materials);
+        mesh.position.set(offsetX * PX, offsetY * PX, offsetZ * PX);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        return mesh;
+      }
+
+      const rootGroup = new THREE.Group();
+      scene.add(rootGroup);
+
+      // Main body pivot at hip/waist level (12 pixels above ground)
+      const bodyPivot = new THREE.Group();
+      bodyPivot.position.set(0, 12 * PX, 0);
+      rootGroup.add(bodyPivot);
+
+      // Upper torso pivot (for breathing and spine bend)
+      const torsoPivot = new THREE.Group();
+      bodyPivot.add(torsoPivot);
+
+      // 1. CORE TORSO (8 x 12 x 4 pixels)
+      const torsoMaterials = boxMats(
+        textures.blackFabric,
+        textures.blackFabric,
+        textures.crimsonLining,
+        textures.blackFabric,
+        textures.torsoFront,
+        textures.blackBackSmocked
+      );
+      const torsoMesh = createVoxelBox(8, 12, 4, torsoMaterials, 0, 6, 0);
+      torsoPivot.add(torsoMesh);
+
+      // 2. LAYERED 3D CRIMSON RED LAPELS, COLLAR & SMOCKED BACK WAISTBAND (Images 2, 3, 4, 5, 6, 7)
+      const lapelMat = mat(textures.crimsonLapel, 0.78, 0.08);
+      const crimsonMat = mat(textures.crimsonLining, 0.8, 0.05);
+      const blackMat = mat(textures.blackFabric, 0.85, 0.03);
+      const smockedMat = mat(textures.blackBackSmocked, 0.85, 0.03);
+
+      // Left and right V-tapered crimson lapels running down the chest
+      const leftLapel = createVoxelBox(2.25, 11.9, 0.65, lapelMat, 2.45, 6.0, 2.18);
+      leftLapel.rotation.z = 0.09;
+      leftLapel.rotation.y = -0.16;
+      torsoPivot.add(leftLapel);
+
+      const rightLapel = createVoxelBox(2.25, 11.9, 0.65, lapelMat, -2.45, 6.0, 2.18);
+      rightLapel.rotation.z = -0.09;
+      rightLapel.rotation.y = 0.16;
+      torsoPivot.add(rightLapel);
+
+      // Outer black cloak chest panels flanking the crimson lapels
+      const leftChestCloak = createVoxelBox(2.3, 12.0, 4.5, blackMat, 3.05, 6.0, 0.0);
+      torsoPivot.add(leftChestCloak);
+      const rightChestCloak = createVoxelBox(2.3, 12.0, 4.5, blackMat, -3.05, 6.0, 0.0);
+      torsoPivot.add(rightChestCloak);
+
+      // Wide flared red-lined shoulder collar flaps with snap buttons (images 4, 5, 6, 7)
+      const leftCollarFlap = createVoxelBox(3.1, 1.35, 4.9, lapelMat, 3.55, 11.75, 0.15);
+      leftCollarFlap.rotation.z = -0.26;
+      leftCollarFlap.rotation.y = 0.12;
+      torsoPivot.add(leftCollarFlap);
+
+      const rightCollarFlap = createVoxelBox(3.1, 1.35, 4.9, lapelMat, -3.55, 11.75, 0.15);
+      rightCollarFlap.rotation.z = 0.26;
+      rightCollarFlap.rotation.y = -0.12;
+      torsoPivot.add(rightCollarFlap);
+
+      // Gathered/smocked waist band wrapping the back and sides of the robe (image 3)
+      const smockedWaistBelt = createVoxelBox(8.7, 2.6, 4.7, smockedMat, 0, 1.5, -0.15);
+      torsoPivot.add(smockedWaistBelt);
+
+      const headPivot = new THREE.Group();
+      headPivot.position.set(0, 12 * PX, 0);
+      torsoPivot.add(headPivot);
+
+      const faceFrontMaterial = mat(textures.faceFrontStern, 0.78, 0.02);
+      const headMaterials = [
+        mat(textures.headRight, 0.78, 0.02),
+        mat(textures.headLeft, 0.78, 0.02),
+        mat(textures.headTop, 0.78, 0.02),
+        mat(textures.headBottom, 0.78, 0.02),
+        faceFrontMaterial,
+        mat(textures.headBack, 0.78, 0.02)
+      ];
+      const headMesh = createVoxelBox(8, 8, 8, headMaterials, 0, 4, 0);
+      headPivot.add(headMesh);
+
+      // 3D Neck column connecting torso and head with visible neck tendons (images 1, 5, 6, 7)
+      const neckMat = mat(textures.headBottom, 0.8, 0.02);
+      const neckColumn = createVoxelBox(4.6, 1.6, 4.4, neckMat, 0, 0.2, -0.1);
+      headPivot.add(neckColumn);
+
+      // 3D Layered Facial Details (Blockbench Vanilla+ depth accents):
+      // Furrowed brow ridge & prominent nose bridge relief
+      const skinDetailMat = mat(textures.faceFrontStern, 0.78, 0.02);
+      const browRidge = createVoxelBox(6.4, 0.85, 0.32, skinDetailMat, 0, 5.4, 4.08);
+      headPivot.add(browRidge);
+
+      const noseBridge = createVoxelBox(1.3, 2.35, 0.48, skinDetailMat, 0, 4.05, 4.16);
+      headPivot.add(noseBridge);
+
+      // 3D Ears on left & right sides of head
+      const earMat = mat(textures.headBottom, 0.8, 0.02);
+      const leftEar = createVoxelBox(0.55, 2.2, 1.4, earMat, 4.15, 3.8, -0.3);
+      headPivot.add(leftEar);
+      const rightEar = createVoxelBox(0.55, 2.2, 1.4, earMat, -4.15, 3.8, -0.3);
+      headPivot.add(rightEar);
+
+      // 3D Wispy White/Blonde-Grey Hair Tufts (matching Tobin Bell's fluffy white hair in images 3, 5, 6, 7)
+      const hairMat = mat(textures.headTop, 0.88, 0.01);
+      const hairBackMat = mat(textures.headBack, 0.88, 0.01);
+
+      // Crown & receding temple hair volume
+      const hairCrown = createVoxelBox(8.35, 1.05, 8.35, hairMat, 0, 7.75, -0.15);
+      headPivot.add(hairCrown);
+
+      const hairTuftTop = createVoxelBox(6.8, 0.6, 6.4, hairMat, 0, 8.38, -0.35);
+      headPivot.add(hairTuftTop);
+
+      // Fluffy side/temple white hair tufts (visible both inside hood in image 1 and hood-down in images 5–7)
+      const leftTempleHair = createVoxelBox(0.6, 3.5, 5.8, hairBackMat, 4.14, 5.85, -1.0);
+      headPivot.add(leftTempleHair);
+
+      const rightTempleHair = createVoxelBox(0.6, 3.5, 5.8, hairBackMat, -4.14, 5.85, -1.0);
+      headPivot.add(rightTempleHair);
+
+      // Back of head / nape feathered white hair (image 3 & 5)
+      const backHairLayer = createVoxelBox(8.3, 6.2, 0.6, hairBackMat, 0, 4.6, -4.15);
+      headPivot.add(backHairLayer);
+
+      // The hood is rigged to `hoodPivot` on the head so it frames John Kramer's face
+      // exactly like images 1 & 2, and folds back smoothly onto his shoulders during "Special"
+      // to showcase his full 360-degree white-haired head and knowing smile from images 3–7.
+      const hoodPivot = new THREE.Group();
+      hoodPivot.position.set(0, 0.8 * PX, -1.0 * PX);
+      headPivot.add(hoodPivot);
+
+      // Hood Roof (Arched Black outer shell + Crimson inner lining)
+      const hoodTopOuter = createVoxelBox(10.8, 1.15, 10.8, blackMat, 0, 8.4, 0.9);
+      hoodTopOuter.rotation.x = 0.07;
+      hoodPivot.add(hoodTopOuter);
+
+      const hoodTopInner = createVoxelBox(10.0, 0.55, 10.3, crimsonMat, 0, 7.8, 1.0);
+      hoodTopInner.rotation.x = 0.07;
+      hoodPivot.add(hoodTopInner);
+
+      // Front Peak Arch Overhang (frames upper forehead & piercing blue eyes just like image 1 & 2)
+      const hoodPeakOuter = createVoxelBox(10.6, 1.1, 1.6, blackMat, 0, 7.85, 5.75);
+      hoodPeakOuter.rotation.x = 0.24;
+      hoodPivot.add(hoodPeakOuter);
+
+      const hoodPeakTrim = createVoxelBox(9.8, 0.85, 1.45, crimsonMat, 0, 7.45, 5.6);
+      hoodPeakTrim.rotation.x = 0.24;
+      hoodPivot.add(hoodPeakTrim);
+
+      // Left Hood Cowl Wall (Black outside, wide Crimson fold inside framing the cheek as in image 1)
+      const hoodLeftOuter = createVoxelBox(1.05, 8.9, 10.3, blackMat, 5.15, 3.8, 0.65);
+      hoodLeftOuter.rotation.z = -0.1;
+      hoodPivot.add(hoodLeftOuter);
+
+      const hoodLeftInner = createVoxelBox(0.85, 8.6, 9.9, crimsonMat, 4.48, 3.75, 0.8);
+      hoodLeftInner.rotation.z = -0.1;
+      hoodPivot.add(hoodLeftInner);
+
+      // Wide flared crimson front fold on left cheek side (image 1 & 2)
+      const hoodLeftLapel = createVoxelBox(1.45, 8.4, 2.1, crimsonMat, 4.65, 3.55, 5.15);
+      hoodLeftLapel.rotation.y = 0.38;
+      hoodLeftLapel.rotation.z = -0.09;
+      hoodPivot.add(hoodLeftLapel);
+
+      // Right Hood Cowl Wall (Black outside, wide Crimson fold inside framing the cheek as in image 1)
+      const hoodRightOuter = createVoxelBox(1.05, 8.9, 10.3, blackMat, -5.15, 3.8, 0.65);
+      hoodRightOuter.rotation.z = 0.1;
+      hoodPivot.add(hoodRightOuter);
+
+      const hoodRightInner = createVoxelBox(0.85, 8.6, 9.9, crimsonMat, -4.48, 3.75, 0.8);
+      hoodRightInner.rotation.z = 0.1;
+      hoodPivot.add(hoodRightInner);
+
+      // Wide flared crimson front fold on right cheek side (image 1 & 2)
+      const hoodRightLapel = createVoxelBox(1.45, 8.4, 2.1, crimsonMat, -4.65, 3.55, 5.15);
+      hoodRightLapel.rotation.y = -0.38;
+      hoodRightLapel.rotation.z = 0.09;
+      hoodPivot.add(hoodRightLapel);
+
+      // Back Hood Tapered Drape (seen in profile in image 3)
+      const hoodBackOuter = createVoxelBox(10.4, 8.8, 1.1, blackMat, 0, 3.7, -4.1);
+      hoodBackOuter.rotation.x = -0.12;
+      hoodPivot.add(hoodBackOuter);
+
+      const hoodBackTip = createVoxelBox(7.8, 4.2, 1.6, crimsonMat, 0, 1.6, -4.85);
+      hoodBackTip.rotation.x = -0.28;
+      hoodPivot.add(hoodBackTip);
+
+      // LEFT ARM (Character's Left = Viewer's Right, +X)
+      const leftArmPivot = new THREE.Group();
+      leftArmPivot.position.set(5.5 * PX, 11 * PX, 0);
+      torsoPivot.add(leftArmPivot);
+
+      const leftUpperArm = createVoxelBox(4, 6, 4, blackMat, 0, -2, 0);
+      leftArmPivot.add(leftUpperArm);
+
+      // Draped shoulder sleeve cloak overlay
+      const leftShoulderCloak = createVoxelBox(4.5, 5.5, 4.6, blackMat, 0.1, -1.8, 0);
+      leftArmPivot.add(leftShoulderCloak);
+
+      const leftForearmPivot = new THREE.Group();
+      leftForearmPivot.position.set(0, -5 * PX, 0);
+      leftArmPivot.add(leftForearmPivot);
+
+      // Wide black robe cuff with crimson red interior cuff trim
+      const leftForearmSleeve = createVoxelBox(4.4, 4.8, 4.4, blackMat, 0, -2.2, 0);
+      leftForearmPivot.add(leftForearmSleeve);
+
+      const leftCuffCrimson = createVoxelBox(4.1, 0.85, 4.1, crimsonMat, 0, -4.45, 0);
+      leftForearmPivot.add(leftCuffCrimson);
+
+      // Weathered Left Hand
+      const handMat = mat(textures.handSkin, 0.8, 0.02);
+      const leftHand = createVoxelBox(3.4, 2.8, 3.4, handMat, 0, -5.6, 0);
+      leftForearmPivot.add(leftHand);
+
+      // Prop inside Left Hand: Iconic Micro-Cassette Tape Recorder ("Play Me")
+      const recorderPivot = new THREE.Group();
+      recorderPivot.position.set(0, -6.2 * PX, 1.8 * PX);
+      leftForearmPivot.add(recorderPivot);
+
+      const recorderMats = boxMats(
+        textures.blackFabric,
+        textures.blackFabric,
+        textures.recorder,
+        textures.blackFabric,
+        textures.recorder,
+        textures.blackFabric,
+        0.45,
+        0.55
+      );
+      const recorderMesh = createVoxelBox(2.6, 3.8, 1.2, recorderMats, 0, 0, 0);
+      recorderPivot.add(recorderMesh);
+      recorderPivot.scale.set(0.001, 0.001, 0.001); // Appears smoothly during Special animation
+
+      // RIGHT ARM (Character's Right = Viewer's Left, -X)
+      const rightArmPivot = new THREE.Group();
+      rightArmPivot.position.set(-5.5 * PX, 11 * PX, 0);
+      torsoPivot.add(rightArmPivot);
+
+      const rightUpperArm = createVoxelBox(4, 6, 4, blackMat, 0, -2, 0);
+      rightArmPivot.add(rightUpperArm);
+
+      const rightShoulderCloak = createVoxelBox(4.5, 5.5, 4.6, blackMat, -0.1, -1.8, 0);
+      rightArmPivot.add(rightShoulderCloak);
+
+      const rightForearmPivot = new THREE.Group();
+      rightForearmPivot.position.set(0, -5 * PX, 0);
+      rightArmPivot.add(rightForearmPivot);
+
+      const rightForearmSleeve = createVoxelBox(4.4, 4.8, 4.4, blackMat, 0, -2.2, 0);
+      rightForearmPivot.add(rightForearmSleeve);
+
+      const rightCuffCrimson = createVoxelBox(4.1, 0.85, 4.1, crimsonMat, 0, -4.45, 0);
+      rightForearmPivot.add(rightCuffCrimson);
+
+      const rightHand = createVoxelBox(3.4, 2.8, 3.4, handMat, 0, -5.6, 0);
+      rightForearmPivot.add(rightHand);
+
+      // Prop inside Right Sleeve: Jigsaw's Concealed Wrist Blade
+      const bladePivot = new THREE.Group();
+      bladePivot.position.set(-0.6 * PX, -4.5 * PX, 0.8 * PX);
+      rightForearmPivot.add(bladePivot);
+
+      const bladeMat = mat(textures.blade, 0.25, 0.85);
+      const bladeHousing = createVoxelBox(1.0, 3.2, 1.4, blackMat, 0, 1.2, 0);
+      bladePivot.add(bladeHousing);
+
+      const bladeSteel = createVoxelBox(0.35, 7.5, 1.1, bladeMat, 0, -2.2, 0.2);
+      bladePivot.add(bladeSteel);
+      bladePivot.scale.set(1, 0.001, 1); // Retracted inside sleeve until Attack animation
+
+      // Split Flowing Robe Tails (Matches images 3 & 4 where the black robe with vertical red front stripes hangs to the ankles)
+      const leftCoatTailPivot = new THREE.Group();
+      leftCoatTailPivot.position.set(2.3 * PX, 0.2 * PX, 0);
+      bodyPivot.add(leftCoatTailPivot);
+
+      const leftTailMats = boxMats(
+        textures.blackFabric,
+        textures.crimsonLining,
+        textures.blackFabric,
+        textures.crimsonLining,
+        textures.robeTailLeft,
+        textures.blackFabric
+      );
+      const leftCoatTail = createVoxelBox(4.4, 10.6, 4.8, leftTailMats, 0, -5.3, 0.1);
+      leftCoatTailPivot.add(leftCoatTail);
+
+      const rightCoatTailPivot = new THREE.Group();
+      rightCoatTailPivot.position.set(-2.3 * PX, 0.2 * PX, 0);
+      bodyPivot.add(rightCoatTailPivot);
+
+      const rightTailMats = boxMats(
+        textures.crimsonLining,
+        textures.blackFabric,
+        textures.blackFabric,
+        textures.crimsonLining,
+        textures.robeTailRight,
+        textures.blackFabric
+      );
+      const rightCoatTail = createVoxelBox(4.4, 10.6, 4.8, rightTailMats, 0, -5.3, 0.1);
+      rightCoatTailPivot.add(rightCoatTail);
+
+      // Back Center Robe Drape with red inner lining (visible between legs in image 4)
+      const backCoatTailPivot = new THREE.Group();
+      backCoatTailPivot.position.set(0, 0.2 * PX, -2.1 * PX);
+      bodyPivot.add(backCoatTailPivot);
+
+      const backTailMats = boxMats(
+        textures.blackFabric,
+        textures.blackFabric,
+        textures.blackFabric,
+        textures.crimsonLining,
+        textures.crimsonLining,
+        textures.blackFabric
+      );
+      const backCoatTail = createVoxelBox(8.6, 10.8, 0.9, backTailMats, 0, -5.4, 0);
+      backCoatTailPivot.add(backCoatTail);
+
+      // LEFT LEG & POLISHED BLACK DRESS SHOE
+      const leftLegPivot = new THREE.Group();
+      leftLegPivot.position.set(2.0 * PX, 0, 0);
+      bodyPivot.add(leftLegPivot);
+
+      const leftThigh = createVoxelBox(3.8, 6.0, 3.8, blackMat, 0, -3.0, 0);
+      leftLegPivot.add(leftThigh);
+
+      const leftKneePivot = new THREE.Group();
+      leftKneePivot.position.set(0, -6.0 * PX, 0);
+      leftLegPivot.add(leftKneePivot);
+
+      const shoeMats = boxMats(
+        textures.shoe,
+        textures.shoe,
+        textures.blackFabric,
+        textures.blackFabric,
+        textures.shoe,
+        textures.shoe,
+        0.35,
+        0.25
+      );
+      const leftShin = createVoxelBox(3.7, 6.0, 3.8, shoeMats, 0, -3.0, 0);
+      leftKneePivot.add(leftShin);
+
+      // Toe cap extrusion for realistic dress shoe silhouette (image 3)
+      const leftShoeToe = createVoxelBox(3.6, 1.8, 1.2, shoeMats, 0, -5.1, 2.2);
+      leftKneePivot.add(leftShoeToe);
+
+      // RIGHT LEG & POLISHED BLACK DRESS SHOE
+      const rightLegPivot = new THREE.Group();
+      rightLegPivot.position.set(-2.0 * PX, 0, 0);
+      bodyPivot.add(rightLegPivot);
+
+      const rightThigh = createVoxelBox(3.8, 6.0, 3.8, blackMat, 0, -3.0, 0);
+      rightLegPivot.add(rightThigh);
+
+      const rightKneePivot = new THREE.Group();
+      rightKneePivot.position.set(0, -6.0 * PX, 0);
+      rightLegPivot.add(rightKneePivot);
+
+      const rightShin = createVoxelBox(3.7, 6.0, 3.8, shoeMats, 0, -3.0, 0);
+      rightKneePivot.add(rightShin);
+
+      const rightShoeToe = createVoxelBox(3.6, 1.8, 1.2, shoeMats, 0, -5.1, 2.2);
+      rightKneePivot.add(rightShoeToe);
+
+      let currentAnim = 'idle';
+      let animTime = 0;
+
+      // Smooth interpolation helper for seamless transitions between animations
+      function damp(current, target, lambda, dt) {
+        return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-lambda * dt));
+      }
+
+      function smoothstep(edge0, edge1, x) {
+        const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+        return t * t * (3 - 2 * t);
+      }
+
+      // Target pose structure for damped bone transitions
+      const pose = {
+        bodyY: 12 * PX,
+        bodyRotX: 0,
+        bodyRotY: 0,
+        bodyRotZ: 0,
+        torsoRotX: 0,
+        torsoRotY: 0,
+        headRotX: 0,
+        headRotY: 0,
+        headRotZ: 0,
+        hoodRotX: 0,
+        hoodPosY: 0.8 * PX,
+        hoodPosZ: -1.0 * PX,
+        lArmX: 0, lArmY: 0, lArmZ: 0,
+        lForearmX: 0, lForearmY: 0,
+        rArmX: 0, rArmY: 0, rArmZ: 0,
+        rForearmX: 0, rForearmY: 0,
+        lLegX: 0, lKneeX: 0,
+        rLegX: 0, rKneeX: 0,
+        lTailX: 0, lTailZ: 0,
+        rTailX: 0, rTailZ: 0,
+        bTailX: 0,
+        bladeScaleY: 0.001,
+        recorderScale: 0.001
+      };
+
+      function computeTargetPose(anim, t) {
+        // Default neutral values
+        const target = {
+          bodyY: 12 * PX,
+          bodyRotX: 0,
+          bodyRotY: 0,
+          bodyRotZ: 0,
+          torsoRotX: 0,
+          torsoRotY: 0,
+          headRotX: 0,
+          headRotY: 0,
+          headRotZ: 0,
+          hoodRotX: 0,
+          hoodPosY: 0.8 * PX,
+          hoodPosZ: -1.0 * PX,
+          lArmX: 0, lArmY: 0, lArmZ: 0.05,
+          lForearmX: -0.18, lForearmY: 0,
+          rArmX: 0, rArmY: 0, rArmZ: -0.05,
+          rForearmX: -0.18, rForearmY: 0,
+          lLegX: 0, lKneeX: 0,
+          rLegX: 0, rKneeX: 0,
+          lTailX: 0.03, lTailZ: 0.02,
+          rTailX: 0.03, rTailZ: -0.02,
+          bTailX: -0.04,
+          bladeScaleY: 0.001,
+          recorderScale: 0.001
+        };
+
+        if (anim === 'idle') {
+          // Calm, calculating, menacing Jigsaw breathing & slow observational head tracking
+          const breath = Math.sin(t * 1.8);
+          const slowLook = Math.sin(t * 0.75);
+          const microTilt = Math.cos(t * 0.55);
+
+          target.bodyY = (12 + breath * 0.14) * PX;
+          target.torsoRotX = 0.035 + breath * 0.018;
+          target.headRotX = 0.06 - breath * 0.015; // Slight downward Kubrick/Jigsaw stare (image 1 & 2)
+          target.headRotY = slowLook * 0.22;
+          target.headRotZ = microTilt * 0.045;
+
+          // Hands subtly poised in front of cloak lapels
+          target.lArmX = -0.22 + breath * 0.025;
+          target.lArmZ = 0.06 + breath * 0.015;
+          target.lForearmX = -0.45 - breath * 0.03;
+          target.lForearmY = -0.28;
+
+          target.rArmX = -0.22 + breath * 0.025;
+          target.rArmZ = -0.06 - breath * 0.015;
+          target.rForearmX = -0.45 - breath * 0.03;
+          target.rForearmY = 0.28;
+
+          // Secondary motion on flowing cloak tails
+          target.lTailX = 0.04 + Math.sin(t * 1.8 - 0.6) * 0.025;
+          target.rTailX = 0.04 + Math.sin(t * 1.8 - 0.6) * 0.025;
+          target.bTailX = -0.05 - Math.sin(t * 1.8 - 0.8) * 0.02;
+
+        } else if (anim === 'walk') {
+          // Measured, deliberate, heavy-cloaked stalk walk cycle
+          const speed = 3.4;
+          const phase = t * speed;
+          const stride = Math.sin(phase);
+          const doubleStep = Math.abs(Math.cos(phase));
+
+          target.bodyY = (11.85 + doubleStep * 0.38) * PX;
+          target.bodyRotX = 0.05;
+          target.bodyRotY = -stride * 0.07;
+          target.bodyRotZ = Math.cos(phase) * 0.025;
+
+          target.torsoRotX = 0.06 + doubleStep * 0.02;
+          target.torsoRotY = stride * 0.11;
+
+          // Head stays eerily locked on the viewer with subtle counter-rotation
+          target.headRotX = 0.04 - doubleStep * 0.02;
+          target.headRotY = -stride * 0.08 + Math.sin(t * 0.9) * 0.08;
+          target.headRotZ = -Math.cos(phase) * 0.02;
+
+          // Leg & knee articulation
+          target.lLegX = stride * 0.52;
+          target.lKneeX = Math.max(0, -Math.cos(phase) * 0.58);
+          target.rLegX = -stride * 0.52;
+          target.rKneeX = Math.max(0, Math.cos(phase) * 0.58);
+
+          // Opposite arm swing with forearm follow-through
+          target.lArmX = -stride * 0.36;
+          target.lArmZ = 0.07;
+          target.lForearmX = -0.32 - Math.max(0, stride) * 0.28;
+
+          target.rArmX = stride * 0.36;
+          target.rArmZ = -0.07;
+          target.rForearmX = -0.32 - Math.max(0, -stride) * 0.28;
+
+          // Flowing cloak tails flare outward with leg stride and secondary lag
+          const lagStride = Math.sin(phase - 0.45);
+          target.lTailX = Math.max(0.05, stride * 0.55) + 0.08;
+          target.rTailX = Math.max(0.05, -stride * 0.55) + 0.08;
+          target.lTailZ = 0.04 + Math.abs(lagStride) * 0.05;
+          target.rTailZ = -0.04 - Math.abs(lagStride) * 0.05;
+          target.bTailX = -0.14 - doubleStep * 0.12;
+
+        } else if (anim === 'attack') {
+          // Concealed Jigsaw Wrist-Blade Ambush Slash (from Saw I)
+          // Cycle duration: 2.2 seconds
+          const cycle = (t % 2.2) / 2.2;
+
+          if (cycle < 0.32) {
+            // Phase 1: Deceptive calm coil — draws right sleeve back across chest, blade clicks out
+            const p = smoothstep(0.0, 0.32, cycle);
+            target.bodyY = (12 - p * 0.65) * PX;
+            target.bodyRotY = p * 0.42;
+            target.torsoRotX = p * 0.12;
+            target.torsoRotY = p * 0.28;
+            target.headRotY = -p * 0.55;
+            target.headRotX = 0.12 * p;
+
+            // Right arm coils across chest; wrist blade extends
+            target.rArmX = -0.85 * p;
+            target.rArmY = 0.55 * p;
+            target.rArmZ = -0.25 * p;
+            target.rForearmX = -0.95 * p;
+            target.bladeScaleY = 0.1 + 0.9 * p;
+
+            // Left arm draws cloak aside
+            target.lArmX = 0.35 * p;
+            target.lArmZ = 0.38 * p;
+            target.lForearmX = -0.45 * p;
+
+            // Stance bracing
+            target.lLegX = -0.28 * p;
+            target.lKneeX = 0.35 * p;
+            target.rLegX = 0.28 * p;
+            target.rKneeX = 0.22 * p;
+            target.lTailX = 0.18 * p;
+            target.rTailX = 0.32 * p;
+            target.bTailX = -0.22 * p;
+
+          } else if (cycle < 0.56) {
+            // Phase 2: Explosive forward lunge & sweeping horizontal wrist-blade slash
+            const p = smoothstep(0.32, 0.56, cycle);
+            target.bodyY = (11.35 - p * 0.4) * PX;
+            target.bodyRotY = THREE.MathUtils.lerp(0.42, -0.48, p);
+            target.torsoRotX = THREE.MathUtils.lerp(0.12, 0.24, p);
+            target.torsoRotY = THREE.MathUtils.lerp(0.28, -0.42, p);
+            target.headRotY = THREE.MathUtils.lerp(-0.55, 0.58, p);
+            target.headRotX = 0.08;
+
+            // Whip-fast horizontal slash with full blade extension
+            target.rArmX = THREE.MathUtils.lerp(-0.85, -1.45, p);
+            target.rArmY = THREE.MathUtils.lerp(0.55, -0.65, p);
+            target.rArmZ = THREE.MathUtils.lerp(-0.25, -0.75, p);
+            target.rForearmX = THREE.MathUtils.lerp(-0.95, -0.12, p);
+            target.bladeScaleY = 1.0;
+
+            // Left arm counter-balances backwards
+            target.lArmX = THREE.MathUtils.lerp(0.35, 0.65, p);
+            target.lArmZ = THREE.MathUtils.lerp(0.38, 0.55, p);
+            target.lForearmX = -0.3;
+
+            target.lLegX = THREE.MathUtils.lerp(-0.28, 0.38, p);
+            target.lKneeX = 0.25;
+            target.rLegX = THREE.MathUtils.lerp(0.28, -0.42, p);
+            target.rKneeX = 0.45;
+
+            // Dramatic cloak whip follow-through
+            target.lTailX = 0.45;
+            target.rTailX = 0.38;
+            target.lTailZ = 0.25 * p;
+            target.rTailZ = -0.28 * p;
+            target.bTailX = -0.45;
+
+          } else {
+            // Phase 3: Composed recovery & blade retraction back into sleeve
+            const p = smoothstep(0.56, 1.0, cycle);
+            target.bodyY = THREE.MathUtils.lerp(10.95, 12.0, p) * PX;
+            target.bodyRotY = THREE.MathUtils.lerp(-0.48, 0, p);
+            target.torsoRotX = THREE.MathUtils.lerp(0.24, 0.035, p);
+            target.torsoRotY = THREE.MathUtils.lerp(-0.42, 0, p);
+            target.headRotY = THREE.MathUtils.lerp(0.58, 0, p);
+            target.headRotX = THREE.MathUtils.lerp(0.08, 0.06, p);
+
+            target.rArmX = THREE.MathUtils.lerp(-1.45, -0.22, p);
+            target.rArmY = THREE.MathUtils.lerp(-0.65, 0, p);
+            target.rArmZ = THREE.MathUtils.lerp(-0.75, -0.06, p);
+            target.rForearmX = THREE.MathUtils.lerp(-0.12, -0.45, p);
+            target.bladeScaleY = p < 0.5 ? (1.0 - p * 1.9) : 0.001;
+
+            target.lArmX = THREE.MathUtils.lerp(0.65, -0.22, p);
+            target.lArmZ = THREE.MathUtils.lerp(0.55, 0.06, p);
+            target.lForearmX = THREE.MathUtils.lerp(-0.3, -0.45, p);
+
+            target.lLegX = THREE.MathUtils.lerp(0.38, 0, p);
+            target.lKneeX = THREE.MathUtils.lerp(0.25, 0, p);
+            target.rLegX = THREE.MathUtils.lerp(-0.42, 0, p);
+            target.rKneeX = THREE.MathUtils.lerp(0.45, 0, p);
+
+            target.lTailX = THREE.MathUtils.lerp(0.45, 0.04, p);
+            target.rTailX = THREE.MathUtils.lerp(0.38, 0.04, p);
+            target.bTailX = THREE.MathUtils.lerp(-0.45, -0.05, p);
+          }
+
+        } else if (anim === 'special') {
+          // "Hello Zepp / I Want To Play A Game" Reveal:
+          // John pulls back his hood with his right hand to reveal his full white-haired head (images 4, 5, 6),
+          // raises the iconic Micro-Cassette Tape Recorder in his left hand, tilts his head with a chilling nod,
+          // and then smoothly draws the hood back up.
+          const cycle = (t % 4.6) / 4.6;
+
+          if (cycle < 0.22) {
+            // Phase 1: Reaches up to hood & brings out micro-cassette tape recorder
+            const p = smoothstep(0.0, 0.22, cycle);
+            target.rArmX = THREE.MathUtils.lerp(-0.22, -2.15, p);
+            target.rArmZ = THREE.MathUtils.lerp(-0.06, -0.18, p);
+            target.rForearmX = THREE.MathUtils.lerp(-0.45, -1.15, p);
+
+            // Hood slides back onto shoulders revealing white hair & forehead (like image 5 & 6)
+            const hoodPull = smoothstep(0.08, 0.22, cycle);
+            target.hoodRotX = -1.22 * hoodPull;
+            target.hoodPosY = THREE.MathUtils.lerp(0.8, -1.2, hoodPull) * PX;
+            target.hoodPosZ = THREE.MathUtils.lerp(-1.0, -2.6, hoodPull) * PX;
+
+            // Left hand draws out the tape recorder
+            target.recorderScale = smoothstep(0.05, 0.18, cycle);
+            target.lArmX = THREE.MathUtils.lerp(-0.22, -1.18, p);
+            target.lArmY = -0.22 * p;
+            target.lForearmX = THREE.MathUtils.lerp(-0.45, -0.92, p);
+
+            target.headRotX = THREE.MathUtils.lerp(0.06, -0.06, p);
+
+          } else if (cycle < 0.76) {
+            // Phase 2: Hood rests back on collar (exact match to images 3, 4, 5, 6, 7);
+            // holds up the "Play Me" tape recorder and breaks into his knowing Saw III smile (image 7)
+            const p = (cycle - 0.22) / 0.54;
+            target.hoodRotX = -1.24;
+            target.hoodPosY = -1.25 * PX;
+            target.hoodPosZ = -2.65 * PX;
+            target.recorderScale = 1.0;
+
+            // Left arm holds tape recorder forward toward the viewer
+            target.lArmX = -1.22 + Math.sin(p * Math.PI * 2) * 0.04;
+            target.lArmY = -0.24;
+            target.lForearmX = -0.88;
+
+            // Right hand gestures calmly near the lapel / chin (like image 4 & 5)
+            target.rArmX = -0.58 + Math.cos(p * Math.PI * 2) * 0.05;
+            target.rArmY = 0.28;
+            target.rForearmX = -0.95;
+
+            // Characteristic John Kramer tilted head & omniscient nod (images 5, 6, 7)
+            target.headRotZ = -0.14 * Math.sin(p * Math.PI);
+            target.headRotY = 0.18 * Math.sin(p * Math.PI * 2);
+            target.headRotX = 0.04 + Math.sin(p * Math.PI * 3) * 0.08;
+
+            target.torsoRotX = 0.05 + Math.sin(p * Math.PI) * 0.03;
+            target.bodyY = (12 + Math.sin(p * Math.PI * 2) * 0.15) * PX;
+          } else {
+            // Phase 3: Reaches up and draws the Jigsaw hood back over his head
+            const p = smoothstep(0.76, 1.0, cycle);
+            const pullUp = smoothstep(0.76, 0.92, cycle);
+
+            target.hoodRotX = THREE.MathUtils.lerp(-1.22, 0, pullUp);
+            target.hoodPosY = THREE.MathUtils.lerp(-1.2, 0.8, pullUp) * PX;
+            target.hoodPosZ = THREE.MathUtils.lerp(-2.6, -1.0, pullUp) * PX;
+
+            // Right arm arcs up over hood and back down
+            const armArc = Math.sin(p * Math.PI);
+            target.rArmX = THREE.MathUtils.lerp(-0.58, -0.22, p) - armArc * 1.45;
+            target.rForearmX = THREE.MathUtils.lerp(-0.95, -0.45, p) - armArc * 0.4;
+
+            // Left arm pockets tape recorder
+            target.lArmX = THREE.MathUtils.lerp(-1.22, -0.22, p);
+            target.lArmY = THREE.MathUtils.lerp(-0.24, 0, p);
+            target.lForearmX = THREE.MathUtils.lerp(-0.88, -0.45, p);
+            target.recorderScale = 1.0 - smoothstep(0.82, 0.96, cycle);
+
+            target.headRotX = THREE.MathUtils.lerp(0.04, 0.06, p);
+            target.headRotY = 0;
+            target.headRotZ = 0;
+          }
+        }
+
+        return target;
+      }
+
+      function updateRig(dt) {
+        animTime += dt;
+        const tPose = computeTargetPose(currentAnim, animTime);
+        const speed = 14.0;
+
+        pose.bodyY = damp(pose.bodyY, tPose.bodyY, speed, dt);
+        pose.bodyRotX = damp(pose.bodyRotX, tPose.bodyRotX, speed, dt);
+        pose.bodyRotY = damp(pose.bodyRotY, tPose.bodyRotY, speed, dt);
+        pose.bodyRotZ = damp(pose.bodyRotZ, tPose.bodyRotZ, speed, dt);
+
+        pose.torsoRotX = damp(pose.torsoRotX, tPose.torsoRotX, speed, dt);
+        pose.torsoRotY = damp(pose.torsoRotY, tPose.torsoRotY, speed, dt);
+
+        pose.headRotX = damp(pose.headRotX, tPose.headRotX, speed, dt);
+        pose.headRotY = damp(pose.headRotY, tPose.headRotY, speed, dt);
+        pose.headRotZ = damp(pose.headRotZ, tPose.headRotZ, speed, dt);
+
+        pose.hoodRotX = damp(pose.hoodRotX, tPose.hoodRotX, speed, dt);
+        pose.hoodPosY = damp(pose.hoodPosY, tPose.hoodPosY, speed, dt);
+        pose.hoodPosZ = damp(pose.hoodPosZ, tPose.hoodPosZ, speed, dt);
+
+        pose.lArmX = damp(pose.lArmX, tPose.lArmX, speed, dt);
+        pose.lArmY = damp(pose.lArmY, tPose.lArmY, speed, dt);
+        pose.lArmZ = damp(pose.lArmZ, tPose.lArmZ, speed, dt);
+        pose.lForearmX = damp(pose.lForearmX, tPose.lForearmX, speed, dt);
+        pose.lForearmY = damp(pose.lForearmY, tPose.lForearmY, speed, dt);
+
+        pose.rArmX = damp(pose.rArmX, tPose.rArmX, speed, dt);
+        pose.rArmY = damp(pose.rArmY, tPose.rArmY, speed, dt);
+        pose.rArmZ = damp(pose.rArmZ, tPose.rArmZ, speed, dt);
+        pose.rForearmX = damp(pose.rForearmX, tPose.rForearmX, speed, dt);
+        pose.rForearmY = damp(pose.rForearmY, tPose.rForearmY, speed, dt);
+
+        pose.lLegX = damp(pose.lLegX, tPose.lLegX, speed, dt);
+        pose.lKneeX = damp(pose.lKneeX, tPose.lKneeX, speed, dt);
+        pose.rLegX = damp(pose.rLegX, tPose.rLegX, speed, dt);
+        pose.rKneeX = damp(pose.rKneeX, tPose.rKneeX, speed, dt);
+
+        pose.lTailX = damp(pose.lTailX, tPose.lTailX, speed * 0.85, dt);
+        pose.lTailZ = damp(pose.lTailZ, tPose.lTailZ, speed * 0.85, dt);
+        pose.rTailX = damp(pose.rTailX, tPose.rTailX, speed * 0.85, dt);
+        pose.rTailZ = damp(pose.rTailZ, tPose.rTailZ, speed * 0.85, dt);
+        pose.bTailX = damp(pose.bTailX, tPose.bTailX, speed * 0.85, dt);
+
+        pose.bladeScaleY = damp(pose.bladeScaleY, tPose.bladeScaleY, 22.0, dt);
+        pose.recorderScale = damp(pose.recorderScale, tPose.recorderScale, 18.0, dt);
+
+        // Apply to Three.js groups
+        bodyPivot.position.y = pose.bodyY;
+        bodyPivot.rotation.set(pose.bodyRotX, pose.bodyRotY, pose.bodyRotZ);
+
+        torsoPivot.rotation.set(pose.torsoRotX, pose.torsoRotY, 0);
+        headPivot.rotation.set(pose.headRotX, pose.headRotY, pose.headRotZ);
+
+        hoodPivot.rotation.x = pose.hoodRotX;
+        hoodPivot.position.y = pose.hoodPosY;
+        hoodPivot.position.z = pose.hoodPosZ;
+
+        leftArmPivot.rotation.set(pose.lArmX, pose.lArmY, pose.lArmZ);
+        leftForearmPivot.rotation.set(pose.lForearmX, pose.lForearmY, 0);
+
+        rightArmPivot.rotation.set(pose.rArmX, pose.rArmY, pose.rArmZ);
+        rightForearmPivot.rotation.set(pose.rForearmX, pose.rForearmY, 0);
+
+        leftLegPivot.rotation.x = pose.lLegX;
+        leftKneePivot.rotation.x = pose.lKneeX;
+        rightLegPivot.rotation.x = pose.rLegX;
+        rightKneePivot.rotation.x = pose.rKneeX;
+
+        leftCoatTailPivot.rotation.set(pose.lTailX, 0, pose.lTailZ);
+        rightCoatTailPivot.rotation.set(pose.rTailX, 0, pose.rTailZ);
+        backCoatTailPivot.rotation.x = pose.bTailX;
+
+        bladePivot.scale.set(1, Math.max(0.001, pose.bladeScaleY), 1);
+        const rScale = Math.max(0.001, pose.recorderScale);
+        recorderPivot.scale.set(rScale, rScale, rScale);
+
+        // Switch between his cold stern expression (images 1, 2, 5, 6) and his knowing smile (image 7)
+        // when his hood is pulled back during the "Special" animation
+        const smileActive =
+          currentAnim === 'special' &&
+          (animTime % 4.6) / 4.6 > 0.28 &&
+          (animTime % 4.6) / 4.6 < 0.74;
+        const desiredFaceTex = smileActive ? textures.faceFrontSmile : textures.faceFrontStern;
+        if (faceFrontMaterial.map !== desiredFaceTex) {
+          faceFrontMaterial.map = desiredFaceTex;
+          faceFrontMaterial.needsUpdate = true;
+        }
+      }
+
+      const animButtons = document.querySelectorAll('.anim-btn');
+      animButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          animButtons.forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentAnim = btn.getAttribute('data-anim');
+          animTime = 0;
+        });
+      });
+
+      let resettingCamera = false;
+      const resetBtn = document.getElementById('reset-camera-btn');
+      resetBtn.addEventListener('click', () => {
+        resettingCamera = true;
+      });
+
+      controls.addEventListener('start', () => {
+        resettingCamera = false;
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      let lastTime = performance.now();
+      const STEP = 1 / 60;
+      let accumulator = 0;
+
+      function animate(now) {
+        requestAnimationFrame(animate);
+
+        let frameDelta = (now - lastTime) / 1000;
+        lastTime = now;
+        // Clamp delta to avoid spiral of death when tab is inactive
+        if (frameDelta > 0.1) frameDelta = 0.1;
+
+        accumulator += frameDelta;
+        while (accumulator >= STEP) {
+          updateRig(STEP);
+          accumulator -= STEP;
+        }
+
+        if (resettingCamera) {
+          camera.position.lerp(DEFAULT_CAM_POS, 0.12);
+          controls.target.lerp(DEFAULT_TARGET, 0.12);
+          if (
+            camera.position.distanceTo(DEFAULT_CAM_POS) < 0.01 &&
+            controls.target.distanceTo(DEFAULT_TARGET) < 0.01
+          ) {
+            camera.position.copy(DEFAULT_CAM_POS);
+            controls.target.copy(DEFAULT_TARGET);
+            resettingCamera = false;
+          }
+        }
+
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      window.onload = function () {
+        lastTime = performance.now();
+        requestAnimationFrame(animate);
+      };
+    })();
+  </script>
+</body>
+</html>

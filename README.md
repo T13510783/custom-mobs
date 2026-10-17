@@ -28,6 +28,10 @@ Custom Minecraft mobs for **Minecraft 1.21.1 + NeoForge**, made in three steps:
 | Ghostface | `mobs/ghostface/ghostface.html` | not yet |
 | Pennywise | `mobs/pennywise/pennywise.html` | not yet |
 | Victor Perkins | `mobs/victor_perkins/victor_perkins.html` | not yet |
+| Dexter | `mobs/dexter/dexter.html` | not yet |
+| Freddy Fazbear | `mobs/freddy_fazbear/freddy_fazbear.html` | not yet |
+| Billy the Puppet (Saw, work in progress) | `mobs/saw(belong together)/billy/billy_the_puppet_BAD.html` | not yet |
+| John Kramer (Saw, work in progress) | `mobs/saw(belong together)/john_kramer/john_kramer_BAD.html` | not yet |
 
 Viewer controls: number keys = animations, `B` = show bones, `R` = reset camera,
 eye button = head follows the mouse, dots = color variants, top right = expression menu (Auto / Happy / Sad / Angry / Afraid) + reset camera.

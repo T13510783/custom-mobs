@@ -1,0 +1,1647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Billy the Puppet — Vanilla+ 16x16 Model Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0f1115;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #e5e7eb;
+    }
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at 50% 42%, #191d24 0%, #0f1115 72%);
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+    .pill-bar {
+      background: rgba(20, 23, 30, 0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+    }
+    .anim-btn {
+      position: relative;
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      color: #9ca3af;
+    }
+    .anim-btn:hover {
+      color: #f3f4f6;
+    }
+    .anim-btn.active {
+      color: #ffffff;
+      background: rgba(185, 28, 28, 0.85);
+      box-shadow: 0 2px 12px rgba(185, 28, 28, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    .reset-btn {
+      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+      color: #9ca3af;
+    }
+    .reset-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
+      transform: scale(1.04);
+    }
+    .reset-btn:active {
+      transform: scale(0.96);
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- Ultra-minimal Floating Bottom Pill Bar + Camera Reset Button -->
+  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5">
+    <div class="pill-bar flex items-center p-1.5 rounded-full gap-1" role="tablist" aria-label="Animations">
+      <button data-anim="idle" class="anim-btn active px-4 py-1.5 rounded-full text-xs font-medium tracking-wide">
+        Idle
+      </button>
+      <button data-anim="walk" class="anim-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide">
+        Walk
+      </button>
+      <button data-anim="attack" class="anim-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide">
+        Attack
+      </button>
+      <button data-anim="special" class="anim-btn px-4 py-1.5 rounded-full text-xs font-medium tracking-wide">
+        Special
+      </button>
+    </div>
+
+    <button id="reset-cam-btn" title="Reset Camera" aria-label="Reset Camera" class="pill-bar reset-btn w-9 h-9 rounded-full flex items-center justify-center">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+    </button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const container = document.getElementById('canvas-container');
+      const scene = new THREE.Scene();
+
+      // Scale convention: 16 texels = 1.0 Minecraft block unit (1 texel = 1/16 = 0.0625 world units)
+      const PX = 1 / 16;
+
+      // Camera setup
+      const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.1, 100);
+      const DEFAULT_CAM_POS = new THREE.Vector3(0.85, 1.55, 3.35);
+      const DEFAULT_TARGET = new THREE.Vector3(0, 1.02, 0.05);
+      camera.position.copy(DEFAULT_CAM_POS);
+
+      // WebGLRenderer with crisp pixel-art preservation and soft shadows
+      const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.08;
+      container.appendChild(renderer.domElement);
+
+      // Smooth OrbitControls
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.copy(DEFAULT_TARGET);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.065;
+      controls.minDistance = 1.1;
+      controls.maxDistance = 7.5;
+      controls.maxPolarAngle = Math.PI * 0.51;
+      controls.update();
+
+      // Atmospheric Saw-inspired studio lighting (cool moody rim + crisp key light so colors pop)
+      const ambientLight = new THREE.AmbientLight(0xd4dce8, 0.62);
+      scene.add(ambientLight);
+
+      const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x18181b, 0.42);
+      hemiLight.position.set(0, 5, 0);
+      scene.add(hemiLight);
+
+      const keyLight = new THREE.DirectionalLight(0xfff7ed, 1.18);
+      keyLight.position.set(2.4, 4.2, 3.1);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.width = 2048;
+      keyLight.shadow.mapSize.height = 2048;
+      keyLight.shadow.camera.near = 0.5;
+      keyLight.shadow.camera.far = 12;
+      const d = 1.8;
+      keyLight.shadow.camera.left = -d;
+      keyLight.shadow.camera.right = d;
+      keyLight.shadow.camera.top = d;
+      keyLight.shadow.camera.bottom = -d;
+      keyLight.shadow.bias = -0.0005;
+      scene.add(keyLight);
+
+      // Subtle teal-cyan industrial Saw film rim light on left/back
+      const rimLight = new THREE.DirectionalLight(0x5eead4, 0.45);
+      rimLight.position.set(-2.8, 2.2, -2.4);
+      scene.add(rimLight);
+
+      // Subtle crimson under-fill accent for Billy's spiral cheeks & eyes
+      const redFillLight = new THREE.PointLight(0xdc2626, 0.25, 4.0);
+      redFillLight.position.set(0.3, 1.1, 1.3);
+      scene.add(redFillLight);
+
+      // Soft shadow-catcher floor plane
+      const shadowGeo = new THREE.PlaneGeometry(12, 12);
+      const shadowMat = new THREE.ShadowMaterial({ opacity: 0.45 });
+      const shadowFloor = new THREE.Mesh(shadowGeo, shadowMat);
+      shadowFloor.rotation.x = -Math.PI / 2;
+      shadowFloor.position.y = 0;
+      shadowFloor.receiveShadow = true;
+      scene.add(shadowFloor);
+
+
+      // Deterministic pseudo-random helper for consistent pixel weathering
+      function hash2D(x, y, seed = 1) {
+        const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123;
+        return n - Math.floor(n);
+      }
+
+      // Creates a crisp NearestFilter CanvasTexture of exact pixel width/height (default 16x16)
+      function createPixelTexture(width, height, drawFn, options = {}) {
+        const w = Math.max(1, Math.round(width));
+        const h = Math.max(1, Math.round(height));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
+        // Helper utilities passed into drawFn
+        const api = {
+          ctx,
+          w,
+          h,
+          fill(color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, w, h);
+          },
+          px(x, y, color) {
+            if (x < 0 || y < 0 || x >= w || y >= h) return;
+            ctx.fillStyle = color;
+            ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
+          },
+          rect(x, y, rw, rh, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(Math.floor(x), Math.floor(y), Math.floor(rw), Math.floor(rh));
+          },
+          noise(basePalette, seed = 1) {
+            for (let y = 0; y < h; y++) {
+              for (let x = 0; x < w; x++) {
+                const idx = Math.floor(hash2D(x, y, seed) * basePalette.length);
+                ctx.fillStyle = basePalette[idx];
+                ctx.fillRect(x, y, 1, 1);
+              }
+            }
+          },
+          border(color, thickness = 1) {
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, w, thickness);
+            ctx.fillRect(0, h - thickness, w, thickness);
+            ctx.fillRect(0, 0, thickness, h);
+            ctx.fillRect(w - thickness, 0, thickness, h);
+          }
+        };
+
+        if (typeof drawFn === 'function') {
+          drawFn(api);
+        }
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.magFilter = THREE.NearestFilter;
+        tex.minFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        tex.encoding = THREE.sRGBEncoding;
+        tex.needsUpdate = true;
+
+        const mat = new THREE.MeshStandardMaterial({
+          map: tex,
+          roughness: options.roughness !== undefined ? options.roughness : 0.72,
+          metalness: options.metalness !== undefined ? options.metalness : 0.06,
+          transparent: Boolean(options.transparent),
+          alphaTest: options.alphaTest || 0,
+          side: options.side || THREE.FrontSide,
+          emissive: options.emissive ? new THREE.Color(options.emissive) : new THREE.Color(0x000000),
+          emissiveIntensity: options.emissiveIntensity || 0
+        });
+        return mat;
+      }
+
+      // Helper to build a Blockbench-style 6-face textured box aligned to the 16x16 texel grid
+      // Dimensions (w, h, d) are given in texels (where 16 = 1 full block)
+      function createVoxelBox(wTex, hTex, dTex, faceGenerators, matOptions = {}) {
+        const geo = new THREE.BoxGeometry(wTex * PX, hTex * PX, dTex * PX);
+        // BoxGeometry material order: [right(+x), left(-x), top(+y), bottom(-y), front(+z), back(-z)]
+        const dims = [
+          [dTex, hTex], // right
+          [dTex, hTex], // left
+          [wTex, dTex], // top
+          [wTex, dTex], // bottom
+          [wTex, hTex], // front
+          [wTex, hTex]  // back
+        ];
+        const keys = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+        const materials = keys.map((key, i) => {
+          const gen =
+            faceGenerators[key] ||
+            faceGenerators.all ||
+            faceGenerators.side ||
+            faceGenerators.front ||
+            faceGenerators.default ||
+            ((api) => drawPorcelainBase(api, 99));
+          const [fw, fh] = dims[i];
+          // Use a scaled integer grid (e.g. 16x16 or exact texel multiple) so spirals and eyes are ultra-crisp
+          const scale = matOptions.texDensity || 2; // 2 sub-texels per model unit = strict 16x16 on an 8-unit head!
+          return createPixelTexture(Math.max(2, Math.round(fw * scale)), Math.max(2, Math.round(fh * scale)), gen, matOptions);
+        });
+        const mesh = new THREE.Mesh(geo, materials);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        return mesh;
+      }
+
+
+      const PALETTE = {
+        // Weathered white-grey porcelain mask tones (matching reference photos)
+        skinLight: '#e4e4dc',
+        skinBase: '#d4d4ca',
+        skinMid: '#c2c2b6',
+        skinShade: '#a8a89c',
+        skinDark: '#858579',
+        skinCrevice: '#57574e',
+        skinDeep: '#2e2e29',
+
+        // Eye socket & glowing red iris
+        socketBlack: '#070709',
+        socketRim: '#1c1b18',
+        irisOuter: '#7f1111',
+        irisMid: '#c81e1e',
+        irisBright: '#ef4444',
+        pupil: '#050505',
+        eyeSpec: '#ffd8d8',
+
+        // Iconic red cheek spirals & painted ventriloquist lips
+        spiralDark: '#7a0f0f',
+        spiralMain: '#b91c1c',
+        spiralBright: '#dc2626',
+        lipMain: '#991b1b',
+        lipBright: '#c81e1e',
+        lipCorner: '#4c0b0b',
+
+        // Wild black puppet hair
+        hairBase: '#0a0b0e',
+        hairMid: '#13151b',
+        hairHighlight: '#222630',
+
+        // Black tuxedo suit, white dress shirt, crimson bowtie & handkerchief
+        suitDark: '#090a0d',
+        suitBase: '#111318',
+        suitMid: '#1a1d24',
+        suitEdge: '#262a34',
+        shirtLight: '#e5e5df',
+        shirtMid: '#ccccbe',
+        shirtShade: '#9e9e90',
+        bowDark: '#6b0f0f',
+        bowMain: '#a61919',
+        bowBright: '#d62828',
+
+        // Silver microcassette tape recorder & "PLAY ME" masking tape
+        metalLight: '#b6bcc2',
+        metalBase: '#8f969d',
+        metalDark: '#5f656b',
+        metalDeep: '#272a2e',
+        tapeBase: '#cbbd93',
+        tapeShade: '#b2a378',
+        tapeText: '#1c1917',
+
+        // Vintage red tricycle & weathered white handlebars
+        barLight: '#dfdfd2',
+        barBase: '#c9c9b8',
+        barChip: '#6e6d5f',
+        trikeRedDark: '#691212',
+        trikeRed: '#9e1c1c',
+        trikeRedBright: '#c92a2a',
+        tireRubber: '#141518',
+        spokeSilver: '#7c8288'
+      };
+
+      // Base porcelain skin texture generator with realistic papier-mâché / clay mottling
+      function drawPorcelainBase(api, seed = 10) {
+        const tones = [
+          PALETTE.skinBase, PALETTE.skinBase, PALETTE.skinLight,
+          PALETTE.skinMid, PALETTE.skinBase, PALETTE.skinShade
+        ];
+        api.noise(tones, seed);
+        // Subtle aged vignette around borders
+        for (let x = 0; x < api.w; x++) {
+          api.px(x, 0, PALETTE.skinMid);
+          api.px(x, api.h - 1, PALETTE.skinShade);
+        }
+        for (let y = 0; y < api.h; y++) {
+          api.px(0, y, PALETTE.skinMid);
+          api.px(api.w - 1, y, PALETTE.skinMid);
+        }
+      }
+
+      // Base black tuxedo fabric generator
+      function drawSuitFabric(api, seed = 20) {
+        api.noise([PALETTE.suitBase, PALETTE.suitBase, PALETTE.suitDark, PALETTE.suitMid], seed);
+      }
+
+      // Base black hair texture generator with vertical strand streaks
+      function drawHairStrands(api, seed = 30) {
+        for (let y = 0; y < api.h; y++) {
+          for (let x = 0; x < api.w; x++) {
+            const v = hash2D(x, Math.floor(y / 2), seed);
+            const col = v < 0.55 ? PALETTE.hairBase : (v < 0.88 ? PALETTE.hairMid : PALETTE.hairHighlight);
+            api.px(x, y, col);
+          }
+        }
+      }
+
+
+      const rootGroup = new THREE.Group();
+      scene.add(rootGroup);
+
+      // Master group that holds the tricycle + Billy seated/standing on it
+      const characterGroup = new THREE.Group();
+      rootGroup.add(characterGroup);
+
+      // Pelvis / Hip Pivot (sits on the tricycle saddle at y = 11.2 * PX)
+      const pelvisPivot = new THREE.Group();
+      pelvisPivot.position.set(0, 11.2 * PX, -1.2 * PX);
+      characterGroup.add(pelvisPivot);
+
+      // Torso Pivot (waist)
+      const torsoPivot = new THREE.Group();
+      torsoPivot.position.set(0, 1.2 * PX, 0);
+      pelvisPivot.add(torsoPivot);
+
+      // Neck / Head Pivot
+      const headPivot = new THREE.Group();
+      headPivot.position.set(0, 8.8 * PX, 0.3 * PX);
+      torsoPivot.add(headPivot);
+
+
+      // 1. Upper Cranium (8x8x8 texels -> 16x16 pixel density on each face!)
+      const cranium = createVoxelBox(8, 7.5, 7.5, {
+        front: (api) => {
+          // 16x15 pixel canvas
+          drawPorcelainBase(api, 101);
+          // Receding dark hair fringe at top corners
+          api.rect(0, 0, 3, 2, PALETTE.hairBase);
+          api.rect(13, 0, 3, 2, PALETTE.hairBase);
+          api.px(0, 2, PALETTE.hairMid);
+          api.px(15, 2, PALETTE.hairMid);
+
+          // Forehead creases & central glabella furrow (between eyebrows)
+          api.rect(4, 2, 8, 1, PALETTE.skinShade);
+          api.rect(7, 3, 2, 3, PALETTE.skinDark);
+          api.px(6, 4, PALETTE.skinShade);
+          api.px(9, 4, PALETTE.skinShade);
+
+          // Deep-set pitch-black eye sockets (left: x=2..6, y=5..9; right: x=10..14, y=5..9)
+          api.rect(1, 5, 6, 4, PALETTE.socketRim);
+          api.rect(9, 5, 6, 4, PALETTE.socketRim);
+          api.rect(2, 5, 4, 4, PALETTE.socketBlack);
+          api.rect(10, 5, 4, 4, PALETTE.socketBlack);
+
+          // Dark under-eye bags
+          api.rect(2, 9, 4, 1, PALETTE.skinDark);
+          api.rect(10, 9, 4, 1, PALETTE.skinDark);
+
+          // Nasolabial shadow creases leading down to mouth
+          api.px(4, 11, PALETTE.skinDark);
+          api.px(11, 11, PALETTE.skinDark);
+          api.px(3, 12, PALETTE.skinCrevice);
+          api.px(12, 12, PALETTE.skinCrevice);
+
+          // Dark inner mouth cavity behind the articulated lower jaw
+          api.rect(5, 12, 6, 3, PALETTE.socketBlack);
+        },
+        top: (api) => {
+          drawPorcelainBase(api, 102);
+          // Hairline around back & sides of domed bald crown
+          api.rect(0, 0, api.w, 5, PALETTE.hairBase);
+          api.rect(0, 0, 3, api.h, PALETTE.hairBase);
+          api.rect(api.w - 3, 0, 3, api.h, PALETTE.hairBase);
+          api.rect(2, 5, 2, 3, PALETTE.hairMid);
+          api.rect(api.w - 4, 5, 2, 3, PALETTE.hairMid);
+        },
+        left: (api) => {
+          drawPorcelainBase(api, 103);
+          api.rect(0, 0, 9, api.h, PALETTE.hairBase);
+          api.rect(8, 2, 2, api.h - 4, PALETTE.skinShade);
+        },
+        right: (api) => {
+          drawPorcelainBase(api, 104);
+          api.rect(api.w - 9, 0, 9, api.h, PALETTE.hairBase);
+          api.rect(api.w - 10, 2, 2, api.h - 4, PALETTE.skinShade);
+        },
+        back: (api) => {
+          drawHairStrands(api, 105);
+        },
+        bottom: (api) => {
+          drawPorcelainBase(api, 106);
+          api.rect(4, 4, 8, 8, PALETTE.socketBlack);
+        }
+      }, { roughness: 0.58 });
+      cranium.position.set(0, 4.4 * PX, 0);
+      headPivot.add(cranium);
+
+      // 2. Glowing Red Tracking Eyes inside the Eye Sockets (Secondary motion target!)
+      const eyesPivot = new THREE.Group();
+      eyesPivot.position.set(0, 5.0 * PX, 3.62 * PX);
+      headPivot.add(eyesPivot);
+
+      function createEyeMesh() {
+        return createVoxelBox(1.8, 1.6, 0.4, {
+          front: (api) => {
+            api.fill(PALETTE.socketBlack);
+            // 4x4 texel eye with bright crimson iris ring and dark pupil
+            api.rect(0, 0, api.w, api.h, PALETTE.irisOuter);
+            api.rect(1, 0, api.w - 2, api.h, PALETTE.irisMid);
+            api.rect(0, 1, api.w, api.h - 2, PALETTE.irisBright);
+            // Center black pupil + tiny white glint
+            const cx = Math.floor(api.w / 2) - 1;
+            const cy = Math.floor(api.h / 2) - 1;
+            api.rect(cx, cy, 2, 2, PALETTE.pupil);
+            api.px(cx, cy, PALETTE.eyeSpec);
+          },
+          all: (api) => api.fill(PALETTE.socketBlack)
+        }, { texDensity: 3, roughness: 0.25, emissive: '#7f1d1d', emissiveIntensity: 0.35 });
+      }
+
+      const leftEye = createEyeMesh();
+      leftEye.position.set(1.95 * PX, 0, 0);
+      eyesPivot.add(leftEye);
+
+      const rightEye = createEyeMesh();
+      rightEye.position.set(-1.95 * PX, 0, 0);
+      eyesPivot.add(rightEye);
+
+      // 3. Heavy Furrowed Brow Ridge (extruded 3D overhang just like the prop mask)
+      const browRidge = createVoxelBox(8.2, 1.7, 1.4, {
+        front: (api) => {
+          drawPorcelainBase(api, 110);
+          // Deep scowl furrow in the middle & arched brow highlights
+          const mid = Math.floor(api.w / 2);
+          api.rect(mid - 1, 0, 2, api.h, PALETTE.skinCrevice);
+          api.px(mid - 2, 1, PALETTE.skinDark);
+          api.px(mid + 1, 1, PALETTE.skinDark);
+          api.rect(2, 0, 5, 1, PALETTE.skinLight);
+          api.rect(api.w - 7, 0, 5, 1, PALETTE.skinLight);
+          api.rect(0, api.h - 1, api.w, 1, PALETTE.skinDark);
+        },
+        top: (api) => drawPorcelainBase(api, 111),
+        bottom: (api) => api.fill(PALETTE.socketRim),
+        side: (api) => drawPorcelainBase(api, 112)
+      }, { roughness: 0.55 });
+      browRidge.position.set(0, 6.25 * PX, 3.55 * PX);
+      headPivot.add(browRidge);
+
+      // 4. Prominent Sculpted 3D Puppet Nose Bridge & Tip
+      const noseBridge = createVoxelBox(2.1, 3.4, 1.6, {
+        front: (api) => {
+          drawPorcelainBase(api, 115);
+          // Bright highlight down the nose ridge
+          api.rect(1, 0, api.w - 2, api.h - 1, PALETTE.skinLight);
+          api.rect(0, 0, 1, api.h, PALETTE.skinMid);
+          api.rect(api.w - 1, 0, 1, api.h, PALETTE.skinMid);
+          api.rect(0, api.h - 1, api.w, 1, PALETTE.skinDark);
+        },
+        bottom: (api) => {
+          drawPorcelainBase(api, 116);
+          // Dark nostrils
+          api.px(1, 1, PALETTE.socketBlack);
+          api.px(api.w - 2, 1, PALETTE.socketBlack);
+        },
+        side: (api) => drawPorcelainBase(api, 117)
+      }, { roughness: 0.55 });
+      noseBridge.position.set(0, 3.9 * PX, 4.1 * PX);
+      noseBridge.rotation.x = -0.08;
+      headPivot.add(noseBridge);
+
+      // 5. Prominent Swollen 3D Cheekbones with Crisp Pixel-Art Red Spirals!
+      // Helper to draw a crisp pixel-art Archimedes spiral on an N x N grid
+      function drawRedSpiral(api, dir = 1) {
+        drawPorcelainBase(api, 120 + dir);
+        // Highlight on upper cheek bulge
+        api.rect(1, 1, api.w - 2, 2, PALETTE.skinLight);
+
+        const cx = (api.w - 1) / 2;
+        const cy = (api.h - 1) / 2;
+        const maxR = Math.min(cx, cy) - 0.3;
+
+        for (let y = 0; y < api.h; y++) {
+          for (let x = 0; x < api.w; x++) {
+            const dx = (x - cx) * dir;
+            const dy = y - cy;
+            const r = Math.sqrt(dx * dx + dy * dy);
+            if (r > maxR) continue;
+
+            // Angle in [0, 2*PI)
+            let theta = Math.atan2(dy, dx);
+            if (theta < 0) theta += Math.PI * 2;
+
+            // 2.25 turns of red spiral from center outward
+            const spiralPhase = (r / maxR) * 2.35 - theta / (Math.PI * 2);
+            const distToRing = Math.abs(spiralPhase - Math.round(spiralPhase));
+
+            if (r < 0.85 || distToRing < 0.19) {
+              const col = distToRing < 0.09 ? PALETTE.spiralMain : PALETTE.spiralBright;
+              api.px(x, y, col);
+            }
+          }
+        }
+        // Subtle grime border
+        api.px(0, 0, PALETTE.skinShade);
+        api.px(api.w - 1, 0, PALETTE.skinShade);
+        api.px(0, api.h - 1, PALETTE.skinDark);
+        api.px(api.w - 1, api.h - 1, PALETTE.skinDark);
+      }
+
+      const cheekLeft = createVoxelBox(3.1, 3.2, 2.1, {
+        front: (api) => drawRedSpiral(api, 1),
+        right: (api) => drawRedSpiral(api, 1),
+        left: (api) => drawPorcelainBase(api, 125),
+        top: (api) => drawPorcelainBase(api, 126),
+        bottom: (api) => {
+          drawPorcelainBase(api, 127);
+          api.fill(PALETTE.skinDark);
+        },
+        back: (api) => drawPorcelainBase(api, 125)
+      }, { texDensity: 3, roughness: 0.52 });
+      cheekLeft.position.set(2.95 * PX, 3.35 * PX, 3.45 * PX);
+      cheekLeft.rotation.y = 0.14;
+      headPivot.add(cheekLeft);
+
+      const cheekRight = createVoxelBox(3.1, 3.2, 2.1, {
+        front: (api) => drawRedSpiral(api, -1),
+        left: (api) => drawRedSpiral(api, -1),
+        right: (api) => drawPorcelainBase(api, 128),
+        top: (api) => drawPorcelainBase(api, 129),
+        bottom: (api) => {
+          drawPorcelainBase(api, 130);
+          api.fill(PALETTE.skinDark);
+        },
+        back: (api) => drawPorcelainBase(api, 128)
+      }, { texDensity: 3, roughness: 0.52 });
+      cheekRight.position.set(-2.95 * PX, 3.35 * PX, 3.45 * PX);
+      cheekRight.rotation.y = -0.14;
+      headPivot.add(cheekRight);
+
+      // 6. Upper Lip & Sinister Upturned Red Smile Corners
+      const upperMuzzle = createVoxelBox(5.2, 1.35, 1.7, {
+        front: (api) => {
+          drawPorcelainBase(api, 131);
+          // Philtrum indentation in center
+          const mid = Math.floor(api.w / 2);
+          api.rect(mid - 1, 0, 2, api.h - 1, PALETTE.skinShade);
+          // Upturned blood-red painted upper lip & smile corners (matching image_9ae906.png)
+          api.rect(1, api.h - 1, api.w - 2, 1, PALETTE.lipMain);
+          api.rect(2, api.h - 2, api.w - 4, 1, PALETTE.lipBright);
+          // Upturned sinister smile tips at left and right edges
+          api.px(0, api.h - 2, PALETTE.lipMain);
+          api.px(1, api.h - 2, PALETTE.lipBright);
+          api.px(api.w - 1, api.h - 2, PALETTE.lipMain);
+          api.px(api.w - 2, api.h - 2, PALETTE.lipBright);
+        },
+        bottom: (api) => api.fill(PALETTE.lipCorner),
+        side: (api) => drawPorcelainBase(api, 132)
+      }, { texDensity: 2, roughness: 0.55 });
+      upperMuzzle.position.set(0, 2.1 * PX, 3.65 * PX);
+      headPivot.add(upperMuzzle);
+
+      // 7. Fixed Side Jowls (framing the vertical ventriloquist jaw slots on left & right)
+      function createSideJowl(isLeft) {
+        return createVoxelBox(1.85, 3.1, 4.8, {
+          front: (api) => {
+            drawPorcelainBase(api, isLeft ? 135 : 136);
+            // Deep vertical puppet slit border on the inner edge facing the chin
+            const innerX = isLeft ? 0 : api.w - 1;
+            api.rect(innerX, 0, 1, api.h, PALETTE.skinDeep);
+            // Red smile corner crease at the top inner corner
+            api.px(innerX, 0, PALETTE.lipMain);
+            api.px(isLeft ? 1 : api.w - 2, 0, PALETTE.lipCorner);
+          },
+          side: (api) => drawPorcelainBase(api, 137),
+          bottom: (api) => api.fill(PALETTE.skinDark)
+        }, { roughness: 0.58 });
+      }
+
+      const jowlLeft = createSideJowl(true);
+      jowlLeft.position.set(2.75 * PX, 0.95 * PX, 1.35 * PX);
+      headPivot.add(jowlLeft);
+
+      const jowlRight = createSideJowl(false);
+      jowlRight.position.set(-2.75 * PX, 0.95 * PX, 1.35 * PX);
+      headPivot.add(jowlRight);
+
+      // 8. Articulated Ventriloquist Lower Jaw / Cleft Chin (`jawPivot`)
+      const jawPivot = new THREE.Group();
+      jawPivot.position.set(0, 1.55 * PX, 2.1 * PX);
+      headPivot.add(jawPivot);
+
+      const chinBlock = createVoxelBox(3.4, 2.9, 3.4, {
+        front: (api) => {
+          drawPorcelainBase(api, 140);
+          // Dark vertical puppet slot lines on far left and right edges
+          api.rect(0, 0, 1, api.h, PALETTE.skinDeep);
+          api.rect(api.w - 1, 0, 1, api.h, PALETTE.skinDeep);
+          // Bright red painted lower lip across top edge
+          api.rect(1, 0, api.w - 2, 1, PALETTE.lipBright);
+          api.rect(1, 1, api.w - 2, 1, PALETTE.skinDark);
+          // Prominent vertical chin cleft / dimple down the center (matching image_9ae61a.jpg)
+          const mid = Math.floor(api.w / 2);
+          api.rect(mid - 1, 2, 1, api.h - 2, PALETTE.skinDark);
+          api.rect(mid, 2, 1, api.h - 2, PALETTE.skinShade);
+          // Twin rounded chin lobe highlights on left & right of cleft
+          api.rect(2, 2, mid - 3, api.h - 3, PALETTE.skinLight);
+          api.rect(mid + 1, 2, mid - 2, api.h - 3, PALETTE.skinLight);
+          // Grimy bottom chin shadow
+          api.rect(1, api.h - 1, api.w - 2, 1, PALETTE.skinShade);
+        },
+        top: (api) => {
+          api.fill(PALETTE.socketBlack);
+          api.rect(0, api.h - 2, api.w, 2, PALETTE.lipMain);
+        },
+        bottom: (api) => drawPorcelainBase(api, 141),
+        side: (api) => {
+          drawPorcelainBase(api, 142);
+          api.rect(0, 0, api.w, 1, PALETTE.skinDeep);
+        }
+      }, { texDensity: 3, roughness: 0.54 });
+      chinBlock.position.set(0, -0.85 * PX, 0.65 * PX);
+      jawPivot.add(chinBlock);
+
+
+      const hairGroup = new THREE.Group();
+      headPivot.add(hairGroup);
+
+      // Back hair mass
+      const hairBack = createVoxelBox(8.8, 8.6, 3.2, {
+        all: (api) => drawHairStrands(api, 150)
+      }, { roughness: 0.88 });
+      hairBack.position.set(0, 4.1 * PX, -2.8 * PX);
+      hairGroup.add(hairBack);
+
+      // Left flared hair volume (flares outward past the cheek like image_9ae61a & 9ae906)
+      const hairLeftUpper = createVoxelBox(2.4, 7.8, 7.2, {
+        all: (api) => drawHairStrands(api, 151)
+      }, { roughness: 0.88 });
+      hairLeftUpper.position.set(4.55 * PX, 4.1 * PX, -0.4 * PX);
+      hairLeftUpper.rotation.z = 0.14;
+      hairLeftUpper.rotation.y = 0.08;
+      hairGroup.add(hairLeftUpper);
+
+      const hairLeftLower = createVoxelBox(2.1, 4.5, 5.8, {
+        all: (api) => drawHairStrands(api, 152)
+      }, { roughness: 0.9 });
+      hairLeftLower.position.set(5.1 * PX, 1.6 * PX, -0.5 * PX);
+      hairLeftLower.rotation.z = -0.18;
+      hairGroup.add(hairLeftLower);
+
+      // Right flared hair volume
+      const hairRightUpper = createVoxelBox(2.4, 7.8, 7.2, {
+        all: (api) => drawHairStrands(api, 153)
+      }, { roughness: 0.88 });
+      hairRightUpper.position.set(-4.55 * PX, 4.1 * PX, -0.4 * PX);
+      hairRightUpper.rotation.z = -0.14;
+      hairRightUpper.rotation.y = -0.08;
+      hairGroup.add(hairRightUpper);
+
+      const hairRightLower = createVoxelBox(2.1, 4.5, 5.8, {
+        all: (api) => drawHairStrands(api, 154)
+      }, { roughness: 0.9 });
+      hairRightLower.position.set(-5.1 * PX, 1.6 * PX, -0.5 * PX);
+      hairRightLower.rotation.z = 0.18;
+      hairGroup.add(hairRightLower);
+
+      // Top-back hair crown (leaving the front forehead bald as in the movies)
+      const hairTopCrown = createVoxelBox(8.6, 1.6, 5.4, {
+        all: (api) => drawHairStrands(api, 155)
+      }, { roughness: 0.88 });
+      hairTopCrown.position.set(0, 8.2 * PX, -1.4 * PX);
+      hairGroup.add(hairTopCrown);
+
+
+      // Neck & White Shirt Collar
+      const neckMesh = createVoxelBox(3.2, 2.2, 3.0, {
+        all: (api) => {
+          drawPorcelainBase(api, 160);
+          api.rect(0, api.h - 2, api.w, 2, PALETTE.shirtLight);
+        }
+      });
+      neckMesh.position.set(0, 8.2 * PX, 0.1 * PX);
+      torsoPivot.add(neckMesh);
+
+      // Main Tuxedo Torso (7.6 x 8.2 x 4.2 texels)
+      const torsoMesh = createVoxelBox(7.6, 8.2, 4.2, {
+        front: (api) => {
+          drawSuitFabric(api, 170);
+          const mid = Math.floor(api.w / 2);
+          // Crisp white dress shirt V-opening at top center
+          api.rect(mid - 3, 0, 6, 3, PALETTE.shirtLight);
+          api.rect(mid - 2, 3, 4, 3, PALETTE.shirtMid);
+          api.rect(mid - 1, 6, 2, 2, PALETTE.shirtShade);
+          // Vertical shirt pleat & collar shadow
+          api.rect(mid, 0, 1, 6, PALETTE.shirtShade);
+          // Jacket center seam & button below cassette
+          api.rect(mid, 8, 1, api.h - 8, PALETTE.suitDark);
+          api.rect(mid - 1, api.h - 3, 2, 2, PALETTE.suitEdge);
+          // Breast pocket welt on right side of chest (viewer's right / Billy's left)
+          api.rect(2, 6, 4, 1, PALETTE.suitDark);
+        },
+        back: (api) => {
+          drawSuitFabric(api, 171);
+          // Center back vent seam
+          api.rect(Math.floor(api.w / 2), 1, 1, api.h - 1, PALETTE.suitDark);
+        },
+        side: (api) => drawSuitFabric(api, 172),
+        top: (api) => drawSuitFabric(api, 173),
+        bottom: (api) => drawSuitFabric(api, 174)
+      }, { texDensity: 2, roughness: 0.78 });
+      torsoMesh.position.set(0, 4.1 * PX, 0);
+      torsoPivot.add(torsoMesh);
+
+      // 3D Extruded Tuxedo Lapels (angled on chest)
+      function createLapel(isLeft) {
+        return createVoxelBox(1.8, 5.2, 0.5, {
+          front: (api) => {
+            drawSuitFabric(api, isLeft ? 175 : 176);
+            api.border(PALETTE.suitEdge, 1);
+          },
+          all: (api) => api.fill(PALETTE.suitBase)
+        });
+      }
+      const lapelLeft = createLapel(true);
+      lapelLeft.position.set(1.55 * PX, 5.3 * PX, 2.22 * PX);
+      lapelLeft.rotation.z = -0.24;
+      torsoPivot.add(lapelLeft);
+
+      const lapelRight = createLapel(false);
+      lapelRight.position.set(-1.55 * PX, 5.3 * PX, 2.22 * PX);
+      lapelRight.rotation.z = 0.24;
+      torsoPivot.add(lapelRight);
+
+      // Iconic Red Pocket Square (folded twin peaks poking out of Billy's left breast pocket)
+      const pocketSquare = createVoxelBox(1.9, 1.4, 0.45, {
+        front: (api) => {
+          api.fill(PALETTE.bowMain);
+          api.rect(0, 0, 1, 2, PALETTE.bowBright);
+          api.rect(api.w - 2, 0, 2, 2, PALETTE.bowBright);
+          api.px(Math.floor(api.w / 2), 0, PALETTE.suitBase);
+        },
+        all: (api) => api.fill(PALETTE.bowDark)
+      }, { texDensity: 2 });
+      pocketSquare.position.set(-2.35 * PX, 5.45 * PX, 2.22 * PX);
+      pocketSquare.rotation.z = 0.08;
+      torsoPivot.add(pocketSquare);
+
+      // Iconic Bright Red 3D Bowtie (right under the chin!)
+      const bowtiePivot = new THREE.Group();
+      bowtiePivot.position.set(0, 7.55 * PX, 2.25 * PX);
+      torsoPivot.add(bowtiePivot);
+
+      const bowtieKnot = createVoxelBox(1.1, 1.1, 0.7, {
+        all: (api) => {
+          api.fill(PALETTE.bowDark);
+          api.rect(1, 0, api.w - 2, api.h, PALETTE.bowMain);
+        }
+      });
+      bowtiePivot.add(bowtieKnot);
+
+      function createBowWing(isLeft) {
+        return createVoxelBox(2.2, 1.75, 0.55, {
+          front: (api) => {
+            api.fill(PALETTE.bowMain);
+            api.rect(0, 0, api.w, 1, PALETTE.bowBright);
+            // Pleat crease lines radiating from knot
+            const innerX = isLeft ? 0 : api.w - 2;
+            api.rect(innerX, Math.floor(api.h / 2), 2, 1, PALETTE.bowDark);
+          },
+          all: (api) => api.fill(PALETTE.bowMain)
+        }, { texDensity: 2, roughness: 0.6 });
+      }
+
+      const bowWingL = createBowWing(true);
+      bowWingL.position.set(1.4 * PX, 0.05 * PX, 0.08 * PX);
+      bowWingL.rotation.z = 0.12;
+      bowWingL.rotation.y = -0.15;
+      bowtiePivot.add(bowWingL);
+
+      const bowWingR = createBowWing(false);
+      bowWingR.position.set(-1.4 * PX, 0.05 * PX, 0.08 * PX);
+      bowWingR.rotation.z = -0.12;
+      bowWingR.rotation.y = 0.15;
+      bowtiePivot.add(bowWingR);
+
+      // Iconic Hanging Silver Microcassette Tape Recorder with "PLAY ME" Masking Tape (from image_9ae61a.jpg!)
+      const recorderPivot = new THREE.Group();
+      recorderPivot.position.set(0.35 * PX, 6.9 * PX, 2.35 * PX);
+      torsoPivot.add(recorderPivot);
+
+      // Lanyard cord hanging from neck to top of recorder
+      const cordLeft = createVoxelBox(0.22, 1.9, 0.22, { all: (api) => api.fill('#18181b') });
+      cordLeft.position.set(-0.45 * PX, -0.7 * PX, -0.1 * PX);
+      cordLeft.rotation.z = -0.25;
+      recorderPivot.add(cordLeft);
+
+      const cordRight = createVoxelBox(0.22, 1.9, 0.22, { all: (api) => api.fill('#18181b') });
+      cordRight.position.set(0.25 * PX, -0.7 * PX, -0.1 * PX);
+      cordRight.rotation.z = 0.18;
+      recorderPivot.add(cordRight);
+
+      // Silver Microcassette Recorder Body
+      const recorderBody = createVoxelBox(2.8, 4.3, 1.05, {
+        front: (api) => {
+          // 11x17 pixel high-detail cassette recorder face
+          api.fill(PALETTE.metalBase);
+          api.border(PALETTE.metalLight, 1);
+
+          // Upper dark cassette window & reel hubs
+          api.rect(2, 2, api.w - 4, 6, PALETTE.metalDeep);
+          api.px(4, 4, PALETTE.metalLight);
+          api.px(api.w - 5, 4, PALETTE.metalLight);
+          // Red record LED indicator at top right
+          api.px(api.w - 3, 1, PALETTE.irisBright);
+
+          // Lower perforated speaker grille mesh (checkerboard of dark dots)
+          for (let y = 9; y < api.h - 1; y++) {
+            for (let x = 2; x < api.w - 2; x++) {
+              const isHole = (x + y) % 2 === 0;
+              api.px(x, y, isHole ? PALETTE.metalDeep : PALETTE.metalDark);
+            }
+          }
+        },
+        top: (api) => {
+          api.fill(PALETTE.metalDark);
+          // Silver mechanical buttons on top of recorder
+          api.rect(1, 1, 2, 2, PALETTE.metalLight);
+          api.rect(4, 1, 2, 2, PALETTE.irisBright); // red REC button
+        },
+        side: (api) => {
+          api.fill(PALETTE.metalDark);
+          api.rect(1, 2, 1, api.h - 4, PALETTE.metalDeep);
+        },
+        back: (api) => api.fill(PALETTE.metalDark),
+        bottom: (api) => api.fill(PALETTE.metalDark)
+      }, { texDensity: 4, roughness: 0.38, metalness: 0.55 });
+      recorderBody.position.set(0, -3.4 * PX, 0.32 * PX);
+      recorderBody.rotation.z = -0.04;
+      recorderPivot.add(recorderBody);
+
+      // Extruded 3D angled masking tape strip across the recorder reading "PLAY ME"
+      const playMeTape = createVoxelBox(1.15, 3.3, 0.18, {
+        front: (api) => {
+          // Draw beige masking tape and dark scrawled pixel-art "PLAY ME" lettering
+          api.fill(PALETTE.tapeBase);
+          api.rect(0, 0, api.w, 1, PALETTE.tapeShade);
+          api.rect(0, api.h - 1, api.w, 1, PALETTE.tapeShade);
+
+          // Scrawled dark marker strokes representing "PLAY ME" vertically along the tape
+          const c = PALETTE.tapeText;
+          // "ME" near top
+          api.rect(1, 2, 3, 1, c);
+          api.px(2, 3, c);
+          api.rect(1, 4, 3, 1, c);
+          api.rect(1, 6, 3, 1, c);
+          api.px(1, 7, c);
+          api.rect(1, 8, 2, 1, c);
+          // "PLAY" below
+          api.rect(1, 11, 3, 1, c);
+          api.px(2, 12, c);
+          api.rect(1, 14, 3, 1, c);
+          api.px(3, 15, c);
+          api.rect(1, 17, 3, 1, c);
+          api.px(1, 18, c);
+          api.rect(1, 20, 3, 1, c);
+        },
+        all: (api) => api.fill(PALETTE.tapeShade)
+      }, { texDensity: 6, roughness: 0.75 });
+      playMeTape.position.set(-0.15 * PX, -3.35 * PX, 0.88 * PX);
+      playMeTape.rotation.z = 0.26;
+      recorderPivot.add(playMeTape);
+
+      // Pelvis / Suit Jacket Coattails
+      const pelvisMesh = createVoxelBox(7.4, 2.4, 4.1, {
+        all: (api) => drawSuitFabric(api, 180)
+      });
+      pelvisMesh.position.set(0, 0.3 * PX, 0);
+      pelvisPivot.add(pelvisMesh);
+
+
+      function createArmAssembly(isLeft) {
+        const sign = isLeft ? 1 : -1;
+        const shoulderPivot = new THREE.Group();
+        shoulderPivot.position.set(sign * 4.85 * PX, 7.35 * PX, 0);
+        torsoPivot.add(shoulderPivot);
+
+        const upperArm = createVoxelBox(2.5, 5.2, 2.6, {
+          all: (api) => drawSuitFabric(api, isLeft ? 190 : 191)
+        });
+        upperArm.position.set(0, -2.1 * PX, 0);
+        shoulderPivot.add(upperArm);
+
+        const elbowPivot = new THREE.Group();
+        elbowPivot.position.set(0, -4.5 * PX, 0);
+        shoulderPivot.add(elbowPivot);
+
+        const forearm = createVoxelBox(2.35, 4.8, 2.4, {
+          all: (api) => {
+            drawSuitFabric(api, isLeft ? 192 : 193);
+            // Crisp white dress shirt cuff at wrist
+            api.rect(0, api.h - 2, api.w, 2, PALETTE.shirtLight);
+          }
+        });
+        forearm.position.set(0, -2.1 * PX, 0);
+        elbowPivot.add(forearm);
+
+        // Sculpted white porcelain puppet hand with thumb & curled knuckles gripping handlebars
+        const wristPivot = new THREE.Group();
+        wristPivot.position.set(0, -4.6 * PX, 0);
+        elbowPivot.add(wristPivot);
+
+        const handMesh = createVoxelBox(2.2, 2.3, 2.3, {
+          front: (api) => {
+            drawPorcelainBase(api, isLeft ? 194 : 195);
+            // Knuckle ridges & finger grooves
+            api.rect(0, api.h - 2, api.w, 1, PALETTE.skinLight);
+            api.px(1, api.h - 1, PALETTE.skinDark);
+            api.px(3, api.h - 1, PALETTE.skinDark);
+          },
+          all: (api) => drawPorcelainBase(api, 196)
+        }, { roughness: 0.55 });
+        handMesh.position.set(0, -0.9 * PX, 0.15 * PX);
+        wristPivot.add(handMesh);
+
+        // Articulated thumb block
+        const thumbMesh = createVoxelBox(0.8, 1.3, 1.1, {
+          all: (api) => drawPorcelainBase(api, 197)
+        });
+        thumbMesh.position.set(-sign * 1.1 * PX, -0.8 * PX, 0.5 * PX);
+        wristPivot.add(thumbMesh);
+
+        return { shoulderPivot, elbowPivot, wristPivot };
+      }
+
+      const leftArm = createArmAssembly(true);
+      const rightArm = createArmAssembly(false);
+
+
+      function createLegAssembly(isLeft) {
+        const sign = isLeft ? 1 : -1;
+        const hipPivot = new THREE.Group();
+        hipPivot.position.set(sign * 2.15 * PX, -0.4 * PX, 0);
+        pelvisPivot.add(hipPivot);
+
+        const thigh = createVoxelBox(2.8, 5.2, 2.8, {
+          all: (api) => drawSuitFabric(api, isLeft ? 200 : 201)
+        });
+        thigh.position.set(0, -2.3 * PX, 0);
+        hipPivot.add(thigh);
+
+        const kneePivot = new THREE.Group();
+        kneePivot.position.set(0, -4.7 * PX, 0);
+        hipPivot.add(kneePivot);
+
+        const calf = createVoxelBox(2.5, 4.8, 2.5, {
+          all: (api) => {
+            drawSuitFabric(api, isLeft ? 202 : 203);
+            // Red/white sock glimpsed at ankle
+            api.rect(0, api.h - 1, api.w, 1, PALETTE.bowMain);
+          }
+        });
+        calf.position.set(0, -2.2 * PX, 0);
+        kneePivot.add(calf);
+
+        const anklePivot = new THREE.Group();
+        anklePivot.position.set(0, -4.6 * PX, 0);
+        kneePivot.add(anklePivot);
+
+        // Billy's iconic red & black dress shoes with white sole trim (seen in image_9ae63d.png)
+        const shoe = createVoxelBox(2.7, 1.75, 4.1, {
+          front: (api) => {
+            api.fill(PALETTE.suitDark);
+            api.rect(1, 0, api.w - 2, 2, PALETTE.bowMain);
+            api.rect(0, api.h - 1, api.w, 1, PALETTE.shirtLight);
+          },
+          side: (api) => {
+            api.fill(PALETTE.suitDark);
+            api.rect(2, 0, api.w - 4, 2, PALETTE.bowMain);
+            api.rect(0, api.h - 1, api.w, 1, PALETTE.shirtLight);
+          },
+          top: (api) => {
+            api.fill(PALETTE.suitDark);
+            api.rect(1, 2, api.w - 2, 3, PALETTE.bowBright);
+          },
+          all: (api) => api.fill(PALETTE.suitDark)
+        }, { roughness: 0.35 });
+        shoe.position.set(0, -0.7 * PX, 0.75 * PX);
+        anklePivot.add(shoe);
+
+        return { hipPivot, kneePivot, anklePivot };
+      }
+
+      const leftLeg = createLegAssembly(true);
+      const rightLeg = createLegAssembly(false);
+
+
+      const trikeGroup = new THREE.Group();
+      characterGroup.add(trikeGroup);
+
+      // Steering column & handlebars pivot (rotates around steering axis!)
+      const steeringPivot = new THREE.Group();
+      steeringPivot.position.set(0, 10.6 * PX, 4.9 * PX);
+      steeringPivot.rotation.x = -0.22; // raked front fork angle
+      trikeGroup.add(steeringPivot);
+
+      // Weathered cream/white curved handlebars (matching foreground of image_9ae61a.jpg & 9ae641.jpg!)
+      function drawChippedCreamMetal(api, seed = 210) {
+        api.noise([PALETTE.barLight, PALETTE.barBase, PALETTE.barBase, PALETTE.barChip], seed);
+      }
+
+      // Center handlebar clamp collar (seen at bottom center of image_9ae61a.jpg)
+      const barClamp = createVoxelBox(1.8, 1.4, 1.4, {
+        front: (api) => {
+          drawChippedCreamMetal(api, 211);
+          // Hex bolt detail in middle of clamp
+          api.rect(1, 1, 2, 2, PALETTE.metalDark);
+        },
+        all: (api) => drawChippedCreamMetal(api, 212)
+      });
+      barClamp.position.set(0, 1.8 * PX, 0);
+      steeringPivot.add(barClamp);
+
+      // Sweeping curved cream handlebars (left & right inner + outer sweeps)
+      function createHandlebarSide(isLeft) {
+        const sign = isLeft ? 1 : -1;
+        const sideGroup = new THREE.Group();
+        sideGroup.position.set(0, 1.8 * PX, 0);
+        steeringPivot.add(sideGroup);
+
+        const innerBar = createVoxelBox(3.8, 0.85, 0.85, {
+          all: (api) => drawChippedCreamMetal(api, isLeft ? 213 : 214)
+        });
+        innerBar.position.set(sign * 2.1 * PX, 0.35 * PX, -0.2 * PX);
+        innerBar.rotation.z = sign * 0.22;
+        innerBar.rotation.y = -sign * 0.16;
+        sideGroup.add(innerBar);
+
+        const outerBar = createVoxelBox(3.4, 0.85, 0.85, {
+          all: (api) => drawChippedCreamMetal(api, isLeft ? 215 : 216)
+        });
+        outerBar.position.set(sign * 5.2 * PX, 1.35 * PX, -1.1 * PX);
+        outerBar.rotation.z = sign * 0.34;
+        outerBar.rotation.y = -sign * 0.38;
+        sideGroup.add(outerBar);
+
+        // Dark handle grip where Billy's white hands hold on
+        const grip = createVoxelBox(1.8, 1.0, 1.0, {
+          all: (api) => api.fill(PALETTE.tireRubber)
+        });
+        grip.position.set(sign * 6.8 * PX, 1.9 * PX, -2.0 * PX);
+        grip.rotation.y = -sign * 0.55;
+        sideGroup.add(grip);
+      }
+      createHandlebarSide(true);
+      createHandlebarSide(false);
+
+      // Vintage Red Steering Stem & Silver Ribbed Headlamp (matching image_9ae63d.png!)
+      const redStem = createVoxelBox(1.2, 3.2, 1.2, {
+        all: (api) => api.noise([PALETTE.trikeRed, PALETTE.trikeRedBright, PALETTE.trikeRedDark], 220)
+      });
+      redStem.position.set(0, 0.1 * PX, 0);
+      steeringPivot.add(redStem);
+
+      const headlamp = createVoxelBox(1.7, 2.0, 1.5, {
+        front: (api) => {
+          api.fill(PALETTE.metalDark);
+          // Vertical silver ribs on vintage trike headlamp
+          for (let x = 1; x < api.w - 1; x += 2) {
+            api.rect(x, 1, 1, api.h - 2, PALETTE.shirtLight);
+          }
+        },
+        all: (api) => api.fill(PALETTE.trikeRed)
+      });
+      headlamp.position.set(0, -0.3 * PX, 0.9 * PX);
+      steeringPivot.add(headlamp);
+
+      // Red Front Fork Blades
+      const forkCrown = createVoxelBox(2.8, 0.9, 1.2, {
+        all: (api) => api.fill(PALETTE.trikeRedBright)
+      });
+      forkCrown.position.set(0, -1.6 * PX, 0);
+      steeringPivot.add(forkCrown);
+
+      const forkLeft = createVoxelBox(0.7, 6.2, 0.85, {
+        all: (api) => api.fill(PALETTE.trikeRed)
+      });
+      forkLeft.position.set(1.05 * PX, -4.6 * PX, 0);
+      steeringPivot.add(forkLeft);
+
+      const forkRight = createVoxelBox(0.7, 6.2, 0.85, {
+        all: (api) => api.fill(PALETTE.trikeRed)
+      });
+      forkRight.position.set(-1.05 * PX, -4.6 * PX, 0);
+      steeringPivot.add(forkRight);
+
+      // Helper to build a Blockbench-style spoked tricycle wheel
+      function createSpokedWheel(radiusTex, thicknessTex) {
+        const wheelGroup = new THREE.Group();
+        const diam = radiusTex * 2;
+
+        // Pixel-art spoked wheel disc + dark rubber tire tread
+        const wheelBox = createVoxelBox(thicknessTex, diam, diam, {
+          left: (api) => drawWheelFace(api),
+          right: (api) => drawWheelFace(api),
+          all: (api) => {
+            api.fill(PALETTE.tireRubber);
+            api.rect(1, 0, api.w - 2, api.h, '#1f2126');
+          }
+        }, { texDensity: 2, transparent: true, alphaTest: 0.1 });
+        wheelGroup.add(wheelBox);
+
+        function drawWheelFace(api) {
+          const cx = (api.w - 1) / 2;
+          const cy = (api.h - 1) / 2;
+          const maxR = Math.min(cx, cy);
+          for (let y = 0; y < api.h; y++) {
+            for (let x = 0; x < api.w; x++) {
+              const dx = x - cx;
+              const dy = y - cy;
+              const r = Math.sqrt(dx * dx + dy * dy);
+              if (r > maxR + 0.35) continue; // transparent outside circle!
+              if (r > maxR - 1.3) {
+                api.px(x, y, PALETTE.tireRubber);
+              } else if (r > maxR - 2.1) {
+                api.px(x, y, PALETTE.trikeRedBright);
+              } else if (r < 1.6) {
+                api.px(x, y, PALETTE.metalLight);
+              } else {
+                // Wire spokes
+                const onCross = Math.abs(dx) < 0.7 || Math.abs(dy) < 0.7 || Math.abs(Math.abs(dx) - Math.abs(dy)) < 0.75;
+                if (onCross) {
+                  api.px(x, y, PALETTE.spokeSilver);
+                }
+              }
+            }
+          }
+        }
+
+        return wheelGroup;
+      }
+
+      // Front Wheel + Pedals (radius = 3.6 texels -> center at y = 3.6 * PX)
+      const frontWheelPivot = new THREE.Group();
+      frontWheelPivot.position.set(0, -7.2 * PX, 0);
+      steeringPivot.add(frontWheelPivot);
+
+      const frontWheel = createSpokedWheel(3.6, 1.0);
+      frontWheelPivot.add(frontWheel);
+
+      // Left & Right Pedal Cranks attached to front wheel hub
+      function createPedal(isLeft) {
+        const sign = isLeft ? 1 : -1;
+        const crankGroup = new THREE.Group();
+        crankGroup.position.set(sign * 1.45 * PX, 0, 0);
+        frontWheelPivot.add(crankGroup);
+
+        const crankArm = createVoxelBox(0.35, 1.8, 0.45, {
+          all: (api) => api.fill(PALETTE.metalLight)
+        });
+        crankArm.position.set(0, sign * 0.7 * PX, 0);
+        crankGroup.add(crankArm);
+
+        const pedalBlock = createVoxelBox(1.5, 0.55, 1.2, {
+          all: (api) => api.fill(PALETTE.tireRubber)
+        });
+        pedalBlock.position.set(sign * 0.65 * PX, sign * 1.45 * PX, 0);
+        crankGroup.add(pedalBlock);
+
+        return { crankGroup, pedalBlock };
+      }
+      const pedalL = createPedal(true);
+      const pedalR = createPedal(false);
+
+      // Tricycle Curved Red Frame Tube, Saddle Seat, Rear Axle & Twin Rear Wheels
+      const frameDownTube = createVoxelBox(1.1, 1.1, 7.6, {
+        all: (api) => api.noise([PALETTE.trikeRed, PALETTE.trikeRedBright], 230)
+      });
+      frameDownTube.position.set(0, 7.2 * PX, 1.2 * PX);
+      frameDownTube.rotation.x = 0.48;
+      trikeGroup.add(frameDownTube);
+
+      const seatPost = createVoxelBox(0.95, 4.5, 0.95, {
+        all: (api) => api.fill(PALETTE.trikeRed)
+      });
+      seatPost.position.set(0, 7.8 * PX, -1.3 * PX);
+      seatPost.rotation.x = -0.18;
+      trikeGroup.add(seatPost);
+
+      const saddleMesh = createVoxelBox(3.8, 1.1, 3.8, {
+        all: (api) => api.fill(PALETTE.suitDark)
+      });
+      saddleMesh.position.set(0, 10.2 * PX, -1.4 * PX);
+      trikeGroup.add(saddleMesh);
+
+      // Rear Step Deck & Axle
+      const rearAxleDeck = createVoxelBox(8.4, 0.9, 1.6, {
+        all: (api) => api.noise([PALETTE.trikeRed, PALETTE.trikeRedDark], 231)
+      });
+      rearAxleDeck.position.set(0, 2.7 * PX, -3.5 * PX);
+      trikeGroup.add(rearAxleDeck);
+
+      const rearStrutL = createVoxelBox(0.75, 4.4, 0.75, {
+        all: (api) => api.fill(PALETTE.trikeRed)
+      });
+      rearStrutL.position.set(1.2 * PX, 4.6 * PX, -2.5 * PX);
+      rearStrutL.rotation.x = -0.45;
+      rearStrutL.rotation.z = -0.25;
+      trikeGroup.add(rearStrutL);
+
+      const rearStrutR = createVoxelBox(0.75, 4.4, 0.75, {
+        all: (api) => api.fill(PALETTE.trikeRed)
+      });
+      rearStrutR.position.set(-1.2 * PX, 4.6 * PX, -2.5 * PX);
+      rearStrutR.rotation.x = -0.45;
+      rearStrutR.rotation.z = 0.25;
+      trikeGroup.add(rearStrutR);
+
+      // Left & Right Rear Spoked Wheels (radius = 2.7 texels -> center at y = 2.7 * PX)
+      const rearWheelL = createSpokedWheel(2.7, 0.95);
+      rearWheelL.position.set(4.55 * PX, 2.7 * PX, -3.5 * PX);
+      trikeGroup.add(rearWheelL);
+
+      const rearWheelR = createSpokedWheel(2.7, 0.95);
+      rearWheelR.position.set(-4.55 * PX, 2.7 * PX, -3.5 * PX);
+      trikeGroup.add(rearWheelR);
+
+
+      let currentAnim = 'idle';
+      let animTime = 0;
+
+      // Smooth pointer tracking for secondary eye & head curiosity motion
+      const pointerNDC = new THREE.Vector2(0, 0);
+      const smoothPointer = new THREE.Vector2(0, 0);
+
+      window.addEventListener('pointermove', (e) => {
+        pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+        pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      });
+
+      // UI Button listeners
+      const animButtons = document.querySelectorAll('.anim-btn');
+      animButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const targetAnim = btn.getAttribute('data-anim');
+          if (targetAnim === currentAnim) return;
+          currentAnim = targetAnim;
+          animTime = 0;
+          animButtons.forEach((b) => b.classList.toggle('active', b === btn));
+        });
+      });
+
+      document.getElementById('reset-cam-btn').addEventListener('click', () => {
+        camera.position.copy(DEFAULT_CAM_POS);
+        controls.target.copy(DEFAULT_TARGET);
+        controls.update();
+      });
+
+      // Helper for smooth damping toward target pose values
+      function damp(current, target, lambda, dt) {
+        return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-lambda * dt));
+      }
+
+      function updateAnimation(dt) {
+        animTime += dt;
+        smoothPointer.x = damp(smoothPointer.x, pointerNDC.x, 6, dt);
+        smoothPointer.y = damp(smoothPointer.y, pointerNDC.y, 6, dt);
+
+        const t = animTime;
+
+        // Baseline pose targets (Billy seated on his vintage tricycle gripping the cream handlebars)
+        let charY = 0;
+        let charZ = 0;
+        let charPitch = 0;
+        let charRoll = 0;
+
+        let torsoPitch = 0.14; // slight eerie forward lean over handlebars
+        let torsoYaw = 0;
+        let torsoRoll = 0;
+
+        let headPitch = -0.08;
+        let headYaw = 0;
+        let headRoll = 0;
+        let jawOpen = 0.04;
+
+        // Arms reaching forward to grip the curved cream handlebars
+        let lShoulderX = -0.82, lShoulderY = -0.18, lShoulderZ = -0.15;
+        let lElbowX = -0.58;
+        let rShoulderX = -0.82, rShoulderY = 0.18, rShoulderZ = 0.15;
+        let rElbowX = -0.58;
+
+        // Legs reaching forward toward the front wheel pedals
+        let lHipX = -0.95, lKneeX = 0.78, lAnkleX = 0.15;
+        let rHipX = -0.82, rKneeX = 0.65, rAnkleX = 0.15;
+
+        // Tricycle steering & wheel spin
+        let steerAngle = 0;
+        let wheelSpinSpeed = 0;
+
+        // Secondary props (bowtie & PLAY ME cassette recorder)
+        let recorderSwingX = -0.04;
+        let recorderSwingZ = 0.0;
+        let bowRoll = 0;
+
+        if (currentAnim === 'idle') {
+          // Eerie puppet breathing, subtle head tilts, occasional ventriloquist jaw twitch, eye tracking
+          const breath = Math.sin(t * 2.1);
+          torsoPitch = 0.14 + breath * 0.025;
+          headPitch = -0.06 + Math.sin(t * 1.4) * 0.045 - smoothPointer.y * 0.12;
+          headYaw = Math.sin(t * 0.85) * 0.12 + smoothPointer.x * 0.22;
+          headRoll = Math.sin(t * 1.1) * 0.065;
+
+          // Occasional creepy ventriloquist mouth clack pulse
+          const clackWave = Math.sin(t * 3.2) * Math.sin(t * 1.7);
+          jawOpen = clackWave > 0.55 ? (clackWave - 0.55) * 0.95 : 0.03;
+
+          // Subtle handlebar micro-turn & cassette pendulum sway
+          steerAngle = Math.sin(t * 0.9) * 0.06;
+          lShoulderX = -0.82 - steerAngle * 0.25 + breath * 0.02;
+          rShoulderX = -0.82 + steerAngle * 0.25 + breath * 0.02;
+          recorderSwingZ = Math.sin(t * 1.8) * 0.035 - headRoll * 0.3;
+          bowRoll = Math.sin(t * 2.1) * 0.025;
+
+        } else if (currentAnim === 'walk') {
+          // Iconic Saw tricycle roll & pedaling cycle!
+          const cycle = t * 4.6;
+          wheelSpinSpeed = 4.6;
+
+          // Tricycle steering weave & chassis squeak-bob
+          steerAngle = Math.sin(cycle * 0.5) * 0.16;
+          charY = Math.abs(Math.sin(cycle)) * 0.18 * PX;
+          charRoll = Math.sin(cycle * 0.5) * 0.035;
+          charZ = Math.sin(cycle * 0.5) * 0.45 * PX;
+
+          torsoPitch = 0.18 + Math.sin(cycle * 2) * 0.035;
+          torsoYaw = -steerAngle * 0.35;
+          torsoRoll = Math.sin(cycle) * 0.04;
+
+          // Eerie bobbing puppet head & rhythmic jaw clacking as he pedals forward
+          headPitch = -0.1 + Math.sin(cycle * 2 - 0.5) * 0.06;
+          headYaw = steerAngle * 0.55 + smoothPointer.x * 0.12;
+          headRoll = Math.cos(cycle) * 0.08;
+          jawOpen = 0.08 + Math.max(0, Math.sin(cycle * 2)) * 0.28;
+
+          // Arms steering the curved handlebars left and right
+          lShoulderX = -0.84 - steerAngle * 0.38;
+          rShoulderX = -0.84 + steerAngle * 0.38;
+          lElbowX = -0.58 + steerAngle * 0.2;
+          rElbowX = -0.58 - steerAngle * 0.2;
+
+          // Alternating pedaling legs synced with the front wheel cranks
+          const pL = Math.sin(cycle);
+          const pR = Math.sin(cycle + Math.PI);
+          lHipX = -0.92 + pL * 0.28;
+          lKneeX = 0.78 - pL * 0.32 + Math.cos(cycle) * 0.12;
+          lAnkleX = 0.15 + pL * 0.2;
+
+          rHipX = -0.92 + pR * 0.28;
+          rKneeX = 0.78 - pR * 0.32 + Math.cos(cycle + Math.PI) * 0.12;
+          rAnkleX = 0.15 + pR * 0.2;
+
+          // Cassette recorder swinging on chest from pedaling momentum
+          recorderSwingX = -0.12 - Math.abs(Math.sin(cycle)) * 0.1;
+          recorderSwingZ = Math.cos(cycle) * 0.09;
+
+        } else if (currentAnim === 'attack') {
+          // Aggressive Tricycle Wheelie Lunge & Rapid Ventriloquist Cackle!
+          const period = 2.0;
+          const phase = (t % period) / period; // 0..1
+
+          if (phase < 0.3) {
+            // Wind-up: pull back into a menacing wheelie
+            const u = phase / 0.3;
+            const ease = u * u * (3 - 2 * u);
+            charPitch = -0.24 * ease;
+            charZ = -1.6 * PX * ease;
+            torsoPitch = 0.14 - 0.22 * ease;
+            headPitch = 0.15 * ease;
+            headRoll = -0.14 * ease;
+            jawOpen = 0.05;
+            lShoulderX = -0.82 + 0.25 * ease;
+            rShoulderX = -0.82 + 0.25 * ease;
+            wheelSpinSpeed = -2.5 * ease;
+          } else if (phase < 0.58) {
+            // Sudden violent lunge forward + right arm menacing slash/point + wide jaw snap
+            const u = (phase - 0.3) / 0.28;
+            const ease = 1 - Math.pow(1 - u, 3);
+            charPitch = THREE.MathUtils.lerp(-0.24, 0.12, ease);
+            charZ = THREE.MathUtils.lerp(-1.6 * PX, 2.6 * PX, ease);
+            torsoPitch = THREE.MathUtils.lerp(-0.08, 0.38, ease);
+            torsoYaw = -0.22 * ease;
+            headPitch = -0.22 * ease;
+            headYaw = 0.22 * ease;
+            headRoll = 0.18 * ease;
+            jawOpen = 0.62 * Math.sin(u * Math.PI * 3) + 0.35;
+
+            // Right hand lunges forward toward the viewer
+            rShoulderX = THREE.MathUtils.lerp(-0.6, -1.65, ease);
+            rShoulderY = 0.12;
+            rElbowX = THREE.MathUtils.lerp(-0.58, -0.15, ease);
+            wheelSpinSpeed = 9.0;
+            recorderSwingX = -0.38 * ease;
+          } else {
+            // Settle back with eerie cackling jaw clacks
+            const u = (phase - 0.58) / 0.42;
+            const ease = u * u * (3 - 2 * u);
+            charPitch = THREE.MathUtils.lerp(0.12, 0, ease);
+            charZ = THREE.MathUtils.lerp(2.6 * PX, 0, ease);
+            torsoPitch = THREE.MathUtils.lerp(0.38, 0.14, ease);
+            torsoYaw = THREE.MathUtils.lerp(-0.22, 0, ease);
+            headPitch = THREE.MathUtils.lerp(-0.22, -0.08, ease);
+            headYaw = THREE.MathUtils.lerp(0.22, 0, ease);
+            headRoll = THREE.MathUtils.lerp(0.18, 0, ease) + Math.sin(t * 18) * 0.04 * (1 - ease);
+            jawOpen = Math.abs(Math.sin(t * 20)) * 0.52 * (1 - ease * 0.7);
+
+            rShoulderX = THREE.MathUtils.lerp(-1.65, -0.82, ease);
+            rElbowX = THREE.MathUtils.lerp(-0.15, -0.58, ease);
+            wheelSpinSpeed = 2.0 * (1 - ease);
+            recorderSwingX = THREE.MathUtils.lerp(-0.38, -0.04, ease);
+          }
+
+        } else if (currentAnim === 'special') {
+          // "I Want to Play a Game": Billy lifts his "PLAY ME" tape recorder with his left hand,
+          // points at the viewer with his right hand, tilts his head at an eerie angle, and speaks/laughs!
+          const period = 3.8;
+          const p = (t % period) / period;
+          const activeWindow = p < 0.15 ? (p / 0.15) : (p > 0.85 ? (1 - p) / 0.15 : 1.0);
+          const w = activeWindow * activeWindow * (3 - 2 * activeWindow);
+
+          torsoPitch = 0.14 - 0.08 * w + Math.sin(t * 6) * 0.025 * w;
+          torsoYaw = Math.sin(t * 2.2) * 0.08 * w;
+
+          // Classic Saw head tilt + speaking ventriloquist jaw articulation
+          headPitch = -0.04 + Math.sin(t * 5.5) * 0.05 * w;
+          headYaw = Math.sin(t * 2.4) * 0.16 * w;
+          headRoll = 0.26 * w * Math.cos(t * 1.6);
+
+          // Rhythmic "Hello... I want to play a game... Ha-ha-ha" jaw syllables
+          const syllable = Math.abs(Math.sin(t * 11.5)) * (0.4 + 0.6 * Math.max(0, Math.sin(t * 3.2)));
+          jawOpen = 0.04 + syllable * 0.58 * w;
+
+          // Left hand reaches up to hold/tap the "PLAY ME" cassette recorder on his chest!
+          lShoulderX = THREE.MathUtils.lerp(-0.82, -1.12, w);
+          lShoulderY = THREE.MathUtils.lerp(-0.18, -0.52, w);
+          lShoulderZ = THREE.MathUtils.lerp(-0.15, 0.22, w);
+          lElbowX = THREE.MathUtils.lerp(-0.58, -1.25, w);
+
+          // Right hand gestures / beckons outward toward the viewer
+          rShoulderX = THREE.MathUtils.lerp(-0.82, -1.35 + Math.sin(t * 5) * 0.12, w);
+          rShoulderY = THREE.MathUtils.lerp(0.18, -0.1, w);
+          rShoulderZ = THREE.MathUtils.lerp(0.15, -0.25, w);
+          rElbowX = THREE.MathUtils.lerp(-0.58, -0.35, w);
+
+          // Recorder tilts forward to show the "PLAY ME" label clearly
+          recorderSwingX = THREE.MathUtils.lerp(-0.04, -0.28, w);
+          recorderSwingZ = Math.sin(t * 6) * 0.04 * w;
+          bowRoll = Math.sin(t * 11.5) * 0.05 * w;
+        }
+
+        // Apply smoothed transforms to the hierarchical rig
+        const s = 14;
+        characterGroup.position.y = damp(characterGroup.position.y, charY, s, dt);
+        characterGroup.position.z = damp(characterGroup.position.z, charZ, s, dt);
+        characterGroup.rotation.x = damp(characterGroup.rotation.x, charPitch, s, dt);
+        characterGroup.rotation.z = damp(characterGroup.rotation.z, charRoll, s, dt);
+
+        torsoPivot.rotation.x = damp(torsoPivot.rotation.x, torsoPitch, s, dt);
+        torsoPivot.rotation.y = damp(torsoPivot.rotation.y, torsoYaw, s, dt);
+        torsoPivot.rotation.z = damp(torsoPivot.rotation.z, torsoRoll, s, dt);
+
+        headPivot.rotation.x = damp(headPivot.rotation.x, headPitch, s, dt);
+        headPivot.rotation.y = damp(headPivot.rotation.y, headYaw, s, dt);
+        headPivot.rotation.z = damp(headPivot.rotation.z, headRoll, s, dt);
+
+        // Ventriloquist lower jaw rotation & subtle vertical drop
+        jawPivot.rotation.x = damp(jawPivot.rotation.x, jawOpen, 22, dt);
+
+        // Secondary motion: glowing red eyes subtly track the pointer + head turns
+        const eyeOffsetX = THREE.MathUtils.clamp(smoothPointer.x * 0.22, -0.22, 0.22) * PX;
+        const eyeOffsetY = THREE.MathUtils.clamp(smoothPointer.y * 0.16, -0.16, 0.16) * PX;
+        leftEye.position.x = 1.95 * PX + eyeOffsetX;
+        leftEye.position.y = eyeOffsetY;
+        rightEye.position.x = -1.95 * PX + eyeOffsetX;
+        rightEye.position.y = eyeOffsetY;
+
+        // Secondary motion: hair follow-through lag
+        hairLeftLower.rotation.z = damp(hairLeftLower.rotation.z, -0.18 - headRoll * 0.45 - Math.abs(jawOpen) * 0.1, 8, dt);
+        hairRightLower.rotation.z = damp(hairRightLower.rotation.z, 0.18 - headRoll * 0.45 + Math.abs(jawOpen) * 0.1, 8, dt);
+
+        // Secondary motion: hanging PLAY ME microcassette recorder & bowtie
+        recorderPivot.rotation.x = damp(recorderPivot.rotation.x, recorderSwingX, 12, dt);
+        recorderPivot.rotation.z = damp(recorderPivot.rotation.z, recorderSwingZ, 12, dt);
+        bowtiePivot.rotation.z = damp(bowtiePivot.rotation.z, bowRoll, 14, dt);
+
+        // Arms
+        leftArm.shoulderPivot.rotation.x = damp(leftArm.shoulderPivot.rotation.x, lShoulderX, s, dt);
+        leftArm.shoulderPivot.rotation.y = damp(leftArm.shoulderPivot.rotation.y, lShoulderY, s, dt);
+        leftArm.shoulderPivot.rotation.z = damp(leftArm.shoulderPivot.rotation.z, lShoulderZ, s, dt);
+        leftArm.elbowPivot.rotation.x = damp(leftArm.elbowPivot.rotation.x, lElbowX, s, dt);
+
+        rightArm.shoulderPivot.rotation.x = damp(rightArm.shoulderPivot.rotation.x, rShoulderX, s, dt);
+        rightArm.shoulderPivot.rotation.y = damp(rightArm.shoulderPivot.rotation.y, rShoulderY, s, dt);
+        rightArm.shoulderPivot.rotation.z = damp(rightArm.shoulderPivot.rotation.z, rShoulderZ, s, dt);
+        rightArm.elbowPivot.rotation.x = damp(rightArm.elbowPivot.rotation.x, rElbowX, s, dt);
+
+        // Legs
+        leftLeg.hipPivot.rotation.x = damp(leftLeg.hipPivot.rotation.x, lHipX, s, dt);
+        leftLeg.kneePivot.rotation.x = damp(leftLeg.kneePivot.rotation.x, lKneeX, s, dt);
+        leftLeg.anklePivot.rotation.x = damp(leftLeg.anklePivot.rotation.x, lAnkleX, s, dt);
+
+        rightLeg.hipPivot.rotation.x = damp(rightLeg.hipPivot.rotation.x, rHipX, s, dt);
+        rightLeg.kneePivot.rotation.x = damp(rightLeg.kneePivot.rotation.x, rKneeX, s, dt);
+        rightLeg.anklePivot.rotation.x = damp(rightLeg.anklePivot.rotation.x, rAnkleX, s, dt);
+
+        // Tricycle steering & spoked wheel rotation
+        steeringPivot.rotation.y = damp(steeringPivot.rotation.y, steerAngle, s, dt);
+        if (Math.abs(wheelSpinSpeed) > 0.001) {
+          frontWheelPivot.rotation.x += wheelSpinSpeed * dt;
+          rearWheelL.rotation.x += wheelSpinSpeed * 1.33 * dt;
+          rearWheelR.rotation.x += wheelSpinSpeed * 1.33 * dt;
+          // Keep pedal blocks horizontal while the crank spins
+          pedalL.pedalBlock.rotation.x = -frontWheelPivot.rotation.x;
+          pedalR.pedalBlock.rotation.x = -frontWheelPivot.rotation.x;
+        }
+      }
+
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Locked 60 FPS delta-time accumulator loop
+      const STEP = 1 / 60;
+      let lastTime = performance.now();
+      let accumulator = 0;
+
+      function animate(now) {
+        requestAnimationFrame(animate);
+
+        const frameDt = Math.min((now - lastTime) / 1000, 0.1);
+        lastTime = now;
+        accumulator += frameDt;
+
+        while (accumulator >= STEP) {
+          updateAnimation(STEP);
+          accumulator -= STEP;
+        }
+
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      window.onload = function () {
+        lastTime = performance.now();
+        requestAnimationFrame(animate);
+      };
+    })();
+  </script>
+</body>
+</html>
