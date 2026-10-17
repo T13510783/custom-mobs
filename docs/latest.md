@@ -11,4 +11,6 @@
 
 **Files:** whole tree moved (git renames), `README.md`, `CLAUDE.md`, `AGENTS.md`, `docs/`, `tools/`, 5 Java comments.
 
+**Merged (23:29):** PR #47 (Dexter, Freddy, Saw) and PR #48 (this layout) squash-merged into `main`.
+
 **Next:** branch `tivek87/homelander-attacks` (unmerged WIP) must rebase onto the new layout; Saw viewers still named `_bad` (redo them).
